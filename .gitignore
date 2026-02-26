@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+*.app.bak.*
 
 # Rust
 core-rs/target/
