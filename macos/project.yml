@@ -1,0 +1,73 @@
+name: VivyShot
+
+options:
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.2"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: QW4U57CXJX
+
+targets:
+  VivyShot:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.2"
+    info:
+      path: Config/Info.plist
+    entitlements:
+      path: Config/VivyShot.entitlements
+    sources:
+      - path: Sources
+    resources:
+      - path: Resources
+    settings:
+      base:
+        PRODUCT_NAME: VivyShot
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_DEBUG_DYLIB: NO
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+        SWIFT_OBJC_BRIDGING_HEADER: Config/VivyShot-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/../ffi"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../core-rs/target/universal-apple-darwin/release/libvivyshot_core.a"
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.vivy.vivyshot.dev
+          PRODUCT_NAME: VivyShotDev
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.vivy.vivyshot
+    preBuildScripts:
+      - name: Build Rust Core
+        shell: /bin/zsh
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ -x "${SRCROOT}/../scripts/build-rust-universal.sh" ]; then
+            "${SRCROOT}/../scripts/build-rust-universal.sh"
+          else
+            echo "Rust build script not found yet. Skipping."
+          fi
+
+  VivyShotTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.2"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: VivyShot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vivy.vivyshot.tests

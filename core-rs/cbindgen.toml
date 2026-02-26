@@ -1,0 +1,42 @@
+language = "C"
+pragma_once = true
+include_guard = "VIVYSHOT_CORE_H"
+
+[parse]
+parse_deps = false
+
+[export]
+include = [
+  "vs_document_handle",
+  "vs_rect_command",
+  "vs_ellipse_command",
+  "vs_line_command",
+  "vs_arrow_command",
+  "vs_text_command",
+  "vs_pixelate_rect_command",
+  "vs_blur_rect_command",
+  "vs_path_style",
+  "vs_point_i32",
+  "vs_dirty_rect",
+  "vs_annotation_info",
+  "vs_core_version",
+  "vs_create_document_from_bgra",
+  "vs_destroy_document",
+  "vs_add_rect",
+  "vs_add_filled_rect",
+  "vs_add_ellipse",
+  "vs_add_filled_ellipse",
+  "vs_add_line",
+  "vs_add_arrow",
+  "vs_add_path",
+  "vs_add_text",
+  "vs_add_pixelate_rect",
+  "vs_add_blur_rect",
+  "vs_undo",
+  "vs_redo",
+  "vs_render_full",
+  "vs_render_dirty",
+  "vs_list_annotations",
+  "vs_move_annotation",
+  "vs_resize_annotation",
+]
