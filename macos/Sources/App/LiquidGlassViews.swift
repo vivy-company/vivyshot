@@ -3,6 +3,8 @@ import SwiftUI
 
 @MainActor
 struct CaptureHintGlassCard: View {
+  let selectedType: CaptureContentType
+
   var body: some View {
     Group {
       if #available(macOS 26.0, *) {
@@ -33,14 +35,21 @@ struct CaptureHintGlassCard: View {
 
   private var panelContent: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text("Drag to select area")
+      Text(primaryHintText)
         .font(.system(size: 12.5, weight: .semibold))
         .foregroundStyle(.white)
 
-      Text("Esc cancel  •  ⌘C copy  •  ⌘S save")
+      Text("Esc cancel  •  1 screenshot  •  2 video  •  ⇧Tab switch")
         .font(.system(size: 11, weight: .medium))
         .foregroundStyle(.white.opacity(0.84))
     }
+  }
+
+  private var primaryHintText: String {
+    if selectedType == .screenshot {
+      return "Drag area, or use ⌘C / ⌘S for full screen"
+    }
+    return "Drag area to start video capture"
   }
 }
 
@@ -77,7 +86,7 @@ struct CaptureTypeSidebar: View {
   }
 
   private var panelContent: some View {
-    VStack(spacing: 8) {
+    VStack(spacing: 4) {
       ForEach(CaptureContentType.allCases) { type in
         captureButton(type)
       }
@@ -108,7 +117,16 @@ struct CaptureTypeSidebar: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .help(type.title)
+    .help(captureTypeHelp(type))
+  }
+
+  private func captureTypeHelp(_ type: CaptureContentType) -> String {
+    switch type {
+    case .screenshot:
+      return "Screenshot (1, ⇧Tab)"
+    case .video:
+      return "Video (2, ⇧Tab)"
+    }
   }
 }
 
@@ -320,11 +338,11 @@ struct CaptureFloatingToolbar: View {
   private func modeHelp(_ mode: CaptureMode) -> String {
     switch mode {
     case .screen:
-      return "Capture full screen"
+      return "Capture full screen (⌃Tab modes)"
     case .window:
-      return "Capture window-sized area"
+      return "Capture selected window (⌃Tab modes)"
     case .selection:
-      return "Capture selected area"
+      return "Capture selected area (⌃Tab modes)"
     }
   }
 }
@@ -365,10 +383,10 @@ struct EditorGlassToolbar: View {
             separator
 
             HStack(spacing: 1) {
-              ForEach(toolOrder) { tool in
+              ForEach(Array(toolOrder.enumerated()), id: \.element.id) { index, tool in
                 toolbarIconButton(
                   symbol: tool.symbolName,
-                  help: tool.title,
+                  help: toolHelp(tool, index: index),
                   isSelected: selectedTool == tool
                 ) {
                   onSelectTool(tool)
@@ -379,10 +397,10 @@ struct EditorGlassToolbar: View {
             separator
 
             HStack(spacing: 1) {
-              toolbarIconButton(symbol: "arrow.uturn.backward", help: "Undo", action: onUndo)
-              toolbarIconButton(symbol: "arrow.uturn.forward", help: "Redo", action: onRedo)
-              toolbarIconButton(symbol: "doc.on.doc", help: "Copy", action: onCopy)
-              toolbarIconButton(symbol: "square.and.arrow.down", help: "Save", action: onSave)
+              toolbarIconButton(symbol: "arrow.uturn.backward", help: "Undo (⌘Z)", action: onUndo)
+              toolbarIconButton(symbol: "arrow.uturn.forward", help: "Redo (⇧⌘Z)", action: onRedo)
+              toolbarIconButton(symbol: "doc.on.doc", help: "Copy (⌘C)", action: onCopy)
+              toolbarIconButton(symbol: "square.and.arrow.down", help: "Save (⌘S)", action: onSave)
             }
 
             if onAddStitchSegment != nil {
@@ -390,14 +408,14 @@ struct EditorGlassToolbar: View {
               HStack(spacing: 1) {
                 toolbarIconButton(
                   symbol: isStitchRecordingActive ? "stop.circle.fill" : "record.circle",
-                  help: isStitchRecordingActive ? "Stop scrolling capture" : "Start scrolling capture"
+                  help: isStitchRecordingActive ? "Stop scrolling capture (⌘N)" : "Start scrolling capture (⌘N)"
                 ) {
                   onAddStitchSegment?()
                 }
                 if onResetStitch != nil {
                   toolbarIconButton(
                     symbol: "arrow.counterclockwise",
-                    help: "Reset stitch",
+                    help: "Reset stitch (⌘R)",
                     isDisabled: isStitchCaptureInProgress || isStitchRecordingActive
                   ) {
                     onResetStitch?()
@@ -422,28 +440,32 @@ struct EditorGlassToolbar: View {
           separator
           fallbackColorPickerButton
           separator
-          ForEach(toolOrder) { tool in
-            fallbackIconButton(symbol: tool.symbolName, help: tool.title, isSelected: selectedTool == tool) {
+          ForEach(Array(toolOrder.enumerated()), id: \.element.id) { index, tool in
+            fallbackIconButton(
+              symbol: tool.symbolName,
+              help: toolHelp(tool, index: index),
+              isSelected: selectedTool == tool
+            ) {
               onSelectTool(tool)
             }
           }
           separator
-          fallbackIconButton(symbol: "arrow.uturn.backward", help: "Undo", action: onUndo)
-          fallbackIconButton(symbol: "arrow.uturn.forward", help: "Redo", action: onRedo)
-          fallbackIconButton(symbol: "doc.on.doc", help: "Copy", action: onCopy)
-          fallbackIconButton(symbol: "square.and.arrow.down", help: "Save", action: onSave)
+          fallbackIconButton(symbol: "arrow.uturn.backward", help: "Undo (⌘Z)", action: onUndo)
+          fallbackIconButton(symbol: "arrow.uturn.forward", help: "Redo (⇧⌘Z)", action: onRedo)
+          fallbackIconButton(symbol: "doc.on.doc", help: "Copy (⌘C)", action: onCopy)
+          fallbackIconButton(symbol: "square.and.arrow.down", help: "Save (⌘S)", action: onSave)
           if onAddStitchSegment != nil {
             separator
             fallbackIconButton(
               symbol: isStitchRecordingActive ? "stop.circle.fill" : "record.circle",
-              help: isStitchRecordingActive ? "Stop scrolling capture" : "Start scrolling capture"
+              help: isStitchRecordingActive ? "Stop scrolling capture (⌘N)" : "Start scrolling capture (⌘N)"
             ) {
               onAddStitchSegment?()
             }
             if onResetStitch != nil {
               fallbackIconButton(
                 symbol: "arrow.counterclockwise",
-                help: "Reset stitch",
+                help: "Reset stitch (⌘R)",
                 isDisabled: isStitchCaptureInProgress || isStitchRecordingActive
               ) {
                 onResetStitch?()
@@ -464,11 +486,11 @@ struct EditorGlassToolbar: View {
   }
 
   private var closeCaptureButton: some View {
-    toolbarIconButton(symbol: "xmark.circle.fill", help: "Exit capture", action: onCloseCapture)
+    toolbarIconButton(symbol: "xmark.circle.fill", help: "Exit capture (Esc)", action: onCloseCapture)
   }
 
   private var fallbackCloseCaptureButton: some View {
-    fallbackIconButton(symbol: "xmark.circle.fill", help: "Exit capture", action: onCloseCapture)
+    fallbackIconButton(symbol: "xmark.circle.fill", help: "Exit capture (Esc)", action: onCloseCapture)
   }
 
   private var captureModeButtons: some View {
@@ -619,12 +641,20 @@ struct EditorGlassToolbar: View {
   private func captureModeHelp(_ mode: CaptureMode) -> String {
     switch mode {
     case .screen:
-      return "Full screen"
+      return "Full screen (⌃Tab modes)"
     case .window:
-      return "Selected window"
+      return "Selected window (⌃Tab modes)"
     case .selection:
-      return "Selected area"
+      return "Selected area (⌃Tab modes)"
     }
+  }
+
+  private func toolHelp(_ tool: AnnotationTool, index: Int) -> String {
+    let slot = index + 1
+    guard slot <= 9 else {
+      return tool.title
+    }
+    return "\(tool.title) (⌘\(slot))"
   }
 }
 
@@ -638,6 +668,7 @@ struct VideoEditorGlassToolbar: View {
   let showWebcam: Bool
   let highlightMouseClicks: Bool
   let highlightKeystrokes: Bool
+  let toolOrder: [VideoToolbarTool]
   let isRecordingActive: Bool
   let isRecordingPending: Bool
   let countdown: VideoCountdownOption
@@ -651,6 +682,10 @@ struct VideoEditorGlassToolbar: View {
   let onToolbarDrag: ((CGSize) -> Void)?
   let onToolbarDragEnd: (() -> Void)?
 
+  private var hasConfigurableTools: Bool {
+    !toolOrder.isEmpty
+  }
+
   var body: some View {
     Group {
       if #available(macOS 26.0, *) {
@@ -659,49 +694,13 @@ struct VideoEditorGlassToolbar: View {
             closeCaptureButton
             separator
             captureModeButtons
+            if hasConfigurableTools {
+              separator
+              ForEach(toolOrder) { tool in
+                videoToolButton(tool, fallback: false)
+              }
+            }
             separator
-            toolbarIconButton(
-              symbol: recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill",
-              help: "System Audio",
-              isSelected: recordSystemAudio,
-              isDisabled: isRecordingActive || isRecordingPending,
-              action: onToggleSystemAudio
-            )
-            toolbarIconButton(
-              symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
-              help: "Microphone",
-              isSelected: recordMicrophone,
-              isDisabled: isRecordingActive || isRecordingPending,
-              action: onToggleMicrophone
-            )
-            toolbarIconButton(
-              symbol: showWebcam ? "video.fill" : "video.slash.fill",
-              help: "Webcam Overlay",
-              isSelected: showWebcam,
-              isDisabled: isRecordingActive || isRecordingPending,
-              action: onToggleWebcam
-            )
-            toolbarIconButton(
-              symbol: highlightMouseClicks ? "cursorarrow.rays" : "cursorarrow",
-              help: "Mouse Click Highlights",
-              isSelected: highlightMouseClicks,
-              isDisabled: isRecordingActive || isRecordingPending,
-              action: onToggleMouseClicks
-            )
-            toolbarIconButton(
-              symbol: highlightKeystrokes ? "keyboard" : "keyboard.fill",
-              help: "Keystroke Highlights",
-              isSelected: highlightKeystrokes,
-              isDisabled: isRecordingActive || isRecordingPending,
-              action: onToggleKeystrokes
-            )
-
-            Rectangle()
-              .fill(Color.white.opacity(0.18))
-              .frame(width: 1, height: 22)
-
-            countdownMenuButton(selectedFillOpacity: 0.18, selectedStrokeOpacity: 0.34)
-
             recordButton
           }
           .padding(.horizontal, 10)
@@ -713,49 +712,13 @@ struct VideoEditorGlassToolbar: View {
           fallbackCloseCaptureButton
           separator
           fallbackCaptureModeButtons
+          if hasConfigurableTools {
+            separator
+            ForEach(toolOrder) { tool in
+              videoToolButton(tool, fallback: true)
+            }
+          }
           separator
-          fallbackIconButton(
-            symbol: recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill",
-            help: "System Audio",
-            isSelected: recordSystemAudio,
-            isDisabled: isRecordingActive || isRecordingPending,
-            action: onToggleSystemAudio
-          )
-          fallbackIconButton(
-            symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
-            help: "Microphone",
-            isSelected: recordMicrophone,
-            isDisabled: isRecordingActive || isRecordingPending,
-            action: onToggleMicrophone
-          )
-          fallbackIconButton(
-            symbol: showWebcam ? "video.fill" : "video.slash.fill",
-            help: "Webcam Overlay",
-            isSelected: showWebcam,
-            isDisabled: isRecordingActive || isRecordingPending,
-            action: onToggleWebcam
-          )
-          fallbackIconButton(
-            symbol: highlightMouseClicks ? "cursorarrow.rays" : "cursorarrow",
-            help: "Mouse Click Highlights",
-            isSelected: highlightMouseClicks,
-            isDisabled: isRecordingActive || isRecordingPending,
-            action: onToggleMouseClicks
-          )
-          fallbackIconButton(
-            symbol: highlightKeystrokes ? "keyboard" : "keyboard.fill",
-            help: "Keystroke Highlights",
-            isSelected: highlightKeystrokes,
-            isDisabled: isRecordingActive || isRecordingPending,
-            action: onToggleKeystrokes
-          )
-
-          Rectangle()
-            .fill(Color.white.opacity(0.18))
-            .frame(width: 1, height: 22)
-
-          countdownMenuButton(selectedFillOpacity: 0.2, selectedStrokeOpacity: 0)
-
           recordButton
         }
         .padding(.horizontal, 10)
@@ -771,7 +734,7 @@ struct VideoEditorGlassToolbar: View {
   private var closeCaptureButton: some View {
     toolbarIconButton(
       symbol: "xmark.circle.fill",
-      help: "Exit capture",
+      help: "Exit capture (Esc)",
       isSelected: false,
       isDisabled: isRecordingPending,
       action: onCloseCapture
@@ -781,7 +744,7 @@ struct VideoEditorGlassToolbar: View {
   private var fallbackCloseCaptureButton: some View {
     fallbackIconButton(
       symbol: "xmark.circle.fill",
-      help: "Exit capture",
+      help: "Exit capture (Esc)",
       isSelected: false,
       isDisabled: isRecordingPending,
       action: onCloseCapture
@@ -828,17 +791,15 @@ struct VideoEditorGlassToolbar: View {
         .stroke(Color.white.opacity(0.24), lineWidth: 1)
     )
     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 1)
-    .help(isRecordingActive ? "Stop recording" : "Start video recording")
+    .help(isRecordingActive ? "Stop recording (⌥⌘R)" : "Start video recording (⌥⌘R)")
     .padding(.leading, 4)
     .disabled(isRecordingPending)
     .opacity(isRecordingPending ? 0.6 : 1)
   }
 
-  private func countdownMenuButton(
-    selectedFillOpacity: CGFloat,
-    selectedStrokeOpacity: CGFloat
-  ) -> some View {
-    Menu {
+  private var countdownMenuButton: some View {
+    let isCountdownEnabled = countdown != .off
+    return Menu {
       ForEach(VideoCountdownOption.allCases) { option in
         Button {
           onSelectCountdown(option)
@@ -854,10 +815,13 @@ struct VideoEditorGlassToolbar: View {
       HStack(spacing: 4) {
         Image(systemName: "timer")
           .font(.system(size: 13.5, weight: .semibold))
+          .foregroundStyle(isCountdownEnabled ? Color.accentColor : Color.white.opacity(0.9))
         Text(countdown.title)
           .font(.system(size: 11.5, weight: .semibold))
+          .foregroundStyle(isCountdownEnabled ? Color.accentColor : Color.white.opacity(0.9))
         Image(systemName: "chevron.down")
           .font(.system(size: 9, weight: .bold))
+          .foregroundStyle(Color.white.opacity(0.72))
       }
       .frame(height: 30)
       .padding(.horizontal, 10)
@@ -866,15 +830,110 @@ struct VideoEditorGlassToolbar: View {
     .buttonStyle(.plain)
     .disabled(isRecordingActive || isRecordingPending)
     .opacity((isRecordingActive || isRecordingPending) ? 0.45 : 1)
-    .help("Countdown: \(countdown.title)")
-    .background(
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(countdown == .off ? Color.clear : Color.white.opacity(selectedFillOpacity))
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .stroke(Color.white.opacity(countdown == .off ? 0 : selectedStrokeOpacity), lineWidth: 1)
-    )
+    .help("Countdown: \(countdown.title) (⌥⌘T)")
+  }
+
+  @ViewBuilder
+  private func videoToolButton(_ tool: VideoToolbarTool, fallback: Bool) -> some View {
+    switch tool {
+    case .systemAudio:
+      if fallback {
+        fallbackIconButton(
+          symbol: recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill",
+          help: "System Audio (⌥⌘A)",
+          isSelected: recordSystemAudio,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleSystemAudio
+        )
+      } else {
+        toolbarIconButton(
+          symbol: recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill",
+          help: "System Audio (⌥⌘A)",
+          isSelected: recordSystemAudio,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleSystemAudio
+        )
+      }
+
+    case .microphone:
+      if fallback {
+        fallbackIconButton(
+          symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
+          help: "Microphone (⌥⌘M)",
+          isSelected: recordMicrophone,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleMicrophone
+        )
+      } else {
+        toolbarIconButton(
+          symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
+          help: "Microphone (⌥⌘M)",
+          isSelected: recordMicrophone,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleMicrophone
+        )
+      }
+
+    case .webcam:
+      if fallback {
+        fallbackIconButton(
+          symbol: showWebcam ? "video.fill" : "video.slash.fill",
+          help: "Webcam Overlay (⌥⌘W)",
+          isSelected: showWebcam,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleWebcam
+        )
+      } else {
+        toolbarIconButton(
+          symbol: showWebcam ? "video.fill" : "video.slash.fill",
+          help: "Webcam Overlay (⌥⌘W)",
+          isSelected: showWebcam,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleWebcam
+        )
+      }
+
+    case .mouseClicks:
+      if fallback {
+        fallbackIconButton(
+          symbol: highlightMouseClicks ? "cursorarrow.rays" : "cursorarrow",
+          help: "Mouse Click Highlights (⌥⌘L)",
+          isSelected: highlightMouseClicks,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleMouseClicks
+        )
+      } else {
+        toolbarIconButton(
+          symbol: highlightMouseClicks ? "cursorarrow.rays" : "cursorarrow",
+          help: "Mouse Click Highlights (⌥⌘L)",
+          isSelected: highlightMouseClicks,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleMouseClicks
+        )
+      }
+
+    case .keystrokes:
+      if fallback {
+        fallbackIconButton(
+          symbol: highlightKeystrokes ? "keyboard" : "keyboard.fill",
+          help: "Keystroke Highlights (⌥⌘K)",
+          isSelected: highlightKeystrokes,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleKeystrokes
+        )
+      } else {
+        toolbarIconButton(
+          symbol: highlightKeystrokes ? "keyboard" : "keyboard.fill",
+          help: "Keystroke Highlights (⌥⌘K)",
+          isSelected: highlightKeystrokes,
+          isDisabled: isRecordingActive || isRecordingPending,
+          action: onToggleKeystrokes
+        )
+      }
+
+    case .countdown:
+      countdownMenuButton
+    }
   }
 
   private func toolbarIconButton(
@@ -947,11 +1006,11 @@ struct VideoEditorGlassToolbar: View {
   private func captureModeHelp(_ mode: CaptureMode) -> String {
     switch mode {
     case .screen:
-      return "Full screen"
+      return "Full screen (⌃Tab modes)"
     case .window:
-      return "Selected window"
+      return "Selected window (⌃Tab modes)"
     case .selection:
-      return "Selected area"
+      return "Selected area (⌃Tab modes)"
     }
   }
 }

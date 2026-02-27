@@ -3,7 +3,7 @@ import Carbon
 import Foundation
 
 extension Notification.Name {
-  static let vivyShotSettingsDidChange = Notification.Name("com.vivy.vivyshot.settingsDidChange")
+  static let vivyShotSettingsDidChange = Notification.Name("com.vivyshot.settingsDidChange")
 }
 
 enum CaptureTransitionStyle: Int, CaseIterable, Identifiable {
@@ -50,6 +50,8 @@ final class AppSettings: ObservableObject {
 
   @Published private(set) var toolOrder: [AnnotationTool]
   @Published private(set) var hiddenTools: Set<AnnotationTool>
+  @Published private(set) var videoToolOrder: [VideoToolbarTool]
+  @Published private(set) var hiddenVideoTools: Set<VideoToolbarTool>
 
   @Published private(set) var textFontSize: Double
   @Published private(set) var textFontName: String
@@ -110,6 +112,10 @@ final class AppSettings: ObservableObject {
     return visible.isEmpty ? [.move] : visible
   }
 
+  var visibleVideoTools: [VideoToolbarTool] {
+    videoToolOrder.filter { !hiddenVideoTools.contains($0) }
+  }
+
   private let defaults: UserDefaults
 
   private enum Keys {
@@ -123,6 +129,8 @@ final class AppSettings: ObservableObject {
 
     static let toolOrder = "settings.toolbar.toolOrder"
     static let hiddenTools = "settings.toolbar.hiddenTools"
+    static let videoToolOrder = "settings.video.toolbar.toolOrder"
+    static let videoHiddenTools = "settings.video.toolbar.hiddenTools"
 
     static let textFontSize = "settings.text.fontSize"
     static let textFontName = "settings.text.fontName"
@@ -182,6 +190,12 @@ final class AppSettings: ObservableObject {
     hiddenTools = Self.normalizeHiddenTools(
       rawValues: defaults.array(forKey: Keys.hiddenTools) as? [Int],
       orderedTools: normalizedToolOrder
+    )
+    let normalizedVideoToolOrder = Self.normalizeVideoToolOrder(rawValues: defaults.array(forKey: Keys.videoToolOrder) as? [Int])
+    videoToolOrder = normalizedVideoToolOrder
+    hiddenVideoTools = Self.normalizeHiddenVideoTools(
+      rawValues: defaults.array(forKey: Keys.videoHiddenTools) as? [Int],
+      orderedTools: normalizedVideoToolOrder
     )
 
     let storedTextSize = defaults.object(forKey: Keys.textFontSize) as? Double
@@ -472,6 +486,55 @@ final class AppSettings: ObservableObject {
     videoHighlightKeystrokes = false
     videoHideNotificationsBestEffort = true
     persistVideoCaptureSettings()
+  }
+
+  func isVideoToolVisible(_ tool: VideoToolbarTool) -> Bool {
+    !hiddenVideoTools.contains(tool)
+  }
+
+  func setVideoToolVisible(_ tool: VideoToolbarTool, isVisible: Bool) {
+    var updated = hiddenVideoTools
+    if isVisible {
+      updated.remove(tool)
+    } else {
+      updated.insert(tool)
+    }
+
+    guard updated != hiddenVideoTools else {
+      return
+    }
+
+    hiddenVideoTools = updated
+    persistVideoToolbarConfiguration()
+  }
+
+  func moveVideoTools(from source: IndexSet, to destination: Int) {
+    guard !source.isEmpty else {
+      return
+    }
+
+    var updated = videoToolOrder
+    let moving = source.sorted().map { updated[$0] }
+    for index in source.sorted(by: >) {
+      updated.remove(at: index)
+    }
+
+    let beforeDestinationCount = source.filter { $0 < destination }.count
+    let adjustedDestination = max(0, min(updated.count, destination - beforeDestinationCount))
+    updated.insert(contentsOf: moving, at: adjustedDestination)
+
+    guard updated != videoToolOrder else {
+      return
+    }
+
+    videoToolOrder = updated
+    persistVideoToolbarConfiguration()
+  }
+
+  func resetVideoToolbarConfiguration() {
+    videoToolOrder = VideoToolbarTool.allCases
+    hiddenVideoTools = []
+    persistVideoToolbarConfiguration()
   }
 
   func isToolVisible(_ tool: AnnotationTool) -> Bool {
@@ -823,6 +886,38 @@ final class AppSettings: ObservableObject {
     return valid.intersection(orderedSet)
   }
 
+  private static func normalizeVideoToolOrder(rawValues: [Int]?) -> [VideoToolbarTool] {
+    var seen = Set<VideoToolbarTool>()
+    var ordered: [VideoToolbarTool] = []
+
+    if let rawValues {
+      for raw in rawValues {
+        guard let tool = VideoToolbarTool(rawValue: raw), !seen.contains(tool) else {
+          continue
+        }
+        ordered.append(tool)
+        seen.insert(tool)
+      }
+    }
+
+    for tool in VideoToolbarTool.allCases where !seen.contains(tool) {
+      ordered.append(tool)
+      seen.insert(tool)
+    }
+
+    return ordered
+  }
+
+  private static func normalizeHiddenVideoTools(rawValues: [Int]?, orderedTools: [VideoToolbarTool]) -> Set<VideoToolbarTool> {
+    guard let rawValues else {
+      return []
+    }
+
+    let valid = Set(rawValues.compactMap(VideoToolbarTool.init(rawValue:)))
+    let orderedSet = Set(orderedTools)
+    return valid.intersection(orderedSet)
+  }
+
   private func persistCaptureShortcut() {
     defaults.set(Int(captureKeyCode), forKey: Keys.captureKeyCode)
     defaults.set(captureUseCommand, forKey: Keys.captureUseCommand)
@@ -840,6 +935,12 @@ final class AppSettings: ObservableObject {
   private func persistToolbarConfiguration() {
     defaults.set(toolOrder.map(\.rawValue), forKey: Keys.toolOrder)
     defaults.set(Array(hiddenTools).map(\.rawValue), forKey: Keys.hiddenTools)
+    notifySettingsChanged()
+  }
+
+  private func persistVideoToolbarConfiguration() {
+    defaults.set(videoToolOrder.map(\.rawValue), forKey: Keys.videoToolOrder)
+    defaults.set(Array(hiddenVideoTools).map(\.rawValue), forKey: Keys.videoHiddenTools)
     notifySettingsChanged()
   }
 
@@ -889,6 +990,8 @@ final class AppSettings: ObservableObject {
     defaults.set(defaultCaptureType.rawValue, forKey: Keys.defaultCaptureType)
     defaults.set(toolOrder.map(\.rawValue), forKey: Keys.toolOrder)
     defaults.set(Array(hiddenTools).map(\.rawValue), forKey: Keys.hiddenTools)
+    defaults.set(videoToolOrder.map(\.rawValue), forKey: Keys.videoToolOrder)
+    defaults.set(Array(hiddenVideoTools).map(\.rawValue), forKey: Keys.videoHiddenTools)
     defaults.set(textFontSize, forKey: Keys.textFontSize)
     defaults.set(textFontName, forKey: Keys.textFontName)
     defaults.set(defaultSaveDirectoryPath, forKey: Keys.defaultSaveDirectoryPath)

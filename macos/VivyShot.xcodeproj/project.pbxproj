@@ -1,0 +1,526 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0114FA970311A1DB1BF240A3 /* CaptureMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1D489BCA356CB095B94260 /* CaptureMode.swift */; };
+		096BCE34DFE7F931FD0CEBCB /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7AA7C5F7923A58F518A7391 /* CaptureCoordinator.swift */; };
+		142A871911391E81D9817C7E /* EditorTextStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813EAF6FC0E018DFDE3FB17F /* EditorTextStyle.swift */; };
+		4619D08016382187A7381A38 /* VivyShotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B41D12D461242E09C0229723 /* VivyShotTests.swift */; };
+		470E988399A885E208E1E38F /* TransientToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = D148AF3AEBB1F0F3BCEAB8AF /* TransientToast.swift */; };
+		497055ED15B48F833C854411 /* RustCoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E95580789557A9F46E87BFED /* RustCoreBridge.swift */; };
+		4E7FD685B247D70A47DE99A9 /* RegionSelectionOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9572635246F4748DDD82F3 /* RegionSelectionOverlayController.swift */; };
+		543763A451736706DEAE77E5 /* RegionSelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 284722E4DB47B0C985572EC0 /* RegionSelectionOverlay.swift */; };
+		5450A49D4F8272A9034752BA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A37E381EEEFC6F431138250D /* AppDelegate.swift */; };
+		6482DA8F4E006E89FEC0E9AD /* GlobalHotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F1AA4CFC185D07152E6ACEB /* GlobalHotKeyManager.swift */; };
+		6800BD9CAA469E9F040CE393 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CBFCFCCEE548FD6DD72C2CD /* AppSettings.swift */; };
+		71B5AC1202344E9202E44C87 /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CF04D44D3DE8238D9505281 /* StatusItemController.swift */; };
+		9F3C9C56A6A11D7ECC1E6AA5 /* AnnotationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B7A128022B20D8F38EBCAC /* AnnotationTool.swift */; };
+		AF35CADFF4D07722F3BAEB41 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F5079EEFFB8B0148129030 /* SettingsWindowController.swift */; };
+		B4193BAA01F88737DA067419 /* VideoEditorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */; };
+		C58CC03E11356E4910F00E73 /* AnnotationCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1F5533C4A2DCB93A4F923D3 /* AnnotationCanvasView.swift */; };
+		CCF52A14B990DA2AD82374E7 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1469BCC6DA4E3C25059E3157 /* LiquidGlassViews.swift */; };
+		E5D3D50E1917A9D9F5549D08 /* CaptureShaderTransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08837013088E38A1384FB907 /* CaptureShaderTransitionView.swift */; };
+		EB3E6477E114CD8A24B71BBC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C95B974185169F4506825172 /* main.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AC110FFFAF7B173A05C984FF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6B930F60F68F822EA982EBAB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 32E80109356F554283C3D146;
+			remoteInfo = VivyShot;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		08837013088E38A1384FB907 /* CaptureShaderTransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureShaderTransitionView.swift; sourceTree = "<group>"; };
+		10B7A128022B20D8F38EBCAC /* AnnotationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTool.swift; sourceTree = "<group>"; };
+		1469BCC6DA4E3C25059E3157 /* LiquidGlassViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassViews.swift; sourceTree = "<group>"; };
+		1E9572635246F4748DDD82F3 /* RegionSelectionOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlayController.swift; sourceTree = "<group>"; };
+		284722E4DB47B0C985572EC0 /* RegionSelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlay.swift; sourceTree = "<group>"; };
+		6CF04D44D3DE8238D9505281 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		7CBFCFCCEE548FD6DD72C2CD /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		7F1AA4CFC185D07152E6ACEB /* GlobalHotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKeyManager.swift; sourceTree = "<group>"; };
+		813EAF6FC0E018DFDE3FB17F /* EditorTextStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTextStyle.swift; sourceTree = "<group>"; };
+		8AF6AFA34F28C17CC7B6AFDA /* VivyShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VivyShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		99F5079EEFFB8B0148129030 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		A37E381EEEFC6F431138250D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditorWindowController.swift; sourceTree = "<group>"; };
+		B1F5533C4A2DCB93A4F923D3 /* AnnotationCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvasView.swift; sourceTree = "<group>"; };
+		B41D12D461242E09C0229723 /* VivyShotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VivyShotTests.swift; sourceTree = "<group>"; };
+		C95B974185169F4506825172 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		D148AF3AEBB1F0F3BCEAB8AF /* TransientToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransientToast.swift; sourceTree = "<group>"; };
+		E95580789557A9F46E87BFED /* RustCoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustCoreBridge.swift; sourceTree = "<group>"; };
+		EA17DB09C430A0ED8B3F7FDB /* VivyShotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VivyShotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F7AA7C5F7923A58F518A7391 /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
+		FC1D489BCA356CB095B94260 /* CaptureMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureMode.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0BDB740333D2E24128A5448D /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				B41D12D461242E09C0229723 /* VivyShotTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		684E022B4D9C768278768328 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B1F5533C4A2DCB93A4F923D3 /* AnnotationCanvasView.swift */,
+				10B7A128022B20D8F38EBCAC /* AnnotationTool.swift */,
+				A37E381EEEFC6F431138250D /* AppDelegate.swift */,
+				7CBFCFCCEE548FD6DD72C2CD /* AppSettings.swift */,
+				F7AA7C5F7923A58F518A7391 /* CaptureCoordinator.swift */,
+				FC1D489BCA356CB095B94260 /* CaptureMode.swift */,
+				08837013088E38A1384FB907 /* CaptureShaderTransitionView.swift */,
+				813EAF6FC0E018DFDE3FB17F /* EditorTextStyle.swift */,
+				7F1AA4CFC185D07152E6ACEB /* GlobalHotKeyManager.swift */,
+				1469BCC6DA4E3C25059E3157 /* LiquidGlassViews.swift */,
+				C95B974185169F4506825172 /* main.swift */,
+				284722E4DB47B0C985572EC0 /* RegionSelectionOverlay.swift */,
+				1E9572635246F4748DDD82F3 /* RegionSelectionOverlayController.swift */,
+				E95580789557A9F46E87BFED /* RustCoreBridge.swift */,
+				99F5079EEFFB8B0148129030 /* SettingsWindowController.swift */,
+				6CF04D44D3DE8238D9505281 /* StatusItemController.swift */,
+				D148AF3AEBB1F0F3BCEAB8AF /* TransientToast.swift */,
+				B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		7A5D82ED2F4E224575DF5A1A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8AF6AFA34F28C17CC7B6AFDA /* VivyShot.app */,
+				EA17DB09C430A0ED8B3F7FDB /* VivyShotTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8B422C4740AC8426F45C3B6C /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				684E022B4D9C768278768328 /* App */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		EB928638FD2FE5672BD6FB81 = {
+			isa = PBXGroup;
+			children = (
+				8B422C4740AC8426F45C3B6C /* Sources */,
+				0BDB740333D2E24128A5448D /* Tests */,
+				7A5D82ED2F4E224575DF5A1A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		32E80109356F554283C3D146 /* VivyShot */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7BB4DFF11C08A9F4C169CC6 /* Build configuration list for PBXNativeTarget "VivyShot" */;
+			buildPhases = (
+				25C4F8EABC70198D45B41F58 /* Build Rust Core */,
+				15F19DEEDD5BE0CD066D150B /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VivyShot;
+			packageProductDependencies = (
+			);
+			productName = VivyShot;
+			productReference = 8AF6AFA34F28C17CC7B6AFDA /* VivyShot.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E7025B48E218D8F68C3D47D7 /* VivyShotTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5ED20F0FE49FA24678DB2CE4 /* Build configuration list for PBXNativeTarget "VivyShotTests" */;
+			buildPhases = (
+				F8800440F04F79B323ADB802 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2DC7AE2C8D4627F0C21DEE52 /* PBXTargetDependency */,
+			);
+			name = VivyShotTests;
+			packageProductDependencies = (
+			);
+			productName = VivyShotTests;
+			productReference = EA17DB09C430A0ED8B3F7FDB /* VivyShotTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6B930F60F68F822EA982EBAB /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					32E80109356F554283C3D146 = {
+						DevelopmentTeam = QW4U57CXJX;
+						ProvisioningStyle = Automatic;
+					};
+					E7025B48E218D8F68C3D47D7 = {
+						DevelopmentTeam = QW4U57CXJX;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 93F438745AEB9E2FB039147D /* Build configuration list for PBXProject "VivyShot" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = EB928638FD2FE5672BD6FB81;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				32E80109356F554283C3D146 /* VivyShot */,
+				E7025B48E218D8F68C3D47D7 /* VivyShotTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		25C4F8EABC70198D45B41F58 /* Build Rust Core */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Core";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "if [ -x \"${SRCROOT}/../scripts/build-rust-universal.sh\" ]; then\n  \"${SRCROOT}/../scripts/build-rust-universal.sh\"\nelse\n  echo \"Rust build script not found yet. Skipping.\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		15F19DEEDD5BE0CD066D150B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C58CC03E11356E4910F00E73 /* AnnotationCanvasView.swift in Sources */,
+				9F3C9C56A6A11D7ECC1E6AA5 /* AnnotationTool.swift in Sources */,
+				5450A49D4F8272A9034752BA /* AppDelegate.swift in Sources */,
+				6800BD9CAA469E9F040CE393 /* AppSettings.swift in Sources */,
+				096BCE34DFE7F931FD0CEBCB /* CaptureCoordinator.swift in Sources */,
+				0114FA970311A1DB1BF240A3 /* CaptureMode.swift in Sources */,
+				E5D3D50E1917A9D9F5549D08 /* CaptureShaderTransitionView.swift in Sources */,
+				142A871911391E81D9817C7E /* EditorTextStyle.swift in Sources */,
+				6482DA8F4E006E89FEC0E9AD /* GlobalHotKeyManager.swift in Sources */,
+				CCF52A14B990DA2AD82374E7 /* LiquidGlassViews.swift in Sources */,
+				543763A451736706DEAE77E5 /* RegionSelectionOverlay.swift in Sources */,
+				4E7FD685B247D70A47DE99A9 /* RegionSelectionOverlayController.swift in Sources */,
+				497055ED15B48F833C854411 /* RustCoreBridge.swift in Sources */,
+				AF35CADFF4D07722F3BAEB41 /* SettingsWindowController.swift in Sources */,
+				71B5AC1202344E9202E44C87 /* StatusItemController.swift in Sources */,
+				470E988399A885E208E1E38F /* TransientToast.swift in Sources */,
+				B4193BAA01F88737DA067419 /* VideoEditorWindowController.swift in Sources */,
+				EB3E6477E114CD8A24B71BBC /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F8800440F04F79B323ADB802 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4619D08016382187A7381A38 /* VivyShotTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2DC7AE2C8D4627F0C21DEE52 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 32E80109356F554283C3D146 /* VivyShot */;
+			targetProxy = AC110FFFAF7B173A05C984FF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1A29B54E95C48214A91C17A0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/VivyShot.entitlements;
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_DEBUG_DYLIB = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../ffi",
+				);
+				INFOPLIST_FILE = Config/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(SRCROOT)/../core-rs/target/universal-apple-darwin/release/libvivyshot_core.a",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot;
+				PRODUCT_NAME = VivyShot;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "Config/VivyShot-Bridging-Header.h";
+			};
+			name = Release;
+		};
+		AFEB0ADE36D9E96E60DDA68B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = QW4U57CXJX;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		B58A885A7CF7DB7D0E33EFB8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = QW4U57CXJX;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		B70BE023B56DF8EDB27D2BCB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VivyShotDev.app/Contents/MacOS/VivyShotDev";
+			};
+			name = Debug;
+		};
+		E18503C4C2642B3C5347D2D0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/VivyShot.entitlements;
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_DEBUG_DYLIB = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../ffi",
+				);
+				INFOPLIST_FILE = Config/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(SRCROOT)/../core-rs/target/universal-apple-darwin/release/libvivyshot_core.a",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.dev;
+				PRODUCT_NAME = VivyShotDev;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "Config/VivyShot-Bridging-Header.h";
+			};
+			name = Debug;
+		};
+		E5F9CF79E7E45D7C092414BE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VivyShot.app/Contents/MacOS/VivyShot";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5ED20F0FE49FA24678DB2CE4 /* Build configuration list for PBXNativeTarget "VivyShotTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B70BE023B56DF8EDB27D2BCB /* Debug */,
+				E5F9CF79E7E45D7C092414BE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		93F438745AEB9E2FB039147D /* Build configuration list for PBXProject "VivyShot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B58A885A7CF7DB7D0E33EFB8 /* Debug */,
+				AFEB0ADE36D9E96E60DDA68B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A7BB4DFF11C08A9F4C169CC6 /* Build configuration list for PBXNativeTarget "VivyShot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E18503C4C2642B3C5347D2D0 /* Debug */,
+				1A29B54E95C48214A91C17A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6B930F60F68F822EA982EBAB /* Project object */;
+}

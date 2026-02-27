@@ -170,6 +170,48 @@ pub struct vs_video_export_plan {
   pub trim_end_ms: u32,
   pub key_event_count: u32,
   pub click_event_count: u32,
+  pub include_audio: bool,
+  pub include_webcam: bool,
+  pub text_overlay_count: u32,
+  pub needs_custom_compositor: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_video_export_context {
+  pub source_has_audio: bool,
+  pub source_has_webcam_asset: bool,
+  pub audio_track_visible: bool,
+  pub webcam_track_visible: bool,
+  pub text_overlay_count: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_bgra_image_view {
+  pub width: u32,
+  pub height: u32,
+  pub stride: u32,
+  pub ptr: *const u8,
+  pub len: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_bgra_owned_image {
+  pub width: u32,
+  pub height: u32,
+  pub stride: u32,
+  pub ptr: *mut u8,
+  pub len: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_stitch_delta {
+  pub rows: u32,
+  pub side: u8,
+  pub score: f32,
 }
 
 #[derive(Clone)]
@@ -213,6 +255,11 @@ struct vs_video_session {
   click_events: Vec<VsVideoClickEvent>,
   trim_start_ms: u32,
   trim_end_ms: u32,
+  source_has_audio: bool,
+  source_has_webcam_asset: bool,
+  audio_track_visible: bool,
+  webcam_track_visible: bool,
+  text_overlay_count: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -422,6 +469,11 @@ pub extern "C" fn vs_video_session_create(config: vs_video_session_config) -> *m
     click_events: Vec::new(),
     trim_start_ms: 0,
     trim_end_ms: 0,
+    source_has_audio: false,
+    source_has_webcam_asset: false,
+    audio_track_visible: true,
+    webcam_track_visible: true,
+    text_overlay_count: 0,
   };
 
   Box::into_raw(Box::new(session)).cast()
@@ -506,6 +558,25 @@ pub unsafe extern "C" fn vs_video_session_set_trim(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn vs_video_session_set_export_context(
+  session: *mut c_void,
+  context: vs_video_export_context,
+) -> i32 {
+  if session.is_null() {
+    return -1;
+  }
+
+  // SAFETY: `session` comes from `vs_video_session_create`.
+  let session_ref = unsafe { &mut *session.cast::<vs_video_session>() };
+  session_ref.source_has_audio = context.source_has_audio;
+  session_ref.source_has_webcam_asset = context.source_has_webcam_asset;
+  session_ref.audio_track_visible = context.audio_track_visible;
+  session_ref.webcam_track_visible = context.webcam_track_visible;
+  session_ref.text_overlay_count = context.text_overlay_count;
+  0
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn vs_video_session_get_export_plan(
   session: *mut c_void,
   out_plan: *mut vs_video_export_plan,
@@ -535,6 +606,15 @@ pub unsafe extern "C" fn vs_video_session_get_export_plan(
     .map(|event| event.normalized_x + event.normalized_y + event.button as f32)
     .sum();
 
+  let include_audio = session_ref.source_has_audio && session_ref.audio_track_visible;
+  let include_webcam = session_ref.source_has_webcam_asset && session_ref.webcam_track_visible;
+  let has_text_overlays = session_ref.text_overlay_count > 0;
+  let has_key_overlays = !session_ref.key_events.is_empty();
+  let needs_custom_compositor = include_webcam
+    || has_text_overlays
+    || has_key_overlays
+    || (session_ref.source_has_audio && !include_audio);
+
   // SAFETY: `out_plan` is validated non-null and points to writable memory owned by caller.
   unsafe {
     *out_plan = vs_video_export_plan {
@@ -542,6 +622,10 @@ pub unsafe extern "C" fn vs_video_session_get_export_plan(
       trim_end_ms: session_ref.trim_end_ms,
       key_event_count: key_count,
       click_event_count: click_count,
+      include_audio,
+      include_webcam,
+      text_overlay_count: session_ref.text_overlay_count,
+      needs_custom_compositor,
     };
   }
   0
@@ -557,6 +641,316 @@ pub unsafe extern "C" fn vs_video_session_destroy(session: *mut c_void) {
   unsafe {
     drop(Box::from_raw(session.cast::<vs_video_session>()));
   }
+}
+
+const VS_STITCH_SIDE_TOP: u8 = 0;
+const VS_STITCH_SIDE_BOTTOM: u8 = 1;
+
+unsafe fn bgra_view_slice<'a>(view: vs_bgra_image_view) -> Option<(&'a [u8], usize, usize, usize)> {
+  if view.ptr.is_null() || view.width == 0 || view.height == 0 {
+    return None;
+  }
+
+  let width = view.width as usize;
+  let height = view.height as usize;
+  let stride = view.stride as usize;
+  let row_bytes = width.checked_mul(4)?;
+  if stride < row_bytes {
+    return None;
+  }
+
+  let required_len = stride.checked_mul(height)?;
+  if view.len < required_len {
+    return None;
+  }
+
+  // SAFETY: pointer/len are validated above.
+  let bytes = unsafe { slice::from_raw_parts(view.ptr, required_len) };
+  Some((bytes, width, height, stride))
+}
+
+fn stitch_pixel_diff(a: &[u8], ai: usize, b: &[u8], bi: usize) -> u64 {
+  let db = (a[ai] as i32 - b[bi] as i32).unsigned_abs() as u64;
+  let dg = (a[ai + 1] as i32 - b[bi + 1] as i32).unsigned_abs() as u64;
+  let dr = (a[ai + 2] as i32 - b[bi + 2] as i32).unsigned_abs() as u64;
+  dr + dg + db
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_stitch_estimate_delta_bgra(
+  previous: vs_bgra_image_view,
+  current: vs_bgra_image_view,
+  preferred_side: i32,
+  expected_rows: u32,
+  has_expected_rows: bool,
+  relaxed: bool,
+  out_delta: *mut vs_stitch_delta,
+) -> i32 {
+  if out_delta.is_null() {
+    return -1;
+  }
+
+  let (prev, prev_width, prev_height, prev_stride) = match unsafe { bgra_view_slice(previous) } {
+    Some(v) => v,
+    None => return -2,
+  };
+  let (curr, curr_width, curr_height, curr_stride) = match unsafe { bgra_view_slice(current) } {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  if prev_width != curr_width || prev_height != curr_height {
+    return -2;
+  }
+
+  let width = prev_width;
+  let height = prev_height;
+  if width < 32 || height < 24 {
+    return -3;
+  }
+
+  let preferred = match preferred_side {
+    0 => Some(VS_STITCH_SIDE_TOP),
+    1 => Some(VS_STITCH_SIDE_BOTTOM),
+    _ => None,
+  };
+
+  let min_overlap_rows = 24usize.max((height as f64 * 0.14).round() as usize);
+  let max_shift = 4usize.max((height - 4).min(height.saturating_sub(min_overlap_rows)));
+  if max_shift < 2 {
+    return -3;
+  }
+
+  let x_inset = 8usize.max(width / 16);
+  let y_inset = 10usize.max(height / 8);
+  let sample_min_x = x_inset;
+  let sample_max_x = (sample_min_x + 8).max(width.saturating_sub(x_inset));
+  if sample_max_x <= sample_min_x {
+    return -3;
+  }
+  let sample_span_x = (sample_max_x - sample_min_x).max(8);
+  let step_x = (sample_span_x / 74).max(2);
+
+  let mut best_rows = 0usize;
+  let mut best_side = VS_STITCH_SIDE_BOTTOM;
+  let mut best_score = f64::MAX;
+  let mut second_best_score = f64::MAX;
+  let mut consider = |rows: usize, side: u8, score: f64| {
+    if score < best_score {
+      second_best_score = best_score;
+      best_score = score;
+      best_rows = rows;
+      best_side = side;
+    } else if score < second_best_score {
+      second_best_score = score;
+    }
+  };
+
+  let mut search_start = 2usize;
+  let mut search_end = max_shift;
+  if has_expected_rows {
+    let expected = expected_rows as usize;
+    let band_scale = if relaxed { 1.05 } else { 0.65 };
+    let band = 10usize.max((expected.max(6) as f64 * band_scale).round() as usize);
+    search_start = 2usize.max(expected.saturating_sub(band));
+    search_end = max_shift.min(expected.saturating_add(band));
+    if search_start > search_end {
+      search_start = 2;
+      search_end = max_shift;
+    }
+  }
+
+  for shift in search_start..=search_end {
+    let overlap = height.saturating_sub(shift);
+    if overlap < 10 {
+      continue;
+    }
+
+    let sample_min_y = y_inset;
+    let sample_max_y = (sample_min_y + 8).max(overlap.saturating_sub(y_inset));
+    if sample_max_y <= sample_min_y {
+      continue;
+    }
+
+    let sample_span_y = sample_max_y - sample_min_y;
+    if sample_span_y < 8 {
+      continue;
+    }
+    let step_y = (sample_span_y / 64).max(2);
+
+    let mut diff_bottom: u64 = 0;
+    let mut diff_top: u64 = 0;
+    let mut samples: u64 = 0;
+
+    let mut y = sample_min_y;
+    while y < sample_max_y {
+      let prev_bottom_row = y + shift;
+      let curr_bottom_row = y;
+      let prev_top_row = y;
+      let curr_top_row = y + shift;
+
+      let prev_bottom_base = prev_bottom_row * prev_stride;
+      let curr_bottom_base = curr_bottom_row * curr_stride;
+      let prev_top_base = prev_top_row * prev_stride;
+      let curr_top_base = curr_top_row * curr_stride;
+
+      let mut x = sample_min_x;
+      while x < sample_max_x {
+        let prev_bottom_index = prev_bottom_base + x * 4;
+        let curr_bottom_index = curr_bottom_base + x * 4;
+        diff_bottom += stitch_pixel_diff(prev, prev_bottom_index, curr, curr_bottom_index);
+
+        let prev_top_index = prev_top_base + x * 4;
+        let curr_top_index = curr_top_base + x * 4;
+        diff_top += stitch_pixel_diff(prev, prev_top_index, curr, curr_top_index);
+
+        samples += 1;
+        x += step_x;
+      }
+      y += step_y;
+    }
+
+    if samples == 0 {
+      continue;
+    }
+
+    if preferred.is_none() || preferred == Some(VS_STITCH_SIDE_BOTTOM) {
+      let score = diff_bottom as f64 / samples as f64;
+      consider(shift, VS_STITCH_SIDE_BOTTOM, score);
+    }
+    if preferred.is_none() || preferred == Some(VS_STITCH_SIDE_TOP) {
+      let score = diff_top as f64 / samples as f64;
+      consider(shift, VS_STITCH_SIDE_TOP, score);
+    }
+  }
+
+  if best_rows < 4 {
+    return -3;
+  }
+
+  let score_threshold = if relaxed {
+    if preferred.is_none() { 82.0 } else { 94.0 }
+  } else if preferred.is_none() {
+    56.0
+  } else {
+    62.0
+  };
+
+  if best_score >= score_threshold {
+    return -3;
+  }
+
+  if !relaxed && second_best_score.is_finite() {
+    let separation = (second_best_score - best_score) / second_best_score.max(1.0);
+    let minimum = if preferred.is_none() { 0.08 } else { 0.055 };
+    if separation < minimum {
+      return -3;
+    }
+  }
+
+  unsafe {
+    *out_delta = vs_stitch_delta {
+      rows: best_rows as u32,
+      side: best_side,
+      score: best_score as f32,
+    };
+  }
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_stitch_merge_bgra(
+  base: vs_bgra_image_view,
+  segment: vs_bgra_image_view,
+  side: u8,
+  out_image: *mut vs_bgra_owned_image,
+) -> i32 {
+  if out_image.is_null() {
+    return -1;
+  }
+
+  let (base_bytes, base_width, base_height, base_stride) = match unsafe { bgra_view_slice(base) } {
+    Some(v) => v,
+    None => return -2,
+  };
+  let (segment_bytes, segment_width, segment_height, segment_stride) = match unsafe { bgra_view_slice(segment) } {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  if base_width != segment_width {
+    return -2;
+  }
+  if side != VS_STITCH_SIDE_TOP && side != VS_STITCH_SIDE_BOTTOM {
+    return -2;
+  }
+
+  let width = base_width;
+  let row_bytes = match width.checked_mul(4) {
+    Some(v) => v,
+    None => return -2,
+  };
+  let out_height = match base_height.checked_add(segment_height) {
+    Some(v) => v,
+    None => return -2,
+  };
+  let out_stride = row_bytes;
+  let out_len = match out_stride.checked_mul(out_height) {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  let mut out_pixels = vec![0u8; out_len];
+  let mut copy_rows = |src: &[u8], src_stride: usize, src_height: usize, dst_start_row: usize| {
+    for row in 0..src_height {
+      let src_start = row * src_stride;
+      let dst_start = (dst_start_row + row) * out_stride;
+      out_pixels[dst_start..dst_start + row_bytes].copy_from_slice(&src[src_start..src_start + row_bytes]);
+    }
+  };
+
+  if side == VS_STITCH_SIDE_BOTTOM {
+    copy_rows(base_bytes, base_stride, base_height, 0);
+    copy_rows(segment_bytes, segment_stride, segment_height, base_height);
+  } else {
+    copy_rows(segment_bytes, segment_stride, segment_height, 0);
+    copy_rows(base_bytes, base_stride, base_height, segment_height);
+  }
+
+  let ptr = out_pixels.as_mut_ptr();
+  let len = out_pixels.len();
+  std::mem::forget(out_pixels);
+  unsafe {
+    *out_image = vs_bgra_owned_image {
+      width: width as u32,
+      height: out_height as u32,
+      stride: out_stride as u32,
+      ptr,
+      len,
+    };
+  }
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_bgra_owned_image_destroy(image: *mut vs_bgra_owned_image) {
+  if image.is_null() {
+    return;
+  }
+
+  let image = unsafe { &mut *image };
+  if !image.ptr.is_null() && image.len > 0 {
+    // SAFETY: pointer/len came from Vec allocation in `vs_stitch_merge_bgra`.
+    unsafe {
+      drop(Vec::from_raw_parts(image.ptr, image.len, image.len));
+    }
+  }
+
+  image.width = 0;
+  image.height = 0;
+  image.stride = 0;
+  image.ptr = std::ptr::null_mut();
+  image.len = 0;
 }
 
 #[no_mangle]
@@ -2756,6 +3150,1127 @@ fn blend_pixel_bgra(pixel: &mut [u8], b: u8, g: u8, r: u8, a: u8) {
   pixel[3] = 255;
 }
 
+// ---------------------------------------------------------------------------
+// Timeline editor core model
+// ---------------------------------------------------------------------------
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_clip_transform {
+  pub x: f32,
+  pub y: f32,
+  pub width: f32,
+  pub height: f32,
+  pub rotation: f32,
+  pub opacity: f32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_timeline_track_info {
+  pub kind: u8,
+  pub visible: bool,
+  pub clip_count: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_timeline_clip_info {
+  pub id: u32,
+  pub track_index: u32,
+  pub start_ms: u32,
+  pub end_ms: u32,
+  pub kind: u8,
+  pub transform: vs_clip_transform,
+}
+
+#[derive(Clone, Copy)]
+struct ClipTransform {
+  x: f32,
+  y: f32,
+  width: f32,
+  height: f32,
+  rotation: f32,
+  opacity: f32,
+}
+
+impl ClipTransform {
+  fn default_full() -> Self {
+    ClipTransform {
+      x: 0.0,
+      y: 0.0,
+      width: 1.0,
+      height: 1.0,
+      rotation: 0.0,
+      opacity: 1.0,
+    }
+  }
+
+  fn to_ffi(&self) -> vs_clip_transform {
+    vs_clip_transform {
+      x: self.x,
+      y: self.y,
+      width: self.width,
+      height: self.height,
+      rotation: self.rotation,
+      opacity: self.opacity,
+    }
+  }
+
+  fn from_ffi(t: &vs_clip_transform) -> Self {
+    ClipTransform {
+      x: t.x,
+      y: t.y,
+      width: t.width,
+      height: t.height,
+      rotation: t.rotation,
+      opacity: t.opacity,
+    }
+  }
+}
+
+#[derive(Clone)]
+enum ClipData {
+  Video,
+  Webcam,
+  Audio,
+  Text { text: String, font_size: f32, color: u32, bg_color: u32 },
+  Shape { fill: u32, border: u32, border_width: f32, corner_radius: f32 },
+  Cursor,
+  Zoom { scale: f32 },
+}
+
+#[derive(Clone)]
+struct TimelineClip {
+  id: u32,
+  start_ms: u32,
+  end_ms: u32,
+  transform: ClipTransform,
+  data: ClipData,
+}
+
+#[derive(Clone)]
+struct TimelineTrack {
+  kind: u8,
+  visible: bool,
+  clips: Vec<TimelineClip>,
+}
+
+#[derive(Clone)]
+enum TimelineAction {
+  AddClip { track_index: usize, clip: TimelineClip },
+  RemoveClip { track_index: usize, clip: TimelineClip },
+  MoveClip { track_index: usize, clip_id: u32, old_start: u32, new_start: u32 },
+  ResizeClip { track_index: usize, clip_id: u32, old_start: u32, old_end: u32, new_start: u32, new_end: u32 },
+  UpdateTransform { track_index: usize, clip_id: u32, old_transform: ClipTransform, new_transform: ClipTransform },
+  SetTrackVisible { track_index: usize, old_visible: bool, new_visible: bool },
+  AddTrack { kind: u8 },
+  RemoveTrack { track_index: usize, track: TimelineTrack },
+  ReorderTrack { from: usize, to: usize },
+  UpdateClipText { track_index: usize, clip_id: u32, old_text: String, new_text: String },
+  UpdateClipTextStyle { track_index: usize, clip_id: u32, old_font_size: f32, old_color: u32, old_bg_color: u32, new_font_size: f32, new_color: u32, new_bg_color: u32 },
+  UpdateClipShapeStyle { track_index: usize, clip_id: u32, old_fill: u32, old_border: u32, old_border_width: f32, old_corner_radius: f32, new_fill: u32, new_border: u32, new_border_width: f32, new_corner_radius: f32 },
+}
+
+struct VsTimeline {
+  video_duration_ms: u32,
+  width: u32,
+  height: u32,
+  tracks: Vec<TimelineTrack>,
+  next_clip_id: u32,
+  history: Vec<TimelineAction>,
+  history_cursor: usize,
+}
+
+impl VsTimeline {
+  fn find_clip_mut(&mut self, track_index: usize, clip_id: u32) -> Option<&mut TimelineClip> {
+    let track = self.tracks.get_mut(track_index)?;
+    track.clips.iter_mut().find(|c| c.id == clip_id)
+  }
+
+  fn find_clip(&self, track_index: usize, clip_id: u32) -> Option<&TimelineClip> {
+    let track = self.tracks.get(track_index)?;
+    track.clips.iter().find(|c| c.id == clip_id)
+  }
+
+  fn push_action(&mut self, action: TimelineAction) {
+    self.history.truncate(self.history_cursor);
+    self.history.push(action);
+    self.history_cursor = self.history.len();
+  }
+
+  fn apply_action(&mut self, action: &TimelineAction) {
+    match action {
+      TimelineAction::AddClip { track_index, clip } => {
+        if let Some(track) = self.tracks.get_mut(*track_index) {
+          track.clips.push(clip.clone());
+        }
+      }
+      TimelineAction::RemoveClip { track_index, clip } => {
+        if let Some(track) = self.tracks.get_mut(*track_index) {
+          track.clips.retain(|c| c.id != clip.id);
+        }
+      }
+      TimelineAction::MoveClip { track_index, clip_id, new_start, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          let duration = clip.end_ms.saturating_sub(clip.start_ms);
+          clip.start_ms = *new_start;
+          clip.end_ms = new_start.saturating_add(duration);
+        }
+      }
+      TimelineAction::ResizeClip { track_index, clip_id, new_start, new_end, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          clip.start_ms = *new_start;
+          clip.end_ms = *new_end;
+        }
+      }
+      TimelineAction::UpdateTransform { track_index, clip_id, new_transform, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          clip.transform = *new_transform;
+        }
+      }
+      TimelineAction::SetTrackVisible { track_index, new_visible, .. } => {
+        if let Some(track) = self.tracks.get_mut(*track_index) {
+          track.visible = *new_visible;
+        }
+      }
+      TimelineAction::AddTrack { kind } => {
+        self.tracks.push(TimelineTrack {
+          kind: *kind,
+          visible: true,
+          clips: Vec::new(),
+        });
+      }
+      TimelineAction::RemoveTrack { track_index, .. } => {
+        if *track_index < self.tracks.len() {
+          self.tracks.remove(*track_index);
+        }
+      }
+      TimelineAction::ReorderTrack { from, to } => {
+        if *from < self.tracks.len() && *to < self.tracks.len() {
+          let track = self.tracks.remove(*from);
+          self.tracks.insert(*to, track);
+        }
+      }
+      TimelineAction::UpdateClipText { track_index, clip_id, new_text, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          if let ClipData::Text { ref mut text, .. } = clip.data {
+            *text = new_text.clone();
+          }
+        }
+      }
+      TimelineAction::UpdateClipTextStyle { track_index, clip_id, new_font_size, new_color, new_bg_color, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          if let ClipData::Text { ref mut font_size, ref mut color, ref mut bg_color, .. } = clip.data {
+            *font_size = *new_font_size;
+            *color = *new_color;
+            *bg_color = *new_bg_color;
+          }
+        }
+      }
+      TimelineAction::UpdateClipShapeStyle { track_index, clip_id, new_fill, new_border, new_border_width, new_corner_radius, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          if let ClipData::Shape { ref mut fill, ref mut border, ref mut border_width, ref mut corner_radius } = clip.data {
+            *fill = *new_fill;
+            *border = *new_border;
+            *border_width = *new_border_width;
+            *corner_radius = *new_corner_radius;
+          }
+        }
+      }
+    }
+  }
+
+  fn reverse_action(&mut self, action: &TimelineAction) {
+    match action {
+      TimelineAction::AddClip { track_index, clip } => {
+        if let Some(track) = self.tracks.get_mut(*track_index) {
+          track.clips.retain(|c| c.id != clip.id);
+        }
+      }
+      TimelineAction::RemoveClip { track_index, clip } => {
+        if let Some(track) = self.tracks.get_mut(*track_index) {
+          track.clips.push(clip.clone());
+        }
+      }
+      TimelineAction::MoveClip { track_index, clip_id, old_start, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          let duration = clip.end_ms.saturating_sub(clip.start_ms);
+          clip.start_ms = *old_start;
+          clip.end_ms = old_start.saturating_add(duration);
+        }
+      }
+      TimelineAction::ResizeClip { track_index, clip_id, old_start, old_end, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          clip.start_ms = *old_start;
+          clip.end_ms = *old_end;
+        }
+      }
+      TimelineAction::UpdateTransform { track_index, clip_id, old_transform, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          clip.transform = *old_transform;
+        }
+      }
+      TimelineAction::SetTrackVisible { track_index, old_visible, .. } => {
+        if let Some(track) = self.tracks.get_mut(*track_index) {
+          track.visible = *old_visible;
+        }
+      }
+      TimelineAction::AddTrack { .. } => {
+        if !self.tracks.is_empty() {
+          self.tracks.pop();
+        }
+      }
+      TimelineAction::RemoveTrack { track_index, track } => {
+        if *track_index <= self.tracks.len() {
+          self.tracks.insert(*track_index, track.clone());
+        }
+      }
+      TimelineAction::ReorderTrack { from, to } => {
+        if *to < self.tracks.len() && *from <= self.tracks.len() {
+          let track = self.tracks.remove(*to);
+          self.tracks.insert(*from, track);
+        }
+      }
+      TimelineAction::UpdateClipText { track_index, clip_id, old_text, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          if let ClipData::Text { ref mut text, .. } = clip.data {
+            *text = old_text.clone();
+          }
+        }
+      }
+      TimelineAction::UpdateClipTextStyle { track_index, clip_id, old_font_size, old_color, old_bg_color, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          if let ClipData::Text { ref mut font_size, ref mut color, ref mut bg_color, .. } = clip.data {
+            *font_size = *old_font_size;
+            *color = *old_color;
+            *bg_color = *old_bg_color;
+          }
+        }
+      }
+      TimelineAction::UpdateClipShapeStyle { track_index, clip_id, old_fill, old_border, old_border_width, old_corner_radius, .. } => {
+        if let Some(clip) = self.find_clip_mut(*track_index, *clip_id) {
+          if let ClipData::Shape { ref mut fill, ref mut border, ref mut border_width, ref mut corner_radius } = clip.data {
+            *fill = *old_fill;
+            *border = *old_border;
+            *border_width = *old_border_width;
+            *corner_radius = *old_corner_radius;
+          }
+        }
+      }
+    }
+  }
+}
+
+fn clip_data_for_kind(kind: u8) -> Option<ClipData> {
+  match kind {
+    0 => Some(ClipData::Video),
+    1 => Some(ClipData::Webcam),
+    2 => Some(ClipData::Audio),
+    3 => Some(ClipData::Text { text: String::new(), font_size: 16.0, color: 0xFFFFFFFF, bg_color: 0x00000000 }),
+    4 => Some(ClipData::Shape { fill: 0xFFFFFFFF, border: 0xFF000000, border_width: 2.0, corner_radius: 0.0 }),
+    5 => Some(ClipData::Cursor),
+    6 => Some(ClipData::Zoom { scale: 2.0 }),
+    _ => None,
+  }
+}
+
+fn track_kind_for_clip(data: &ClipData) -> u8 {
+  match data {
+    ClipData::Video => 0,
+    ClipData::Webcam => 1,
+    ClipData::Audio => 2,
+    ClipData::Text { .. } => 3,
+    ClipData::Shape { .. } => 4,
+    ClipData::Cursor => 5,
+    ClipData::Zoom { .. } => 6,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Timeline FFI: lifecycle
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub extern "C" fn vs_timeline_create(duration_ms: u32, width: u32, height: u32) -> *mut c_void {
+  if width == 0 || height == 0 {
+    return std::ptr::null_mut();
+  }
+
+  let tl = VsTimeline {
+    video_duration_ms: duration_ms,
+    width,
+    height,
+    tracks: Vec::new(),
+    next_clip_id: 1,
+    history: Vec::new(),
+    history_cursor: 0,
+  };
+
+  Box::into_raw(Box::new(tl)).cast()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_destroy(handle: *mut c_void) {
+  if handle.is_null() {
+    return;
+  }
+
+  unsafe {
+    drop(Box::from_raw(handle.cast::<VsTimeline>()));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Timeline FFI: tracks
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_add_track(handle: *mut c_void, kind: u8) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  if kind > 6 {
+    return -2;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let action = TimelineAction::AddTrack { kind };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_remove_track(handle: *mut c_void, track_index: u32) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+  if idx >= tl.tracks.len() {
+    return -2;
+  }
+
+  let track = tl.tracks[idx].clone();
+  let action = TimelineAction::RemoveTrack { track_index: idx, track };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_reorder_track(handle: *mut c_void, from_index: u32, to_index: u32) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let from = from_index as usize;
+  let to = to_index as usize;
+  if from >= tl.tracks.len() || to >= tl.tracks.len() {
+    return -2;
+  }
+
+  if from == to {
+    return 0;
+  }
+
+  let action = TimelineAction::ReorderTrack { from, to };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_set_track_visible(handle: *mut c_void, track_index: u32, visible: bool) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+  if idx >= tl.tracks.len() {
+    return -2;
+  }
+
+  let old_visible = tl.tracks[idx].visible;
+  if old_visible == visible {
+    return 0;
+  }
+
+  let action = TimelineAction::SetTrackVisible { track_index: idx, old_visible, new_visible: visible };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_get_tracks(
+  handle: *mut c_void,
+  out_ptr: *mut vs_timeline_track_info,
+  out_cap: u32,
+  out_written: *mut u32,
+) -> i32 {
+  if handle.is_null() || out_written.is_null() {
+    return -1;
+  }
+
+  if out_cap > 0 && out_ptr.is_null() {
+    return -2;
+  }
+
+  let tl = unsafe { &*handle.cast::<VsTimeline>() };
+  let total = tl.tracks.len().min(u32::MAX as usize) as u32;
+  let write_count = (out_cap as usize).min(total as usize);
+
+  for i in 0..write_count {
+    let track = &tl.tracks[i];
+    unsafe {
+      *out_ptr.add(i) = vs_timeline_track_info {
+        kind: track.kind,
+        visible: track.visible,
+        clip_count: track.clips.len() as u32,
+      };
+    }
+  }
+
+  unsafe {
+    *out_written = total;
+  }
+  0
+}
+
+// ---------------------------------------------------------------------------
+// Timeline FFI: clips
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_add_clip(
+  handle: *mut c_void,
+  track_index: u32,
+  start_ms: u32,
+  end_ms: u32,
+  kind: u8,
+  out_clip_id: *mut u32,
+) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  if end_ms <= start_ms {
+    return -2;
+  }
+
+  let Some(data) = clip_data_for_kind(kind) else {
+    return -2;
+  };
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+  if idx >= tl.tracks.len() {
+    return -2;
+  }
+
+  let clamped_end = if tl.video_duration_ms > 0 {
+    end_ms.min(tl.video_duration_ms)
+  } else {
+    end_ms
+  };
+  let clamped_end = clamped_end.max(start_ms + 1);
+
+  let clip_id = tl.next_clip_id;
+  tl.next_clip_id = tl.next_clip_id.wrapping_add(1);
+
+  let clip = TimelineClip {
+    id: clip_id,
+    start_ms,
+    end_ms: clamped_end,
+    transform: ClipTransform::default_full(),
+    data,
+  };
+
+  let action = TimelineAction::AddClip { track_index: idx, clip };
+  tl.apply_action(&action);
+  tl.push_action(action);
+
+  if !out_clip_id.is_null() {
+    unsafe {
+      *out_clip_id = clip_id;
+    }
+  }
+
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_remove_clip(handle: *mut c_void, track_index: u32, clip_id: u32) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let clip = match tl.find_clip(idx, clip_id) {
+    Some(c) => c.clone(),
+    None => return -2,
+  };
+
+  let action = TimelineAction::RemoveClip { track_index: idx, clip };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_move_clip(handle: *mut c_void, track_index: u32, clip_id: u32, new_start_ms: u32) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let (old_start, duration) = match tl.find_clip(idx, clip_id) {
+    Some(c) => (c.start_ms, c.end_ms.saturating_sub(c.start_ms)),
+    None => return -2,
+  };
+
+  let clamped_start = if tl.video_duration_ms > 0 && duration > 0 {
+    new_start_ms.min(tl.video_duration_ms.saturating_sub(duration))
+  } else {
+    new_start_ms
+  };
+
+  if old_start == clamped_start {
+    return 0;
+  }
+
+  let action = TimelineAction::MoveClip { track_index: idx, clip_id, old_start, new_start: clamped_start };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_resize_clip(
+  handle: *mut c_void,
+  track_index: u32,
+  clip_id: u32,
+  new_start_ms: u32,
+  new_end_ms: u32,
+) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  if new_end_ms <= new_start_ms {
+    return -2;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let clamped_end = if tl.video_duration_ms > 0 {
+    new_end_ms.min(tl.video_duration_ms)
+  } else {
+    new_end_ms
+  };
+  let clamped_end = clamped_end.max(new_start_ms + 1);
+
+  let (old_start, old_end) = match tl.find_clip(idx, clip_id) {
+    Some(c) => (c.start_ms, c.end_ms),
+    None => return -2,
+  };
+
+  if old_start == new_start_ms && old_end == clamped_end {
+    return 0;
+  }
+
+  let action = TimelineAction::ResizeClip {
+    track_index: idx,
+    clip_id,
+    old_start,
+    old_end,
+    new_start: new_start_ms,
+    new_end: clamped_end,
+  };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_update_clip_transform(
+  handle: *mut c_void,
+  track_index: u32,
+  clip_id: u32,
+  transform: vs_clip_transform,
+) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  if !transform.x.is_finite()
+    || !transform.y.is_finite()
+    || !transform.width.is_finite()
+    || !transform.height.is_finite()
+    || !transform.rotation.is_finite()
+    || !transform.opacity.is_finite()
+  {
+    return -2;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let old_transform = match tl.find_clip(idx, clip_id) {
+    Some(c) => c.transform,
+    None => return -2,
+  };
+
+  let new_transform = ClipTransform::from_ffi(&transform);
+
+  let action = TimelineAction::UpdateTransform {
+    track_index: idx,
+    clip_id,
+    old_transform,
+    new_transform,
+  };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+// ---------------------------------------------------------------------------
+// Timeline FFI: clip data
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_set_clip_text(
+  handle: *mut c_void,
+  track_index: u32,
+  clip_id: u32,
+  text_ptr: *const u8,
+  text_len: u32,
+) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  if text_ptr.is_null() || text_len == 0 {
+    return -2;
+  }
+
+  let text_bytes = unsafe { slice::from_raw_parts(text_ptr, text_len as usize) };
+  let new_text = match std::str::from_utf8(text_bytes) {
+    Ok(v) => v.to_string(),
+    Err(_) => return -2,
+  };
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let old_text = match tl.find_clip(idx, clip_id) {
+    Some(c) => {
+      if let ClipData::Text { ref text, .. } = c.data {
+        text.clone()
+      } else {
+        return -2;
+      }
+    }
+    None => return -2,
+  };
+
+  let action = TimelineAction::UpdateClipText {
+    track_index: idx,
+    clip_id,
+    old_text,
+    new_text,
+  };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_set_clip_text_style(
+  handle: *mut c_void,
+  track_index: u32,
+  clip_id: u32,
+  font_size: f32,
+  color: u32,
+  bg_color: u32,
+) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  if !font_size.is_finite() || font_size <= 0.0 {
+    return -2;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let (old_font_size, old_color, old_bg_color) = match tl.find_clip(idx, clip_id) {
+    Some(c) => {
+      if let ClipData::Text { font_size: fs, color: co, bg_color: bg, .. } = &c.data {
+        (*fs, *co, *bg)
+      } else {
+        return -2;
+      }
+    }
+    None => return -2,
+  };
+
+  let action = TimelineAction::UpdateClipTextStyle {
+    track_index: idx,
+    clip_id,
+    old_font_size,
+    old_color,
+    old_bg_color,
+    new_font_size: font_size,
+    new_color: color,
+    new_bg_color: bg_color,
+  };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_set_clip_shape_style(
+  handle: *mut c_void,
+  track_index: u32,
+  clip_id: u32,
+  fill: u32,
+  border: u32,
+  border_width: f32,
+  corner_radius: f32,
+) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  if !border_width.is_finite() || !corner_radius.is_finite() {
+    return -2;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let (old_fill, old_border, old_border_width, old_corner_radius) = match tl.find_clip(idx, clip_id) {
+    Some(c) => {
+      if let ClipData::Shape { fill: f, border: b, border_width: bw, corner_radius: cr } = &c.data {
+        (*f, *b, *bw, *cr)
+      } else {
+        return -2;
+      }
+    }
+    None => return -2,
+  };
+
+  let action = TimelineAction::UpdateClipShapeStyle {
+    track_index: idx,
+    clip_id,
+    old_fill,
+    old_border,
+    old_border_width,
+    old_corner_radius,
+    new_fill: fill,
+    new_border: border,
+    new_border_width: border_width,
+    new_corner_radius: corner_radius,
+  };
+  tl.apply_action(&action);
+  tl.push_action(action);
+  0
+}
+
+// ---------------------------------------------------------------------------
+// Timeline FFI: queries
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_get_clips(
+  handle: *mut c_void,
+  track_index: u32,
+  out_ptr: *mut vs_timeline_clip_info,
+  out_cap: u32,
+  out_written: *mut u32,
+) -> i32 {
+  if handle.is_null() || out_written.is_null() {
+    return -1;
+  }
+
+  if out_cap > 0 && out_ptr.is_null() {
+    return -2;
+  }
+
+  let tl = unsafe { &*handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+  if idx >= tl.tracks.len() {
+    return -2;
+  }
+
+  let track = &tl.tracks[idx];
+  let total = track.clips.len().min(u32::MAX as usize) as u32;
+  let write_count = (out_cap as usize).min(total as usize);
+
+  for i in 0..write_count {
+    let clip = &track.clips[i];
+    unsafe {
+      *out_ptr.add(i) = vs_timeline_clip_info {
+        id: clip.id,
+        track_index,
+        start_ms: clip.start_ms,
+        end_ms: clip.end_ms,
+        kind: track_kind_for_clip(&clip.data),
+        transform: clip.transform.to_ffi(),
+      };
+    }
+  }
+
+  unsafe {
+    *out_written = total;
+  }
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_get_visible_clips_at(
+  handle: *mut c_void,
+  time_ms: u32,
+  out_ptr: *mut vs_timeline_clip_info,
+  out_cap: u32,
+  out_written: *mut u32,
+) -> i32 {
+  if handle.is_null() || out_written.is_null() {
+    return -1;
+  }
+
+  if out_cap > 0 && out_ptr.is_null() {
+    return -2;
+  }
+
+  let tl = unsafe { &*handle.cast::<VsTimeline>() };
+  let mut written: u32 = 0;
+
+  for (track_idx, track) in tl.tracks.iter().enumerate() {
+    if !track.visible {
+      continue;
+    }
+
+    for clip in &track.clips {
+      if time_ms >= clip.start_ms && time_ms < clip.end_ms {
+        if written < out_cap {
+          unsafe {
+            *out_ptr.add(written as usize) = vs_timeline_clip_info {
+              id: clip.id,
+              track_index: track_idx as u32,
+              start_ms: clip.start_ms,
+              end_ms: clip.end_ms,
+              kind: track.kind,
+              transform: clip.transform.to_ffi(),
+            };
+          }
+        }
+        written += 1;
+      }
+    }
+  }
+
+  unsafe {
+    *out_written = written;
+  }
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_get_clip_text(
+  handle: *mut c_void,
+  track_index: u32,
+  clip_id: u32,
+  out_ptr: *mut u8,
+  out_cap: u32,
+  out_written: *mut u32,
+) -> i32 {
+  if handle.is_null() || out_written.is_null() {
+    return -1;
+  }
+
+  if out_cap > 0 && out_ptr.is_null() {
+    return -2;
+  }
+
+  let tl = unsafe { &*handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let clip = match tl.find_clip(idx, clip_id) {
+    Some(c) => c,
+    None => return -2,
+  };
+
+  let text = match &clip.data {
+    ClipData::Text { text, .. } => text,
+    _ => return -2,
+  };
+
+  let bytes = text.as_bytes();
+  let copy_len = bytes.len().min(out_cap as usize);
+
+  if copy_len > 0 {
+    unsafe {
+      std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, copy_len);
+    }
+  }
+
+  unsafe {
+    *out_written = bytes.len() as u32;
+  }
+  0
+}
+
+// ---------------------------------------------------------------------------
+// Timeline FFI: undo/redo
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_undo(handle: *mut c_void) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  if tl.history_cursor == 0 {
+    return 1;
+  }
+
+  tl.history_cursor -= 1;
+  let action = tl.history[tl.history_cursor].clone();
+  tl.reverse_action(&action);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_redo(handle: *mut c_void) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  if tl.history_cursor >= tl.history.len() {
+    return 1;
+  }
+
+  let action = tl.history[tl.history_cursor].clone();
+  tl.apply_action(&action);
+  tl.history_cursor += 1;
+  0
+}
+
+// ---------------------------------------------------------------------------
+// Timeline FFI: info and zoom scale
+// ---------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_get_video_info(
+  handle: *mut c_void,
+  out_duration_ms: *mut u32,
+  out_width: *mut u32,
+  out_height: *mut u32,
+) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &*handle.cast::<VsTimeline>() };
+
+  if !out_duration_ms.is_null() {
+    unsafe { *out_duration_ms = tl.video_duration_ms; }
+  }
+  if !out_width.is_null() {
+    unsafe { *out_width = tl.width; }
+  }
+  if !out_height.is_null() {
+    unsafe { *out_height = tl.height; }
+  }
+
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_set_clip_zoom_scale(
+  handle: *mut c_void,
+  track_index: u32,
+  clip_id: u32,
+  scale: f32,
+) -> i32 {
+  if handle.is_null() {
+    return -1;
+  }
+
+  if !scale.is_finite() || scale <= 0.0 {
+    return -2;
+  }
+
+  let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let clip = match tl.find_clip(idx, clip_id) {
+    Some(c) => c,
+    None => return -2,
+  };
+
+  let old_scale = match &clip.data {
+    ClipData::Zoom { scale } => *scale,
+    _ => return -2,
+  };
+
+  if (old_scale - scale).abs() < f32::EPSILON {
+    return 0;
+  }
+
+  let clip = tl.find_clip_mut(idx, clip_id).unwrap();
+  if let ClipData::Zoom { scale: ref mut s } = clip.data {
+    *s = scale;
+  }
+
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_get_clip_zoom_scale(
+  handle: *mut c_void,
+  track_index: u32,
+  clip_id: u32,
+  out_scale: *mut f32,
+) -> i32 {
+  if handle.is_null() || out_scale.is_null() {
+    return -1;
+  }
+
+  let tl = unsafe { &*handle.cast::<VsTimeline>() };
+  let idx = track_index as usize;
+
+  let clip = match tl.find_clip(idx, clip_id) {
+    Some(c) => c,
+    None => return -2,
+  };
+
+  match &clip.data {
+    ClipData::Zoom { scale } => {
+      unsafe { *out_scale = *scale; }
+      0
+    }
+    _ => -2,
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -2780,6 +4295,47 @@ mod tests {
         base.len(),
       )
     }
+  }
+
+  fn zero_transform() -> vs_clip_transform {
+    vs_clip_transform {
+      x: 0.0,
+      y: 0.0,
+      width: 0.0,
+      height: 0.0,
+      rotation: 0.0,
+      opacity: 0.0,
+    }
+  }
+
+  fn zero_clip_info() -> vs_timeline_clip_info {
+    vs_timeline_clip_info {
+      id: 0,
+      track_index: 0,
+      start_ms: 0,
+      end_ms: 0,
+      kind: 0,
+      transform: zero_transform(),
+    }
+  }
+
+  fn solid_bgra(width: usize, height: usize, b: u8, g: u8, r: u8, a: u8) -> Vec<u8> {
+    let mut pixels = vec![0u8; width * height * 4];
+    for y in 0..height {
+      for x in 0..width {
+        let idx = y * width * 4 + x * 4;
+        pixels[idx] = b;
+        pixels[idx + 1] = g;
+        pixels[idx + 2] = r;
+        pixels[idx + 3] = a;
+      }
+    }
+    pixels
+  }
+
+  fn pixel_bgra(pixels: &[u8], stride: usize, x: usize, y: usize) -> (u8, u8, u8, u8) {
+    let idx = y * stride + x * 4;
+    (pixels[idx], pixels[idx + 1], pixels[idx + 2], pixels[idx + 3])
   }
 
   #[test]
@@ -2947,6 +4503,291 @@ mod tests {
       assert_eq!(out[probe_idx + 1], 0);
 
       vs_destroy_document(doc);
+    }
+  }
+
+  #[test]
+  fn video_session_export_plan_tracks_counts_and_trim() {
+    let config = vs_video_session_config {
+      frame_rate: 60,
+      capture_system_audio: true,
+      capture_microphone: false,
+      show_webcam: true,
+      highlight_mouse_clicks: true,
+      highlight_keystrokes: true,
+    };
+    let session = vs_video_session_create(config);
+    assert!(!session.is_null());
+
+    let key_a = b"CmdK";
+    let key_b = b"Esc";
+
+    // SAFETY: pointers remain valid for call duration and session handle is valid.
+    unsafe {
+      assert_eq!(
+        vs_video_session_add_key_event(
+          session,
+          vs_video_key_event {
+            timestamp_ns: 10,
+            token_ptr: key_a.as_ptr(),
+            token_len: key_a.len(),
+          },
+        ),
+        0
+      );
+      assert_eq!(
+        vs_video_session_add_key_event(
+          session,
+          vs_video_key_event {
+            timestamp_ns: 20,
+            token_ptr: key_b.as_ptr(),
+            token_len: key_b.len(),
+          },
+        ),
+        0
+      );
+      assert_eq!(
+        vs_video_session_add_click_event(
+          session,
+          vs_video_click_event {
+            timestamp_ns: 30,
+            normalized_x: 0.35,
+            normalized_y: 0.82,
+            button: 0,
+          },
+        ),
+        0
+      );
+      assert_eq!(vs_video_session_set_trim(session, 120, 980), 0);
+
+      let mut plan = vs_video_export_plan {
+        trim_start_ms: 0,
+        trim_end_ms: 0,
+        key_event_count: 0,
+        click_event_count: 0,
+        include_audio: false,
+        include_webcam: false,
+        text_overlay_count: 0,
+        needs_custom_compositor: false,
+      };
+      assert_eq!(vs_video_session_get_export_plan(session, &mut plan), 0);
+      assert_eq!(plan.trim_start_ms, 120);
+      assert_eq!(plan.trim_end_ms, 980);
+      assert_eq!(plan.key_event_count, 2);
+      assert_eq!(plan.click_event_count, 1);
+      assert_eq!(
+        vs_video_session_set_export_context(
+          session,
+          vs_video_export_context {
+            source_has_audio: true,
+            source_has_webcam_asset: true,
+            audio_track_visible: false,
+            webcam_track_visible: true,
+            text_overlay_count: 3,
+          },
+        ),
+        0
+      );
+      assert_eq!(vs_video_session_get_export_plan(session, &mut plan), 0);
+      assert!(!plan.include_audio);
+      assert!(plan.include_webcam);
+      assert_eq!(plan.text_overlay_count, 3);
+      assert!(plan.needs_custom_compositor);
+
+      vs_video_session_destroy(session);
+    }
+  }
+
+  #[test]
+  fn stitch_estimate_detects_bottom_delta_for_shifted_frames() {
+    let width = 80usize;
+    let height = 56usize;
+    let shift = 7usize;
+    let stride = width * 4;
+
+    let mut previous = vec![0u8; stride * height];
+    for y in 0..height {
+      for x in 0..width {
+        let idx = y * stride + x * 4;
+        previous[idx] = ((x * 3 + y * 5) % 251) as u8;
+        previous[idx + 1] = ((x * 11 + y * 7) % 251) as u8;
+        previous[idx + 2] = ((x * 13 + y * 17) % 251) as u8;
+        previous[idx + 3] = 255;
+      }
+    }
+
+    let mut current = vec![0u8; stride * height];
+    for y in 0..(height - shift) {
+      let src = (y + shift) * stride;
+      let dst = y * stride;
+      current[dst..dst + stride].copy_from_slice(&previous[src..src + stride]);
+    }
+    for y in (height - shift)..height {
+      for x in 0..width {
+        let idx = y * stride + x * 4;
+        current[idx] = ((x * 19 + y * 23 + 29) % 251) as u8;
+        current[idx + 1] = ((x * 31 + y * 7 + 41) % 251) as u8;
+        current[idx + 2] = ((x * 5 + y * 37 + 53) % 251) as u8;
+        current[idx + 3] = 255;
+      }
+    }
+
+    let prev_view = vs_bgra_image_view {
+      width: width as u32,
+      height: height as u32,
+      stride: stride as u32,
+      ptr: previous.as_ptr(),
+      len: previous.len(),
+    };
+    let curr_view = vs_bgra_image_view {
+      width: width as u32,
+      height: height as u32,
+      stride: stride as u32,
+      ptr: current.as_ptr(),
+      len: current.len(),
+    };
+    let mut delta = vs_stitch_delta::default();
+
+    // SAFETY: views point to valid slices for the full duration of the call.
+    let status = unsafe {
+      vs_stitch_estimate_delta_bgra(
+        prev_view,
+        curr_view,
+        -1,
+        shift as u32,
+        true,
+        false,
+        &mut delta,
+      )
+    };
+    assert_eq!(status, 0);
+    assert_eq!(delta.rows, shift as u32);
+    assert_eq!(delta.side, VS_STITCH_SIDE_BOTTOM);
+  }
+
+  #[test]
+  fn stitch_merge_places_segment_on_requested_side() {
+    let width = 16usize;
+    let base_height = 10usize;
+    let segment_height = 3usize;
+    let stride = width * 4;
+    let base = solid_bgra(width, base_height, 10, 20, 30, 255);
+    let segment = solid_bgra(width, segment_height, 200, 150, 100, 255);
+
+    let base_view = vs_bgra_image_view {
+      width: width as u32,
+      height: base_height as u32,
+      stride: stride as u32,
+      ptr: base.as_ptr(),
+      len: base.len(),
+    };
+    let segment_view = vs_bgra_image_view {
+      width: width as u32,
+      height: segment_height as u32,
+      stride: stride as u32,
+      ptr: segment.as_ptr(),
+      len: segment.len(),
+    };
+
+    let mut merged_bottom = vs_bgra_owned_image {
+      width: 0,
+      height: 0,
+      stride: 0,
+      ptr: std::ptr::null_mut(),
+      len: 0,
+    };
+    let mut merged_top = merged_bottom;
+
+    // SAFETY: views reference valid memory; owned output is destroyed before test returns.
+    unsafe {
+      assert_eq!(
+        vs_stitch_merge_bgra(base_view, segment_view, VS_STITCH_SIDE_BOTTOM, &mut merged_bottom),
+        0
+      );
+      assert_eq!(
+        vs_stitch_merge_bgra(base_view, segment_view, VS_STITCH_SIDE_TOP, &mut merged_top),
+        0
+      );
+
+      let bottom_pixels = std::slice::from_raw_parts(merged_bottom.ptr, merged_bottom.len);
+      assert_eq!(merged_bottom.height as usize, base_height + segment_height);
+      assert_eq!(pixel_bgra(bottom_pixels, merged_bottom.stride as usize, 0, 0), (10, 20, 30, 255));
+      assert_eq!(
+        pixel_bgra(bottom_pixels, merged_bottom.stride as usize, 0, base_height),
+        (200, 150, 100, 255)
+      );
+
+      let top_pixels = std::slice::from_raw_parts(merged_top.ptr, merged_top.len);
+      assert_eq!(merged_top.height as usize, base_height + segment_height);
+      assert_eq!(pixel_bgra(top_pixels, merged_top.stride as usize, 0, 0), (200, 150, 100, 255));
+      assert_eq!(
+        pixel_bgra(top_pixels, merged_top.stride as usize, 0, segment_height),
+        (10, 20, 30, 255)
+      );
+
+      vs_bgra_owned_image_destroy(&mut merged_bottom);
+      vs_bgra_owned_image_destroy(&mut merged_top);
+    }
+  }
+
+  #[test]
+  fn timeline_visible_clips_reports_total_when_output_capacity_is_small() {
+    let tl = vs_timeline_create(10_000, 1920, 1080);
+    assert!(!tl.is_null());
+
+    // SAFETY: timeline handle is valid and destroyed at end of test.
+    unsafe {
+      assert_eq!(vs_timeline_add_track(tl, 0), 0);
+
+      let mut clip_ids = [0u32; 3];
+      for (idx, start) in [0u32, 1_000, 2_000].iter().enumerate() {
+        assert_eq!(
+          vs_timeline_add_clip(tl, 0, *start, *start + 5_000, 0, &mut clip_ids[idx]),
+          0
+        );
+      }
+
+      let mut out = [zero_clip_info(); 1];
+      let mut written = 0u32;
+      assert_eq!(
+        vs_timeline_get_visible_clips_at(tl, 2_500, out.as_mut_ptr(), out.len() as u32, &mut written),
+        0
+      );
+      assert_eq!(written, 3);
+      assert_eq!(out[0].id, clip_ids[0]);
+
+      vs_timeline_destroy(tl);
+    }
+  }
+
+  #[test]
+  fn timeline_get_clip_text_reports_full_length_with_small_buffer() {
+    let tl = vs_timeline_create(8_000, 1280, 720);
+    assert!(!tl.is_null());
+
+    // SAFETY: timeline handle is valid and destroyed at end of test.
+    unsafe {
+      assert_eq!(vs_timeline_add_track(tl, 3), 0);
+      let mut clip_id = 0u32;
+      assert_eq!(vs_timeline_add_clip(tl, 0, 0, 6_000, 3, &mut clip_id), 0);
+
+      let text = "A".repeat(8_192);
+      let bytes = text.as_bytes();
+      assert_eq!(
+        vs_timeline_set_clip_text(tl, 0, clip_id, bytes.as_ptr(), bytes.len() as u32),
+        0
+      );
+
+      let mut buffer = vec![0u8; 16];
+      let mut written = 0u32;
+      assert_eq!(
+        vs_timeline_get_clip_text(tl, 0, clip_id, buffer.as_mut_ptr(), buffer.len() as u32, &mut written),
+        0
+      );
+      assert_eq!(written as usize, bytes.len());
+      assert_eq!(&buffer[..], &bytes[..buffer.len()]);
+
+      vs_timeline_destroy(tl);
     }
   }
 }

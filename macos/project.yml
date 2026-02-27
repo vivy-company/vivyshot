@@ -18,6 +18,15 @@ settings:
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: QW4U57CXJX
 
+schemes:
+  VivyShot:
+    build:
+      targets:
+        VivyShot: all
+    test:
+      targets:
+        - name: VivyShotTests
+
 targets:
   VivyShot:
     type: application
@@ -45,10 +54,10 @@ targets:
           - "$(SRCROOT)/../core-rs/target/universal-apple-darwin/release/libvivyshot_core.a"
       configs:
         Debug:
-          PRODUCT_BUNDLE_IDENTIFIER: com.vivy.vivyshot.dev
+          PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.dev
           PRODUCT_NAME: VivyShotDev
         Release:
-          PRODUCT_BUNDLE_IDENTIFIER: com.vivy.vivyshot
+          PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot
     preBuildScripts:
       - name: Build Rust Core
         shell: /bin/zsh
@@ -70,4 +79,10 @@ targets:
       - target: VivyShot
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.vivy.vivyshot.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.tests
+        GENERATE_INFOPLIST_FILE: YES
+      configs:
+        Debug:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShotDev.app/Contents/MacOS/VivyShotDev"
+        Release:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShot.app/Contents/MacOS/VivyShot"

@@ -4,10 +4,11 @@ import AppKit
 enum TransientToast {
   private static var panel: NSPanel?
   private static var label: NSTextField?
-  private static var hideWorkItem: DispatchWorkItem?
+  private static var hideTask: Task<Void, Never>?
 
   static func show(_ message: String, duration: TimeInterval = 1.25) {
-    hideWorkItem?.cancel()
+    hideTask?.cancel()
+    hideTask = nil
     let panel = ensurePanel()
     guard let label else {
       return
@@ -54,21 +55,28 @@ enum TransientToast {
       panel.animator().alphaValue = 1
     }
 
-    let hide = DispatchWorkItem {
-      MainActor.assumeIsolated {
-        NSAnimationContext.runAnimationGroup { context in
-          context.duration = 0.16
-          context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-          panel.animator().alphaValue = 0
-        } completionHandler: {
-          MainActor.assumeIsolated {
-            panel.orderOut(nil)
-          }
-        }
+    let delay = max(0, duration)
+    hideTask = Task { @MainActor in
+      do {
+        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+      } catch {
+        return
       }
+
+      guard !Task.isCancelled, let panel = self.panel else {
+        hideTask = nil
+        return
+      }
+
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = 0.16
+        context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+        panel.animator().alphaValue = 0
+      } completionHandler: {
+        panel.orderOut(nil)
+      }
+      hideTask = nil
     }
-    hideWorkItem = hide
-    DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: hide)
   }
 
   private static func ensurePanel() -> NSPanel {

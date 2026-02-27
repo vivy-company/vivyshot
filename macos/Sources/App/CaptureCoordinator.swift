@@ -8,6 +8,7 @@ import CoreMedia
 import ImageIO
 import QuartzCore
 import ScreenCaptureKit
+import SwiftUI
 import UniformTypeIdentifiers
 
 @MainActor
@@ -16,14 +17,23 @@ final class CaptureCoordinator {
   private let selectionOverlay: RegionSelectionOverlayController
   private let videoCaptureCoordinator: VideoCaptureCoordinator
 
+  var onRecordingStateChanged: ((Bool) -> Void)? {
+    didSet {
+      onRecordingStateChanged?(videoCaptureCoordinator.isRecordingActive)
+    }
+  }
+
   private var captureInProgress = false
   private var requestedScreenPermissionThisSession = false
-  private var showedPermissionHintThisSession = false
+  private var showingScreenPermissionAlert = false
 
   init(settings: AppSettings = .shared) {
     self.settings = settings
     selectionOverlay = RegionSelectionOverlayController(settings: settings)
     videoCaptureCoordinator = VideoCaptureCoordinator(settings: settings)
+    videoCaptureCoordinator.onRecordingStateChanged = { [weak self] isRecording in
+      self?.onRecordingStateChanged?(isRecording)
+    }
   }
 
   func startRegionCapture() {
@@ -122,7 +132,7 @@ final class CaptureCoordinator {
   private func captureFrozenImage(in rect: CGRect) async throws -> CGImage {
     guard #available(macOS 15.2, *) else {
       throw NSError(
-        domain: "com.vivy.vivyshot.capture",
+        domain: "com.vivyshot.capture",
         code: -10,
         userInfo: [NSLocalizedDescriptionKey: "Screen capture requires macOS 15.2 or newer."]
       )
@@ -138,7 +148,7 @@ final class CaptureCoordinator {
         guard let image else {
           continuation.resume(
             throwing: NSError(
-              domain: "com.vivy.vivyshot.capture",
+              domain: "com.vivyshot.capture",
               code: -11,
               userInfo: [NSLocalizedDescriptionKey: "No image returned by ScreenCaptureKit."]
             )
@@ -149,43 +159,6 @@ final class CaptureCoordinator {
         continuation.resume(returning: image)
       }
     }
-  }
-
-  private func cropFrozenImage(
-    _ image: CGImage,
-    selectionRectInScreen: CGRect,
-    screenFrame: CGRect
-  ) -> CGImage? {
-    let normalizedSelection = selectionRectInScreen.standardized
-    let clippedSelection = normalizedSelection.intersection(screenFrame)
-    guard !clippedSelection.isNull, clippedSelection.width >= 2, clippedSelection.height >= 2 else {
-      return nil
-    }
-
-    let localRect = clippedSelection.offsetBy(dx: -screenFrame.minX, dy: -screenFrame.minY)
-    let scaleX = CGFloat(image.width) / screenFrame.width
-    let scaleY = CGFloat(image.height) / screenFrame.height
-
-    let x = localRect.minX * scaleX
-    let yTop = CGFloat(image.height) - (localRect.maxY * scaleY)
-    let width = localRect.width * scaleX
-    let height = localRect.height * scaleY
-
-    var cropRect = CGRect(
-      x: floor(x),
-      y: floor(yTop),
-      width: ceil(width),
-      height: ceil(height)
-    )
-
-    let imageBounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
-    cropRect = cropRect.intersection(imageBounds)
-
-    guard !cropRect.isNull, cropRect.width >= 2, cropRect.height >= 2 else {
-      return nil
-    }
-
-    return image.cropping(to: cropRect.integral)
   }
 
   private func ensureScreenCapturePermission() -> Bool {
@@ -202,14 +175,22 @@ final class CaptureCoordinator {
       return true
     }
 
-    if showedPermissionHintThisSession {
+    if showingScreenPermissionAlert {
       return false
     }
-    showedPermissionHintThisSession = true
+    showingScreenPermissionAlert = true
+    defer {
+      showingScreenPermissionAlert = false
+    }
+
+    NSApp.activate(ignoringOtherApps: true)
+    let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+      ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+      ?? "VivyShot"
 
     let alert = NSAlert()
     alert.messageText = "Screen Recording Permission Needed"
-    alert.informativeText = "Enable Screen Recording for VivyShotDev in System Settings > Privacy & Security > Screen Recording."
+    alert.informativeText = "Enable Screen Recording for \(appName) in System Settings > Privacy & Security > Screen Recording."
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Open Settings")
     alert.addButton(withTitle: "Cancel")
@@ -223,12 +204,24 @@ final class CaptureCoordinator {
   }
 
   private func showCaptureError(_ message: String) {
-    let alert = NSAlert()
-    alert.messageText = "Capture Failed"
-    alert.informativeText = message
-    alert.alertStyle = .critical
-    alert.addButton(withTitle: "OK")
-    alert.runModal()
+    if captureInProgress {
+      TransientToast.show(message, duration: 3.0)
+    } else {
+      let alert = NSAlert()
+      alert.messageText = "Capture Failed"
+      alert.informativeText = message
+      alert.alertStyle = .critical
+      alert.addButton(withTitle: "OK")
+      alert.runModal()
+    }
+  }
+
+  func stopActiveRecordingFromStatusItem() {
+    videoCaptureCoordinator.stopRecordingFromStatusBar()
+  }
+
+  var isVideoRecordingActive: Bool {
+    videoCaptureCoordinator.isRecordingActive
   }
 }
 
@@ -240,10 +233,20 @@ private final class VideoCaptureCoordinator {
   private var inputMonitor: RecordingInputMonitor?
   private var rustVideoSession: RustVideoSession?
   private var hudController: VideoRecordingHUDController?
-  private var editorController: VideoTrimWindowController?
+  private var editorController: VideoEditorWindowController?
+  private var postRecordingPanel: PostRecordingActionPanel?
   private var onDone: (() -> Void)?
   private var onError: ((String) -> Void)?
   private var recordingRect: CGRect = .zero
+  var onRecordingStateChanged: ((Bool) -> Void)?
+
+  private(set) var isRecordingActive = false {
+    didSet {
+      if oldValue != isRecordingActive {
+        onRecordingStateChanged?(isRecordingActive)
+      }
+    }
+  }
 
   init(settings: AppSettings) {
     self.settings = settings
@@ -306,7 +309,7 @@ private final class VideoCaptureCoordinator {
             outputURL: webcamOutputURL,
             preferredDeviceID: settings.videoWebcamDeviceID
           )
-          try webcamRecorder.start()
+          try await webcamRecorder.start()
           self.webcamRecorder = webcamRecorder
         }
 
@@ -323,10 +326,12 @@ private final class VideoCaptureCoordinator {
         inputMonitor = monitor
 
         onStarted?()
+        self.isRecordingActive = true
         if showFloatingHUD {
           showHUD()
         }
       } catch {
+        self.isRecordingActive = false
         cleanupRecordingSession()
         onError("Failed to start video recording: \(error.localizedDescription)")
       }
@@ -334,6 +339,10 @@ private final class VideoCaptureCoordinator {
   }
 
   func stopRecordingFromInlineToolbar() {
+    stopRecordingAndOpenEditor()
+  }
+
+  func stopRecordingFromStatusBar() {
     stopRecordingAndOpenEditor()
   }
 
@@ -361,6 +370,7 @@ private final class VideoCaptureCoordinator {
   }
 
   private func stopRecordingAndOpenEditor() {
+    isRecordingActive = false
     hudController?.close()
     hudController = nil
 
@@ -402,14 +412,16 @@ private final class VideoCaptureCoordinator {
           webcamURL: webcamURL,
           keyEvents: monitorResult.keyEvents,
           webcamOverlayShape: settings.videoWebcamOverlayShape,
-          webcamOverlaySize: settings.videoWebcamOverlaySize
+          webcamOverlaySize: settings.videoWebcamOverlaySize,
+          textOverlays: []
         )
-        presentTrimEditor(
+        presentPostRecordingDialog(
           inputURL: outputURL,
           overlay: overlay,
           rustSession: rustVideoSession
         )
       } catch {
+        self.isRecordingActive = false
         cleanupRecordingSession()
         onError?("Failed to stop recording: \(error.localizedDescription)")
       }
@@ -421,7 +433,7 @@ private final class VideoCaptureCoordinator {
     overlay: VideoExportOverlayConfiguration,
     rustSession: RustVideoSession?
   ) {
-    let editor = VideoTrimWindowController(
+    let editor = VideoEditorWindowController(
       inputURL: inputURL,
       overlay: overlay,
       rustSession: rustSession
@@ -433,7 +445,92 @@ private final class VideoCaptureCoordinator {
     editor.present()
   }
 
+  private func presentPostRecordingDialog(
+    inputURL: URL,
+    overlay: VideoExportOverlayConfiguration,
+    rustSession: RustVideoSession?
+  ) {
+    let panel = PostRecordingActionPanel(inputURL: inputURL) { [weak self] action in
+      guard let self else { return }
+      self.postRecordingPanel = nil
+      switch action {
+      case .saveMP4:
+        self.quickSaveMP4(inputURL: inputURL)
+      case .saveGIF:
+        self.quickSaveGIF(inputURL: inputURL)
+      case .editVideo:
+        self.presentTrimEditor(inputURL: inputURL, overlay: overlay, rustSession: rustSession)
+      }
+    }
+    postRecordingPanel = panel
+    panel.present()
+  }
+
+  private func quickSaveMP4(inputURL: URL) {
+    let saveDirectory = settings.defaultSaveDirectoryURL
+      ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+      ?? FileManager.default.temporaryDirectory
+    let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+      .replacingOccurrences(of: ":", with: "-")
+    let outputURL = saveDirectory.appendingPathComponent("VivyShot \(timestamp).mp4")
+
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let asset = AVAsset(url: inputURL)
+        let duration = CMTimeGetSeconds(asset.duration)
+        let trimRange = CMTimeRange(start: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
+
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+          TransientToast.show("Export failed: unable to create session.", duration: 2.5)
+          self.cleanupRecordingSession()
+          self.onDone?()
+          return
+        }
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        exportSession.shouldOptimizeForNetworkUse = true
+        exportSession.timeRange = trimRange
+        try await exportSession.vs_export()
+        TransientToast.show("Saved MP4 to \(outputURL.lastPathComponent)", duration: 2.5)
+      } catch {
+        TransientToast.show("MP4 save failed: \(error.localizedDescription)", duration: 2.5)
+      }
+      self.cleanupRecordingSession()
+      self.onDone?()
+    }
+  }
+
+  private func quickSaveGIF(inputURL: URL) {
+    let saveDirectory = settings.defaultSaveDirectoryURL
+      ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+      ?? FileManager.default.temporaryDirectory
+    let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+      .replacingOccurrences(of: ":", with: "-")
+    let outputURL = saveDirectory.appendingPathComponent("VivyShot \(timestamp).gif")
+
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let asset = AVAsset(url: inputURL)
+        let duration = CMTimeGetSeconds(asset.duration)
+        try await VideoCompositor.renderGIF(
+          sourceURL: inputURL,
+          outputURL: outputURL,
+          startSeconds: 0,
+          endSeconds: duration.isFinite ? duration : 1
+        )
+        TransientToast.show("Saved GIF to \(outputURL.lastPathComponent)", duration: 2.5)
+      } catch {
+        TransientToast.show("GIF save failed: \(error.localizedDescription)", duration: 2.5)
+      }
+      self.cleanupRecordingSession()
+      self.onDone?()
+    }
+  }
+
   private func cleanupRecordingSession() {
+    isRecordingActive = false
     hudController?.close()
     hudController = nil
     recorder = nil
@@ -441,6 +538,7 @@ private final class VideoCaptureCoordinator {
     inputMonitor = nil
     rustVideoSession = nil
     editorController = nil
+    postRecordingPanel = nil
   }
 
   private func makeTemporaryRecordingURL() -> URL {
@@ -474,7 +572,7 @@ private final class VideoCaptureCoordinator {
 
     if settings.videoHighlightKeystrokes, !isAccessibilityTrusted(promptIfNeeded: true) {
       throw NSError(
-        domain: "com.vivy.vivyshot.video",
+        domain: "com.vivyshot.video",
         code: -56,
         userInfo: [NSLocalizedDescriptionKey: "Accessibility permission is required for keystroke overlays."]
       )
@@ -492,19 +590,19 @@ private final class VideoCaptureCoordinator {
         return
       }
       throw NSError(
-        domain: "com.vivy.vivyshot.video",
+        domain: "com.vivyshot.video",
         code: -57,
         userInfo: [NSLocalizedDescriptionKey: errorTitle]
       )
     case .denied, .restricted:
       throw NSError(
-        domain: "com.vivy.vivyshot.video",
+        domain: "com.vivyshot.video",
         code: -58,
         userInfo: [NSLocalizedDescriptionKey: errorTitle]
       )
     @unknown default:
       throw NSError(
-        domain: "com.vivy.vivyshot.video",
+        domain: "com.vivyshot.video",
         code: -59,
         userInfo: [NSLocalizedDescriptionKey: errorTitle]
       )
@@ -528,40 +626,53 @@ private struct VideoRecordingConfig {
   let captureMicrophone: Bool
 }
 
-private struct RecordedKeystrokeEvent {
+struct RecordedKeystrokeEvent {
   let timestampNS: UInt64
   let displayToken: String
 }
 
-private struct RecordedMouseClickEvent {
+struct RecordedMouseClickEvent {
   let timestampNS: UInt64
   let normalizedX: CGFloat
   let normalizedY: CGFloat
   let button: UInt32
 }
 
-private struct RecordingInputResult {
+struct RecordingInputResult {
   let keyEvents: [RecordedKeystrokeEvent]
   let clickEvents: [RecordedMouseClickEvent]
 }
 
-private struct VideoExportOverlayConfiguration {
+struct VideoExportOverlayConfiguration {
   let webcamURL: URL?
   let keyEvents: [RecordedKeystrokeEvent]
   let webcamOverlayShape: VideoWebcamOverlayShapeOption
   let webcamOverlaySize: VideoWebcamOverlaySizeOption
+  let textOverlays: [VideoTextOverlayClip]
+}
+
+struct VideoTextOverlayClip: Identifiable, Equatable {
+  let id: UUID
+  var text: String
+  var startSeconds: Double
+  var endSeconds: Double
 }
 
 private final class RecordingInputMonitor {
   private let captureRectInScreen: CGRect
   private let captureKeystrokes: Bool
   private let captureMouseClicks: Bool
+  private let stateLock = NSLock()
 
   private var startUptime: TimeInterval = 0
-  private var keyMonitorToken: Any?
-  private var clickMonitorToken: Any?
+  private var globalKeyMonitorToken: Any?
+  private var localKeyMonitorToken: Any?
+  private var globalClickMonitorToken: Any?
+  private var localClickMonitorToken: Any?
   private var keyEvents: [RecordedKeystrokeEvent] = []
   private var clickEvents: [RecordedMouseClickEvent] = []
+  private var lastKeyEventSignature: (timestampNS: UInt64, token: String)?
+  private var lastClickEventSignature: (timestampNS: UInt64, button: UInt32, x: CGFloat, y: CGFloat)?
 
   init(
     captureRectInScreen: CGRect,
@@ -581,20 +692,31 @@ private final class RecordingInputMonitor {
     startUptime = ProcessInfo.processInfo.systemUptime
 
     if captureKeystrokes {
-      keyMonitorToken = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+      globalKeyMonitorToken = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
         self?.handleKeyDown(event)
+      }
+      localKeyMonitorToken = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        self?.handleKeyDown(event)
+        return event
       }
     }
 
     if captureMouseClicks {
-      clickMonitorToken = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+      let clickMask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+      globalClickMonitorToken = NSEvent.addGlobalMonitorForEvents(matching: clickMask) { [weak self] event in
         self?.handleMouseDown(event)
+      }
+      localClickMonitorToken = NSEvent.addLocalMonitorForEvents(matching: clickMask) { [weak self] event in
+        self?.handleMouseDown(event)
+        return event
       }
     }
   }
 
   func stop() -> RecordingInputResult {
     stopObservers()
+    stateLock.lock()
+    defer { stateLock.unlock() }
     return RecordingInputResult(
       keyEvents: keyEvents,
       clickEvents: clickEvents
@@ -602,14 +724,24 @@ private final class RecordingInputMonitor {
   }
 
   private func stopObservers() {
-    if let keyMonitorToken {
-      NSEvent.removeMonitor(keyMonitorToken)
-      self.keyMonitorToken = nil
+    if let globalKeyMonitorToken {
+      NSEvent.removeMonitor(globalKeyMonitorToken)
+      self.globalKeyMonitorToken = nil
     }
 
-    if let clickMonitorToken {
-      NSEvent.removeMonitor(clickMonitorToken)
-      self.clickMonitorToken = nil
+    if let localKeyMonitorToken {
+      NSEvent.removeMonitor(localKeyMonitorToken)
+      self.localKeyMonitorToken = nil
+    }
+
+    if let globalClickMonitorToken {
+      NSEvent.removeMonitor(globalClickMonitorToken)
+      self.globalClickMonitorToken = nil
+    }
+
+    if let localClickMonitorToken {
+      NSEvent.removeMonitor(localClickMonitorToken)
+      self.localClickMonitorToken = nil
     }
   }
 
@@ -618,10 +750,20 @@ private final class RecordingInputMonitor {
     guard !token.isEmpty else {
       return
     }
+    let timestampNS = elapsedTimestampNS(for: event)
+    stateLock.lock()
+    defer { stateLock.unlock() }
+    if let last = lastKeyEventSignature,
+       last.timestampNS == timestampNS,
+       last.token == token
+    {
+      return
+    }
+    lastKeyEventSignature = (timestampNS: timestampNS, token: token)
 
     keyEvents.append(
       RecordedKeystrokeEvent(
-        timestampNS: elapsedTimestampNS(),
+        timestampNS: timestampNS,
         displayToken: token
       )
     )
@@ -651,10 +793,27 @@ private final class RecordingInputMonitor {
     default:
       button = 2
     }
+    let timestampNS = elapsedTimestampNS(for: event)
+    stateLock.lock()
+    defer { stateLock.unlock() }
+    if let last = lastClickEventSignature,
+       last.timestampNS == timestampNS,
+       last.button == button,
+       abs(last.x - normalizedX) < 0.0001,
+       abs(last.y - normalizedY) < 0.0001
+    {
+      return
+    }
+    lastClickEventSignature = (
+      timestampNS: timestampNS,
+      button: button,
+      x: normalizedX,
+      y: normalizedY
+    )
 
     clickEvents.append(
       RecordedMouseClickEvent(
-        timestampNS: elapsedTimestampNS(),
+        timestampNS: timestampNS,
         normalizedX: normalizedX,
         normalizedY: normalizedY,
         button: button
@@ -662,8 +821,8 @@ private final class RecordingInputMonitor {
     )
   }
 
-  private func elapsedTimestampNS() -> UInt64 {
-    let elapsed = max(0, ProcessInfo.processInfo.systemUptime - startUptime)
+  private func elapsedTimestampNS(for event: NSEvent) -> UInt64 {
+    let elapsed = max(0, event.timestamp - startUptime)
     return UInt64((elapsed * 1_000_000_000).rounded())
   }
 
@@ -735,6 +894,8 @@ private final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelega
   private let session = AVCaptureSession()
   private let movieOutput = AVCaptureMovieFileOutput()
   private var stopContinuation: CheckedContinuation<URL, Error>?
+  private var recordingDidStart = false
+  private var lastRecordingError: Error?
 
   init(outputURL: URL, preferredDeviceID: String) throws {
     self.outputURL = outputURL
@@ -743,7 +904,10 @@ private final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelega
     try configureSession()
   }
 
-  func start() throws {
+  func start() async throws {
+    lastRecordingError = nil
+    recordingDidStart = false
+
     if FileManager.default.fileExists(atPath: outputURL.path) {
       try FileManager.default.removeItem(at: outputURL)
     }
@@ -755,6 +919,8 @@ private final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelega
     if !movieOutput.isRecording {
       movieOutput.startRecording(to: outputURL, recordingDelegate: self)
     }
+
+    try await waitForRecordingToStart()
   }
 
   func stop() async throws -> URL {
@@ -762,12 +928,27 @@ private final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelega
       if session.isRunning {
         session.stopRunning()
       }
+      if let lastRecordingError {
+        throw lastRecordingError
+      }
+      try validateOutputFile(outputURL)
       return outputURL
     }
 
     return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
       stopContinuation = continuation
       movieOutput.stopRecording()
+    }
+  }
+
+  nonisolated func fileOutput(
+    _ output: AVCaptureFileOutput,
+    didStartRecordingTo fileURL: URL,
+    from connections: [AVCaptureConnection]
+  ) {
+    Task { @MainActor [weak self] in
+      self?.recordingDidStart = true
+      self?.lastRecordingError = nil
     }
   }
 
@@ -785,26 +966,83 @@ private final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelega
       if self.session.isRunning {
         self.session.stopRunning()
       }
+      self.recordingDidStart = false
 
       guard let continuation = self.stopContinuation else {
+        if let error {
+          self.lastRecordingError = error
+        } else {
+          self.lastRecordingError = nil
+        }
         return
       }
       self.stopContinuation = nil
 
       if let error {
+        self.lastRecordingError = error
         continuation.resume(throwing: error)
       } else {
-        continuation.resume(returning: outputFileURL)
+        do {
+          try self.validateOutputFile(outputFileURL)
+          self.lastRecordingError = nil
+          continuation.resume(returning: outputFileURL)
+        } catch {
+          self.lastRecordingError = error
+          continuation.resume(throwing: error)
+        }
       }
+    }
+  }
+
+  private func waitForRecordingToStart(timeoutSeconds: Double = 2.0) async throws {
+    let deadline = Date().addingTimeInterval(timeoutSeconds)
+
+    while !recordingDidStart && !movieOutput.isRecording {
+      if let lastRecordingError {
+        throw lastRecordingError
+      }
+      if Date() >= deadline {
+        throw NSError(
+          domain: "com.vivyshot.video",
+          code: -73,
+          userInfo: [NSLocalizedDescriptionKey: "Webcam recording failed to start."]
+        )
+      }
+      try await Task.sleep(nanoseconds: 50_000_000)
+    }
+  }
+
+  private func validateOutputFile(_ url: URL) throws {
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      throw NSError(
+        domain: "com.vivyshot.video",
+        code: -74,
+        userInfo: [NSLocalizedDescriptionKey: "Webcam recording file is missing."]
+      )
+    }
+
+    let values = try url.resourceValues(forKeys: [.fileSizeKey])
+    let fileSize = values.fileSize ?? 0
+    if fileSize <= 0 {
+      throw NSError(
+        domain: "com.vivyshot.video",
+        code: -75,
+        userInfo: [NSLocalizedDescriptionKey: "Webcam recording is empty."]
+      )
     }
   }
 
   private func configureSession() throws {
     session.beginConfiguration()
-    session.sessionPreset = .medium
+    session.sessionPreset = .high
+
+    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera, .externalUnknown]
+    if #available(macOS 15.0, *) {
+      deviceTypes.append(.continuityCamera)
+    }
 
     let allVideoDevices = AVCaptureDevice.DiscoverySession(
-      deviceTypes: [.builtInWideAngleCamera, .externalUnknown],
+      deviceTypes: deviceTypes,
       mediaType: .video,
       position: .unspecified
     ).devices
@@ -813,7 +1051,7 @@ private final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelega
     guard let device = selectedDevice ?? AVCaptureDevice.default(for: .video) ?? allVideoDevices.first else {
       session.commitConfiguration()
       throw NSError(
-        domain: "com.vivy.vivyshot.video",
+        domain: "com.vivyshot.video",
         code: -70,
         userInfo: [NSLocalizedDescriptionKey: "No camera device is available."]
       )
@@ -823,7 +1061,7 @@ private final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelega
     guard session.canAddInput(input) else {
       session.commitConfiguration()
       throw NSError(
-        domain: "com.vivy.vivyshot.video",
+        domain: "com.vivyshot.video",
         code: -71,
         userInfo: [NSLocalizedDescriptionKey: "Unable to add webcam input."]
       )
@@ -833,7 +1071,7 @@ private final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelega
     guard session.canAddOutput(movieOutput) else {
       session.commitConfiguration()
       throw NSError(
-        domain: "com.vivy.vivyshot.video",
+        domain: "com.vivyshot.video",
         code: -72,
         userInfo: [NSLocalizedDescriptionKey: "Unable to add webcam output."]
       )
@@ -852,7 +1090,8 @@ private final class ScreenRegionRecorder: NSObject, @preconcurrency SCStreamDele
 
   private var stream: SCStream?
   private var recordingOutput: SCRecordingOutput?
-  private var recordingError: Error?
+  private let recordingErrorLock = NSLock()
+  private var latestRecordingError: Error?
 
   init(selectionRectInScreen: CGRect, config: VideoRecordingConfig, outputURL: URL) {
     self.selectionRectInScreen = selectionRectInScreen.standardized
@@ -872,7 +1111,7 @@ private final class ScreenRegionRecorder: NSObject, @preconcurrency SCStreamDele
           let display = content.displays.first(where: { $0.displayID == displayID })
     else {
       throw NSError(
-        domain: "com.vivy.vivyshot.recording",
+        domain: "com.vivyshot.recording",
         code: -20,
         userInfo: [NSLocalizedDescriptionKey: "No compatible display found for selected area."]
       )
@@ -889,7 +1128,7 @@ private final class ScreenRegionRecorder: NSObject, @preconcurrency SCStreamDele
       .integral
     guard !sourceRect.isNull, sourceRect.width >= 2, sourceRect.height >= 2 else {
       throw NSError(
-        domain: "com.vivy.vivyshot.recording",
+        domain: "com.vivyshot.recording",
         code: -21,
         userInfo: [NSLocalizedDescriptionKey: "Selected region is too small to record."]
       )
@@ -935,7 +1174,7 @@ private final class ScreenRegionRecorder: NSObject, @preconcurrency SCStreamDele
 
     self.stream = stream
     self.recordingOutput = recordingOutput
-    recordingError = nil
+    setRecordingError(nil)
     try await stream.vs_startCapture()
   }
 
@@ -948,7 +1187,7 @@ private final class ScreenRegionRecorder: NSObject, @preconcurrency SCStreamDele
     self.stream = nil
     recordingOutput = nil
 
-    if let recordingError {
+    if let recordingError = currentRecordingError() {
       throw recordingError
     }
 
@@ -965,11 +1204,23 @@ private final class ScreenRegionRecorder: NSObject, @preconcurrency SCStreamDele
   }
 
   func stream(_ stream: SCStream, didStopWithError error: Error) {
-    recordingError = error
+    setRecordingError(error)
   }
 
   func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
-    recordingError = error
+    setRecordingError(error)
+  }
+
+  private func currentRecordingError() -> Error? {
+    recordingErrorLock.lock()
+    defer { recordingErrorLock.unlock() }
+    return latestRecordingError
+  }
+
+  private func setRecordingError(_ error: Error?) {
+    recordingErrorLock.lock()
+    latestRecordingError = error
+    recordingErrorLock.unlock()
   }
 }
 
@@ -1139,702 +1390,156 @@ private final class VideoRecordingHUDController: NSWindowController {
   }
 }
 
+// MARK: - Post-Recording Action Dialog
+
+private enum PostRecordingAction {
+  case saveMP4
+  case saveGIF
+  case editVideo
+}
+
 @MainActor
-private final class VideoTrimWindowController: NSWindowController, NSWindowDelegate {
+private final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
   private let inputURL: URL
-  private let overlay: VideoExportOverlayConfiguration
-  private let rustSession: RustVideoSession?
-  private let onDone: () -> Void
+  private let onAction: (PostRecordingAction) -> Void
+  private var didPickAction = false
 
-  private let playerView = AVPlayerView()
-  private let startSlider = NSSlider(value: 0, minValue: 0, maxValue: 1, target: nil, action: nil)
-  private let endSlider = NSSlider(value: 1, minValue: 0, maxValue: 1, target: nil, action: nil)
-  private let startValueLabel = NSTextField(labelWithString: "0.00s")
-  private let endValueLabel = NSTextField(labelWithString: "0.00s")
-  private let durationLabel = NSTextField(labelWithString: "Duration 0.00s")
-  private let statusLabel = NSTextField(labelWithString: "")
-  private let asset: AVAsset
-  private var durationSeconds: Double = 0
-
-  init(
-    inputURL: URL,
-    overlay: VideoExportOverlayConfiguration,
-    rustSession: RustVideoSession?,
-    onDone: @escaping () -> Void
-  ) {
+  init(inputURL: URL, onAction: @escaping (PostRecordingAction) -> Void) {
     self.inputURL = inputURL
-    self.overlay = overlay
-    self.rustSession = rustSession
-    self.onDone = onDone
-    asset = AVAsset(url: inputURL)
+    self.onAction = onAction
 
-    let window = NSWindow(
-      contentRect: CGRect(x: 140, y: 120, width: 860, height: 640),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+    let panel = NSPanel(
+      contentRect: CGRect(x: 0, y: 0, width: 360, height: 280),
+      styleMask: [.titled, .closable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
-    window.title = "Trim Recording"
-    window.isReleasedWhenClosed = false
+    panel.level = .floating
+    panel.titlebarAppearsTransparent = true
+    panel.titleVisibility = .hidden
+    panel.isMovableByWindowBackground = true
+    panel.isReleasedWhenClosed = false
 
-    super.init(window: window)
-    window.delegate = self
-    configureUI()
-    loadAsset()
+    super.init(window: panel)
+    panel.delegate = self
+
+    let asset = AVAsset(url: inputURL)
+    let durationSeconds = max(0, CMTimeGetSeconds(asset.duration))
+    let thumbnail = generateThumbnail(asset: asset)
+
+    let actionView = PostRecordingActionView(
+      thumbnail: thumbnail,
+      durationSeconds: durationSeconds.isFinite ? durationSeconds : 0
+    ) { [weak self] action in
+      guard let self, !self.didPickAction else { return }
+      self.didPickAction = true
+      self.window?.close()
+      self.onAction(action)
+    }
+    panel.contentView = NSHostingView(rootView: actionView)
   }
 
   @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    nil
-  }
+  required init?(coder: NSCoder) { nil }
 
   func present() {
-    showWindow(nil)
     window?.center()
     window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
   }
 
   func windowWillClose(_ notification: Notification) {
-    onDone()
-  }
-
-  private func configureUI() {
-    guard let content = window?.contentView else {
-      return
-    }
-
-    playerView.translatesAutoresizingMaskIntoConstraints = false
-    playerView.controlsStyle = .floating
-    playerView.showsFullScreenToggleButton = true
-    playerView.player = AVPlayer(url: inputURL)
-
-    startSlider.target = self
-    startSlider.action = #selector(trimSliderChanged)
-    endSlider.target = self
-    endSlider.action = #selector(trimSliderChanged)
-
-    startSlider.translatesAutoresizingMaskIntoConstraints = false
-    endSlider.translatesAutoresizingMaskIntoConstraints = false
-
-    startValueLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-    endValueLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-    durationLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-    statusLabel.font = .systemFont(ofSize: 11, weight: .medium)
-    statusLabel.textColor = .secondaryLabelColor
-
-    let startRow = labeledSliderRow(title: "Start", slider: startSlider, valueLabel: startValueLabel)
-    let endRow = labeledSliderRow(title: "End", slider: endSlider, valueLabel: endValueLabel)
-
-    let exportMP4Button = NSButton(title: "Export MP4", target: self, action: #selector(exportMP4Pressed))
-    exportMP4Button.bezelStyle = .rounded
-    let exportGIFButton = NSButton(title: "Export GIF", target: self, action: #selector(exportGIFPressed))
-    exportGIFButton.bezelStyle = .rounded
-    let doneButton = NSButton(title: "Done", target: self, action: #selector(donePressed))
-    doneButton.bezelStyle = .rounded
-    doneButton.keyEquivalent = "\r"
-
-    let buttonRow = NSStackView(views: [durationLabel, NSView(), exportMP4Button, exportGIFButton, doneButton])
-    buttonRow.orientation = .horizontal
-    buttonRow.alignment = .centerY
-    buttonRow.spacing = 8
-    buttonRow.translatesAutoresizingMaskIntoConstraints = false
-
-    statusLabel.translatesAutoresizingMaskIntoConstraints = false
-    statusLabel.lineBreakMode = .byTruncatingTail
-
-    content.addSubview(playerView)
-    content.addSubview(startRow)
-    content.addSubview(endRow)
-    content.addSubview(buttonRow)
-    content.addSubview(statusLabel)
-
-    NSLayoutConstraint.activate([
-      playerView.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-      playerView.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      playerView.topAnchor.constraint(equalTo: content.topAnchor, constant: 14),
-      playerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 320),
-
-      startRow.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-      startRow.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      startRow.topAnchor.constraint(equalTo: playerView.bottomAnchor, constant: 12),
-
-      endRow.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-      endRow.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      endRow.topAnchor.constraint(equalTo: startRow.bottomAnchor, constant: 8),
-
-      buttonRow.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-      buttonRow.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      buttonRow.topAnchor.constraint(equalTo: endRow.bottomAnchor, constant: 14),
-
-      statusLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-      statusLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      statusLabel.topAnchor.constraint(equalTo: buttonRow.bottomAnchor, constant: 10),
-      statusLabel.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -12),
-    ])
-  }
-
-  private func labeledSliderRow(title: String, slider: NSSlider, valueLabel: NSTextField) -> NSView {
-    let titleLabel = NSTextField(labelWithString: title)
-    titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-    valueLabel.alignment = .right
-    valueLabel.frame.size.width = 58
-
-    let row = NSStackView(views: [titleLabel, slider, valueLabel])
-    row.orientation = .horizontal
-    row.alignment = .centerY
-    row.spacing = 8
-    row.translatesAutoresizingMaskIntoConstraints = false
-    valueLabel.widthAnchor.constraint(equalToConstant: 62).isActive = true
-    return row
-  }
-
-  private func loadAsset() {
-    durationSeconds = max(0, CMTimeGetSeconds(asset.duration))
-    if !durationSeconds.isFinite || durationSeconds <= 0 {
-      durationSeconds = 1
-    }
-
-    startSlider.minValue = 0
-    startSlider.maxValue = durationSeconds
-    endSlider.minValue = 0
-    endSlider.maxValue = durationSeconds
-    startSlider.doubleValue = 0
-    endSlider.doubleValue = durationSeconds
-    updateTrimLabels()
-  }
-
-  @objc
-  private func trimSliderChanged() {
-    let minGap = min(0.1, max(0.01, durationSeconds / 1000))
-    if startSlider.doubleValue >= endSlider.doubleValue - minGap {
-      if startSlider.currentEditor() != nil {
-        endSlider.doubleValue = min(durationSeconds, startSlider.doubleValue + minGap)
-      } else {
-        startSlider.doubleValue = max(0, endSlider.doubleValue - minGap)
-      }
-    }
-
-    let startTime = CMTime(seconds: startSlider.doubleValue, preferredTimescale: 600)
-    playerView.player?.seek(to: startTime, toleranceBefore: .zero, toleranceAfter: .zero)
-    updateTrimLabels()
-  }
-
-  @objc
-  private func exportMP4Pressed() {
-    Task { [weak self] in
-      guard let self else {
-        return
-      }
-      await exportMP4()
+    if !didPickAction {
+      didPickAction = true
+      onAction(.editVideo)
     }
   }
 
-  @objc
-  private func exportGIFPressed() {
-    Task { [weak self] in
-      guard let self else {
-        return
-      }
-      await exportGIF()
+  private func generateThumbnail(asset: AVAsset) -> NSImage? {
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.appliesPreferredTrackTransform = true
+    generator.maximumSize = CGSize(width: 320, height: 320)
+    generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
+    generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
+    guard let cgImage = try? generator.copyCGImage(at: CMTime(seconds: 0.5, preferredTimescale: 600), actualTime: nil) else {
+      return nil
     }
-  }
-
-  @objc
-  private func donePressed() {
-    close()
-  }
-
-  private func updateTrimLabels() {
-    startValueLabel.stringValue = String(format: "%.2fs", startSlider.doubleValue)
-    endValueLabel.stringValue = String(format: "%.2fs", endSlider.doubleValue)
-    let trimmed = max(0, endSlider.doubleValue - startSlider.doubleValue)
-    durationLabel.stringValue = String(format: "Duration %.2fs", trimmed)
-  }
-
-  private var currentTimeRange: CMTimeRange {
-    let start = max(0, min(durationSeconds, startSlider.doubleValue))
-    let end = max(start, min(durationSeconds, endSlider.doubleValue))
-    let startTime = CMTime(seconds: start, preferredTimescale: 600)
-    let duration = CMTime(seconds: max(0.01, end - start), preferredTimescale: 600)
-    return CMTimeRange(start: startTime, duration: duration)
-  }
-
-  private var hasOverlayEnhancements: Bool {
-    overlay.webcamURL != nil || !overlay.keyEvents.isEmpty
-  }
-
-  private func persistTrimIntoRustModel(_ range: CMTimeRange) {
-    let startMS = max(0, Int((range.start.seconds * 1000).rounded()))
-    let endMS = max(startMS, Int(((range.start.seconds + range.duration.seconds) * 1000).rounded()))
-    _ = rustSession?.setTrim(startMS: startMS, endMS: endMS)
-  }
-
-  private func exportSummarySuffix() -> String {
-    guard let plan = rustSession?.exportPlan() else {
-      return ""
-    }
-    return " (\(plan.keyEventCount) keys, \(plan.clickEventCount) clicks)"
-  }
-
-  private func exportMP4() async {
-    let panel = NSSavePanel()
-    panel.allowedContentTypes = [UTType.mpeg4Movie]
-    panel.nameFieldStringValue = "recording-trimmed.mp4"
-
-    guard panel.runModal() == .OK, let outputURL = panel.url else {
-      return
-    }
-
-    statusLabel.stringValue = "Exporting MP4…"
-    do {
-      if FileManager.default.fileExists(atPath: outputURL.path) {
-        try FileManager.default.removeItem(at: outputURL)
-      }
-
-      let trimRange = currentTimeRange
-      persistTrimIntoRustModel(trimRange)
-
-      if hasOverlayEnhancements {
-        try await VideoCompositor.exportCompositeMP4(
-          sourceURL: inputURL,
-          trimRange: trimRange,
-          overlay: overlay,
-          outputURL: outputURL
-        )
-      } else {
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
-          throw NSError(
-            domain: "com.vivy.vivyshot.video",
-            code: -40,
-            userInfo: [NSLocalizedDescriptionKey: "Unable to create MP4 export session."]
-          )
-        }
-
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .mp4
-        exportSession.timeRange = trimRange
-        exportSession.shouldOptimizeForNetworkUse = true
-        try await exportSession.vs_export()
-      }
-
-      statusLabel.stringValue = "Saved MP4 to \(outputURL.lastPathComponent)\(exportSummarySuffix())"
-    } catch {
-      statusLabel.stringValue = "MP4 export failed: \(error.localizedDescription)"
-    }
-  }
-
-  private func exportGIF() async {
-    let panel = NSSavePanel()
-    panel.allowedContentTypes = [UTType.gif]
-    panel.nameFieldStringValue = "recording-trimmed.gif"
-
-    guard panel.runModal() == .OK, let outputURL = panel.url else {
-      return
-    }
-
-    statusLabel.stringValue = "Exporting GIF…"
-    do {
-      if FileManager.default.fileExists(atPath: outputURL.path) {
-        try FileManager.default.removeItem(at: outputURL)
-      }
-
-      let trimRange = currentTimeRange
-      persistTrimIntoRustModel(trimRange)
-
-      var gifSourceURL = inputURL
-      var gifStart = trimRange.start.seconds
-      var gifEnd = trimRange.start.seconds + trimRange.duration.seconds
-
-      if hasOverlayEnhancements {
-        let temporaryURL = makeTemporaryExportURL(extension: "mp4")
-        try await VideoCompositor.exportCompositeMP4(
-          sourceURL: inputURL,
-          trimRange: trimRange,
-          overlay: overlay,
-          outputURL: temporaryURL
-        )
-        gifSourceURL = temporaryURL
-        gifStart = 0
-        gifEnd = trimRange.duration.seconds
-      }
-
-      try await renderGIF(
-        sourceURL: gifSourceURL,
-        outputURL: outputURL,
-        startSeconds: gifStart,
-        endSeconds: gifEnd
-      )
-      statusLabel.stringValue = "Saved GIF to \(outputURL.lastPathComponent)\(exportSummarySuffix())"
-    } catch {
-      statusLabel.stringValue = "GIF export failed: \(error.localizedDescription)"
-    }
-  }
-
-  private func makeTemporaryExportURL(`extension`: String) -> URL {
-    let directory = FileManager.default.temporaryDirectory
-      .appendingPathComponent("vivyshot-recordings", isDirectory: true)
-    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    return directory.appendingPathComponent("export-\(UUID().uuidString).\(`extension`)")
-  }
-
-  private func renderGIF(
-    sourceURL: URL,
-    outputURL: URL,
-    startSeconds: Double,
-    endSeconds: Double
-  ) async throws {
-    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-      DispatchQueue.global(qos: .userInitiated).async {
-        do {
-          let frameRate: Double = 12
-          let generator = AVAssetImageGenerator(asset: AVAsset(url: sourceURL))
-          generator.appliesPreferredTrackTransform = true
-          generator.maximumSize = CGSize(width: 960, height: 960)
-          generator.requestedTimeToleranceAfter = .zero
-          generator.requestedTimeToleranceBefore = .zero
-
-          let frameCount = max(1, Int(ceil((endSeconds - startSeconds) * frameRate)))
-          guard let destination = CGImageDestinationCreateWithURL(
-            outputURL as CFURL,
-            UTType.gif.identifier as CFString,
-            frameCount,
-            nil
-          ) else {
-            throw NSError(
-              domain: "com.vivy.vivyshot.video",
-              code: -41,
-              userInfo: [NSLocalizedDescriptionKey: "Unable to create GIF destination."]
-            )
-          }
-
-          let gifProps: [CFString: Any] = [
-            kCGImagePropertyGIFDictionary: [
-              kCGImagePropertyGIFLoopCount: 0,
-            ],
-          ]
-          CGImageDestinationSetProperties(destination, gifProps as CFDictionary)
-
-          let frameDelay = 1.0 / frameRate
-          for index in 0 ..< frameCount {
-            let progress = Double(index) / Double(max(1, frameCount - 1))
-            let second = startSeconds + (endSeconds - startSeconds) * progress
-            let time = CMTime(seconds: second, preferredTimescale: 600)
-            let image = try generator.copyCGImage(at: time, actualTime: nil)
-            let frameProps: [CFString: Any] = [
-              kCGImagePropertyGIFDictionary: [
-                kCGImagePropertyGIFDelayTime: frameDelay,
-              ],
-            ]
-            CGImageDestinationAddImage(destination, image, frameProps as CFDictionary)
-          }
-
-          guard CGImageDestinationFinalize(destination) else {
-            throw NSError(
-              domain: "com.vivy.vivyshot.video",
-              code: -42,
-              userInfo: [NSLocalizedDescriptionKey: "Failed to finalize GIF export."]
-            )
-          }
-          continuation.resume(returning: ())
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
-    }
+    return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
   }
 }
 
-private enum VideoCompositor {
-  private struct WebcamOverlayLayout {
-    let transform: CGAffineTransform
-    let frame: CGRect
+private struct PostRecordingActionView: View {
+  let thumbnail: NSImage?
+  let durationSeconds: Double
+  let onAction: (PostRecordingAction) -> Void
+
+  private var formattedDuration: String {
+    let minutes = Int(durationSeconds) / 60
+    let seconds = Int(durationSeconds) % 60
+    let centiseconds = Int((durationSeconds.truncatingRemainder(dividingBy: 1)) * 100)
+    return String(format: "%02d:%02d.%02d", minutes, seconds, centiseconds)
   }
 
-  static func exportCompositeMP4(
-    sourceURL: URL,
-    trimRange: CMTimeRange,
-    overlay: VideoExportOverlayConfiguration,
-    outputURL: URL
-  ) async throws {
-    let sourceAsset = AVAsset(url: sourceURL)
-    guard let sourceVideoTrack = sourceAsset.tracks(withMediaType: .video).first else {
-      throw NSError(
-        domain: "com.vivy.vivyshot.video",
-        code: -80,
-        userInfo: [NSLocalizedDescriptionKey: "Source recording has no video track."]
-      )
-    }
-
-    let composition = AVMutableComposition()
-    guard let baseTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-      throw NSError(
-        domain: "com.vivy.vivyshot.video",
-        code: -81,
-        userInfo: [NSLocalizedDescriptionKey: "Unable to create composition video track."]
-      )
-    }
-    try baseTrack.insertTimeRange(trimRange, of: sourceVideoTrack, at: .zero)
-    baseTrack.preferredTransform = sourceVideoTrack.preferredTransform
-
-    for sourceAudioTrack in sourceAsset.tracks(withMediaType: .audio) {
-      guard let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-        continue
+  var body: some View {
+    VStack(spacing: 16) {
+      if let thumbnail {
+        Image(nsImage: thumbnail)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(maxWidth: 280, maxHeight: 160)
+          .background(Color.black)
+          .cornerRadius(8)
+      } else {
+        RoundedRectangle(cornerRadius: 8)
+          .fill(Color.black)
+          .frame(width: 280, height: 160)
+          .overlay(
+            Image(systemName: "film")
+              .font(.system(size: 32))
+              .foregroundColor(.secondary)
+          )
       }
-      try? audioTrack.insertTimeRange(trimRange, of: sourceAudioTrack, at: .zero)
-    }
 
-    let renderSize = normalizedRenderSize(of: sourceVideoTrack)
-    let instruction = AVMutableVideoCompositionInstruction()
-    instruction.timeRange = CMTimeRange(start: .zero, duration: trimRange.duration)
+      Text(formattedDuration)
+        .font(.system(.body, design: .monospaced))
+        .foregroundColor(.secondary)
 
-    let baseLayerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: baseTrack)
-    baseLayerInstruction.setTransform(sourceVideoTrack.preferredTransform, at: .zero)
+      VStack(spacing: 8) {
+        Button(action: { onAction(.saveMP4) }) {
+          Text("Save as MP4")
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .keyboardShortcut(.return, modifiers: [])
 
-    var layerInstructions: [AVVideoCompositionLayerInstruction] = [baseLayerInstruction]
-    var webcamLayout: WebcamOverlayLayout?
+        HStack(spacing: 8) {
+          Button(action: { onAction(.saveGIF) }) {
+            Text("Save as GIF")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.large)
 
-    if let webcamURL = overlay.webcamURL,
-       FileManager.default.fileExists(atPath: webcamURL.path)
-    {
-      let webcamAsset = AVAsset(url: webcamURL)
-      if let webcamVideoTrack = webcamAsset.tracks(withMediaType: .video).first,
-         let webcamCompositionTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
-      {
-        let webcamDuration = minCMTime(trimRange.duration, webcamAsset.duration)
-        if CMTimeCompare(webcamDuration, .zero) > 0 {
-          try webcamCompositionTrack.insertTimeRange(
-            CMTimeRange(start: .zero, duration: webcamDuration),
-            of: webcamVideoTrack,
-            at: .zero
-          )
-          let webcamLayerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: webcamCompositionTrack)
-          let layout = webcamOverlayLayout(
-            webcamTrack: webcamVideoTrack,
-            renderSize: renderSize,
-            sizeOption: overlay.webcamOverlaySize,
-            shapeOption: overlay.webcamOverlayShape
-          )
-          webcamLayerInstruction.setTransform(
-            layout.transform,
-            at: .zero
-          )
-          layerInstructions.insert(webcamLayerInstruction, at: 0)
-          webcamLayout = layout
+          Button(action: { onAction(.editVideo) }) {
+            Text("Edit Video")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.large)
         }
       }
     }
-
-    instruction.layerInstructions = layerInstructions
-
-    let videoComposition = AVMutableVideoComposition()
-    videoComposition.instructions = [instruction]
-    videoComposition.renderSize = renderSize
-    videoComposition.frameDuration = frameDuration(for: sourceVideoTrack)
-    if !overlay.keyEvents.isEmpty || webcamLayout != nil {
-      videoComposition.animationTool = makeAnimationTool(
-        renderSize: renderSize,
-        keyEvents: overlay.keyEvents,
-        trimStartSeconds: trimRange.start.seconds,
-        webcamLayout: webcamLayout,
-        webcamShape: overlay.webcamOverlayShape
-      )
-    }
-
-    guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
-      throw NSError(
-        domain: "com.vivy.vivyshot.video",
-        code: -82,
-        userInfo: [NSLocalizedDescriptionKey: "Unable to create compositor export session."]
-      )
-    }
-
-    exportSession.outputURL = outputURL
-    exportSession.outputFileType = .mp4
-    exportSession.shouldOptimizeForNetworkUse = true
-    exportSession.videoComposition = videoComposition
-    try await exportSession.vs_export()
-  }
-
-  private static func normalizedRenderSize(of track: AVAssetTrack) -> CGSize {
-    let transformed = track.naturalSize.applying(track.preferredTransform)
-    let width = max(2, abs(transformed.width).rounded())
-    let height = max(2, abs(transformed.height).rounded())
-    return CGSize(width: width, height: height)
-  }
-
-  private static func frameDuration(for track: AVAssetTrack) -> CMTime {
-    let fps = Int(round(Double(track.nominalFrameRate)))
-    if fps > 0 {
-      return CMTime(value: 1, timescale: CMTimeScale(fps))
-    }
-    return CMTime(value: 1, timescale: 30)
-  }
-
-  private static func webcamOverlayLayout(
-    webcamTrack: AVAssetTrack,
-    renderSize: CGSize,
-    sizeOption: VideoWebcamOverlaySizeOption,
-    shapeOption: VideoWebcamOverlayShapeOption
-  ) -> WebcamOverlayLayout {
-    let webcamSize = normalizedRenderSize(of: webcamTrack)
-    let targetWidth = max(108, min(renderSize.width * sizeOption.widthFraction, 420))
-    let scale = targetWidth / max(1, webcamSize.width)
-    var targetHeight = webcamSize.height * scale
-    if shapeOption == .circle {
-      targetHeight = targetWidth
-    }
-    let margin = max(14, renderSize.width * 0.018)
-    let targetX = renderSize.width - targetWidth - margin
-    let targetY = margin
-
-    var transform = webcamTrack.preferredTransform
-    if shapeOption == .circle {
-      let scaleY = targetHeight / max(1, webcamSize.height)
-      transform = transform.scaledBy(x: scale, y: scaleY)
-      transform = transform.translatedBy(
-        x: targetX / max(0.01, scale),
-        y: targetY / max(0.01, scaleY)
-      )
-    } else {
-      transform = transform.scaledBy(x: scale, y: scale)
-      transform = transform.translatedBy(x: targetX / max(0.01, scale), y: targetY / max(0.01, scale))
-    }
-
-    return WebcamOverlayLayout(
-      transform: transform,
-      frame: CGRect(x: targetX, y: targetY, width: targetWidth, height: targetHeight)
+    .padding(24)
+    .background(
+      RoundedRectangle(cornerRadius: 16)
+        .fill(.ultraThinMaterial)
+        .overlay(
+          RoundedRectangle(cornerRadius: 16)
+            .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.3), radius: 20, y: 8)
     )
   }
-
-  private static func makeAnimationTool(
-    renderSize: CGSize,
-    keyEvents: [RecordedKeystrokeEvent],
-    trimStartSeconds: Double,
-    webcamLayout: WebcamOverlayLayout?,
-    webcamShape: VideoWebcamOverlayShapeOption
-  ) -> AVVideoCompositionCoreAnimationTool {
-    let parentLayer = CALayer()
-    parentLayer.frame = CGRect(origin: .zero, size: renderSize)
-    parentLayer.masksToBounds = true
-
-    let videoLayer = CALayer()
-    videoLayer.frame = parentLayer.frame
-    parentLayer.addSublayer(videoLayer)
-
-    if let webcamLayout {
-      let webcamFrame = webcamLayout.frame.insetBy(dx: 1.5, dy: 1.5)
-      let borderLayer = CAShapeLayer()
-      borderLayer.frame = parentLayer.frame
-      borderLayer.fillColor = NSColor.clear.cgColor
-      borderLayer.strokeColor = NSColor(calibratedWhite: 1.0, alpha: 0.9).cgColor
-      borderLayer.lineWidth = max(2, webcamFrame.width * 0.012)
-      borderLayer.shadowColor = NSColor.black.cgColor
-      borderLayer.shadowOpacity = 0.35
-      borderLayer.shadowRadius = 4
-      borderLayer.shadowOffset = CGSize(width: 0, height: 1.5)
-      if webcamShape == .circle {
-        borderLayer.path = CGPath(ellipseIn: webcamFrame, transform: nil)
-      } else {
-        let radius = max(10, webcamFrame.height * 0.16)
-        borderLayer.path = CGPath(
-          roundedRect: webcamFrame,
-          cornerWidth: radius,
-          cornerHeight: radius,
-          transform: nil
-        )
-      }
-      parentLayer.addSublayer(borderLayer)
-    }
-
-    let tokenHeight = max(34, min(58, renderSize.height * 0.085))
-    let maxTokenWidth = renderSize.width * 0.72
-    let tokenY = max(18, renderSize.height * 0.07)
-
-    for event in keyEvents {
-      let eventSeconds = Double(event.timestampNS) / 1_000_000_000 - trimStartSeconds
-      if eventSeconds < 0 {
-        continue
-      }
-
-      let text = event.displayToken
-      if text.isEmpty {
-        continue
-      }
-
-      let estimatedWidth = min(maxTokenWidth, CGFloat(max(84, text.count * 18)))
-      let layer = CATextLayer()
-      layer.string = text
-      layer.fontSize = max(16, tokenHeight * 0.46)
-      layer.alignmentMode = .center
-      layer.foregroundColor = NSColor.white.cgColor
-      layer.backgroundColor = NSColor(calibratedWhite: 0.06, alpha: 0.82).cgColor
-      layer.cornerRadius = tokenHeight * 0.26
-      layer.frame = CGRect(
-        x: (renderSize.width - estimatedWidth) * 0.5,
-        y: tokenY,
-        width: estimatedWidth,
-        height: tokenHeight
-      )
-      layer.opacity = 0
-      layer.contentsScale = 2
-      parentLayer.addSublayer(layer)
-
-      let fade = CAKeyframeAnimation(keyPath: "opacity")
-      fade.values = [0, 1, 1, 0]
-      fade.keyTimes = [0, 0.1, 0.78, 1]
-      fade.duration = 0.95
-      fade.beginTime = AVCoreAnimationBeginTimeAtZero + eventSeconds
-      fade.fillMode = .forwards
-      fade.isRemovedOnCompletion = false
-      layer.add(fade, forKey: "fade")
-    }
-
-    return AVVideoCompositionCoreAnimationTool(
-      postProcessingAsVideoLayer: videoLayer,
-      in: parentLayer
-    )
-  }
-
-  private static func minCMTime(_ lhs: CMTime, _ rhs: CMTime) -> CMTime {
-    if !lhs.isValid {
-      return rhs
-    }
-    if !rhs.isValid {
-      return lhs
-    }
-    return CMTimeCompare(lhs, rhs) <= 0 ? lhs : rhs
-  }
 }
 
-@MainActor
-private extension AVAssetExportSession {
-  func vs_export() async throws {
-    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-      exportAsynchronously {
-        switch self.status {
-        case .completed:
-          continuation.resume(returning: ())
-        case .failed:
-          continuation.resume(throwing: self.error ?? NSError(
-            domain: "com.vivy.vivyshot.video",
-            code: -43,
-            userInfo: [NSLocalizedDescriptionKey: "Video export failed."]
-          ))
-        case .cancelled:
-          continuation.resume(throwing: NSError(
-            domain: "com.vivy.vivyshot.video",
-            code: -44,
-            userInfo: [NSLocalizedDescriptionKey: "Video export cancelled."]
-          ))
-        default:
-          continuation.resume(throwing: NSError(
-            domain: "com.vivy.vivyshot.video",
-            code: -45,
-            userInfo: [NSLocalizedDescriptionKey: "Video export ended in unexpected state."]
-          ))
-        }
-      }
-    }
-  }
-}

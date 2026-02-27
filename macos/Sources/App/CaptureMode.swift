@@ -45,6 +45,51 @@ enum CaptureContentType: Int, CaseIterable, Identifiable {
   }
 }
 
+enum VideoToolbarTool: Int, CaseIterable, Identifiable {
+  case systemAudio = 0
+  case microphone = 1
+  case webcam = 2
+  case mouseClicks = 3
+  case keystrokes = 4
+  case countdown = 5
+
+  var id: Int { rawValue }
+
+  var title: String {
+    switch self {
+    case .systemAudio:
+      return "System Audio"
+    case .microphone:
+      return "Microphone"
+    case .webcam:
+      return "Webcam Overlay"
+    case .mouseClicks:
+      return "Mouse Click Highlights"
+    case .keystrokes:
+      return "Keystroke Highlights"
+    case .countdown:
+      return "Countdown"
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .systemAudio:
+      return "speaker.wave.2.fill"
+    case .microphone:
+      return "mic.fill"
+    case .webcam:
+      return "video.fill"
+    case .mouseClicks:
+      return "cursorarrow.rays"
+    case .keystrokes:
+      return "keyboard"
+    case .countdown:
+      return "timer"
+    }
+  }
+}
+
 enum VideoCodecOption: Int, CaseIterable, Identifiable {
   case h264 = 0
   case hevc = 1

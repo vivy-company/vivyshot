@@ -3,60 +3,28 @@ import AppKit
 
 
 @MainActor
-final class StatusItemController: NSObject {
-  private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-  private let settings = AppSettings.shared
+final class StatusItemController: ObservableObject {
+  private let settings: AppSettings
   private lazy var captureCoordinator = CaptureCoordinator(settings: settings)
   private let hotKeyManager = GlobalHotKeyManager()
-  private var settingsWindowController: SettingsWindowController?
   private var settingsObserver: NSObjectProtocol?
+  @Published private(set) var isRecordingActive = false
 
-  override init() {
-    super.init()
-    configureMenu()
+  init(settings: AppSettings = .shared) {
+    self.settings = settings
     configureHotKey()
     observeSettingsChanges()
-  }
-
-  private func configureMenu() {
-    if let button = statusItem.button {
-      button.title = "VS"
-      button.toolTip = "VivyShot"
-      button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "VivyShot")
-      button.imagePosition = .imageLeading
-    }
-
-    let menu = NSMenu()
-    let captureItem = NSMenuItem(
-      title: "Capture Region",
-      action: #selector(capturePressed),
-      keyEquivalent: "c"
-    )
-    captureItem.keyEquivalentModifierMask = [.command]
-    captureItem.target = self
-    menu.addItem(captureItem)
-    menu.addItem(.separator())
-    let settingsItem = NSMenuItem(
-      title: "Settings…",
-      action: #selector(settingsPressed),
-      keyEquivalent: ","
-    )
-    settingsItem.keyEquivalentModifierMask = [.command]
-    settingsItem.target = self
-    menu.addItem(settingsItem)
-    menu.addItem(.separator())
-    let quitItem = menu.addItem(
-      withTitle: "Quit VivyShot",
-      action: #selector(quitPressed),
-      keyEquivalent: "q"
-    )
-    quitItem.target = self
-    statusItem.menu = menu
+    observeRecordingState()
   }
 
   private func configureHotKey() {
     hotKeyManager.onTrigger = { [weak self] in
-      self?.captureCoordinator.startRegionCapture()
+      guard let self else { return }
+      if self.captureCoordinator.isVideoRecordingActive {
+        self.captureCoordinator.stopActiveRecordingFromStatusItem()
+      } else {
+        self.captureCoordinator.startRegionCapture()
+      }
     }
 
     applyHotKeyFromSettings()
@@ -74,28 +42,37 @@ final class StatusItemController: NSObject {
     }
   }
 
+  private func observeRecordingState() {
+    captureCoordinator.onRecordingStateChanged = { [weak self] isRecording in
+      self?.isRecordingActive = isRecording
+    }
+  }
+
   private func applyHotKeyFromSettings() {
-    _ = hotKeyManager.registerHotKey(
+    let registered = hotKeyManager.registerHotKey(
       keyCode: settings.captureKeyCode,
       modifiers: settings.captureModifierFlags
     )
-  }
-
-  @objc
-  private func capturePressed() {
-    captureCoordinator.startRegionCapture()
-  }
-
-  @objc
-  private func settingsPressed() {
-    if settingsWindowController == nil {
-      settingsWindowController = SettingsWindowController(settings: settings)
+    if registered {
+      return
     }
-    settingsWindowController?.present()
+
+    NSLog("[VivyShot] Failed to register configured capture shortcut. Falling back to default.")
+    let fallbackRegistered = hotKeyManager.registerDefaultHotKey()
+    if fallbackRegistered {
+      settings.resetCaptureShortcut()
+    }
   }
 
-  @objc
-  private func quitPressed() {
+  func captureOrStopPressed() {
+    if captureCoordinator.isVideoRecordingActive {
+      captureCoordinator.stopActiveRecordingFromStatusItem()
+    } else {
+      captureCoordinator.startRegionCapture()
+    }
+  }
+
+  func quitPressed() {
     NSApplication.shared.terminate(nil)
   }
 }

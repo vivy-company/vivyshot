@@ -4,402 +4,57 @@ import Carbon
 import SwiftUI
 
 @MainActor
-final class SettingsWindowController: NSWindowController {
-  init(settings: AppSettings = .shared) {
-    let host = NSHostingController(rootView: SettingsView(settings: settings))
-    let window = NSWindow(contentViewController: host)
-    window.title = "VivyShot Settings"
-    window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-    window.level = .normal
-    window.center()
-    window.setContentSize(NSSize(width: 560, height: 700))
-    window.minSize = NSSize(width: 500, height: 620)
-    window.isReleasedWhenClosed = false
-    super.init(window: window)
+struct VivyShotSettingsView: View {
+  private enum SettingsTab: String, CaseIterable, Identifiable {
+    case general
+    case screenshot
+    case video
+
+    var id: String { rawValue }
+
+    var title: String {
+      switch self {
+      case .general:
+        return "General"
+      case .screenshot:
+        return "Screenshot"
+      case .video:
+        return "Video"
+      }
+    }
   }
 
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    nil
-  }
-
-  func present() {
-    showWindow(nil)
-    window?.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
-  }
-}
-
-@MainActor
-private struct SettingsView: View {
   @ObservedObject var settings: AppSettings
+  @State private var selectedTab: SettingsTab = .general
   @State private var isRecordingShortcut = false
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
   @State private var webcamDevices: [WebcamDeviceOption] = []
-  @State private var draggingTool: AnnotationTool?
+  @State private var draggingScreenshotTool: AnnotationTool?
+  @State private var draggingVideoTool: VideoToolbarTool?
 
   var body: some View {
-    ScrollView {
-      Form {
-        Section("Capture") {
-          HStack(spacing: 10) {
-            Text("Shortcut")
-              .frame(width: 78, alignment: .leading)
-
-            ShortcutRecorderFieldRepresentable(
-              displayText: settings.captureShortcutDisplay,
-              isRecording: $isRecordingShortcut,
-              onCapture: { keyCode, flags in
-                settings.setCaptureShortcut(keyCode: keyCode, modifierFlags: flags)
-              }
-            )
-            .frame(minWidth: 180, maxWidth: .infinity, minHeight: 28)
-            .layoutPriority(1)
-
-            Button(isRecordingShortcut ? "Stop" : "Record") {
-              isRecordingShortcut.toggle()
-            }
-            .buttonStyle(.bordered)
-            .frame(width: 92)
-
-            Button("Reset") {
-              settings.resetCaptureShortcut()
-              isRecordingShortcut = false
-            }
-            .buttonStyle(.bordered)
-            .frame(width: 86)
-          }
-
-          Text(isRecordingShortcut
-               ? "Press a key combination now. Esc cancels."
-               : "Hold Command/Shift/Option/Control while pressing a key.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-          Toggle("Show Capture Helper", isOn: captureShowHelperBinding)
-            .toggleStyle(.switch)
-            .controlSize(.small)
-        }
-
-        Section("Video Capture") {
-          HStack(spacing: 10) {
-            Text("Default")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Default Capture Type", selection: defaultCaptureTypeBinding) {
-              ForEach(CaptureContentType.allCases) { type in
-                Text(type.title).tag(type)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 190, alignment: .trailing)
-          }
-
-          HStack(spacing: 10) {
-            Text("Quality")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Video Quality", selection: videoCodecBinding) {
-              ForEach(VideoCodecOption.allCases) { codec in
-                Text(codec.title).tag(codec)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 190, alignment: .trailing)
-          }
-
-          HStack(spacing: 10) {
-            Text("Frame Rate")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Video Frame Rate", selection: videoFrameRateBinding) {
-              ForEach(VideoFrameRateOption.allCases) { rate in
-                Text(rate.title).tag(rate)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 190, alignment: .trailing)
-          }
-
-          HStack(spacing: 10) {
-            Text("Countdown")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Video Countdown", selection: videoCountdownBinding) {
-              ForEach(VideoCountdownOption.allCases) { countdown in
-                Text(countdown.title).tag(countdown)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 190, alignment: .trailing)
-          }
-
-          Toggle("Record system audio", isOn: videoRecordSystemAudioBinding)
-            .toggleStyle(.switch)
-          Toggle("Record microphone", isOn: videoRecordMicrophoneBinding)
-            .toggleStyle(.switch)
-          Toggle("Show webcam", isOn: videoShowWebcamBinding)
-            .toggleStyle(.switch)
-          if settings.videoShowWebcam {
-            HStack(spacing: 10) {
-              Text("Camera")
-                .frame(width: 78, alignment: .leading)
-              Spacer(minLength: 0)
-              Picker("Webcam Device", selection: videoWebcamDeviceIDBinding) {
-                Text("System Default").tag("")
-                ForEach(webcamDevices) { device in
-                  Text(device.name).tag(device.id)
-                }
-                if !settings.videoWebcamDeviceID.isEmpty,
-                   !webcamDevices.contains(where: { $0.id == settings.videoWebcamDeviceID })
-                {
-                  Text("Unavailable Camera").tag(settings.videoWebcamDeviceID)
-                }
-              }
-              .labelsHidden()
-              .pickerStyle(.menu)
-              .frame(width: 190, alignment: .trailing)
-            }
-
-            HStack(spacing: 10) {
-              Text("Webcam Size")
-                .frame(width: 78, alignment: .leading)
-              Spacer(minLength: 0)
-              Picker("Webcam Overlay Size", selection: videoWebcamOverlaySizeBinding) {
-                ForEach(VideoWebcamOverlaySizeOption.allCases) { size in
-                  Text(size.title).tag(size)
-                }
-              }
-              .labelsHidden()
-              .pickerStyle(.menu)
-              .frame(width: 190, alignment: .trailing)
-            }
-
-            HStack(spacing: 10) {
-              Text("Webcam Shape")
-                .frame(width: 78, alignment: .leading)
-              Spacer(minLength: 0)
-              Picker("Webcam Overlay Shape", selection: videoWebcamOverlayShapeBinding) {
-                ForEach(VideoWebcamOverlayShapeOption.allCases) { shape in
-                  Text(shape.title).tag(shape)
-                }
-              }
-              .labelsHidden()
-              .pickerStyle(.menu)
-              .frame(width: 190, alignment: .trailing)
-            }
-          }
-          Toggle("Highlight mouse clicks", isOn: videoHighlightMouseClicksBinding)
-            .toggleStyle(.switch)
-          Toggle("Highlight keystrokes", isOn: videoHighlightKeystrokesBinding)
-            .toggleStyle(.switch)
-          Toggle("Hide notifications (best effort)", isOn: videoHideNotificationsBestEffortBinding)
-            .toggleStyle(.switch)
-
-          HStack {
-            Text("Webcam and keystroke overlays require additional permissions.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            Spacer()
-            Button("Reset Video") {
-              settings.resetVideoCaptureSettings()
-            }
-          }
-        }
-
-        Section("Saving") {
-          LabeledContent("Default Folder") {
-            Text(defaultSaveDirectoryDisplay)
-              .font(.system(.callout, design: .monospaced))
-              .foregroundStyle(settings.defaultSaveDirectoryURL == nil ? .secondary : .primary)
-              .lineLimit(2)
-              .multilineTextAlignment(.trailing)
-          }
-
-          HStack {
-            Button("Choose Folder…") {
-              chooseDefaultSaveDirectory()
-            }
-            .buttonStyle(.bordered)
-
-            Button("Clear") {
-              settings.setDefaultSaveDirectory(nil)
-            }
-            .buttonStyle(.bordered)
-            .disabled(settings.defaultSaveDirectoryURL == nil)
-
-            Button("Show in Finder") {
-              revealDefaultSaveDirectoryInFinder()
-            }
-            .buttonStyle(.bordered)
-            .disabled(settings.defaultSaveDirectoryURL == nil)
-          }
-
-          Toggle("Always save to this folder (skip Save dialog)", isOn: alwaysSaveToDefaultDirectoryBinding)
-            .toggleStyle(.switch)
-            .disabled(settings.defaultSaveDirectoryURL == nil)
-        }
-
-        Section("Toolbar") {
-          Text("Drag rows to reorder. Hidden tools won’t appear in capture toolbar.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-          VStack(spacing: 0) {
-            ForEach(settings.toolOrder) { tool in
-              HStack(spacing: 10) {
-                Image(systemName: tool.symbolName)
-                  .frame(width: 18)
-                  .foregroundStyle(.secondary)
-
-                Text(tool.title)
-                  .frame(maxWidth: .infinity, alignment: .leading)
-
-                Toggle("", isOn: visibilityBinding(for: tool))
-                  .toggleStyle(.checkbox)
-                  .labelsHidden()
-
-                ReorderHandleGlyph(active: draggingTool == tool)
-                  .onDrag {
-                    draggingTool = tool
-                    return NSItemProvider(object: NSString(string: "\(tool.rawValue)"))
-                  }
-                  .help("Drag to reorder")
-              }
-              .padding(.horizontal, 4)
-              .padding(.vertical, 5)
-              .contentShape(Rectangle())
-              .background(
-                RoundedRectangle(cornerRadius: 7)
-                  .fill(draggingTool == tool ? Color.primary.opacity(0.08) : .clear)
-              )
-              .onDrop(
-                of: ["public.text"],
-                delegate: ToolbarToolDropDelegate(
-                  target: tool,
-                  currentOrder: settings.toolOrder,
-                  draggingTool: $draggingTool,
-                  onMove: settings.moveTools
-                )
-              )
-
-              if tool != settings.toolOrder.last {
-                Divider().opacity(0.35)
-              }
-            }
-          }
-          .padding(4)
-          .onDrop(of: ["public.text"], isTargeted: nil) { _ in
-            draggingTool = nil
-            return false
-          }
-
-          HStack {
-            Spacer()
-            Button("Reset Toolbar") {
-              settings.resetToolbarConfiguration()
-            }
-          }
-        }
-
-        Section("Text Tool") {
-          HStack(spacing: 10) {
-            Text("Font")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Font", selection: textFontNameBinding) {
-              ForEach(availableFamilies, id: \.self) { family in
-                Text(family).tag(family)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 190, alignment: .trailing)
-          }
-
-          HStack(spacing: 10) {
-            Text("Size")
-              .frame(width: 78, alignment: .leading)
-            Slider(value: textFontSizeBinding, in: 10 ... 48, step: 1)
-            Text("\(Int(settings.textFontSize)) pt")
-              .font(.system(.callout, design: .monospaced).weight(.semibold))
-              .frame(width: 48, alignment: .trailing)
-          }
-
-          LabeledContent("Preview") {
-            textPreview
-              .frame(maxWidth: .infinity, alignment: .leading)
-          }
-
-          HStack {
-            Spacer()
-            Button("Reset Text") {
-              settings.resetTextSettings()
-            }
-          }
-        }
-
-        Section("Effects") {
-          HStack(spacing: 10) {
-            Text("Transition")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Transition", selection: captureTransitionStyleBinding) {
-              ForEach(CaptureTransitionStyle.allCases) { style in
-                Text(style.title).tag(style)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 150, alignment: .trailing)
-          }
-
-          LabeledContent("Speed") {
-            HStack(spacing: 10) {
-              Slider(
-                value: captureTransitionSpeedBinding,
-                in: 0.8 ... 2.4,
-                step: 0.05
-              )
-              .disabled(settings.captureTransitionStyle == .none)
-              Text(String(format: "%.2fx", settings.captureTransitionSpeed))
-                .font(.system(.callout, design: .monospaced).weight(.semibold))
-                .frame(width: 54, alignment: .trailing)
-            }
-          }
-
-          LabeledContent("Strength") {
-            HStack(spacing: 10) {
-              Slider(
-                value: captureTransitionIntensityBinding,
-                in: 0.2 ... 1,
-                step: 0.05
-              )
-              .disabled(settings.captureTransitionStyle == .none)
-              Text(String(format: "%.0f%%", settings.captureTransitionIntensity * 100))
-                .font(.system(.callout, design: .monospaced).weight(.semibold))
-                .frame(width: 54, alignment: .trailing)
-            }
-          }
-
-          HStack {
-            Text("Applied on capture enter and exit.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            Spacer()
-            Button("Reset Effects") {
-              settings.resetCaptureTransitionSettings()
-            }
-          }
-        }
+    TabView(selection: $selectedTab) {
+      settingsContainer {
+        captureSection
+        savingSection
       }
-      .formStyle(.grouped)
-      .frame(maxWidth: 560)
-      .padding(14)
+      .tabItem { Label(SettingsTab.general.title, systemImage: "gearshape") }
+      .tag(SettingsTab.general)
+
+      settingsContainer {
+        screenshotToolbarSection
+        textToolSection
+        effectsSection
+      }
+      .tabItem { Label(SettingsTab.screenshot.title, systemImage: "camera") }
+      .tag(SettingsTab.screenshot)
+
+      settingsContainer {
+        videoCaptureSection
+        videoToolbarSection
+      }
+      .tabItem { Label(SettingsTab.video.title, systemImage: "record.circle") }
+      .tag(SettingsTab.video)
     }
     .frame(minWidth: 500, minHeight: 620)
     .onAppear {
@@ -408,10 +63,460 @@ private struct SettingsView: View {
     }
   }
 
+  private func settingsContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    ScrollView {
+      Form {
+        content()
+      }
+      .formStyle(.grouped)
+      .frame(maxWidth: 560)
+      .padding(14)
+    }
+  }
+
+  private var captureSection: some View {
+    Section("Capture") {
+      HStack(spacing: 10) {
+        Text("Shortcut")
+          .frame(width: 78, alignment: .leading)
+
+        ShortcutRecorderFieldRepresentable(
+          displayText: settings.captureShortcutDisplay,
+          isRecording: $isRecordingShortcut,
+          onCapture: { keyCode, flags in
+            settings.setCaptureShortcut(keyCode: keyCode, modifierFlags: flags)
+          }
+        )
+        .frame(minWidth: 180, maxWidth: .infinity, minHeight: 28)
+        .layoutPriority(1)
+
+        Button(isRecordingShortcut ? "Stop" : "Record") {
+          isRecordingShortcut.toggle()
+        }
+        .buttonStyle(.bordered)
+        .frame(width: 92)
+
+        Button("Reset") {
+          settings.resetCaptureShortcut()
+          isRecordingShortcut = false
+        }
+        .buttonStyle(.bordered)
+        .frame(width: 86)
+      }
+
+      Text(isRecordingShortcut
+           ? "Press a key combination now. Esc cancels."
+           : "Hold Command/Shift/Option/Control while pressing a key.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      Toggle("Show Capture Helper", isOn: captureShowHelperBinding)
+        .toggleStyle(.switch)
+        .controlSize(.small)
+
+      HStack(spacing: 10) {
+        Text("Default")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Default Capture Type", selection: defaultCaptureTypeBinding) {
+          ForEach(CaptureContentType.allCases) { type in
+            Text(type.title).tag(type)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+    }
+  }
+
+  private var savingSection: some View {
+    Section("Saving") {
+      LabeledContent("Default Folder") {
+        Text(defaultSaveDirectoryDisplay)
+          .font(.system(.callout, design: .monospaced))
+          .foregroundStyle(settings.defaultSaveDirectoryURL == nil ? .secondary : .primary)
+          .lineLimit(2)
+          .multilineTextAlignment(.trailing)
+      }
+
+      HStack {
+        Button("Choose Folder…") {
+          chooseDefaultSaveDirectory()
+        }
+        .buttonStyle(.bordered)
+
+        Button("Clear") {
+          settings.setDefaultSaveDirectory(nil)
+        }
+        .buttonStyle(.bordered)
+        .disabled(settings.defaultSaveDirectoryURL == nil)
+
+        Button("Show in Finder") {
+          revealDefaultSaveDirectoryInFinder()
+        }
+        .buttonStyle(.bordered)
+        .disabled(settings.defaultSaveDirectoryURL == nil)
+      }
+
+      Toggle("Always save to this folder (skip Save dialog)", isOn: alwaysSaveToDefaultDirectoryBinding)
+        .toggleStyle(.switch)
+        .disabled(settings.defaultSaveDirectoryURL == nil)
+    }
+  }
+
+  private var screenshotToolbarSection: some View {
+    Section("Toolbar") {
+      Text("Drag rows to reorder. Hidden tools won’t appear in screenshot toolbar.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      VStack(spacing: 0) {
+        ForEach(settings.toolOrder) { tool in
+          HStack(spacing: 10) {
+            Image(systemName: tool.symbolName)
+              .frame(width: 18)
+              .foregroundStyle(.secondary)
+
+            Text(tool.title)
+              .frame(maxWidth: .infinity, alignment: .leading)
+
+            Toggle("", isOn: visibilityBinding(for: tool))
+              .toggleStyle(.checkbox)
+              .labelsHidden()
+
+            ReorderHandleGlyph(active: draggingScreenshotTool == tool)
+              .onDrag {
+                draggingScreenshotTool = tool
+                return NSItemProvider(object: NSString(string: "\(tool.rawValue)"))
+              }
+              .help("Drag to reorder")
+          }
+          .padding(.horizontal, 4)
+          .padding(.vertical, 5)
+          .contentShape(Rectangle())
+          .background(
+            RoundedRectangle(cornerRadius: 7)
+              .fill(draggingScreenshotTool == tool ? Color.primary.opacity(0.08) : .clear)
+          )
+          .onDrop(
+            of: ["public.text"],
+            delegate: ToolbarToolDropDelegate(
+              target: tool,
+              currentOrder: settings.toolOrder,
+              draggingTool: $draggingScreenshotTool,
+              onMove: settings.moveTools
+            )
+          )
+
+          if tool != settings.toolOrder.last {
+            Divider().opacity(0.35)
+          }
+        }
+      }
+      .padding(4)
+      .onDrop(of: ["public.text"], isTargeted: nil) { _ in
+        draggingScreenshotTool = nil
+        return false
+      }
+
+      HStack {
+        Spacer()
+        Button("Reset Toolbar") {
+          settings.resetToolbarConfiguration()
+        }
+      }
+    }
+  }
+
+  private var videoCaptureSection: some View {
+    Section("Video Capture") {
+      HStack(spacing: 10) {
+        Text("Quality")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Video Quality", selection: videoCodecBinding) {
+          ForEach(VideoCodecOption.allCases) { codec in
+            Text(codec.title).tag(codec)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
+        Text("Frame Rate")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Video Frame Rate", selection: videoFrameRateBinding) {
+          ForEach(VideoFrameRateOption.allCases) { rate in
+            Text(rate.title).tag(rate)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
+        Text("Countdown")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Video Countdown", selection: videoCountdownBinding) {
+          ForEach(VideoCountdownOption.allCases) { countdown in
+            Text(countdown.title).tag(countdown)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      Toggle("Record system audio", isOn: videoRecordSystemAudioBinding)
+        .toggleStyle(.switch)
+      Toggle("Record microphone", isOn: videoRecordMicrophoneBinding)
+        .toggleStyle(.switch)
+      Toggle("Show webcam", isOn: videoShowWebcamBinding)
+        .toggleStyle(.switch)
+      if settings.videoShowWebcam {
+        HStack(spacing: 10) {
+          Text("Camera")
+            .frame(width: 78, alignment: .leading)
+          Spacer(minLength: 0)
+          Picker("Webcam Device", selection: videoWebcamDeviceIDBinding) {
+            Text("System Default").tag("")
+            ForEach(webcamDevices) { device in
+              Text(device.name).tag(device.id)
+            }
+            if !settings.videoWebcamDeviceID.isEmpty,
+               !webcamDevices.contains(where: { $0.id == settings.videoWebcamDeviceID })
+            {
+              Text("Unavailable Camera").tag(settings.videoWebcamDeviceID)
+            }
+          }
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .frame(width: 190, alignment: .trailing)
+        }
+
+        HStack(spacing: 10) {
+          Text("Webcam Size")
+            .frame(width: 78, alignment: .leading)
+          Spacer(minLength: 0)
+          Picker("Webcam Overlay Size", selection: videoWebcamOverlaySizeBinding) {
+            ForEach(VideoWebcamOverlaySizeOption.allCases) { size in
+              Text(size.title).tag(size)
+            }
+          }
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .frame(width: 190, alignment: .trailing)
+        }
+
+        HStack(spacing: 10) {
+          Text("Webcam Shape")
+            .frame(width: 78, alignment: .leading)
+          Spacer(minLength: 0)
+          Picker("Webcam Overlay Shape", selection: videoWebcamOverlayShapeBinding) {
+            ForEach(VideoWebcamOverlayShapeOption.allCases) { shape in
+              Text(shape.title).tag(shape)
+            }
+          }
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .frame(width: 190, alignment: .trailing)
+        }
+      }
+      Toggle("Highlight mouse clicks", isOn: videoHighlightMouseClicksBinding)
+        .toggleStyle(.switch)
+      Toggle("Highlight keystrokes", isOn: videoHighlightKeystrokesBinding)
+        .toggleStyle(.switch)
+      Toggle("Hide notifications (best effort)", isOn: videoHideNotificationsBestEffortBinding)
+        .toggleStyle(.switch)
+
+      HStack {
+        Text("Webcam and keystroke overlays require additional permissions.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Spacer()
+        Button("Reset Video") {
+          settings.resetVideoCaptureSettings()
+        }
+      }
+    }
+  }
+
+  private var videoToolbarSection: some View {
+    Section("Video Toolbar") {
+      Text("Drag rows to reorder. Hidden tools won’t appear in video toolbar.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      VStack(spacing: 0) {
+        ForEach(settings.videoToolOrder) { tool in
+          HStack(spacing: 10) {
+            Image(systemName: tool.symbolName)
+              .frame(width: 18)
+              .foregroundStyle(.secondary)
+
+            Text(tool.title)
+              .frame(maxWidth: .infinity, alignment: .leading)
+
+            Toggle("", isOn: videoToolVisibilityBinding(for: tool))
+              .toggleStyle(.checkbox)
+              .labelsHidden()
+
+            ReorderHandleGlyph(active: draggingVideoTool == tool)
+              .onDrag {
+                draggingVideoTool = tool
+                return NSItemProvider(object: NSString(string: "\(tool.rawValue)"))
+              }
+              .help("Drag to reorder")
+          }
+          .padding(.horizontal, 4)
+          .padding(.vertical, 5)
+          .contentShape(Rectangle())
+          .background(
+            RoundedRectangle(cornerRadius: 7)
+              .fill(draggingVideoTool == tool ? Color.primary.opacity(0.08) : .clear)
+          )
+          .onDrop(
+            of: ["public.text"],
+            delegate: VideoToolbarToolDropDelegate(
+              target: tool,
+              currentOrder: settings.videoToolOrder,
+              draggingTool: $draggingVideoTool,
+              onMove: settings.moveVideoTools
+            )
+          )
+
+          if tool != settings.videoToolOrder.last {
+            Divider().opacity(0.35)
+          }
+        }
+      }
+      .padding(4)
+      .onDrop(of: ["public.text"], isTargeted: nil) { _ in
+        draggingVideoTool = nil
+        return false
+      }
+
+      HStack {
+        Spacer()
+        Button("Reset Video Toolbar") {
+          settings.resetVideoToolbarConfiguration()
+        }
+      }
+    }
+  }
+
+  private var textToolSection: some View {
+    Section("Text Tool") {
+      HStack(spacing: 10) {
+        Text("Font")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Font", selection: textFontNameBinding) {
+          ForEach(availableFamilies, id: \.self) { family in
+            Text(family).tag(family)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
+        Text("Size")
+          .frame(width: 78, alignment: .leading)
+        Slider(value: textFontSizeBinding, in: 10 ... 48, step: 1)
+        Text("\(Int(settings.textFontSize)) pt")
+          .font(.system(.callout, design: .monospaced).weight(.semibold))
+          .frame(width: 48, alignment: .trailing)
+      }
+
+      LabeledContent("Preview") {
+        textPreview
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+
+      HStack {
+        Spacer()
+        Button("Reset Text") {
+          settings.resetTextSettings()
+        }
+      }
+    }
+  }
+
+  private var effectsSection: some View {
+    Section("Effects") {
+      HStack(spacing: 10) {
+        Text("Transition")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Transition", selection: captureTransitionStyleBinding) {
+          ForEach(CaptureTransitionStyle.allCases) { style in
+            Text(style.title).tag(style)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 150, alignment: .trailing)
+      }
+
+      LabeledContent("Speed") {
+        HStack(spacing: 10) {
+          Slider(
+            value: captureTransitionSpeedBinding,
+            in: 0.8 ... 2.4,
+            step: 0.05
+          )
+          .disabled(settings.captureTransitionStyle == .none)
+          Text(String(format: "%.2fx", settings.captureTransitionSpeed))
+            .font(.system(.callout, design: .monospaced).weight(.semibold))
+            .frame(width: 54, alignment: .trailing)
+        }
+      }
+
+      LabeledContent("Strength") {
+        HStack(spacing: 10) {
+          Slider(
+            value: captureTransitionIntensityBinding,
+            in: 0.2 ... 1,
+            step: 0.05
+          )
+          .disabled(settings.captureTransitionStyle == .none)
+          Text(String(format: "%.0f%%", settings.captureTransitionIntensity * 100))
+            .font(.system(.callout, design: .monospaced).weight(.semibold))
+            .frame(width: 54, alignment: .trailing)
+        }
+      }
+
+      HStack {
+        Text("Applied on capture enter and exit.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Spacer()
+        Button("Reset Effects") {
+          settings.resetCaptureTransitionSettings()
+        }
+      }
+    }
+  }
+
   private func visibilityBinding(for tool: AnnotationTool) -> Binding<Bool> {
     Binding(
       get: { settings.isToolVisible(tool) },
       set: { settings.setToolVisible(tool, isVisible: $0) }
+    )
+  }
+
+  private func videoToolVisibilityBinding(for tool: VideoToolbarTool) -> Binding<Bool> {
+    Binding(
+      get: { settings.isVideoToolVisible(tool) },
+      set: { settings.setVideoToolVisible(tool, isVisible: $0) }
     )
   }
 
@@ -667,6 +772,44 @@ private struct ToolbarToolDropDelegate: DropDelegate {
   }
 }
 
+private struct VideoToolbarToolDropDelegate: DropDelegate {
+  let target: VideoToolbarTool
+  let currentOrder: [VideoToolbarTool]
+  @Binding var draggingTool: VideoToolbarTool?
+  let onMove: (IndexSet, Int) -> Void
+
+  func dropEntered(info: DropInfo) {
+    guard let draggingTool else {
+      return
+    }
+    guard draggingTool != target else {
+      return
+    }
+    guard let fromIndex = currentOrder.firstIndex(of: draggingTool),
+          let toIndex = currentOrder.firstIndex(of: target)
+    else {
+      return
+    }
+    guard currentOrder[toIndex] != draggingTool else {
+      return
+    }
+
+    let destination = toIndex > fromIndex ? toIndex + 1 : toIndex
+    withAnimation(.easeInOut(duration: 0.12)) {
+      onMove(IndexSet(integer: fromIndex), destination)
+    }
+  }
+
+  func dropUpdated(info: DropInfo) -> DropProposal? {
+    DropProposal(operation: .move)
+  }
+
+  func performDrop(info: DropInfo) -> Bool {
+    draggingTool = nil
+    return true
+  }
+}
+
 private struct ShortcutRecorderFieldRepresentable: NSViewRepresentable {
   let displayText: String
   @Binding var isRecording: Bool
@@ -722,9 +865,7 @@ private struct ShortcutRecorderFieldRepresentable: NSViewRepresentable {
     }
 
     if isRecording, nsView.window?.firstResponder !== nsView {
-      DispatchQueue.main.async {
-        nsView.window?.makeFirstResponder(nsView)
-      }
+      nsView.window?.makeFirstResponder(nsView)
     }
   }
 }

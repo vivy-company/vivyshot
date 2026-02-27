@@ -38,6 +38,18 @@ struct RustVideoExportPlan {
   let trimEndMS: Int
   let keyEventCount: Int
   let clickEventCount: Int
+  let includeAudio: Bool
+  let includeWebcam: Bool
+  let textOverlayCount: Int
+  let needsCustomCompositor: Bool
+}
+
+struct RustVideoExportContext {
+  let sourceHasAudio: Bool
+  let sourceHasWebcamAsset: Bool
+  let audioTrackVisible: Bool
+  let webcamTrackVisible: Bool
+  let textOverlayCount: Int
 }
 
 @MainActor
@@ -52,6 +64,176 @@ final class RustCoreBridge {
 
   func makeVideoSession(config: RustVideoSessionConfig) -> RustVideoSession? {
     RustVideoSession(config: config)
+  }
+
+  func makeTimelineSession(durationMS: UInt32, width: UInt32, height: UInt32) -> RustTimelineSession? {
+    RustTimelineSession(durationMS: durationMS, width: width, height: height)
+  }
+
+  func estimateStitchDelta(
+    previous: CGImage,
+    current: CGImage,
+    preferredSide: UInt8?,
+    expectedRows: Int?,
+    relaxed: Bool
+  ) -> (rows: Int, side: UInt8, score: Double)? {
+    RustStitchBridge.estimateDelta(
+      previous: previous,
+      current: current,
+      preferredSide: preferredSide,
+      expectedRows: expectedRows,
+      relaxed: relaxed
+    )
+  }
+
+  func mergeStitchSegment(base: CGImage, segment: CGImage, side: UInt8) -> CGImage? {
+    RustStitchBridge.merge(base: base, segment: segment, side: side)
+  }
+}
+
+private enum RustStitchBridge {
+  static let sideTop: UInt8 = 0
+  static let sideBottom: UInt8 = 1
+
+  static func estimateDelta(
+    previous: CGImage,
+    current: CGImage,
+    preferredSide: UInt8?,
+    expectedRows: Int?,
+    relaxed: Bool
+  ) -> (rows: Int, side: UInt8, score: Double)? {
+    guard let previousRaster = RasterImage.from(cgImage: previous),
+          let currentRaster = RasterImage.from(cgImage: current),
+          previousRaster.width == currentRaster.width,
+          previousRaster.height == currentRaster.height
+    else {
+      return nil
+    }
+
+    var delta = vs_stitch_delta(rows: 0, side: 0, score: 0)
+    let preferred = preferredSide.map { Int32($0) } ?? -1
+    let hasExpectedRows = expectedRows != nil
+    let clampedExpectedRows = UInt32(max(0, expectedRows ?? 0))
+
+    let status = previousRaster.pixels.withUnsafeBytes { previousBytes in
+      currentRaster.pixels.withUnsafeBytes { currentBytes in
+        guard let previousPtr = previousBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+              let currentPtr = currentBytes.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        else {
+          return Int32(-1)
+        }
+
+        let previousView = vs_bgra_image_view(
+          width: UInt32(previousRaster.width),
+          height: UInt32(previousRaster.height),
+          stride: UInt32(previousRaster.stride),
+          ptr: previousPtr,
+          len: UInt(previousBytes.count)
+        )
+        let currentView = vs_bgra_image_view(
+          width: UInt32(currentRaster.width),
+          height: UInt32(currentRaster.height),
+          stride: UInt32(currentRaster.stride),
+          ptr: currentPtr,
+          len: UInt(currentBytes.count)
+        )
+
+        return vs_stitch_estimate_delta_bgra(
+          previousView,
+          currentView,
+          preferred,
+          clampedExpectedRows,
+          hasExpectedRows,
+          relaxed,
+          &delta
+        )
+      }
+    }
+
+    guard status == 0 else {
+      return nil
+    }
+
+    let side = delta.side
+    guard side == sideTop || side == sideBottom else {
+      return nil
+    }
+
+    return (
+      rows: Int(delta.rows),
+      side: side,
+      score: Double(delta.score)
+    )
+  }
+
+  static func merge(base: CGImage, segment: CGImage, side: UInt8) -> CGImage? {
+    guard side == sideTop || side == sideBottom else {
+      return nil
+    }
+
+    guard let baseRaster = RasterImage.from(cgImage: base),
+          let segmentRaster = RasterImage.from(cgImage: segment)
+    else {
+      return nil
+    }
+
+    var merged = vs_bgra_owned_image(
+      width: 0,
+      height: 0,
+      stride: 0,
+      ptr: nil,
+      len: 0
+    )
+
+    let status = baseRaster.pixels.withUnsafeBytes { baseBytes in
+      segmentRaster.pixels.withUnsafeBytes { segmentBytes in
+        guard let basePtr = baseBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+              let segmentPtr = segmentBytes.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        else {
+          return Int32(-1)
+        }
+
+        let baseView = vs_bgra_image_view(
+          width: UInt32(baseRaster.width),
+          height: UInt32(baseRaster.height),
+          stride: UInt32(baseRaster.stride),
+          ptr: basePtr,
+          len: UInt(baseBytes.count)
+        )
+        let segmentView = vs_bgra_image_view(
+          width: UInt32(segmentRaster.width),
+          height: UInt32(segmentRaster.height),
+          stride: UInt32(segmentRaster.stride),
+          ptr: segmentPtr,
+          len: UInt(segmentBytes.count)
+        )
+
+        return vs_stitch_merge_bgra(baseView, segmentView, side, &merged)
+      }
+    }
+
+    guard status == 0 else {
+      return nil
+    }
+
+    defer {
+      vs_bgra_owned_image_destroy(&merged)
+    }
+
+    guard let mergedPtr = merged.ptr,
+          merged.len > 0
+    else {
+      return nil
+    }
+
+    let pixels = Array(UnsafeBufferPointer(start: mergedPtr, count: Int(merged.len)))
+    let mergedRaster = RasterImage(
+      width: Int(merged.width),
+      height: Int(merged.height),
+      stride: Int(merged.stride),
+      pixels: pixels
+    )
+    return mergedRaster.toCGImage()
   }
 }
 
@@ -115,7 +297,16 @@ final class RustVideoSession {
   }
 
   func exportPlan() -> RustVideoExportPlan? {
-    var raw = vs_video_export_plan(trim_start_ms: 0, trim_end_ms: 0, key_event_count: 0, click_event_count: 0)
+    var raw = vs_video_export_plan(
+      trim_start_ms: 0,
+      trim_end_ms: 0,
+      key_event_count: 0,
+      click_event_count: 0,
+      include_audio: false,
+      include_webcam: false,
+      text_overlay_count: 0,
+      needs_custom_compositor: false
+    )
     guard vs_video_session_get_export_plan(handle, &raw) == 0 else {
       return nil
     }
@@ -123,8 +314,23 @@ final class RustVideoSession {
       trimStartMS: Int(raw.trim_start_ms),
       trimEndMS: Int(raw.trim_end_ms),
       keyEventCount: Int(raw.key_event_count),
-      clickEventCount: Int(raw.click_event_count)
+      clickEventCount: Int(raw.click_event_count),
+      includeAudio: raw.include_audio,
+      includeWebcam: raw.include_webcam,
+      textOverlayCount: Int(raw.text_overlay_count),
+      needsCustomCompositor: raw.needs_custom_compositor
     )
+  }
+
+  func setExportContext(_ context: RustVideoExportContext) -> Bool {
+    let raw = vs_video_export_context(
+      source_has_audio: context.sourceHasAudio,
+      source_has_webcam_asset: context.sourceHasWebcamAsset,
+      audio_track_visible: context.audioTrackVisible,
+      webcam_track_visible: context.webcamTrackVisible,
+      text_overlay_count: UInt32(max(0, context.textOverlayCount))
+    )
+    return vs_video_session_set_export_context(handle, raw) == 0
   }
 }
 
@@ -536,55 +742,6 @@ final class RustDocumentSession {
     return currentImage()
   }
 
-  func copyAnnotations(
-    from source: RustDocumentSession,
-    oldSelectionInView: CGRect,
-    newSelectionInView: CGRect
-  ) -> CGImage? {
-    let oldSelection = oldSelectionInView.standardized
-    let newSelection = newSelectionInView.standardized
-    guard oldSelection.width >= 1, oldSelection.height >= 1,
-          newSelection.width >= 1, newSelection.height >= 1 else {
-      return nil
-    }
-
-    let sourceAnnotations = source.listAnnotations()
-    guard !sourceAnnotations.isEmpty else {
-      return currentImage()
-    }
-
-    let oldScaleX = CGFloat(source.width) / oldSelection.width
-    let oldScaleY = CGFloat(source.height) / oldSelection.height
-    let newScaleX = CGFloat(width) / newSelection.width
-    let newScaleY = CGFloat(height) / newSelection.height
-    guard oldScaleX > 0, oldScaleY > 0, newScaleX > 0, newScaleY > 0 else {
-      return nil
-    }
-
-    let scaleX = Float(newScaleX / oldScaleX)
-    let scaleY = Float(newScaleY / oldScaleY)
-    let translateX = Float((oldSelection.minX - newSelection.minX) * newScaleX)
-    let translateY = Float((newSelection.maxY - oldSelection.maxY) * newScaleY)
-
-    let status = vs_copy_annotations_affine(
-      handle,
-      source.handle,
-      scaleX,
-      scaleY,
-      translateX,
-      translateY
-    )
-    guard status == 0 else {
-      return nil
-    }
-
-    guard renderDirty() else {
-      return nil
-    }
-
-    return currentImage()
-  }
-
   private func renderDirty() -> Bool {
     var dirty = vs_dirty_rect(x: 0, y: 0, width: 0, height: 0)
     var written: UInt = 0
@@ -907,5 +1064,308 @@ private struct RasterImage {
       shouldInterpolate: false,
       intent: .defaultIntent
     )
+  }
+}
+
+// MARK: - Timeline Types
+
+enum TimelineTrackKind: UInt8 {
+  case video = 0
+  case webcam = 1
+  case audio = 2
+  case text = 3
+  case shape = 4
+  case cursor = 5
+  case zoom = 6
+}
+
+enum TimelineTool: Int {
+  case select = 0
+  case cut = 1
+  case hand = 2
+  case zoom = 3
+}
+
+struct TimelineTrackInfo {
+  let kind: TimelineTrackKind
+  let visible: Bool
+  let clipCount: Int
+}
+
+struct ClipTransform {
+  var x: Float
+  var y: Float
+  var width: Float
+  var height: Float
+  var rotation: Float
+  var opacity: Float
+
+  static let identity = ClipTransform(x: 0, y: 0, width: 1, height: 1, rotation: 0, opacity: 1)
+}
+
+struct TimelineClipInfo {
+  let id: UInt32
+  let trackIndex: Int
+  let startMS: UInt32
+  let endMS: UInt32
+  let kind: TimelineTrackKind
+  let transform: ClipTransform
+}
+
+// MARK: - RustTimelineSession
+
+final class RustTimelineSession {
+  private let handle: UnsafeMutableRawPointer
+  private static let maxTimelineBufferCount = 16_384
+  private static let maxTextBytes = 1_048_576
+
+  init?(durationMS: UInt32, width: UInt32, height: UInt32) {
+    guard let rawHandle = vs_timeline_create(durationMS, width, height) else {
+      return nil
+    }
+    handle = rawHandle
+  }
+
+  deinit {
+    vs_timeline_destroy(handle)
+  }
+
+  // MARK: Tracks
+
+  func addTrack(kind: TimelineTrackKind) -> Bool {
+    vs_timeline_add_track(handle, kind.rawValue) == 0
+  }
+
+  func removeTrack(at index: Int) -> Bool {
+    vs_timeline_remove_track(handle, UInt32(index)) == 0
+  }
+
+  func reorderTrack(from: Int, to: Int) -> Bool {
+    vs_timeline_reorder_track(handle, UInt32(from), UInt32(to)) == 0
+  }
+
+  func setTrackVisible(at index: Int, visible: Bool) -> Bool {
+    vs_timeline_set_track_visible(handle, UInt32(index), visible) == 0
+  }
+
+  func getTracks() -> [TimelineTrackInfo] {
+    let infos = loadTrackInfos()
+    return infos.map { info in
+      return TimelineTrackInfo(
+        kind: TimelineTrackKind(rawValue: info.kind) ?? .video,
+        visible: info.visible,
+        clipCount: Int(info.clip_count)
+      )
+    }
+  }
+
+  // MARK: Clips
+
+  func addClip(trackIndex: Int, startMS: UInt32, endMS: UInt32, kind: TimelineTrackKind) -> UInt32? {
+    var clipID: UInt32 = 0
+    let result = vs_timeline_add_clip(handle, UInt32(trackIndex), startMS, endMS, kind.rawValue, &clipID)
+    guard result == 0 else { return nil }
+    return clipID
+  }
+
+  func removeClip(trackIndex: Int, clipID: UInt32) -> Bool {
+    vs_timeline_remove_clip(handle, UInt32(trackIndex), clipID) == 0
+  }
+
+  func moveClip(trackIndex: Int, clipID: UInt32, newStartMS: UInt32) -> Bool {
+    vs_timeline_move_clip(handle, UInt32(trackIndex), clipID, newStartMS) == 0
+  }
+
+  func resizeClip(trackIndex: Int, clipID: UInt32, newStartMS: UInt32, newEndMS: UInt32) -> Bool {
+    vs_timeline_resize_clip(handle, UInt32(trackIndex), clipID, newStartMS, newEndMS) == 0
+  }
+
+  func updateClipTransform(trackIndex: Int, clipID: UInt32, transform: ClipTransform) -> Bool {
+    let ffiTransform = vs_clip_transform(
+      x: transform.x,
+      y: transform.y,
+      width: transform.width,
+      height: transform.height,
+      rotation: transform.rotation,
+      opacity: transform.opacity
+    )
+    return vs_timeline_update_clip_transform(handle, UInt32(trackIndex), clipID, ffiTransform) == 0
+  }
+
+  // MARK: Clip Data
+
+  func setClipText(trackIndex: Int, clipID: UInt32, text: String) -> Bool {
+    let bytes = Array(text.utf8)
+    return bytes.withUnsafeBufferPointer { ptr in
+      vs_timeline_set_clip_text(handle, UInt32(trackIndex), clipID, ptr.baseAddress, UInt32(ptr.count))
+    } == 0
+  }
+
+  func setClipTextStyle(trackIndex: Int, clipID: UInt32, fontSize: Float, color: UInt32, bgColor: UInt32) -> Bool {
+    vs_timeline_set_clip_text_style(handle, UInt32(trackIndex), clipID, fontSize, color, bgColor) == 0
+  }
+
+  func setClipShapeStyle(trackIndex: Int, clipID: UInt32, fill: UInt32, border: UInt32, borderWidth: Float, cornerRadius: Float) -> Bool {
+    vs_timeline_set_clip_shape_style(handle, UInt32(trackIndex), clipID, fill, border, borderWidth, cornerRadius) == 0
+  }
+
+  // MARK: Query
+
+  func getClips(trackIndex: Int) -> [TimelineClipInfo] {
+    let infos = loadClipInfos(trackIndex: trackIndex)
+    return infos.map { info in
+      return TimelineClipInfo(
+        id: info.id,
+        trackIndex: Int(info.track_index),
+        startMS: info.start_ms,
+        endMS: info.end_ms,
+        kind: TimelineTrackKind(rawValue: info.kind) ?? .video,
+        transform: ClipTransform(
+          x: info.transform.x,
+          y: info.transform.y,
+          width: info.transform.width,
+          height: info.transform.height,
+          rotation: info.transform.rotation,
+          opacity: info.transform.opacity
+        )
+      )
+    }
+  }
+
+  func getVisibleClips(atTimeMS: UInt32) -> [TimelineClipInfo] {
+    let infos = loadVisibleClipInfos(atTimeMS: atTimeMS)
+    return infos.map { info in
+      return TimelineClipInfo(
+        id: info.id,
+        trackIndex: Int(info.track_index),
+        startMS: info.start_ms,
+        endMS: info.end_ms,
+        kind: TimelineTrackKind(rawValue: info.kind) ?? .video,
+        transform: ClipTransform(
+          x: info.transform.x,
+          y: info.transform.y,
+          width: info.transform.width,
+          height: info.transform.height,
+          rotation: info.transform.rotation,
+          opacity: info.transform.opacity
+        )
+      )
+    }
+  }
+
+  func getClipText(trackIndex: Int, clipID: UInt32) -> String? {
+    var capacity = 256
+    while capacity <= Self.maxTextBytes {
+      var buffer = [UInt8](repeating: 0, count: capacity)
+      var written: UInt32 = 0
+      let result = buffer.withUnsafeMutableBufferPointer { ptr in
+        vs_timeline_get_clip_text(handle, UInt32(trackIndex), clipID, ptr.baseAddress, UInt32(ptr.count), &written)
+      }
+      guard result == 0 else { return nil }
+
+      let required = Int(written)
+      guard required > 0 else { return nil }
+
+      if required <= buffer.count {
+        return String(bytes: buffer[0..<required], encoding: .utf8)
+      }
+
+      capacity = max(capacity * 2, required)
+    }
+    return nil
+  }
+
+  // MARK: Undo/Redo
+
+  func undo() -> Bool {
+    vs_timeline_undo(handle) == 0
+  }
+
+  func redo() -> Bool {
+    vs_timeline_redo(handle) == 0
+  }
+
+  // MARK: Video Info
+
+  func getVideoInfo() -> (durationMS: UInt32, width: UInt32, height: UInt32)? {
+    var durationMS: UInt32 = 0
+    var width: UInt32 = 0
+    var height: UInt32 = 0
+    let result = vs_timeline_get_video_info(handle, &durationMS, &width, &height)
+    guard result == 0 else { return nil }
+    return (durationMS, width, height)
+  }
+
+  // MARK: Zoom Scale
+
+  func setClipZoomScale(trackIndex: Int, clipID: UInt32, scale: Float) -> Bool {
+    vs_timeline_set_clip_zoom_scale(handle, UInt32(trackIndex), clipID, scale) == 0
+  }
+
+  func getClipZoomScale(trackIndex: Int, clipID: UInt32) -> Float? {
+    var scale: Float = 0
+    let result = vs_timeline_get_clip_zoom_scale(handle, UInt32(trackIndex), clipID, &scale)
+    guard result == 0 else { return nil }
+    return scale
+  }
+
+  private func loadTrackInfos() -> [vs_timeline_track_info] {
+    var capacity = 64
+    while capacity <= Self.maxTimelineBufferCount {
+      var buffer = [vs_timeline_track_info](repeating: vs_timeline_track_info(), count: capacity)
+      var written: UInt32 = 0
+      let result = buffer.withUnsafeMutableBufferPointer { ptr in
+        vs_timeline_get_tracks(handle, ptr.baseAddress, UInt32(ptr.count), &written)
+      }
+      guard result == 0 else { return [] }
+
+      let total = Int(written)
+      if total <= buffer.count {
+        return Array(buffer.prefix(total))
+      }
+
+      capacity = max(capacity * 2, total)
+    }
+    return []
+  }
+
+  private func loadClipInfos(trackIndex: Int) -> [vs_timeline_clip_info] {
+    var capacity = 256
+    while capacity <= Self.maxTimelineBufferCount {
+      var buffer = [vs_timeline_clip_info](repeating: vs_timeline_clip_info(), count: capacity)
+      var written: UInt32 = 0
+      let result = buffer.withUnsafeMutableBufferPointer { ptr in
+        vs_timeline_get_clips(handle, UInt32(trackIndex), ptr.baseAddress, UInt32(ptr.count), &written)
+      }
+      guard result == 0 else { return [] }
+
+      let total = Int(written)
+      if total <= buffer.count {
+        return Array(buffer.prefix(total))
+      }
+
+      capacity = max(capacity * 2, total)
+    }
+    return []
+  }
+
+  private func loadVisibleClipInfos(atTimeMS: UInt32) -> [vs_timeline_clip_info] {
+    var capacity = 256
+    while capacity <= Self.maxTimelineBufferCount {
+      var buffer = [vs_timeline_clip_info](repeating: vs_timeline_clip_info(), count: capacity)
+      var written: UInt32 = 0
+      let result = buffer.withUnsafeMutableBufferPointer { ptr in
+        vs_timeline_get_visible_clips_at(handle, atTimeMS, ptr.baseAddress, UInt32(ptr.count), &written)
+      }
+      guard result == 0 else { return [] }
+
+      let total = Int(written)
+      if total <= buffer.count {
+        return Array(buffer.prefix(total))
+      }
+
+      capacity = max(capacity * 2, total)
+    }
+    return []
   }
 }

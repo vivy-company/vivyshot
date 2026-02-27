@@ -1,776 +1,15 @@
 import AppKit
 import ApplicationServices
 import Carbon
-import CoreImage
 import CoreGraphics
-import ImageIO
+import Foundation
+import QuartzCore
 import ScreenCaptureKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct RegionSelectionResult {
-  let selectionRectInScreen: CGRect
-  let captureType: CaptureContentType
-}
-
 @MainActor
-final class RegionSelectionOverlayController {
-  private let settings: AppSettings
-  private var window: RegionSelectionWindow?
-  private weak var selectionView: RegionSelectionView?
-
-  init(settings: AppSettings = .shared) {
-    self.settings = settings
-  }
-
-  func beginSelection(
-    onScreenFrame frame: CGRect,
-    frozenImage: CGImage,
-    onComplete: @escaping (RegionSelectionResult?) -> Void
-  ) {
-    guard !frame.isNull, !frame.isEmpty else {
-      onComplete(nil)
-      return
-    }
-
-    closeWindow(animated: false)
-
-    let window = RegionSelectionWindow(
-      contentRect: frame,
-      styleMask: .borderless,
-      backing: .buffered,
-      defer: false
-    )
-    window.isReleasedWhenClosed = false
-    window.level = .screenSaver
-    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-    window.backgroundColor = .clear
-    window.isOpaque = false
-    window.hasShadow = false
-    window.ignoresMouseEvents = false
-    window.animationBehavior = .none
-
-    let selectionView = RegionSelectionView(
-      frame: CGRect(origin: .zero, size: frame.size),
-      frozenImage: frozenImage,
-      settings: settings
-    )
-
-    selectionView.onSelectionResult = { [weak self, weak window] localRect, captureType in
-      guard let self, let window else {
-        onComplete(nil)
-        return
-      }
-
-      guard let localRect else {
-        self.closeWindow()
-        onComplete(nil)
-        return
-      }
-
-      let globalRect = localRect
-        .offsetBy(dx: window.frame.origin.x, dy: window.frame.origin.y)
-        .standardized
-
-      onComplete(RegionSelectionResult(selectionRectInScreen: globalRect, captureType: captureType))
-    }
-
-    selectionView.onCancelRequested = { [weak self] in
-      self?.closeWindow()
-      onComplete(nil)
-    }
-
-    window.onCancel = { [weak selectionView] in
-      selectionView?.handleCancelShortcut()
-    }
-    window.onUndo = { [weak selectionView] in
-      selectionView?.performUndoShortcut()
-    }
-    window.onRedo = { [weak selectionView] in
-      selectionView?.performRedoShortcut()
-    }
-    window.onCopy = { [weak selectionView] in
-      selectionView?.performCopyShortcut()
-    }
-    window.onSave = { [weak selectionView] in
-      selectionView?.performSaveShortcut()
-    }
-    window.onAddStitchSegment = { [weak selectionView] in
-      selectionView?.performAddStitchSegmentShortcut()
-    }
-    window.onResetStitch = { [weak selectionView] in
-      selectionView?.performResetStitchShortcut()
-    }
-    window.onZoomIn = { [weak selectionView] in
-      selectionView?.performZoomInShortcut()
-    }
-    window.onZoomOut = { [weak selectionView] in
-      selectionView?.performZoomOutShortcut()
-    }
-    window.onZoomReset = { [weak selectionView] in
-      selectionView?.performZoomResetShortcut()
-    }
-
-    window.contentView = selectionView
-    self.window = window
-    self.selectionView = selectionView
-
-    NSApp.activate(ignoringOtherApps: true)
-    window.makeKeyAndOrderFront(nil)
-    window.makeFirstResponder(selectionView)
-    window.invalidateCursorRects(for: selectionView)
-    NSCursor.crosshair.set()
-    animateCaptureOverlayIn(window)
-  }
-
-  func enterEditing(
-    session: RustDocumentSession,
-    selectionRectInScreen: CGRect,
-    initialCaptureType: CaptureContentType,
-    onStartVideo: @escaping (CGRect, @escaping (Bool) -> Void) -> Void,
-    onStopVideo: @escaping () -> Void,
-    onDone: @escaping () -> Void
-  ) {
-    guard let window, let selectionView else {
-      onDone()
-      return
-    }
-
-    let localRect = selectionRectInScreen
-      .offsetBy(dx: -window.frame.origin.x, dy: -window.frame.origin.y)
-      .standardized
-      .integral
-
-    selectionView.enterEditing(
-      session: session,
-      selectionRect: localRect,
-      initialCaptureType: initialCaptureType
-    ) { [weak self] animateClose in
-      self?.closeWindow(animated: animateClose)
-      onDone()
-    }
-
-    selectionView.onStartVideoRequested = { [weak window] localRect, completion in
-      guard let window else {
-        completion(false)
-        return
-      }
-      let globalRect = localRect
-        .offsetBy(dx: window.frame.origin.x, dy: window.frame.origin.y)
-        .standardized
-      onStartVideo(globalRect, completion)
-    }
-
-    selectionView.onStopVideoRequested = { [weak self] in
-      self?.closeWindow()
-      onStopVideo()
-    }
-
-    window.makeFirstResponder(selectionView)
-  }
-
-  func closeFlow() {
-    closeWindow()
-  }
-
-  private func closeWindow(animated: Bool = true) {
-    guard let closingWindow = window else {
-      selectionView = nil
-      return
-    }
-
-    let closingSelectionView = selectionView
-    window = nil
-    selectionView = nil
-
-    guard animated else {
-      disposeWindow(closingWindow, selectionView: closingSelectionView)
-      return
-    }
-
-    animateCaptureOverlayOut(closingWindow, selectionView: closingSelectionView)
-  }
-
-  private func animateCaptureOverlayIn(_ window: NSWindow) {
-    let style = settings.captureTransitionStyle
-    let duration = transitionDuration(entering: true, style: style)
-
-    switch style {
-    case .none:
-      window.alphaValue = 1
-    case .fade:
-      window.alphaValue = 0
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = duration
-        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        window.animator().alphaValue = 1
-      }
-    case .ripple:
-      window.alphaValue = 0
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = duration * 0.78
-        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        window.animator().alphaValue = 1
-      }
-      applyCenterRippleTransition(to: window, entering: true, duration: duration)
-    case .liquidDrop, .zoomBlur, .waterWave:
-      window.alphaValue = 1
-      applyShaderTransition(to: window, style: style, entering: true, duration: duration)
-    }
-  }
-
-  private func animateCaptureOverlayOut(_ window: NSWindow, selectionView: RegionSelectionView?) {
-    let style = settings.captureTransitionStyle
-    let duration = transitionDuration(entering: false, style: style)
-
-    switch style {
-    case .none:
-      disposeWindow(window, selectionView: selectionView)
-    case .fade:
-      window.alphaValue = 1
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = duration
-        context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-        window.animator().alphaValue = 0
-      } completionHandler: { [weak self] in
-        MainActor.assumeIsolated {
-          self?.disposeWindow(window, selectionView: selectionView)
-        }
-      }
-    case .ripple:
-      window.alphaValue = 1
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = duration * 0.86
-        context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-        window.animator().alphaValue = 0
-      }
-      applyCenterRippleTransition(to: window, entering: false, duration: duration) {
-        self.disposeWindow(window, selectionView: selectionView)
-      }
-    case .liquidDrop, .zoomBlur, .waterWave:
-      window.alphaValue = 1
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = duration * 0.9
-        context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-        window.animator().alphaValue = 0
-      }
-      applyShaderTransition(to: window, style: style, entering: false, duration: duration) {
-        self.disposeWindow(window, selectionView: selectionView)
-      }
-    }
-  }
-
-  private func disposeWindow(_ window: NSWindow, selectionView: RegionSelectionView?) {
-    selectionView?.prepareForClose()
-    window.contentView = nil
-    window.orderOut(nil)
-    window.close()
-  }
-
-  private func transitionDuration(entering: Bool, style: CaptureTransitionStyle) -> TimeInterval {
-    let speed = max(0.8, min(2.4, settings.captureTransitionSpeed))
-    let effectiveSpeed = 0.9 + speed * 0.7
-    let base: TimeInterval
-    switch style {
-    case .none:
-      return 0
-    case .fade:
-      base = entering ? 0.12 : 0.1
-    case .ripple:
-      base = entering ? 0.24 : 0.2
-    case .liquidDrop:
-      base = entering ? 0.3 : 0.25
-    case .zoomBlur:
-      base = entering ? 0.2 : 0.17
-    case .waterWave:
-      base = entering ? 0.33 : 0.28
-    }
-    return max(0.06, base / effectiveSpeed)
-  }
-
-  private func applyShaderTransition(
-    to window: NSWindow,
-    style: CaptureTransitionStyle,
-    entering: Bool,
-    duration: TimeInterval,
-    completion: (() -> Void)? = nil
-  ) {
-    guard let contentView = window.contentView else {
-      completion?()
-      return
-    }
-
-    contentView.layoutSubtreeIfNeeded()
-    guard let snapshot = snapshotImage(of: contentView),
-          let shaderStyle = CaptureShaderTransitionView.ShaderStyle(captureStyle: style)
-    else {
-      completion?()
-      return
-    }
-
-    for subview in contentView.subviews where subview is CaptureShaderTransitionView {
-      subview.removeFromSuperview()
-    }
-
-    let overlay = CaptureShaderTransitionView(
-      frame: contentView.bounds,
-      snapshot: snapshot,
-      style: shaderStyle,
-      entering: entering,
-      duration: duration,
-      intensity: CGFloat(max(0.2, min(1, settings.captureTransitionIntensity))),
-      onFinish: completion
-    )
-    overlay.autoresizingMask = [.width, .height]
-    contentView.addSubview(overlay, positioned: .above, relativeTo: nil)
-    overlay.start()
-  }
-
-  private func snapshotImage(of view: NSView) -> CGImage? {
-    let bounds = view.bounds.integral
-    guard bounds.width > 2, bounds.height > 2 else {
-      return nil
-    }
-
-    guard let bitmap = NSBitmapImageRep(
-      bitmapDataPlanes: nil,
-      pixelsWide: Int(bounds.width),
-      pixelsHigh: Int(bounds.height),
-      bitsPerSample: 8,
-      samplesPerPixel: 4,
-      hasAlpha: true,
-      isPlanar: false,
-      colorSpaceName: .deviceRGB,
-      bytesPerRow: 0,
-      bitsPerPixel: 0
-    ) else {
-      return nil
-    }
-
-    view.cacheDisplay(in: bounds, to: bitmap)
-    return bitmap.cgImage
-  }
-
-  private func applyCenterRippleTransition(
-    to window: NSWindow,
-    entering: Bool,
-    duration: TimeInterval,
-    completion: (() -> Void)? = nil
-  ) {
-    guard let contentView = window.contentView else {
-      completion?()
-      return
-    }
-
-    contentView.layoutSubtreeIfNeeded()
-    contentView.wantsLayer = true
-    guard let layer = contentView.layer else {
-      completion?()
-      return
-    }
-
-    let intensity = CGFloat(max(0.2, min(1, settings.captureTransitionIntensity)))
-    let bounds = layer.bounds
-    guard bounds.width > 2, bounds.height > 2 else {
-      completion?()
-      return
-    }
-
-    let center = CGPoint(x: bounds.midX, y: bounds.midY)
-    let maxRadius = hypot(bounds.width * 0.5, bounds.height * 0.5) * 1.06
-    let minRadius = max(1.5, maxRadius * 0.012)
-    let overshootRadius = maxRadius * (1 + 0.018 * intensity)
-    let pullInRadius = max(minRadius + 2, maxRadius * (0.925 - 0.04 * intensity))
-
-    let maskLayer = CAShapeLayer()
-    maskLayer.frame = bounds
-    maskLayer.fillColor = NSColor.black.cgColor
-    layer.mask = maskLayer
-
-    let pathAnimation = CAKeyframeAnimation(keyPath: "path")
-    pathAnimation.duration = duration
-    pathAnimation.isRemovedOnCompletion = true
-
-    if entering {
-      pathAnimation.values = [
-        rippleCirclePath(center: center, radius: minRadius),
-        rippleCirclePath(center: center, radius: maxRadius * 0.9),
-        rippleCirclePath(center: center, radius: overshootRadius),
-        rippleCirclePath(center: center, radius: maxRadius),
-      ]
-      pathAnimation.keyTimes = [0, 0.7, 0.9, 1]
-      pathAnimation.timingFunctions = [
-        CAMediaTimingFunction(name: .easeOut),
-        CAMediaTimingFunction(name: .easeOut),
-        CAMediaTimingFunction(name: .easeInEaseOut),
-      ]
-      maskLayer.path = rippleCirclePath(center: center, radius: maxRadius)
-    } else {
-      pathAnimation.values = [
-        rippleCirclePath(center: center, radius: maxRadius),
-        rippleCirclePath(center: center, radius: pullInRadius),
-        rippleCirclePath(center: center, radius: minRadius),
-      ]
-      pathAnimation.keyTimes = [0, 0.34, 1]
-      pathAnimation.timingFunctions = [
-        CAMediaTimingFunction(name: .easeInEaseOut),
-        CAMediaTimingFunction(name: .easeIn),
-      ]
-      maskLayer.path = rippleCirclePath(center: center, radius: minRadius)
-    }
-
-    let subtleScale = CAKeyframeAnimation(keyPath: "transform")
-    subtleScale.duration = duration
-    subtleScale.isRemovedOnCompletion = true
-    if entering {
-      subtleScale.values = [
-        CATransform3DMakeScale(0.994, 0.994, 1),
-        CATransform3DMakeScale(1.002 + 0.002 * intensity, 1.002 + 0.002 * intensity, 1),
-        CATransform3DIdentity,
-      ]
-      subtleScale.keyTimes = [0, 0.62, 1]
-      subtleScale.timingFunctions = [
-        CAMediaTimingFunction(name: .easeOut),
-        CAMediaTimingFunction(name: .easeInEaseOut),
-      ]
-    } else {
-      subtleScale.values = [
-        CATransform3DIdentity,
-        CATransform3DMakeScale(0.996, 0.996, 1),
-        CATransform3DMakeScale(0.99 - 0.006 * intensity, 0.99 - 0.006 * intensity, 1),
-      ]
-      subtleScale.keyTimes = [0, 0.4, 1]
-      subtleScale.timingFunctions = [
-        CAMediaTimingFunction(name: .easeInEaseOut),
-        CAMediaTimingFunction(name: .easeIn),
-      ]
-    }
-
-    CATransaction.begin()
-    CATransaction.setCompletionBlock { [weak layer] in
-      layer?.mask = nil
-      completion?()
-    }
-    maskLayer.add(pathAnimation, forKey: entering ? "capture.centerRipple.in" : "capture.centerRipple.out")
-    layer.add(subtleScale, forKey: entering ? "capture.centerRipple.scale.in" : "capture.centerRipple.scale.out")
-    CATransaction.commit()
-  }
-
-  private func rippleCirclePath(center: CGPoint, radius: CGFloat) -> CGPath {
-    let clampedRadius = max(1, radius)
-    let rect = CGRect(
-      x: center.x - clampedRadius,
-      y: center.y - clampedRadius,
-      width: clampedRadius * 2,
-      height: clampedRadius * 2
-    )
-    return CGPath(ellipseIn: rect, transform: nil)
-  }
-}
-
-@MainActor
-private final class RegionSelectionWindow: NSWindow {
-  var onUndo: (() -> Void)?
-  var onRedo: (() -> Void)?
-  var onCopy: (() -> Void)?
-  var onSave: (() -> Void)?
-  var onAddStitchSegment: (() -> Void)?
-  var onResetStitch: (() -> Void)?
-  var onZoomIn: (() -> Void)?
-  var onZoomOut: (() -> Void)?
-  var onZoomReset: (() -> Void)?
-  var onCancel: (() -> Void)?
-
-  override var canBecomeKey: Bool { true }
-  override var canBecomeMain: Bool { true }
-
-  override func performKeyEquivalent(with event: NSEvent) -> Bool {
-    if handleCommandShortcuts(event) {
-      return true
-    }
-    return super.performKeyEquivalent(with: event)
-  }
-
-  override func keyDown(with event: NSEvent) {
-    if event.keyCode == 53 { // Esc
-      onCancel?()
-      return
-    }
-    if handleCommandShortcuts(event) {
-      return
-    }
-    super.keyDown(with: event)
-  }
-
-  private func handleCommandShortcuts(_ event: NSEvent) -> Bool {
-    guard event.type == .keyDown else {
-      return false
-    }
-
-    guard let key = event.charactersIgnoringModifiers?.lowercased() else {
-      return false
-    }
-
-    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-    guard flags.contains(.command) else {
-      return false
-    }
-
-    let allowedFlags: NSEvent.ModifierFlags = [.command, .shift]
-    if !flags.subtracting(allowedFlags).isEmpty {
-      return false
-    }
-
-    switch key {
-    case "z":
-      if flags.contains(.shift) {
-        onRedo?()
-      } else {
-        onUndo?()
-      }
-      return true
-    case "c":
-      if flags == .command {
-        onCopy?()
-        return true
-      }
-    case "s":
-      if flags == .command {
-        onSave?()
-        return true
-      }
-    case "n":
-      if flags == .command {
-        onAddStitchSegment?()
-        return true
-      }
-    case "r":
-      if flags == .command {
-        onResetStitch?()
-        return true
-      }
-    case "+", "=":
-      if flags == .command || flags == [.command, .shift] {
-        onZoomIn?()
-        return true
-      }
-    case "-":
-      if flags == .command {
-        onZoomOut?()
-        return true
-      }
-    case "0":
-      if flags == .command {
-        onZoomReset?()
-        return true
-      }
-    default:
-      break
-    }
-
-    return false
-  }
-}
-
-private enum ResizeCorner: CaseIterable {
-  case topLeft
-  case top
-  case topRight
-  case right
-  case bottom
-  case left
-  case bottomLeft
-  case bottomRight
-
-  var cursor: NSCursor {
-    .openHand
-  }
-
-  var isCorner: Bool {
-    switch self {
-    case .topLeft, .topRight, .bottomLeft, .bottomRight:
-      return true
-    case .top, .right, .bottom, .left:
-      return false
-    }
-  }
-}
-
-@MainActor
-private final class ResizeHandleView: NSView {
-  let corner: ResizeCorner
-
-  var onDragStart: ((ResizeCorner) -> Void)?
-  var onDragChanged: ((ResizeCorner, CGPoint) -> Void)?
-  var onDragEnd: ((ResizeCorner, CGPoint) -> Void)?
-
-  private var startPointInWindow: CGPoint?
-  private var pushedClosedHandCursor = false
-
-  init(corner: ResizeCorner) {
-    self.corner = corner
-    super.init(frame: .zero)
-    wantsLayer = false
-    isHidden = true
-    alphaValue = 1
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    nil
-  }
-
-  override var acceptsFirstResponder: Bool {
-    false
-  }
-
-  override var isOpaque: Bool {
-    false
-  }
-
-  override func resetCursorRects() {
-    addCursorRect(bounds, cursor: corner.cursor)
-  }
-
-  override func draw(_ dirtyRect: NSRect) {
-    super.draw(dirtyRect)
-
-    let diameter: CGFloat = corner.isCorner ? 9.8 : 8.6
-    let rect = CGRect(
-      x: (bounds.width - diameter) * 0.5,
-      y: (bounds.height - diameter) * 0.5,
-      width: diameter,
-      height: diameter
-    )
-
-    NSColor.black.withAlphaComponent(0.76).setFill()
-    NSBezierPath(ovalIn: rect).fill()
-
-    NSColor.white.withAlphaComponent(0.96).setStroke()
-    let stroke = NSBezierPath(ovalIn: rect.insetBy(dx: 0.35, dy: 0.35))
-    stroke.lineWidth = 1.1
-    stroke.stroke()
-  }
-
-  override func mouseDown(with event: NSEvent) {
-    startPointInWindow = event.locationInWindow
-    NSCursor.closedHand.push()
-    pushedClosedHandCursor = true
-    onDragStart?(corner)
-  }
-
-  override func mouseDragged(with event: NSEvent) {
-    guard let startPointInWindow else {
-      return
-    }
-    let current = event.locationInWindow
-    let delta = CGPoint(x: current.x - startPointInWindow.x, y: current.y - startPointInWindow.y)
-    onDragChanged?(corner, delta)
-  }
-
-  override func mouseUp(with event: NSEvent) {
-    defer {
-      if pushedClosedHandCursor {
-        NSCursor.pop()
-        pushedClosedHandCursor = false
-      }
-      startPointInWindow = nil
-    }
-    guard let startPointInWindow else {
-      return
-    }
-    let current = event.locationInWindow
-    let delta = CGPoint(x: current.x - startPointInWindow.x, y: current.y - startPointInWindow.y)
-    onDragEnd?(corner, delta)
-  }
-}
-
-@MainActor
-private final class SelectionMaskOverlayView: NSView {
-  var selectionRect: CGRect = .zero {
-    didSet {
-      if oldValue != selectionRect {
-        needsDisplay = true
-      }
-    }
-  }
-
-  override var isOpaque: Bool {
-    false
-  }
-
-  override func hitTest(_: NSPoint) -> NSView? {
-    nil
-  }
-
-  override func draw(_ dirtyRect: NSRect) {
-    super.draw(dirtyRect)
-
-    guard let context = NSGraphicsContext.current?.cgContext else {
-      return
-    }
-
-    guard !selectionRect.isNull, !selectionRect.isEmpty else {
-      return
-    }
-
-    let selection = selectionRect.standardized.integral
-
-    let dimPath = CGMutablePath()
-    dimPath.addRect(bounds)
-    dimPath.addRect(selection)
-
-    context.setFillColor(NSColor.black.withAlphaComponent(0.5).cgColor)
-    context.addPath(dimPath)
-    context.drawPath(using: .eoFill)
-
-    context.setStrokeColor(NSColor.white.withAlphaComponent(0.86).cgColor)
-    context.setLineWidth(1.4)
-    context.setLineDash(phase: 0, lengths: [6, 4])
-    context.stroke(selection.insetBy(dx: -0.5, dy: -0.5))
-    context.setLineDash(phase: 0, lengths: [])
-
-    drawHandleDots(in: context, selection: selection)
-  }
-
-  private func drawHandleDots(in context: CGContext, selection: CGRect) {
-    let minX = selection.minX
-    let midX = selection.midX
-    let maxX = selection.maxX
-    let minY = selection.minY
-    let midY = selection.midY
-    let maxY = selection.maxY
-
-    let points: [(CGPoint, Bool)] = [
-      (CGPoint(x: minX, y: maxY), true),
-      (CGPoint(x: midX, y: maxY), false),
-      (CGPoint(x: maxX, y: maxY), true),
-      (CGPoint(x: maxX, y: midY), false),
-      (CGPoint(x: maxX, y: minY), true),
-      (CGPoint(x: midX, y: minY), false),
-      (CGPoint(x: minX, y: minY), true),
-      (CGPoint(x: minX, y: midY), false),
-    ]
-
-    for (point, isCorner) in points {
-      let radius: CGFloat = isCorner ? 5.2 : 4.7
-      let rect = CGRect(
-        x: point.x - radius,
-        y: point.y - radius,
-        width: radius * 2,
-        height: radius * 2
-      )
-      context.setFillColor(NSColor.black.withAlphaComponent(0.76).cgColor)
-      context.fillEllipse(in: rect)
-      context.setStrokeColor(NSColor.white.withAlphaComponent(0.96).cgColor)
-      context.setLineWidth(1.1)
-      context.strokeEllipse(in: rect.insetBy(dx: 0.35, dy: 0.35))
-    }
-  }
-}
-
-@MainActor
-private final class RegionSelectionView: NSView {
+final class RegionSelectionView: NSView {
   private static let captureCameraCursor: NSCursor = {
     let size = NSSize(width: 28, height: 28)
     let image = NSImage(size: size)
@@ -798,6 +37,7 @@ private final class RegionSelectionView: NSView {
 
   var onSelectionResult: ((CGRect?, CaptureContentType) -> Void)?
   var onCancelRequested: (() -> Void)?
+  var onCancelRequestedImmediately: (() -> Void)?
   var onStartVideoRequested: ((CGRect, @escaping (Bool) -> Void) -> Void)?
   var onStopVideoRequested: (() -> Void)?
   private let settings: AppSettings
@@ -817,6 +57,7 @@ private final class RegionSelectionView: NSView {
       window?.invalidateCursorRects(for: self)
       needsLayout = true
       updateSelectingHintVisibility(animated: true)
+      syncLiveCaptureTargetPickingState()
     }
   }
 
@@ -831,7 +72,7 @@ private final class RegionSelectionView: NSView {
   private let canvasView = AnnotationCanvasView()
   private let editingMaskView = SelectionMaskOverlayView()
   private lazy var toolbarHost = NSHostingView(rootView: makeToolbarView())
-  private lazy var selectingHintHost = NSHostingView(rootView: CaptureHintGlassCard())
+  private lazy var selectingHintHost = NSHostingView(rootView: CaptureHintGlassCard(selectedType: selectedCaptureType))
   private lazy var captureTypeHost = NSHostingView(rootView: makeCaptureTypeSidebar())
   private var toolbarOffset: CGSize = .zero
   private var toolbarDragStartOffset: CGSize?
@@ -840,8 +81,13 @@ private final class RegionSelectionView: NSView {
   private var selectedCaptureMode: CaptureMode = .selection
   private var areaCaptureRect: CGRect?
   private var windowCapturePickPending = false
+  private var screenCapturePickPending = false
+  private var windowCaptureHoverRect: CGRect?
   private var videoRecordingActive = false
   private var videoRecordingStartPending = false
+  private var pointerTrackingArea: NSTrackingArea?
+  private var globalMouseMovedMonitor: Any?
+  private var globalMouseDownMonitor: Any?
 
   private var session: RustDocumentSession?
   private var onEditingDone: ((Bool) -> Void)?
@@ -926,11 +172,46 @@ private final class RegionSelectionView: NSView {
     true
   }
 
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard bounds.contains(point) else {
+      return nil
+    }
+
+    // In live pick mode, route clicks on the capture surface to this view so
+    // the picker receives the click instead of the annotation canvas.
+    if mode == .editing,
+       (windowCapturePickPending || screenCapturePickPending)
+    {
+      if toolbarHost.frame.contains(point) || captureTypeHost.frame.contains(point) {
+        return super.hitTest(point)
+      }
+      return self
+    }
+
+    return super.hitTest(point)
+  }
+
   override func layout() {
     super.layout()
     layoutEditorChrome()
     layoutSelectingHint()
     layoutCaptureTypePanel()
+  }
+
+  override func updateTrackingAreas() {
+    if let pointerTrackingArea {
+      removeTrackingArea(pointerTrackingArea)
+    }
+
+    let tracking = NSTrackingArea(
+      rect: bounds,
+      options: [.inVisibleRect, .activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited],
+      owner: self,
+      userInfo: nil
+    )
+    addTrackingArea(tracking)
+    pointerTrackingArea = tracking
+    super.updateTrackingAreas()
   }
 
   override func resetCursorRects() {
@@ -950,13 +231,24 @@ private final class RegionSelectionView: NSView {
     let point = convert(event.locationInWindow, from: nil)
 
     if mode == .editing {
+      if screenCapturePickPending {
+        if applyCaptureRect(bounds, as: .screen, rememberAsArea: false),
+           selectedCaptureType == .video
+        {
+          startVideoRecordingFromEditor()
+        }
+        return
+      }
       if windowCapturePickPending {
-        windowCapturePickPending = false
-        window?.invalidateCursorRects(for: self)
         if let windowRect = captureRectForWindowPick(at: point) {
-          _ = applyCaptureRect(windowRect, as: .window, rememberAsArea: false)
+          if applyCaptureRect(windowRect, as: .window, rememberAsArea: false),
+             selectedCaptureType == .video
+          {
+            startVideoRecordingFromEditor()
+          }
         } else {
           NSSound.beep()
+          updateWindowCaptureHover(at: point)
           refreshToolbar()
         }
         return
@@ -987,6 +279,15 @@ private final class RegionSelectionView: NSView {
     dragCurrent = point
     needsLayout = true
     needsDisplay = true
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    let point = convert(event.locationInWindow, from: nil)
+    updateWindowCaptureHover(at: point)
+  }
+
+  override func mouseExited(with _: NSEvent) {
+    updateWindowCaptureHover(at: nil)
   }
 
   override func mouseUp(with event: NSEvent) {
@@ -1051,15 +352,66 @@ private final class RegionSelectionView: NSView {
       return
     }
 
-    context.interpolationQuality = .high
-    context.draw(frozenImage, in: bounds)
+    let liveTargetPickActive = mode == .editing && (windowCapturePickPending || screenCapturePickPending)
+
+    if !liveTargetPickActive {
+      context.interpolationQuality = .high
+      context.draw(frozenImage, in: bounds)
+    }
 
     switch mode {
     case .selecting:
       drawSelectingOverlay(in: context)
     case .editing:
-      break
+      if selectedCaptureMode == .screen {
+        drawScreenCaptureOverlay(in: context)
+      } else {
+        drawWindowCaptureOverlay(in: context)
+      }
     }
+  }
+
+  private func drawScreenCaptureOverlay(in context: CGContext) {
+    guard selectedCaptureMode == .screen else {
+      return
+    }
+
+    context.saveGState()
+    context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
+    context.fill(bounds)
+    context.setStrokeColor(NSColor.white.withAlphaComponent(0.9).cgColor)
+    context.setLineWidth(1.6)
+    context.stroke(bounds.insetBy(dx: 0.5, dy: 0.5))
+    context.restoreGState()
+  }
+
+  private func drawWindowCaptureOverlay(in context: CGContext) {
+    guard selectedCaptureMode == .window else {
+      return
+    }
+
+    let targetRect = (windowCapturePickPending ? windowCaptureHoverRect : committedSelectionRect)?
+      .standardized
+      .integral
+    guard let targetRect, targetRect.width >= 2, targetRect.height >= 2 else {
+      return
+    }
+
+    let dimPath = CGMutablePath()
+    dimPath.addRect(bounds)
+    dimPath.addRect(targetRect)
+
+    context.saveGState()
+    context.addPath(dimPath)
+    context.setFillColor(NSColor.black.withAlphaComponent(windowCapturePickPending ? 0.34 : 0.26).cgColor)
+    context.drawPath(using: .eoFill)
+    context.restoreGState()
+
+    context.saveGState()
+    context.setStrokeColor(NSColor.white.withAlphaComponent(windowCapturePickPending ? 0.94 : 0.8).cgColor)
+    context.setLineWidth(windowCapturePickPending ? 2.0 : 1.4)
+    context.stroke(targetRect.insetBy(dx: -0.5, dy: -0.5))
+    context.restoreGState()
   }
 
   private func drawStitchPassThroughFocus(in context: CGContext) {
@@ -1102,6 +454,9 @@ private final class RegionSelectionView: NSView {
     videoRecordingActive = false
     videoRecordingStartPending = false
     windowCapturePickPending = false
+    screenCapturePickPending = false
+    windowCaptureHoverRect = nil
+    syncLiveCaptureTargetPickingState()
     if selectedCaptureType == .video {
       currentTool = .move
     }
@@ -1160,6 +515,9 @@ private final class RegionSelectionView: NSView {
     selectedCaptureMode = .selection
     areaCaptureRect = nil
     windowCapturePickPending = false
+    screenCapturePickPending = false
+    windowCaptureHoverRect = nil
+    syncLiveCaptureTargetPickingState()
     videoRecordingActive = false
     videoRecordingStartPending = false
     stitchModeEnabled = false
@@ -1206,13 +564,29 @@ private final class RegionSelectionView: NSView {
   }
 
   func performCopyShortcut() {
-    guard mode == .editing else { return }
-    performCopy()
+    switch mode {
+    case .editing:
+      performCopy()
+    case .selecting:
+      guard canUseHelperQuickScreenshotShortcuts else {
+        NSSound.beep()
+        return
+      }
+      quickCopyFullScreenFromSelectingOverlay()
+    }
   }
 
   func performSaveShortcut() {
-    guard mode == .editing else { return }
-    performSave()
+    switch mode {
+    case .editing:
+      performSave()
+    case .selecting:
+      guard canUseHelperQuickScreenshotShortcuts else {
+        NSSound.beep()
+        return
+      }
+      quickSaveFullScreenFromSelectingOverlay()
+    }
   }
 
   func performAddStitchSegmentShortcut() {
@@ -1241,6 +615,235 @@ private final class RegionSelectionView: NSView {
     guard mode == .editing else { return }
     canvasView.resetZoomAndPan()
     updateCanvasPreviewStrokeWidth()
+  }
+
+  func performSelectToolShortcut(index: Int) -> Bool {
+    guard mode == .editing, selectedCaptureType == .screenshot else {
+      return false
+    }
+    let tools = settings.visibleTools
+    guard !tools.isEmpty, index >= 1, index <= tools.count else {
+      return false
+    }
+    let targetTool = tools[index - 1]
+    if currentTool != targetTool {
+      currentTool = targetTool
+    }
+    return true
+  }
+
+  func performCycleToolShortcut(reverse: Bool) -> Bool {
+    guard mode == .editing else {
+      return false
+    }
+    guard !videoRecordingActive, !videoRecordingStartPending else {
+      return false
+    }
+
+    if selectedCaptureType == .screenshot {
+      let tools = settings.visibleTools
+      guard !tools.isEmpty else {
+        return false
+      }
+      let currentIndex = tools.firstIndex(of: currentTool) ?? 0
+      let nextIndex: Int
+      if reverse {
+        nextIndex = (currentIndex - 1 + tools.count) % tools.count
+      } else {
+        nextIndex = (currentIndex + 1) % tools.count
+      }
+      currentTool = tools[nextIndex]
+      return true
+    }
+
+    let modes = CaptureMode.allCases
+    guard let currentIndex = modes.firstIndex(of: selectedCaptureMode) else {
+      return false
+    }
+    let nextIndex: Int
+    if reverse {
+      nextIndex = (currentIndex - 1 + modes.count) % modes.count
+    } else {
+      nextIndex = (currentIndex + 1) % modes.count
+    }
+    setCaptureModeFromToolbar(modes[nextIndex])
+    return true
+  }
+
+  func performCycleCaptureTypeShortcut() -> Bool {
+    guard !videoRecordingActive, !videoRecordingStartPending else {
+      return false
+    }
+
+    let types = CaptureContentType.allCases
+    guard !types.isEmpty,
+          let currentIndex = types.firstIndex(of: selectedCaptureType)
+    else {
+      return false
+    }
+
+    let nextIndex = (currentIndex + 1) % types.count
+    setSelectedCaptureType(types[nextIndex])
+    return true
+  }
+
+  func performCycleCaptureModeShortcut(reverse: Bool) -> Bool {
+    guard mode == .editing else {
+      return false
+    }
+    guard !videoRecordingActive, !videoRecordingStartPending else {
+      return false
+    }
+
+    let modes = CaptureMode.allCases
+    guard !modes.isEmpty,
+          let currentIndex = modes.firstIndex(of: selectedCaptureMode)
+    else {
+      return false
+    }
+
+    let nextIndex: Int
+    if reverse {
+      nextIndex = (currentIndex - 1 + modes.count) % modes.count
+    } else {
+      nextIndex = (currentIndex + 1) % modes.count
+    }
+    setCaptureModeFromToolbar(modes[nextIndex])
+    return true
+  }
+
+  func performCaptureModeShortcut(_ mode: CaptureMode) -> Bool {
+    guard self.mode == .editing else {
+      return false
+    }
+    guard !videoRecordingActive, !videoRecordingStartPending else {
+      return false
+    }
+    setCaptureModeFromToolbar(mode)
+    return true
+  }
+
+  func performToggleVideoSystemAudioShortcut() -> Bool {
+    guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+    settings.setVideoRecordSystemAudio(!settings.videoRecordSystemAudio)
+    refreshToolbar()
+    return true
+  }
+
+  func performToggleVideoMicrophoneShortcut() -> Bool {
+    guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+    settings.setVideoRecordMicrophone(!settings.videoRecordMicrophone)
+    refreshToolbar()
+    return true
+  }
+
+  func performToggleVideoWebcamShortcut() -> Bool {
+    guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+    settings.setVideoShowWebcam(!settings.videoShowWebcam)
+    refreshToolbar()
+    return true
+  }
+
+  func performToggleVideoMouseClicksShortcut() -> Bool {
+    guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+    settings.setVideoHighlightMouseClicks(!settings.videoHighlightMouseClicks)
+    refreshToolbar()
+    return true
+  }
+
+  func performToggleVideoKeystrokesShortcut() -> Bool {
+    guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+    settings.setVideoHighlightKeystrokes(!settings.videoHighlightKeystrokes)
+    refreshToolbar()
+    return true
+  }
+
+  func performCycleVideoCountdownShortcut() -> Bool {
+    guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+
+    let options = VideoCountdownOption.allCases
+    guard !options.isEmpty else {
+      return false
+    }
+
+    let currentIndex = options.firstIndex(of: settings.videoCountdown) ?? 0
+    let nextIndex = (currentIndex + 1) % options.count
+    settings.setVideoCountdown(options[nextIndex])
+    refreshToolbar()
+    return true
+  }
+
+  func performToggleVideoRecordingShortcut() -> Bool {
+    guard mode == .editing, selectedCaptureType == .video else {
+      return false
+    }
+    toggleVideoRecordingFromEditor()
+    return true
+  }
+
+  private func quickCopyFullScreenFromSelectingOverlay() {
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    let nsImage = NSImage(cgImage: frozenImage, size: NSSize(width: frozenImage.width, height: frozenImage.height))
+    guard pasteboard.writeObjects([nsImage]) else {
+      NSSound.beep()
+      return
+    }
+
+    onCancelRequested?()
+    TransientToast.show("Copied to Clipboard")
+  }
+
+  private func quickSaveFullScreenFromSelectingOverlay() {
+    if settings.alwaysSaveToDefaultDirectory,
+       let directory = settings.defaultSaveDirectoryURL
+    {
+      let destination = Self.makeAutoSaveURL(in: directory, ext: "png")
+      Self.saveImageToDisk(frozenImage, to: destination)
+      onCancelRequested?()
+      return
+    }
+
+    let suggestedDirectory = settings.defaultSaveDirectoryURL
+    let image = frozenImage
+    if let onCancelRequestedImmediately {
+      onCancelRequestedImmediately()
+    } else {
+      onCancelRequested?()
+    }
+    Task { @MainActor [image, suggestedDirectory] in
+      await Task.yield()
+      Self.presentSavePanel(for: image, suggestedDirectory: suggestedDirectory)
+    }
+  }
+
+  private var canUseHelperQuickScreenshotShortcuts: Bool {
+    guard selectedCaptureType == .screenshot else {
+      return false
+    }
+    return mode == .selecting
+      && dragStart == nil
+      && dragCurrent == nil
+      && committedSelectionRect == nil
+  }
+
+  private var canUseVideoToolbarSettingsShortcut: Bool {
+    mode == .editing
+      && selectedCaptureType == .video
+      && !videoRecordingActive
+      && !videoRecordingStartPending
   }
 
   private func drawSelectingOverlay(in context: CGContext) {
@@ -1366,7 +969,12 @@ private final class RegionSelectionView: NSView {
   }
 
   private func layoutCaptureTypePanel() {
-    let activeSelection = (selectionRect() ?? committedSelectionRect)?.standardized
+    let activeSelection: CGRect?
+    if mode == .editing, selectedCaptureMode == .window, windowCapturePickPending {
+      activeSelection = windowCaptureHoverRect?.standardized
+    } else {
+      activeSelection = (selectionRect() ?? committedSelectionRect)?.standardized
+    }
     let hasSelection = {
       guard let activeSelection else {
         return false
@@ -1392,9 +1000,10 @@ private final class RegionSelectionView: NSView {
     let x: CGFloat
     let centeredY: CGFloat
     if let activeSelection {
-      var candidateX = activeSelection.minX - panelWidth - 6
+      let selectionGap: CGFloat = 14
+      var candidateX = activeSelection.minX - panelWidth - selectionGap
       if candidateX < minX {
-        candidateX = min(maxX, activeSelection.maxX + 6)
+        candidateX = min(maxX, activeSelection.maxX + selectionGap)
       }
       x = candidateX
       centeredY = activeSelection.midY - panelHeight * 0.5
@@ -1487,7 +1096,8 @@ private final class RegionSelectionView: NSView {
     }
 
     let selection = committedSelectionRect?.standardized.integral
-    let hidesSelectionFrame = selectedCaptureMode == .screen
+    let hidesSelectionFrame = selectedCaptureMode != .selection
+    let liveTargetPickActive = windowCapturePickPending || screenCapturePickPending
     let toolbarAnchorSelection = hidesSelectionFrame ? nil : selection
     let isPostStitchEditor = postStitchEditorMode && selection == nil
     let topChromeHeight: CGFloat = isPostStitchEditor ? 68 : 0
@@ -1501,11 +1111,16 @@ private final class RegionSelectionView: NSView {
     canvasView.frame = canvasFrame
     editingMaskView.frame = bounds
 
-    canvasView.isHidden = false
+    canvasView.isHidden = liveTargetPickActive
     toolbarHost.isHidden = false
     updateCanvasPreviewStrokeWidth()
 
-    if let selection, !hidesSelectionFrame {
+    let shouldShowSelectionMask = !liveTargetPickActive
+      && selection != nil
+      && (selectedCaptureMode == .selection || selectedCaptureMode == .window)
+
+    if shouldShowSelectionMask, let selection {
+      editingMaskView.displayStyle = selectedCaptureMode == .window ? .windowHighlight : .selection
       editingMaskView.selectionRect = selection
       editingMaskView.isHidden = false
     } else {
@@ -1538,10 +1153,11 @@ private final class RegionSelectionView: NSView {
       }
     } else if hidesSelectionFrame {
       // Full-screen mode: keep controls centered near the bottom edge.
-      minY = padding
+      let bottomInset = captureSurfaceBottomInset()
+      minY = padding + bottomInset + 8
       maxY = max(padding, bounds.height - toolbarSize.height - padding)
       defaultX = min(max(padding, bounds.midX - toolbarSize.width * 0.5), maxX)
-      defaultY = min(maxY, padding + 18)
+      defaultY = min(maxY, minY + 26)
     } else if isPostStitchEditor {
       // Default to top-right for long stitched screenshots.
       minY = padding
@@ -1573,6 +1189,14 @@ private final class RegionSelectionView: NSView {
     } else if let selection {
       layoutResizeHandles(for: selection)
     }
+  }
+
+  private func captureSurfaceBottomInset() -> CGFloat {
+    guard let hostWindow = window,
+          let screen = hostWindow.screen else {
+      return 0
+    }
+    return max(0, screen.visibleFrame.minY - screen.frame.minY)
   }
 
   private func setResizeHandlesHidden(_ hidden: Bool) {
@@ -1677,7 +1301,7 @@ private final class RegionSelectionView: NSView {
   }
 
   private func moveCapturedSelection(by delta: CGPoint) -> Bool {
-    guard mode == .editing, !stitchModeEnabled, activeResizeCorner == nil else {
+    guard mode == .editing, !stitchModeEnabled, activeResizeCorner == nil, selectedCaptureMode == .selection else {
       return false
     }
     guard let current = committedSelectionRect?.standardized else {
@@ -1864,38 +1488,24 @@ private final class RegionSelectionView: NSView {
       showWebcam: settings.videoShowWebcam,
       highlightMouseClicks: settings.videoHighlightMouseClicks,
       highlightKeystrokes: settings.videoHighlightKeystrokes,
+      toolOrder: settings.visibleVideoTools,
       isRecordingActive: videoRecordingActive,
       isRecordingPending: videoRecordingStartPending,
       countdown: settings.videoCountdown,
       onToggleSystemAudio: { [weak self] in
-        guard let self else { return }
-        guard !self.videoRecordingActive, !self.videoRecordingStartPending else { return }
-        self.settings.setVideoRecordSystemAudio(!self.settings.videoRecordSystemAudio)
-        self.refreshToolbar()
+        _ = self?.performToggleVideoSystemAudioShortcut()
       },
       onToggleMicrophone: { [weak self] in
-        guard let self else { return }
-        guard !self.videoRecordingActive, !self.videoRecordingStartPending else { return }
-        self.settings.setVideoRecordMicrophone(!self.settings.videoRecordMicrophone)
-        self.refreshToolbar()
+        _ = self?.performToggleVideoMicrophoneShortcut()
       },
       onToggleWebcam: { [weak self] in
-        guard let self else { return }
-        guard !self.videoRecordingActive, !self.videoRecordingStartPending else { return }
-        self.settings.setVideoShowWebcam(!self.settings.videoShowWebcam)
-        self.refreshToolbar()
+        _ = self?.performToggleVideoWebcamShortcut()
       },
       onToggleMouseClicks: { [weak self] in
-        guard let self else { return }
-        guard !self.videoRecordingActive, !self.videoRecordingStartPending else { return }
-        self.settings.setVideoHighlightMouseClicks(!self.settings.videoHighlightMouseClicks)
-        self.refreshToolbar()
+        _ = self?.performToggleVideoMouseClicksShortcut()
       },
       onToggleKeystrokes: { [weak self] in
-        guard let self else { return }
-        guard !self.videoRecordingActive, !self.videoRecordingStartPending else { return }
-        self.settings.setVideoHighlightKeystrokes(!self.settings.videoHighlightKeystrokes)
-        self.refreshToolbar()
+        _ = self?.performToggleVideoKeystrokesShortcut()
       },
       onSelectCountdown: { [weak self] countdown in
         guard let self else { return }
@@ -1925,16 +1535,40 @@ private final class RegionSelectionView: NSView {
 
     switch captureMode {
     case .screen:
+      selectedCaptureMode = .screen
+      screenCapturePickPending = true
       windowCapturePickPending = false
-      _ = applyCaptureRect(bounds.insetBy(dx: 1, dy: 1), as: .screen, rememberAsArea: false)
+      windowCaptureHoverRect = nil
+      committedSelectionRect = bounds.integral
+      activeResizeCorner = nil
+      resizeStartRect = nil
+      refreshToolbar()
+      syncLiveCaptureTargetPickingState()
+      needsLayout = true
+      needsDisplay = true
+      if selectedCaptureType == .video {
+        TransientToast.show("Click anywhere to start full-screen recording")
+      } else {
+        TransientToast.show("Click anywhere to capture full screen")
+      }
     case .window:
       selectedCaptureMode = .window
       windowCapturePickPending = true
+      screenCapturePickPending = false
+      updateWindowCaptureHover(at: currentMousePointInView())
       refreshToolbar()
+      syncLiveCaptureTargetPickingState()
       window?.invalidateCursorRects(for: self)
-      TransientToast.show("Click a window to capture")
+      if selectedCaptureType == .video {
+        TransientToast.show("Click a window to start recording")
+      } else {
+        TransientToast.show("Click a window to capture")
+      }
     case .selection:
       windowCapturePickPending = false
+      screenCapturePickPending = false
+      windowCaptureHoverRect = nil
+      syncLiveCaptureTargetPickingState()
       if let areaCaptureRect {
         _ = applyCaptureRect(areaCaptureRect, as: .selection, rememberAsArea: true)
       } else if let committedSelectionRect {
@@ -1957,6 +1591,9 @@ private final class RegionSelectionView: NSView {
     committedSelectionRect = clipped
     selectedCaptureMode = captureMode
     windowCapturePickPending = false
+    screenCapturePickPending = false
+    windowCaptureHoverRect = nil
+    syncLiveCaptureTargetPickingState()
     window?.invalidateCursorRects(for: self)
     if rememberAsArea {
       areaCaptureRect = clipped
@@ -1987,15 +1624,42 @@ private final class RegionSelectionView: NSView {
       return nil
     }
 
-    for info in windowInfo {
+    struct WindowPickCandidate {
+      let rect: CGRect
+      let layer: Int
+      let order: Int
+      let area: CGFloat
+      let isFrontmostOwner: Bool
+    }
+
+    let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+    var candidates: [WindowPickCandidate] = []
+
+    for (order, info) in windowInfo.enumerated() {
       guard let ownerPIDNumber = info[kCGWindowOwnerPID as String] as? NSNumber else {
         continue
       }
+      let ownerPID = ownerPIDNumber.int32Value
       if ownerPIDNumber.int32Value == selfPID {
         continue
       }
 
-      if let layer = info[kCGWindowLayer as String] as? NSNumber, layer.intValue != 0 {
+      let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+      if layer != 0 {
+        continue
+      }
+
+      if let ownerName = info[kCGWindowOwnerName as String] as? String,
+         ownerName == "Dock" || ownerName == "Window Server"
+      {
+        continue
+      }
+
+      if let onscreen = info[kCGWindowIsOnscreen as String] as? NSNumber, !onscreen.boolValue {
+        continue
+      }
+
+      if let alpha = info[kCGWindowAlpha as String] as? NSNumber, alpha.doubleValue < 0.05 {
         continue
       }
 
@@ -2011,12 +1675,198 @@ private final class RegionSelectionView: NSView {
         continue
       }
 
-      return screenBounds
+      let rect = screenBounds
         .offsetBy(dx: -hostWindow.frame.minX, dy: -hostWindow.frame.minY)
         .integral
+      let area = max(1, rect.width * rect.height)
+      let isFrontmostOwner = frontmostPID.map { Int32($0) == ownerPID } ?? false
+
+      candidates.append(
+        WindowPickCandidate(
+          rect: rect,
+          layer: layer,
+          order: order,
+          area: area,
+          isFrontmostOwner: isFrontmostOwner
+        )
+      )
     }
 
-    return nil
+    guard !candidates.isEmpty else {
+      return nil
+    }
+
+    candidates.sort { lhs, rhs in
+      if lhs.isFrontmostOwner != rhs.isFrontmostOwner {
+        return lhs.isFrontmostOwner && !rhs.isFrontmostOwner
+      }
+      if lhs.layer != rhs.layer {
+        return lhs.layer < rhs.layer
+      }
+      if lhs.order != rhs.order {
+        return lhs.order < rhs.order
+      }
+      return lhs.area < rhs.area
+    }
+
+    return candidates.first?.rect
+  }
+
+  private func currentMousePointInView() -> CGPoint? {
+    guard let window else {
+      return nil
+    }
+    return convert(window.mouseLocationOutsideOfEventStream, from: nil)
+  }
+
+  private func localPoint(fromScreenPoint screenPoint: CGPoint) -> CGPoint? {
+    guard let hostWindow = window else {
+      return nil
+    }
+    return CGPoint(
+      x: screenPoint.x - hostWindow.frame.minX,
+      y: screenPoint.y - hostWindow.frame.minY
+    )
+  }
+
+  private func updateWindowCaptureHover(at point: CGPoint?) {
+    guard mode == .editing, selectedCaptureMode == .window, windowCapturePickPending, let point else {
+      if windowCaptureHoverRect != nil {
+        windowCaptureHoverRect = nil
+        needsDisplay = true
+      }
+      return
+    }
+
+    let nextHover = captureRectForWindowPick(at: point)?.standardized.integral
+    if nextHover != windowCaptureHoverRect {
+      windowCaptureHoverRect = nextHover
+      needsDisplay = true
+    }
+  }
+
+  private func updateWindowCaptureHover(atScreenPoint screenPoint: CGPoint?) {
+    guard let screenPoint else {
+      updateWindowCaptureHover(at: nil)
+      return
+    }
+    updateWindowCaptureHover(at: localPoint(fromScreenPoint: screenPoint))
+  }
+
+  private func captureRectForWindowPick(atScreenPoint screenPoint: CGPoint) -> CGRect? {
+    guard let localPoint = localPoint(fromScreenPoint: screenPoint) else {
+      return nil
+    }
+    return captureRectForWindowPick(at: localPoint)
+  }
+
+  private func syncLiveCaptureTargetPickingState() {
+    let shouldPassThrough = mode == .editing && (windowCapturePickPending || screenCapturePickPending)
+
+    guard let hostWindow = window else {
+      teardownGlobalTargetPickMonitors()
+      return
+    }
+
+    hostWindow.ignoresMouseEvents = shouldPassThrough
+
+    if shouldPassThrough {
+      installGlobalTargetPickMonitors()
+      if windowCapturePickPending {
+        updateWindowCaptureHover(atScreenPoint: NSEvent.mouseLocation)
+      } else {
+        updateWindowCaptureHover(at: nil)
+      }
+      if selectedCaptureMode == .screen || selectedCaptureMode == .window {
+        Self.captureCameraCursor.set()
+      }
+      needsLayout = true
+      needsDisplay = true
+    } else {
+      teardownGlobalTargetPickMonitors()
+      updateWindowCaptureHover(at: nil)
+      window?.invalidateCursorRects(for: self)
+    }
+  }
+
+  private func installGlobalTargetPickMonitors() {
+    if globalMouseMovedMonitor == nil {
+      globalMouseMovedMonitor = NSEvent.addGlobalMonitorForEvents(
+        matching: [.mouseMoved, .leftMouseDragged]
+      ) { [weak self] event in
+        let screenPoint = event.locationInWindow
+        Task { @MainActor [weak self, screenPoint] in
+          self?.handleGlobalTargetPickMouseMove(screenPoint: screenPoint)
+        }
+      }
+    }
+
+    if globalMouseDownMonitor == nil {
+      globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(
+        matching: [.leftMouseDown]
+      ) { [weak self] event in
+        let screenPoint = event.locationInWindow
+        Task { @MainActor [weak self, screenPoint] in
+          self?.handleGlobalTargetPickClick(screenPoint: screenPoint)
+        }
+      }
+    }
+  }
+
+  private func teardownGlobalTargetPickMonitors() {
+    if let globalMouseMovedMonitor {
+      NSEvent.removeMonitor(globalMouseMovedMonitor)
+      self.globalMouseMovedMonitor = nil
+    }
+
+    if let globalMouseDownMonitor {
+      NSEvent.removeMonitor(globalMouseDownMonitor)
+      self.globalMouseDownMonitor = nil
+    }
+  }
+
+  private func handleGlobalTargetPickMouseMove(screenPoint: CGPoint) {
+    guard mode == .editing else {
+      return
+    }
+    guard windowCapturePickPending || screenCapturePickPending else {
+      return
+    }
+
+    if windowCapturePickPending {
+      updateWindowCaptureHover(atScreenPoint: screenPoint)
+    }
+
+    if selectedCaptureMode == .screen || selectedCaptureMode == .window {
+      Self.captureCameraCursor.set()
+    }
+  }
+
+  private func handleGlobalTargetPickClick(screenPoint: CGPoint) {
+    guard mode == .editing else {
+      return
+    }
+
+    if windowCapturePickPending {
+      guard let windowRect = captureRectForWindowPick(atScreenPoint: screenPoint) else {
+        NSSound.beep()
+        return
+      }
+      if applyCaptureRect(windowRect, as: .window, rememberAsArea: false),
+         selectedCaptureType == .video
+      {
+        startVideoRecordingFromEditor()
+      }
+      return
+    }
+
+    if screenCapturePickPending {
+      if applyCaptureRect(bounds, as: .screen, rememberAsArea: false),
+         selectedCaptureType == .video
+      {
+        startVideoRecordingFromEditor()
+      }
+    }
   }
 
   private func makeCaptureTypeSidebar() -> CaptureTypeSidebar {
@@ -2026,6 +1876,11 @@ private final class RegionSelectionView: NSView {
         self?.setSelectedCaptureType(type)
       }
     )
+  }
+
+  private func refreshSelectingHint() {
+    selectingHintHost.rootView = CaptureHintGlassCard(selectedType: selectedCaptureType)
+    needsLayout = true
   }
 
   private func refreshCaptureTypeSidebar() {
@@ -2047,6 +1902,7 @@ private final class RegionSelectionView: NSView {
     }
     settings.setDefaultCaptureType(type)
     refreshCaptureTypeSidebar()
+    refreshSelectingHint()
     refreshToolbar()
   }
 
@@ -2057,6 +1913,9 @@ private final class RegionSelectionView: NSView {
     if videoRecordingActive {
       stopVideoRecordingFromEditor()
     } else {
+      if !ensureCaptureTargetIsResolved(forRecording: true) {
+        return
+      }
       startVideoRecordingFromEditor()
     }
   }
@@ -2066,6 +1925,9 @@ private final class RegionSelectionView: NSView {
       return
     }
     guard !videoRecordingActive, !videoRecordingStartPending else {
+      return
+    }
+    guard ensureCaptureTargetIsResolved(forRecording: true) else {
       return
     }
     guard let selection = committedSelectionRect?.standardized.integral,
@@ -2142,6 +2004,7 @@ private final class RegionSelectionView: NSView {
     if mode == .selecting, dragStart == nil, dragCurrent == nil, committedSelectionRect == nil {
       selectedCaptureType = settings.defaultCaptureType
       refreshCaptureTypeSidebar()
+      refreshSelectingHint()
     }
 
     refreshToolbar()
@@ -2176,6 +2039,10 @@ private final class RegionSelectionView: NSView {
     stitchRecordingActive = false
     stitchCaptureInProgress = false
     stitchPassThroughOverlayActive = false
+    windowCapturePickPending = false
+    screenCapturePickPending = false
+    windowCaptureHoverRect = nil
+    syncLiveCaptureTargetPickingState()
     stitchDirection = nil
     stitchExpectedDeltaRows = nil
     resetStitchAutoScrollState()
@@ -3052,147 +2919,37 @@ private final class RegionSelectionView: NSView {
     expectedRows: Int?,
     relaxed: Bool
   ) -> StitchDeltaEstimate? {
-    guard let prev = makeBGRARaster(from: previous),
-          let curr = makeBGRARaster(from: current),
-          prev.width == curr.width,
-          prev.height == curr.height
-    else {
+    let rawPreferred: UInt8?
+    switch preferredSide {
+    case .top:
+      rawPreferred = 0
+    case .bottom:
+      rawPreferred = 1
+    case nil:
+      rawPreferred = nil
+    }
+
+    guard let delta = RustCoreBridge.shared.estimateStitchDelta(
+      previous: previous,
+      current: current,
+      preferredSide: rawPreferred,
+      expectedRows: expectedRows,
+      relaxed: relaxed
+    ) else {
       return nil
     }
 
-    let width = prev.width
-    let height = prev.height
-    guard width >= 32, height >= 24 else {
+    let side: StitchStripSide
+    switch delta.side {
+    case 0:
+      side = .top
+    case 1:
+      side = .bottom
+    default:
       return nil
     }
 
-    // Allow large jumps (fast scrolling) while still requiring some overlap.
-    let minOverlapRows = max(24, Int((Double(height) * 0.14).rounded()))
-    let maxShift = max(4, min(height - 4, height - minOverlapRows))
-
-    // Ignore static UI chrome (sticky header/footer/scrollbar edges) when matching.
-    let xInset = max(8, width / 16)
-    let yInset = max(10, height / 8)
-    let sampleMinX = xInset
-    let sampleMaxX = max(sampleMinX + 8, width - xInset)
-    let sampleSpanX = max(8, sampleMaxX - sampleMinX)
-    let stepX = max(2, sampleSpanX / 74)
-    var best = StitchDeltaEstimate(rows: 0, side: .bottom, score: .greatestFiniteMagnitude)
-    var secondBestScore = Double.greatestFiniteMagnitude
-
-    func considerCandidate(_ candidate: StitchDeltaEstimate) {
-      if candidate.score < best.score {
-        secondBestScore = best.score
-        best = candidate
-      } else if candidate.score < secondBestScore {
-        secondBestScore = candidate.score
-      }
-    }
-
-    var searchStart = 2
-    var searchEnd = maxShift
-    if let expectedRows {
-      let band = max(10, Int((Double(max(6, expectedRows)) * (relaxed ? 1.05 : 0.65)).rounded()))
-      searchStart = max(2, expectedRows - band)
-      searchEnd = min(maxShift, expectedRows + band)
-      if searchStart >= searchEnd {
-        searchStart = 2
-        searchEnd = maxShift
-      }
-    }
-
-    for shift in searchStart ... searchEnd {
-      let overlap = height - shift
-      if overlap < 10 {
-        continue
-      }
-      let sampleMinY = yInset
-      let sampleMaxY = max(sampleMinY + 8, overlap - yInset)
-      let sampleSpanY = sampleMaxY - sampleMinY
-      if sampleSpanY < 8 {
-        continue
-      }
-      let stepY = max(2, sampleSpanY / 64)
-
-      var diffBottom: UInt64 = 0
-      var diffTop: UInt64 = 0
-      var samples: UInt64 = 0
-
-      var y = sampleMinY
-      while y < sampleMaxY {
-        let prevBottomRow = y + shift
-        let currBottomRow = y
-        let prevTopRow = y
-        let currTopRow = y + shift
-
-        let prevBottomBase = prevBottomRow * prev.stride
-        let currBottomBase = currBottomRow * curr.stride
-        let prevTopBase = prevTopRow * prev.stride
-        let currTopBase = currTopRow * curr.stride
-
-        var x = sampleMinX
-        while x < sampleMaxX {
-          let prevBottomIndex = prevBottomBase + x * 4
-          let currBottomIndex = currBottomBase + x * 4
-          diffBottom += pixelDiff(prev.pixels, prevBottomIndex, curr.pixels, currBottomIndex)
-
-          let prevTopIndex = prevTopBase + x * 4
-          let currTopIndex = currTopBase + x * 4
-          diffTop += pixelDiff(prev.pixels, prevTopIndex, curr.pixels, currTopIndex)
-
-          samples += 1
-          x += stepX
-        }
-        y += stepY
-      }
-
-      guard samples > 0 else {
-        continue
-      }
-
-      if preferredSide == nil || preferredSide == .bottom {
-        let bottomScore = Double(diffBottom) / Double(samples)
-        considerCandidate(StitchDeltaEstimate(rows: shift, side: .bottom, score: bottomScore))
-      }
-
-      if preferredSide == nil || preferredSide == .top {
-        let topScore = Double(diffTop) / Double(samples)
-        considerCandidate(StitchDeltaEstimate(rows: shift, side: .top, score: topScore))
-      }
-    }
-
-    guard best.rows >= 4 else {
-      return nil
-    }
-
-    // Empirical threshold for BGRA sum error on sampled pixels.
-    let scoreThreshold: Double
-    if relaxed {
-      scoreThreshold = (preferredSide == nil) ? 82 : 94
-    } else {
-      scoreThreshold = (preferredSide == nil) ? 56 : 62
-    }
-    guard best.score < scoreThreshold else {
-      return nil
-    }
-
-    // Reject ambiguous matches that are too close to the runner-up score.
-    if !relaxed, secondBestScore.isFinite {
-      let separation = (secondBestScore - best.score) / max(1, secondBestScore)
-      let minimumSeparation: Double = (preferredSide == nil) ? 0.08 : 0.055
-      guard separation >= minimumSeparation else {
-        return nil
-      }
-    }
-
-    return best
-  }
-
-  private func pixelDiff(_ a: [UInt8], _ ai: Int, _ b: [UInt8], _ bi: Int) -> UInt64 {
-    let db = abs(Int(a[ai + 0]) - Int(b[bi + 0]))
-    let dg = abs(Int(a[ai + 1]) - Int(b[bi + 1]))
-    let dr = abs(Int(a[ai + 2]) - Int(b[bi + 2]))
-    return UInt64(dr + dg + db)
+    return StitchDeltaEstimate(rows: delta.rows, side: side, score: delta.score)
   }
 
   private func extractStrip(from image: CGImage, rows: Int, side: StitchStripSide) -> CGImage? {
@@ -3205,43 +2962,6 @@ private final class RegionSelectionView: NSView {
       cropRect = CGRect(x: 0, y: image.height - clampedRows, width: image.width, height: clampedRows)
     }
     return image.cropping(to: cropRect.integral)
-  }
-
-  private func makeBGRARaster(from image: CGImage) -> (width: Int, height: Int, stride: Int, pixels: [UInt8])? {
-    let width = image.width
-    let height = image.height
-    guard width >= 1, height >= 1 else {
-      return nil
-    }
-
-    let stride = width * 4
-    var pixels = [UInt8](repeating: 0, count: stride * height)
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
-
-    let ok = pixels.withUnsafeMutableBytes { raw -> Bool in
-      guard let base = raw.baseAddress else {
-        return false
-      }
-      guard let context = CGContext(
-        data: base,
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bytesPerRow: stride,
-        space: colorSpace,
-        bitmapInfo: bitmapInfo
-      ) else {
-        return false
-      }
-      context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-      return true
-    }
-
-    guard ok else {
-      return nil
-    }
-    return (width, height, stride, pixels)
   }
 
   private func captureScreenImage(frame: CGRect) async -> CGImage? {
@@ -3293,80 +3013,16 @@ private final class RegionSelectionView: NSView {
   }
 
   private func mergeSegment(base: CGImage, segment: CGImage, side: StitchStripSide) -> CGImage? {
-    switch side {
-    case .bottom:
-      return appendSegment(base: base, segment: segment)
-    case .top:
-      return prependSegment(base: base, segment: segment)
-    }
-  }
-
-  private func appendSegment(base: CGImage, segment: CGImage) -> CGImage? {
-    let targetWidth = base.width
-    guard targetWidth >= 2, base.height >= 2, segment.width >= 2, segment.height >= 2 else {
+    let sideRaw: UInt8 = (side == .top) ? 0 : 1
+    let normalized = (segment.width == base.width) ? segment : normalizedSegmentWidth(segment, targetWidth: base.width)
+    guard let normalized else {
       return nil
     }
-
-    guard let normalizedSegment = normalizedSegmentWidth(segment, targetWidth: targetWidth) else {
-      return nil
-    }
-
-    let totalHeight = base.height + normalizedSegment.height
-    guard let context = CGContext(
-      data: nil,
-      width: targetWidth,
-      height: totalHeight,
-      bitsPerComponent: 8,
-      bytesPerRow: targetWidth * 4,
-      space: CGColorSpaceCreateDeviceRGB(),
-      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-    ) else {
-      return nil
-    }
-
-    context.interpolationQuality = .high
-    context.draw(
-      base,
-      in: CGRect(x: 0, y: normalizedSegment.height, width: targetWidth, height: base.height)
+    return RustCoreBridge.shared.mergeStitchSegment(
+      base: base,
+      segment: normalized,
+      side: sideRaw
     )
-    context.draw(
-      normalizedSegment,
-      in: CGRect(x: 0, y: 0, width: targetWidth, height: normalizedSegment.height)
-    )
-
-    return context.makeImage()
-  }
-
-  private func prependSegment(base: CGImage, segment: CGImage) -> CGImage? {
-    let targetWidth = base.width
-    guard targetWidth >= 2, base.height >= 2, segment.width >= 2, segment.height >= 2 else {
-      return nil
-    }
-
-    guard let normalizedSegment = normalizedSegmentWidth(segment, targetWidth: targetWidth) else {
-      return nil
-    }
-
-    let totalHeight = base.height + normalizedSegment.height
-    guard let context = CGContext(
-      data: nil,
-      width: targetWidth,
-      height: totalHeight,
-      bitsPerComponent: 8,
-      bytesPerRow: targetWidth * 4,
-      space: CGColorSpaceCreateDeviceRGB(),
-      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-    ) else {
-      return nil
-    }
-
-    context.interpolationQuality = .high
-    context.draw(base, in: CGRect(x: 0, y: 0, width: targetWidth, height: base.height))
-    context.draw(
-      normalizedSegment,
-      in: CGRect(x: 0, y: base.height, width: targetWidth, height: normalizedSegment.height)
-    )
-    return context.makeImage()
   }
 
   private func normalizedSegmentWidth(_ segment: CGImage, targetWidth: Int) -> CGImage? {
@@ -3396,6 +3052,9 @@ private final class RegionSelectionView: NSView {
 
   private func performCopy() {
     canvasView.finishInlineTextEditing(commit: true)
+    guard ensureCaptureTargetIsResolved(forRecording: false) else {
+      return
+    }
 
     guard let image = exportImageForCurrentSelection() else {
       NSSound.beep()
@@ -3416,6 +3075,9 @@ private final class RegionSelectionView: NSView {
 
   private func performSave() {
     canvasView.finishInlineTextEditing(commit: true)
+    guard ensureCaptureTargetIsResolved(forRecording: false) else {
+      return
+    }
 
     guard let image = exportImageForCurrentSelection() else {
       NSSound.beep()
@@ -3432,9 +3094,11 @@ private final class RegionSelectionView: NSView {
     }
 
     let suggestedDirectory = settings.defaultSaveDirectoryURL
+    let imageToSave = image
     finishEditing(animatedClose: false)
-    DispatchQueue.main.async {
-      Self.presentSavePanel(for: image, suggestedDirectory: suggestedDirectory)
+    Task { @MainActor [imageToSave, suggestedDirectory] in
+      await Task.yield()
+      Self.presentSavePanel(for: imageToSave, suggestedDirectory: suggestedDirectory)
     }
   }
 
@@ -3493,6 +3157,53 @@ private final class RegionSelectionView: NSView {
     }
 
     return image.cropping(to: cropRect) ?? image
+  }
+
+  private func ensureCaptureTargetIsResolved(forRecording: Bool) -> Bool {
+    if !forRecording, resolvePendingCaptureTargetForStillShortcut() {
+      return true
+    }
+
+    if selectedCaptureMode == .window, windowCapturePickPending {
+      NSSound.beep()
+      if forRecording {
+        TransientToast.show("Click a window to start recording")
+      } else {
+        TransientToast.show("Click a window to capture first")
+      }
+      return false
+    }
+
+    if selectedCaptureMode == .screen, screenCapturePickPending {
+      NSSound.beep()
+      if forRecording {
+        TransientToast.show("Click anywhere to start full-screen recording")
+      } else {
+        TransientToast.show("Click anywhere to capture full screen")
+      }
+      return false
+    }
+
+    return true
+  }
+
+  private func resolvePendingCaptureTargetForStillShortcut() -> Bool {
+    guard mode == .editing, selectedCaptureType == .screenshot else {
+      return false
+    }
+
+    if selectedCaptureMode == .screen, screenCapturePickPending {
+      return applyCaptureRect(bounds, as: .screen, rememberAsArea: false)
+    }
+
+    if selectedCaptureMode == .window, windowCapturePickPending {
+      if let windowRect = captureRectForWindowPick(atScreenPoint: NSEvent.mouseLocation) {
+        return applyCaptureRect(windowRect, as: .window, rememberAsArea: false)
+      }
+      return false
+    }
+
+    return false
   }
 
   private static func saveImageToDisk(_ image: CGImage, to url: URL) {
