@@ -104,6 +104,35 @@ typedef struct vs_annotation_info {
   int32_t height;
 } vs_annotation_info;
 
+typedef struct vs_video_session_config {
+  uint32_t frame_rate;
+  bool capture_system_audio;
+  bool capture_microphone;
+  bool show_webcam;
+  bool highlight_mouse_clicks;
+  bool highlight_keystrokes;
+} vs_video_session_config;
+
+typedef struct vs_video_key_event {
+  uint64_t timestamp_ns;
+  const uint8_t *token_ptr;
+  uintptr_t token_len;
+} vs_video_key_event;
+
+typedef struct vs_video_click_event {
+  uint64_t timestamp_ns;
+  float normalized_x;
+  float normalized_y;
+  uint32_t button;
+} vs_video_click_event;
+
+typedef struct vs_video_export_plan {
+  uint32_t trim_start_ms;
+  uint32_t trim_end_ms;
+  uint32_t key_event_count;
+  uint32_t click_event_count;
+} vs_video_export_plan;
+
 typedef struct vs_dirty_rect {
   int32_t x;
   int32_t y;
@@ -120,6 +149,18 @@ void *vs_create_document_from_bgra(uint32_t width,
                                    uintptr_t len);
 
 void vs_destroy_document(void *doc);
+
+void *vs_video_session_create(struct vs_video_session_config config);
+
+int32_t vs_video_session_add_key_event(void *session, struct vs_video_key_event event);
+
+int32_t vs_video_session_add_click_event(void *session, struct vs_video_click_event event);
+
+int32_t vs_video_session_set_trim(void *session, uint32_t start_ms, uint32_t end_ms);
+
+int32_t vs_video_session_get_export_plan(void *session, struct vs_video_export_plan *out_plan);
+
+void vs_video_session_destroy(void *session);
 
 int32_t vs_add_rect(void *doc, struct vs_rect_command cmd);
 

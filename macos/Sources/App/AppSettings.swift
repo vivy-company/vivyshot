@@ -46,6 +46,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var captureUseOption: Bool
   @Published private(set) var captureUseControl: Bool
   @Published private(set) var captureShowHelper: Bool
+  @Published private(set) var defaultCaptureType: CaptureContentType
 
   @Published private(set) var toolOrder: [AnnotationTool]
   @Published private(set) var hiddenTools: Set<AnnotationTool>
@@ -53,9 +54,37 @@ final class AppSettings: ObservableObject {
   @Published private(set) var textFontSize: Double
   @Published private(set) var textFontName: String
 
+  @Published private(set) var defaultSaveDirectoryPath: String
+  @Published private(set) var alwaysSaveToDefaultDirectory: Bool
+
   @Published private(set) var captureTransitionStyle: CaptureTransitionStyle
   @Published private(set) var captureTransitionSpeed: Double
   @Published private(set) var captureTransitionIntensity: Double
+
+  @Published private(set) var videoCodec: VideoCodecOption
+  @Published private(set) var videoFrameRate: VideoFrameRateOption
+  @Published private(set) var videoCountdown: VideoCountdownOption
+  @Published private(set) var videoRecordSystemAudio: Bool
+  @Published private(set) var videoRecordMicrophone: Bool
+  @Published private(set) var videoShowWebcam: Bool
+  @Published private(set) var videoWebcamDeviceID: String
+  @Published private(set) var videoWebcamOverlaySize: VideoWebcamOverlaySizeOption
+  @Published private(set) var videoWebcamOverlayShape: VideoWebcamOverlayShapeOption
+  @Published private(set) var videoHighlightMouseClicks: Bool
+  @Published private(set) var videoHighlightKeystrokes: Bool
+  @Published private(set) var videoHideNotificationsBestEffort: Bool
+
+  var defaultSaveDirectoryURL: URL? {
+    guard !defaultSaveDirectoryPath.isEmpty else {
+      return nil
+    }
+    let url = URL(fileURLWithPath: defaultSaveDirectoryPath, isDirectory: true)
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+      return nil
+    }
+    return url
+  }
 
   var captureModifierFlags: UInt32 {
     var flags: UInt32 = 0
@@ -90,6 +119,7 @@ final class AppSettings: ObservableObject {
     static let captureUseOption = "settings.capture.useOption"
     static let captureUseControl = "settings.capture.useControl"
     static let captureShowHelper = "settings.capture.showHelper"
+    static let defaultCaptureType = "settings.capture.defaultType"
 
     static let toolOrder = "settings.toolbar.toolOrder"
     static let hiddenTools = "settings.toolbar.hiddenTools"
@@ -97,9 +127,25 @@ final class AppSettings: ObservableObject {
     static let textFontSize = "settings.text.fontSize"
     static let textFontName = "settings.text.fontName"
 
+    static let defaultSaveDirectoryPath = "settings.save.defaultDirectoryPath"
+    static let alwaysSaveToDefaultDirectory = "settings.save.alwaysSaveToDefaultDirectory"
+
     static let captureTransitionStyle = "settings.capture.transition.style"
     static let captureTransitionSpeed = "settings.capture.transition.speed"
     static let captureTransitionIntensity = "settings.capture.transition.intensity"
+
+    static let videoCodec = "settings.video.codec"
+    static let videoFrameRate = "settings.video.frameRate"
+    static let videoCountdown = "settings.video.countdown"
+    static let videoRecordSystemAudio = "settings.video.recordSystemAudio"
+    static let videoRecordMicrophone = "settings.video.recordMicrophone"
+    static let videoShowWebcam = "settings.video.showWebcam"
+    static let videoWebcamDeviceID = "settings.video.webcam.deviceID"
+    static let videoWebcamOverlaySize = "settings.video.webcam.overlaySize"
+    static let videoWebcamOverlayShape = "settings.video.webcam.overlayShape"
+    static let videoHighlightMouseClicks = "settings.video.highlightMouseClicks"
+    static let videoHighlightKeystrokes = "settings.video.highlightKeystrokes"
+    static let videoHideNotificationsBestEffort = "settings.video.hideNotificationsBestEffort"
   }
 
   private init(defaults: UserDefaults = .standard) {
@@ -128,6 +174,9 @@ final class AppSettings: ObservableObject {
       captureShowHelper = defaults.bool(forKey: Keys.captureShowHelper)
     }
 
+    let storedDefaultCaptureType = defaults.object(forKey: Keys.defaultCaptureType) as? Int
+    defaultCaptureType = CaptureContentType(rawValue: storedDefaultCaptureType ?? CaptureContentType.screenshot.rawValue) ?? .screenshot
+
     let normalizedToolOrder = Self.normalizeToolOrder(rawValues: defaults.array(forKey: Keys.toolOrder) as? [Int])
     toolOrder = normalizedToolOrder
     hiddenTools = Self.normalizeHiddenTools(
@@ -141,6 +190,9 @@ final class AppSettings: ObservableObject {
     let storedFontName = defaults.string(forKey: Keys.textFontName)
     textFontName = Self.normalizedTextFontName(storedFontName)
 
+    defaultSaveDirectoryPath = defaults.string(forKey: Keys.defaultSaveDirectoryPath) ?? ""
+    alwaysSaveToDefaultDirectory = defaults.bool(forKey: Keys.alwaysSaveToDefaultDirectory)
+
     let storedTransitionStyle = defaults.object(forKey: Keys.captureTransitionStyle) as? Int
     captureTransitionStyle = CaptureTransitionStyle(rawValue: storedTransitionStyle ?? CaptureTransitionStyle.ripple.rawValue) ?? .ripple
 
@@ -149,6 +201,45 @@ final class AppSettings: ObservableObject {
 
     let storedTransitionIntensity = defaults.object(forKey: Keys.captureTransitionIntensity) as? Double
     captureTransitionIntensity = Self.clampedCaptureTransitionIntensity(storedTransitionIntensity ?? 0.72)
+
+    let storedVideoCodec = defaults.object(forKey: Keys.videoCodec) as? Int
+    videoCodec = VideoCodecOption(rawValue: storedVideoCodec ?? VideoCodecOption.h264.rawValue) ?? .h264
+
+    let storedVideoFrameRate = defaults.object(forKey: Keys.videoFrameRate) as? Int
+    videoFrameRate = VideoFrameRateOption(rawValue: storedVideoFrameRate ?? VideoFrameRateOption.fps30.rawValue) ?? .fps30
+
+    let storedVideoCountdown = defaults.object(forKey: Keys.videoCountdown) as? Int
+    videoCountdown = VideoCountdownOption(rawValue: storedVideoCountdown ?? VideoCountdownOption.off.rawValue) ?? .off
+
+    if defaults.object(forKey: Keys.videoRecordSystemAudio) == nil {
+      videoRecordSystemAudio = true
+    } else {
+      videoRecordSystemAudio = defaults.bool(forKey: Keys.videoRecordSystemAudio)
+    }
+
+    videoRecordMicrophone = defaults.bool(forKey: Keys.videoRecordMicrophone)
+    videoShowWebcam = defaults.bool(forKey: Keys.videoShowWebcam)
+    videoWebcamDeviceID = defaults.string(forKey: Keys.videoWebcamDeviceID) ?? ""
+
+    let storedWebcamSize = defaults.object(forKey: Keys.videoWebcamOverlaySize) as? Int
+    videoWebcamOverlaySize = VideoWebcamOverlaySizeOption(rawValue: storedWebcamSize ?? VideoWebcamOverlaySizeOption.medium.rawValue) ?? .medium
+
+    let storedWebcamShape = defaults.object(forKey: Keys.videoWebcamOverlayShape) as? Int
+    videoWebcamOverlayShape = VideoWebcamOverlayShapeOption(rawValue: storedWebcamShape ?? VideoWebcamOverlayShapeOption.roundedRect.rawValue) ?? .roundedRect
+
+    if defaults.object(forKey: Keys.videoHighlightMouseClicks) == nil {
+      videoHighlightMouseClicks = true
+    } else {
+      videoHighlightMouseClicks = defaults.bool(forKey: Keys.videoHighlightMouseClicks)
+    }
+
+    videoHighlightKeystrokes = defaults.bool(forKey: Keys.videoHighlightKeystrokes)
+
+    if defaults.object(forKey: Keys.videoHideNotificationsBestEffort) == nil {
+      videoHideNotificationsBestEffort = true
+    } else {
+      videoHideNotificationsBestEffort = defaults.bool(forKey: Keys.videoHideNotificationsBestEffort)
+    }
 
     persistAll(notify: false)
   }
@@ -261,6 +352,128 @@ final class AppSettings: ObservableObject {
     persistCaptureHelperSetting()
   }
 
+  func setDefaultCaptureType(_ type: CaptureContentType) {
+    guard defaultCaptureType != type else {
+      return
+    }
+    defaultCaptureType = type
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoCodec(_ codec: VideoCodecOption) {
+    guard videoCodec != codec else {
+      return
+    }
+    videoCodec = codec
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoFrameRate(_ frameRate: VideoFrameRateOption) {
+    guard videoFrameRate != frameRate else {
+      return
+    }
+    videoFrameRate = frameRate
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoCountdown(_ countdown: VideoCountdownOption) {
+    guard videoCountdown != countdown else {
+      return
+    }
+    videoCountdown = countdown
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoRecordSystemAudio(_ enabled: Bool) {
+    guard videoRecordSystemAudio != enabled else {
+      return
+    }
+    videoRecordSystemAudio = enabled
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoRecordMicrophone(_ enabled: Bool) {
+    guard videoRecordMicrophone != enabled else {
+      return
+    }
+    videoRecordMicrophone = enabled
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoShowWebcam(_ enabled: Bool) {
+    guard videoShowWebcam != enabled else {
+      return
+    }
+    videoShowWebcam = enabled
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoWebcamDeviceID(_ deviceID: String) {
+    let normalized = deviceID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard videoWebcamDeviceID != normalized else {
+      return
+    }
+    videoWebcamDeviceID = normalized
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoWebcamOverlaySize(_ size: VideoWebcamOverlaySizeOption) {
+    guard videoWebcamOverlaySize != size else {
+      return
+    }
+    videoWebcamOverlaySize = size
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoWebcamOverlayShape(_ shape: VideoWebcamOverlayShapeOption) {
+    guard videoWebcamOverlayShape != shape else {
+      return
+    }
+    videoWebcamOverlayShape = shape
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoHighlightMouseClicks(_ enabled: Bool) {
+    guard videoHighlightMouseClicks != enabled else {
+      return
+    }
+    videoHighlightMouseClicks = enabled
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoHighlightKeystrokes(_ enabled: Bool) {
+    guard videoHighlightKeystrokes != enabled else {
+      return
+    }
+    videoHighlightKeystrokes = enabled
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoHideNotificationsBestEffort(_ enabled: Bool) {
+    guard videoHideNotificationsBestEffort != enabled else {
+      return
+    }
+    videoHideNotificationsBestEffort = enabled
+    persistVideoCaptureSettings()
+  }
+
+  func resetVideoCaptureSettings() {
+    defaultCaptureType = .screenshot
+    videoCodec = .h264
+    videoFrameRate = .fps30
+    videoCountdown = .off
+    videoRecordSystemAudio = true
+    videoRecordMicrophone = false
+    videoShowWebcam = false
+    videoWebcamDeviceID = ""
+    videoWebcamOverlaySize = .medium
+    videoWebcamOverlayShape = .roundedRect
+    videoHighlightMouseClicks = true
+    videoHighlightKeystrokes = false
+    videoHideNotificationsBestEffort = true
+    persistVideoCaptureSettings()
+  }
+
   func isToolVisible(_ tool: AnnotationTool) -> Bool {
     !hiddenTools.contains(tool)
   }
@@ -353,6 +566,27 @@ final class AppSettings: ObservableObject {
     textFontSize = 16
     textFontName = Self.systemFontFamilyName
     persistTextSettings()
+  }
+
+  func setDefaultSaveDirectory(_ url: URL?) {
+    let normalizedPath = url?.standardizedFileURL.path ?? ""
+    guard defaultSaveDirectoryPath != normalizedPath else {
+      return
+    }
+    defaultSaveDirectoryPath = normalizedPath
+    if normalizedPath.isEmpty {
+      alwaysSaveToDefaultDirectory = false
+    }
+    persistSaveSettings()
+  }
+
+  func setAlwaysSaveToDefaultDirectory(_ enabled: Bool) {
+    let normalizedEnabled = enabled && !defaultSaveDirectoryPath.isEmpty
+    guard alwaysSaveToDefaultDirectory != normalizedEnabled else {
+      return
+    }
+    alwaysSaveToDefaultDirectory = normalizedEnabled
+    persistSaveSettings()
   }
 
   func setCaptureTransitionStyle(_ style: CaptureTransitionStyle) {
@@ -615,10 +849,33 @@ final class AppSettings: ObservableObject {
     notifySettingsChanged()
   }
 
+  private func persistSaveSettings() {
+    defaults.set(defaultSaveDirectoryPath, forKey: Keys.defaultSaveDirectoryPath)
+    defaults.set(alwaysSaveToDefaultDirectory, forKey: Keys.alwaysSaveToDefaultDirectory)
+    notifySettingsChanged()
+  }
+
   private func persistCaptureTransitionSettings() {
     defaults.set(captureTransitionStyle.rawValue, forKey: Keys.captureTransitionStyle)
     defaults.set(captureTransitionSpeed, forKey: Keys.captureTransitionSpeed)
     defaults.set(captureTransitionIntensity, forKey: Keys.captureTransitionIntensity)
+    notifySettingsChanged()
+  }
+
+  private func persistVideoCaptureSettings() {
+    defaults.set(defaultCaptureType.rawValue, forKey: Keys.defaultCaptureType)
+    defaults.set(videoCodec.rawValue, forKey: Keys.videoCodec)
+    defaults.set(videoFrameRate.rawValue, forKey: Keys.videoFrameRate)
+    defaults.set(videoCountdown.rawValue, forKey: Keys.videoCountdown)
+    defaults.set(videoRecordSystemAudio, forKey: Keys.videoRecordSystemAudio)
+    defaults.set(videoRecordMicrophone, forKey: Keys.videoRecordMicrophone)
+    defaults.set(videoShowWebcam, forKey: Keys.videoShowWebcam)
+    defaults.set(videoWebcamDeviceID, forKey: Keys.videoWebcamDeviceID)
+    defaults.set(videoWebcamOverlaySize.rawValue, forKey: Keys.videoWebcamOverlaySize)
+    defaults.set(videoWebcamOverlayShape.rawValue, forKey: Keys.videoWebcamOverlayShape)
+    defaults.set(videoHighlightMouseClicks, forKey: Keys.videoHighlightMouseClicks)
+    defaults.set(videoHighlightKeystrokes, forKey: Keys.videoHighlightKeystrokes)
+    defaults.set(videoHideNotificationsBestEffort, forKey: Keys.videoHideNotificationsBestEffort)
     notifySettingsChanged()
   }
 
@@ -629,13 +886,28 @@ final class AppSettings: ObservableObject {
     defaults.set(captureUseOption, forKey: Keys.captureUseOption)
     defaults.set(captureUseControl, forKey: Keys.captureUseControl)
     defaults.set(captureShowHelper, forKey: Keys.captureShowHelper)
+    defaults.set(defaultCaptureType.rawValue, forKey: Keys.defaultCaptureType)
     defaults.set(toolOrder.map(\.rawValue), forKey: Keys.toolOrder)
     defaults.set(Array(hiddenTools).map(\.rawValue), forKey: Keys.hiddenTools)
     defaults.set(textFontSize, forKey: Keys.textFontSize)
     defaults.set(textFontName, forKey: Keys.textFontName)
+    defaults.set(defaultSaveDirectoryPath, forKey: Keys.defaultSaveDirectoryPath)
+    defaults.set(alwaysSaveToDefaultDirectory, forKey: Keys.alwaysSaveToDefaultDirectory)
     defaults.set(captureTransitionStyle.rawValue, forKey: Keys.captureTransitionStyle)
     defaults.set(captureTransitionSpeed, forKey: Keys.captureTransitionSpeed)
     defaults.set(captureTransitionIntensity, forKey: Keys.captureTransitionIntensity)
+    defaults.set(videoCodec.rawValue, forKey: Keys.videoCodec)
+    defaults.set(videoFrameRate.rawValue, forKey: Keys.videoFrameRate)
+    defaults.set(videoCountdown.rawValue, forKey: Keys.videoCountdown)
+    defaults.set(videoRecordSystemAudio, forKey: Keys.videoRecordSystemAudio)
+    defaults.set(videoRecordMicrophone, forKey: Keys.videoRecordMicrophone)
+    defaults.set(videoShowWebcam, forKey: Keys.videoShowWebcam)
+    defaults.set(videoWebcamDeviceID, forKey: Keys.videoWebcamDeviceID)
+    defaults.set(videoWebcamOverlaySize.rawValue, forKey: Keys.videoWebcamOverlaySize)
+    defaults.set(videoWebcamOverlayShape.rawValue, forKey: Keys.videoWebcamOverlayShape)
+    defaults.set(videoHighlightMouseClicks, forKey: Keys.videoHighlightMouseClicks)
+    defaults.set(videoHighlightKeystrokes, forKey: Keys.videoHighlightKeystrokes)
+    defaults.set(videoHideNotificationsBestEffort, forKey: Keys.videoHideNotificationsBestEffort)
 
     if notify {
       notifySettingsChanged()

@@ -23,6 +23,8 @@
 - No advanced image editing suite (layers, masks, filter catalog).
 - No screen recording workflow.
 
+Note: this section is for screenshot-only v1 scope. Planned recorder scope is defined in `docs/video-gif-recorder-spec.md`.
+
 ## 4. Platform Baseline
 
 - v1 deployment target: `macOS 15.2+`

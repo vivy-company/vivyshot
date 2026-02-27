@@ -1,7 +1,7 @@
 import Carbon
 import Foundation
 
-final class GlobalHotKeyManager: @unchecked Sendable {
+final class GlobalHotKeyManager {
   private var hotKeyRef: EventHotKeyRef?
   private var eventHandlerRef: EventHandlerRef?
 
@@ -35,7 +35,7 @@ final class GlobalHotKeyManager: @unchecked Sendable {
       return false
     }
 
-    var hotKeyID = EventHotKeyID(
+    let hotKeyID = EventHotKeyID(
       signature: hotKeySignature,
       id: hotKeyIdentifier
     )
@@ -102,9 +102,11 @@ final class GlobalHotKeyManager: @unchecked Sendable {
     }
 
     if eventHotKeyID.signature == manager.hotKeySignature && eventHotKeyID.id == manager.hotKeyIdentifier {
-      DispatchQueue.main.async {
+      let runLoop = CFRunLoopGetMain()
+      CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
         manager.onTrigger?()
       }
+      CFRunLoopWakeUp(runLoop)
     }
 
     return noErr

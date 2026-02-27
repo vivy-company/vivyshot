@@ -45,6 +45,74 @@ struct CaptureHintGlassCard: View {
 }
 
 @MainActor
+struct CaptureTypeSidebar: View {
+  let selectedType: CaptureContentType
+  let onSelectType: (CaptureContentType) -> Void
+
+  var body: some View {
+    Group {
+      if #available(macOS 26.0, *) {
+        GlassEffectContainer(spacing: 0) {
+          panelContent
+            .padding(.horizontal, 7)
+            .padding(.vertical, 7)
+            .glassEffect(.regular.interactive(), in: .capsule)
+        }
+      } else {
+        panelContent
+          .padding(.horizontal, 7)
+          .padding(.vertical, 7)
+          .background(
+            Capsule(style: .continuous)
+              .fill(.ultraThinMaterial)
+              .overlay(
+                Capsule(style: .continuous)
+                  .stroke(Color.white.opacity(0.1), lineWidth: 1)
+              )
+          )
+      }
+    }
+    .fixedSize()
+    .shadow(color: Color.black.opacity(0.24), radius: 12, x: 0, y: 6)
+  }
+
+  private var panelContent: some View {
+    VStack(spacing: 8) {
+      ForEach(CaptureContentType.allCases) { type in
+        captureButton(type)
+      }
+    }
+  }
+
+  private func captureButton(_ type: CaptureContentType) -> some View {
+    let isSelected = type == selectedType
+
+    return Button {
+      onSelectType(type)
+    }
+    label: {
+      ZStack {
+        Circle()
+          .fill(Color.white.opacity(0.1))
+          .frame(width: 38, height: 38)
+          .overlay(
+            Circle()
+              .stroke(Color.white.opacity(0.14), lineWidth: 1)
+          )
+
+        Image(systemName: type.symbolName)
+          .font(.system(size: 17, weight: .semibold))
+          .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.92))
+      }
+      .frame(width: 44, height: 44)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .help(type.title)
+  }
+}
+
+@MainActor
 struct CaptureFloatingToolbar: View {
   let selectedMode: CaptureMode
   let onSelectMode: (CaptureMode) -> Void
@@ -263,6 +331,9 @@ struct CaptureFloatingToolbar: View {
 
 @MainActor
 struct EditorGlassToolbar: View {
+  let selectedCaptureMode: CaptureMode
+  let onSelectCaptureMode: (CaptureMode) -> Void
+  let onCloseCapture: () -> Void
   let selectedTool: AnnotationTool
   let toolOrder: [AnnotationTool]
   let selectedColor: Color
@@ -272,6 +343,10 @@ struct EditorGlassToolbar: View {
   let onRedo: () -> Void
   let onCopy: () -> Void
   let onSave: () -> Void
+  let onAddStitchSegment: (() -> Void)?
+  let onResetStitch: (() -> Void)?
+  let isStitchRecordingActive: Bool
+  let isStitchCaptureInProgress: Bool
   let onDone: () -> Void
   let onToolbarDrag: ((CGSize) -> Void)?
   let onToolbarDragEnd: (() -> Void)?
@@ -281,6 +356,10 @@ struct EditorGlassToolbar: View {
       if #available(macOS 26.0, *) {
         GlassEffectContainer(spacing: 0) {
           HStack(spacing: 4) {
+            closeCaptureButton
+            separator
+            captureModeButtons
+            separator
             colorPickerButton
 
             separator
@@ -306,6 +385,27 @@ struct EditorGlassToolbar: View {
               toolbarIconButton(symbol: "square.and.arrow.down", help: "Save", action: onSave)
             }
 
+            if onAddStitchSegment != nil {
+              separator
+              HStack(spacing: 1) {
+                toolbarIconButton(
+                  symbol: isStitchRecordingActive ? "stop.circle.fill" : "record.circle",
+                  help: isStitchRecordingActive ? "Stop scrolling capture" : "Start scrolling capture"
+                ) {
+                  onAddStitchSegment?()
+                }
+                if onResetStitch != nil {
+                  toolbarIconButton(
+                    symbol: "arrow.counterclockwise",
+                    help: "Reset stitch",
+                    isDisabled: isStitchCaptureInProgress || isStitchRecordingActive
+                  ) {
+                    onResetStitch?()
+                  }
+                }
+              }
+            }
+
             separator
 
             doneButton
@@ -316,6 +416,10 @@ struct EditorGlassToolbar: View {
         }
       } else {
         HStack(spacing: 4) {
+          fallbackCloseCaptureButton
+          separator
+          fallbackCaptureModeButtons
+          separator
           fallbackColorPickerButton
           separator
           ForEach(toolOrder) { tool in
@@ -328,6 +432,24 @@ struct EditorGlassToolbar: View {
           fallbackIconButton(symbol: "arrow.uturn.forward", help: "Redo", action: onRedo)
           fallbackIconButton(symbol: "doc.on.doc", help: "Copy", action: onCopy)
           fallbackIconButton(symbol: "square.and.arrow.down", help: "Save", action: onSave)
+          if onAddStitchSegment != nil {
+            separator
+            fallbackIconButton(
+              symbol: isStitchRecordingActive ? "stop.circle.fill" : "record.circle",
+              help: isStitchRecordingActive ? "Stop scrolling capture" : "Start scrolling capture"
+            ) {
+              onAddStitchSegment?()
+            }
+            if onResetStitch != nil {
+              fallbackIconButton(
+                symbol: "arrow.counterclockwise",
+                help: "Reset stitch",
+                isDisabled: isStitchCaptureInProgress || isStitchRecordingActive
+              ) {
+                onResetStitch?()
+              }
+            }
+          }
           separator
           doneButton
         }
@@ -337,7 +459,32 @@ struct EditorGlassToolbar: View {
       }
     }
     .fixedSize()
-    .highPriorityGesture(dragGesture, including: .all)
+    .contentShape(Rectangle())
+    .highPriorityGesture(dragGesture, including: .subviews)
+  }
+
+  private var closeCaptureButton: some View {
+    toolbarIconButton(symbol: "xmark.circle.fill", help: "Exit capture", action: onCloseCapture)
+  }
+
+  private var fallbackCloseCaptureButton: some View {
+    fallbackIconButton(symbol: "xmark.circle.fill", help: "Exit capture", action: onCloseCapture)
+  }
+
+  private var captureModeButtons: some View {
+    HStack(spacing: 2) {
+      ForEach(CaptureMode.allCases) { mode in
+        captureModeIconButton(mode)
+      }
+    }
+  }
+
+  private var fallbackCaptureModeButtons: some View {
+    HStack(spacing: 2) {
+      ForEach(CaptureMode.allCases) { mode in
+        captureModeIconButton(mode)
+      }
+    }
   }
 
   private var separator: some View {
@@ -409,12 +556,14 @@ struct EditorGlassToolbar: View {
     symbol: String,
     help: String,
     isSelected: Bool = false,
+    isDisabled: Bool = false,
     action: @escaping () -> Void
   ) -> some View {
     HoverTooltipIconButton(
       symbol: symbol,
       help: help,
       isSelected: isSelected,
+      isDisabled: isDisabled,
       size: CGSize(width: 26, height: 24),
       cornerRadius: 7,
       selectedFillOpacity: 0.18,
@@ -427,12 +576,14 @@ struct EditorGlassToolbar: View {
     symbol: String,
     help: String,
     isSelected: Bool = false,
+    isDisabled: Bool = false,
     action: @escaping () -> Void
   ) -> some View {
     HoverTooltipIconButton(
       symbol: symbol,
       help: help,
       isSelected: isSelected,
+      isDisabled: isDisabled,
       size: CGSize(width: 25, height: 23),
       cornerRadius: 7,
       selectedFillOpacity: 0.2,
@@ -442,7 +593,7 @@ struct EditorGlassToolbar: View {
   }
 
   private var dragGesture: some Gesture {
-    DragGesture(minimumDistance: 5)
+    DragGesture(minimumDistance: 5, coordinateSpace: .global)
       .onChanged { value in
         onToolbarDrag?(value.translation)
       }
@@ -450,38 +601,439 @@ struct EditorGlassToolbar: View {
         onToolbarDragEnd?()
       }
   }
+
+  private func captureModeIconButton(_ mode: CaptureMode) -> some View {
+    let isSelected = selectedCaptureMode == mode
+
+    return HoverTooltipCircleModeButton(
+      symbol: mode.symbolName,
+      help: captureModeHelp(mode),
+      isSelected: isSelected,
+      isDisabled: false,
+      diameter: 30
+    ) {
+      onSelectCaptureMode(mode)
+    }
+  }
+
+  private func captureModeHelp(_ mode: CaptureMode) -> String {
+    switch mode {
+    case .screen:
+      return "Full screen"
+    case .window:
+      return "Selected window"
+    case .selection:
+      return "Selected area"
+    }
+  }
 }
 
 @MainActor
-private struct HoverTooltipIconButton: View {
+struct VideoEditorGlassToolbar: View {
+  let selectedCaptureMode: CaptureMode
+  let onSelectCaptureMode: (CaptureMode) -> Void
+  let onCloseCapture: () -> Void
+  let recordSystemAudio: Bool
+  let recordMicrophone: Bool
+  let showWebcam: Bool
+  let highlightMouseClicks: Bool
+  let highlightKeystrokes: Bool
+  let isRecordingActive: Bool
+  let isRecordingPending: Bool
+  let countdown: VideoCountdownOption
+  let onToggleSystemAudio: () -> Void
+  let onToggleMicrophone: () -> Void
+  let onToggleWebcam: () -> Void
+  let onToggleMouseClicks: () -> Void
+  let onToggleKeystrokes: () -> Void
+  let onSelectCountdown: (VideoCountdownOption) -> Void
+  let onToggleRecording: () -> Void
+  let onToolbarDrag: ((CGSize) -> Void)?
+  let onToolbarDragEnd: (() -> Void)?
+
+  var body: some View {
+    Group {
+      if #available(macOS 26.0, *) {
+        GlassEffectContainer(spacing: 0) {
+          HStack(spacing: 5) {
+            closeCaptureButton
+            separator
+            captureModeButtons
+            separator
+            toolbarIconButton(
+              symbol: recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill",
+              help: "System Audio",
+              isSelected: recordSystemAudio,
+              isDisabled: isRecordingActive || isRecordingPending,
+              action: onToggleSystemAudio
+            )
+            toolbarIconButton(
+              symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
+              help: "Microphone",
+              isSelected: recordMicrophone,
+              isDisabled: isRecordingActive || isRecordingPending,
+              action: onToggleMicrophone
+            )
+            toolbarIconButton(
+              symbol: showWebcam ? "video.fill" : "video.slash.fill",
+              help: "Webcam Overlay",
+              isSelected: showWebcam,
+              isDisabled: isRecordingActive || isRecordingPending,
+              action: onToggleWebcam
+            )
+            toolbarIconButton(
+              symbol: highlightMouseClicks ? "cursorarrow.rays" : "cursorarrow",
+              help: "Mouse Click Highlights",
+              isSelected: highlightMouseClicks,
+              isDisabled: isRecordingActive || isRecordingPending,
+              action: onToggleMouseClicks
+            )
+            toolbarIconButton(
+              symbol: highlightKeystrokes ? "keyboard" : "keyboard.fill",
+              help: "Keystroke Highlights",
+              isSelected: highlightKeystrokes,
+              isDisabled: isRecordingActive || isRecordingPending,
+              action: onToggleKeystrokes
+            )
+
+            Rectangle()
+              .fill(Color.white.opacity(0.18))
+              .frame(width: 1, height: 22)
+
+            countdownMenuButton(selectedFillOpacity: 0.18, selectedStrokeOpacity: 0.34)
+
+            recordButton
+          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 10)
+          .glassEffect(.regular.interactive(), in: .capsule)
+        }
+      } else {
+        HStack(spacing: 5) {
+          fallbackCloseCaptureButton
+          separator
+          fallbackCaptureModeButtons
+          separator
+          fallbackIconButton(
+            symbol: recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill",
+            help: "System Audio",
+            isSelected: recordSystemAudio,
+            isDisabled: isRecordingActive || isRecordingPending,
+            action: onToggleSystemAudio
+          )
+          fallbackIconButton(
+            symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
+            help: "Microphone",
+            isSelected: recordMicrophone,
+            isDisabled: isRecordingActive || isRecordingPending,
+            action: onToggleMicrophone
+          )
+          fallbackIconButton(
+            symbol: showWebcam ? "video.fill" : "video.slash.fill",
+            help: "Webcam Overlay",
+            isSelected: showWebcam,
+            isDisabled: isRecordingActive || isRecordingPending,
+            action: onToggleWebcam
+          )
+          fallbackIconButton(
+            symbol: highlightMouseClicks ? "cursorarrow.rays" : "cursorarrow",
+            help: "Mouse Click Highlights",
+            isSelected: highlightMouseClicks,
+            isDisabled: isRecordingActive || isRecordingPending,
+            action: onToggleMouseClicks
+          )
+          fallbackIconButton(
+            symbol: highlightKeystrokes ? "keyboard" : "keyboard.fill",
+            help: "Keystroke Highlights",
+            isSelected: highlightKeystrokes,
+            isDisabled: isRecordingActive || isRecordingPending,
+            action: onToggleKeystrokes
+          )
+
+          Rectangle()
+            .fill(Color.white.opacity(0.18))
+            .frame(width: 1, height: 22)
+
+          countdownMenuButton(selectedFillOpacity: 0.2, selectedStrokeOpacity: 0)
+
+          recordButton
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+      }
+    }
+    .fixedSize()
+    .contentShape(Rectangle())
+    .highPriorityGesture(dragGesture, including: .subviews)
+  }
+
+  private var closeCaptureButton: some View {
+    toolbarIconButton(
+      symbol: "xmark.circle.fill",
+      help: "Exit capture",
+      isSelected: false,
+      isDisabled: isRecordingPending,
+      action: onCloseCapture
+    )
+  }
+
+  private var fallbackCloseCaptureButton: some View {
+    fallbackIconButton(
+      symbol: "xmark.circle.fill",
+      help: "Exit capture",
+      isSelected: false,
+      isDisabled: isRecordingPending,
+      action: onCloseCapture
+    )
+  }
+
+  private var captureModeButtons: some View {
+    HStack(spacing: 2) {
+      ForEach(CaptureMode.allCases) { mode in
+        captureModeIconButton(mode)
+      }
+    }
+  }
+
+  private var fallbackCaptureModeButtons: some View {
+    HStack(spacing: 2) {
+      ForEach(CaptureMode.allCases) { mode in
+        captureModeIconButton(mode)
+      }
+    }
+  }
+
+  private var separator: some View {
+    Rectangle()
+      .fill(Color.white.opacity(0.18))
+      .frame(width: 1, height: 22)
+  }
+
+  private var recordButton: some View {
+    Button(action: onToggleRecording) {
+      Image(systemName: isRecordingActive ? "stop.circle.fill" : "record.circle.fill")
+        .font(.system(size: 16, weight: .semibold))
+        .frame(width: 34, height: 34)
+        .contentShape(Circle())
+    }
+    .foregroundStyle(.white)
+    .buttonStyle(.plain)
+    .background(
+      Circle()
+        .fill(Color.red.opacity(0.9))
+    )
+    .overlay(
+      Circle()
+        .stroke(Color.white.opacity(0.24), lineWidth: 1)
+    )
+    .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 1)
+    .help(isRecordingActive ? "Stop recording" : "Start video recording")
+    .padding(.leading, 4)
+    .disabled(isRecordingPending)
+    .opacity(isRecordingPending ? 0.6 : 1)
+  }
+
+  private func countdownMenuButton(
+    selectedFillOpacity: CGFloat,
+    selectedStrokeOpacity: CGFloat
+  ) -> some View {
+    Menu {
+      ForEach(VideoCountdownOption.allCases) { option in
+        Button {
+          onSelectCountdown(option)
+        } label: {
+          if option == countdown {
+            Label(option.title, systemImage: "checkmark")
+          } else {
+            Text(option.title)
+          }
+        }
+      }
+    } label: {
+      HStack(spacing: 4) {
+        Image(systemName: "timer")
+          .font(.system(size: 13.5, weight: .semibold))
+        Text(countdown.title)
+          .font(.system(size: 11.5, weight: .semibold))
+        Image(systemName: "chevron.down")
+          .font(.system(size: 9, weight: .bold))
+      }
+      .frame(height: 30)
+      .padding(.horizontal, 10)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .disabled(isRecordingActive || isRecordingPending)
+    .opacity((isRecordingActive || isRecordingPending) ? 0.45 : 1)
+    .help("Countdown: \(countdown.title)")
+    .background(
+      RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .fill(countdown == .off ? Color.clear : Color.white.opacity(selectedFillOpacity))
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .stroke(Color.white.opacity(countdown == .off ? 0 : selectedStrokeOpacity), lineWidth: 1)
+    )
+  }
+
+  private func toolbarIconButton(
+    symbol: String,
+    help: String,
+    isSelected: Bool,
+    isDisabled: Bool = false,
+    action: @escaping () -> Void
+  ) -> some View {
+    HoverTooltipIconButton(
+      symbol: symbol,
+      help: help,
+      isSelected: isSelected,
+      isDisabled: isDisabled,
+      symbolFontSize: 15,
+      size: CGSize(width: 30, height: 28),
+      cornerRadius: 7,
+      selectedFillOpacity: 0.18,
+      selectedStrokeOpacity: 0.34,
+      action: action
+    )
+  }
+
+  private func fallbackIconButton(
+    symbol: String,
+    help: String,
+    isSelected: Bool,
+    isDisabled: Bool = false,
+    action: @escaping () -> Void
+  ) -> some View {
+    HoverTooltipIconButton(
+      symbol: symbol,
+      help: help,
+      isSelected: isSelected,
+      isDisabled: isDisabled,
+      symbolFontSize: 15,
+      size: CGSize(width: 29, height: 27),
+      cornerRadius: 7,
+      selectedFillOpacity: 0.2,
+      selectedStrokeOpacity: 0,
+      action: action
+    )
+  }
+
+  private var dragGesture: some Gesture {
+    DragGesture(minimumDistance: 5, coordinateSpace: .global)
+      .onChanged { value in
+        onToolbarDrag?(value.translation)
+      }
+      .onEnded { _ in
+        onToolbarDragEnd?()
+      }
+  }
+
+  private func captureModeIconButton(_ mode: CaptureMode) -> some View {
+    let isSelected = selectedCaptureMode == mode
+    let disabled = isRecordingActive || isRecordingPending
+
+    return HoverTooltipCircleModeButton(
+      symbol: mode.symbolName,
+      help: captureModeHelp(mode),
+      isSelected: isSelected,
+      isDisabled: disabled,
+      diameter: 32
+    ) {
+      onSelectCaptureMode(mode)
+    }
+  }
+
+  private func captureModeHelp(_ mode: CaptureMode) -> String {
+    switch mode {
+    case .screen:
+      return "Full screen"
+    case .window:
+      return "Selected window"
+    case .selection:
+      return "Selected area"
+    }
+  }
+}
+
+@MainActor
+struct StitchRecordingFloatingBar: View {
+  let onStop: () -> Void
+
+  var body: some View {
+    Group {
+      if #available(macOS 26.0, *) {
+        GlassEffectContainer(spacing: 0) {
+          barContent
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+            .glassEffect(.regular.interactive(), in: .capsule)
+        }
+      } else {
+        barContent
+          .padding(.horizontal, 8)
+          .padding(.vertical, 8)
+          .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+      }
+    }
+    .fixedSize()
+  }
+
+  private var barContent: some View {
+    HStack(spacing: 4) {
+      Image(systemName: "record.circle.fill")
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(Color.red)
+        .frame(width: 18, height: 18)
+
+      Text("Scrolling")
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(.white.opacity(0.9))
+
+      Rectangle()
+        .fill(Color.white.opacity(0.18))
+        .frame(width: 1, height: 20)
+
+      HoverTooltipIconButton(
+        symbol: "stop.circle.fill",
+        help: "Stop scrolling capture",
+        isSelected: false,
+        isDisabled: false,
+        size: CGSize(width: 26, height: 24),
+        cornerRadius: 7,
+        selectedFillOpacity: 0.18,
+        selectedStrokeOpacity: 0.34,
+        action: onStop
+      )
+    }
+  }
+}
+
+@MainActor
+private struct HoverTooltipCircleModeButton: View {
   let symbol: String
   let help: String
   let isSelected: Bool
-  let size: CGSize
-  let cornerRadius: CGFloat
-  let selectedFillOpacity: CGFloat
-  let selectedStrokeOpacity: CGFloat
+  let isDisabled: Bool
+  let diameter: CGFloat
   let action: () -> Void
 
   @State private var isHovered = false
+  @State private var symbolBounceToken = 0
 
   var body: some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: 13, weight: .semibold))
-        .frame(width: size.width, height: size.height)
-        .contentShape(Rectangle())
+    Button {
+      symbolBounceToken += 1
+      action()
+    } label: {
+      symbolImage
+      .frame(width: diameter + 4, height: diameter + 4)
+      .contentShape(Circle())
     }
     .buttonStyle(.plain)
+    .disabled(isDisabled)
+    .opacity(isDisabled ? 0.45 : 1)
     .help(help)
-    .background(
-      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .fill(isSelected ? Color.white.opacity(selectedFillOpacity) : Color.clear)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .stroke(Color.white.opacity(isSelected ? selectedStrokeOpacity : 0), lineWidth: 1)
-    )
     .overlay(alignment: .top) {
       if isHovered {
         HoverTooltipLabel(text: help)
@@ -495,6 +1047,77 @@ private struct HoverTooltipIconButton: View {
       }
     }
     .zIndex(isHovered ? 50 : 0)
+  }
+
+  @ViewBuilder
+  private var symbolImage: some View {
+    let image = Image(systemName: symbol)
+      .font(.system(size: max(12, diameter * 0.46), weight: .semibold))
+      .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.9))
+
+    if #available(macOS 14.0, *) {
+      image.symbolEffect(.bounce, value: symbolBounceToken)
+    } else {
+      image
+    }
+  }
+}
+
+@MainActor
+private struct HoverTooltipIconButton: View {
+  let symbol: String
+  let help: String
+  let isSelected: Bool
+  let isDisabled: Bool
+  var symbolFontSize: CGFloat = 13
+  let size: CGSize
+  let cornerRadius: CGFloat
+  let selectedFillOpacity: CGFloat
+  let selectedStrokeOpacity: CGFloat
+  let action: () -> Void
+
+  @State private var isHovered = false
+  @State private var symbolBounceToken = 0
+
+  var body: some View {
+    Button {
+      symbolBounceToken += 1
+      action()
+    } label: {
+      symbolImage
+        .frame(width: size.width, height: size.height)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .disabled(isDisabled)
+    .opacity(isDisabled ? 0.45 : 1)
+    .help(help)
+    .overlay(alignment: .top) {
+      if isHovered {
+        HoverTooltipLabel(text: help)
+          .offset(y: -36)
+          .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .bottom)))
+      }
+    }
+    .onHover { hovering in
+      withAnimation(.easeOut(duration: 0.12)) {
+        isHovered = hovering
+      }
+    }
+    .zIndex(isHovered ? 50 : 0)
+  }
+
+  @ViewBuilder
+  private var symbolImage: some View {
+    let image = Image(systemName: symbol)
+      .font(.system(size: symbolFontSize, weight: .semibold))
+      .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.9))
+
+    if #available(macOS 14.0, *) {
+      image.symbolEffect(.bounce, value: symbolBounceToken)
+    } else {
+      image
+    }
   }
 }
 

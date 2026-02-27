@@ -24,6 +24,22 @@ struct RustAnnotationInfo {
   }
 }
 
+struct RustVideoSessionConfig {
+  let frameRate: Int
+  let captureSystemAudio: Bool
+  let captureMicrophone: Bool
+  let showWebcam: Bool
+  let highlightMouseClicks: Bool
+  let highlightKeystrokes: Bool
+}
+
+struct RustVideoExportPlan {
+  let trimStartMS: Int
+  let trimEndMS: Int
+  let keyEventCount: Int
+  let clickEventCount: Int
+}
+
 @MainActor
 final class RustCoreBridge {
   static let shared = RustCoreBridge()
@@ -32,6 +48,83 @@ final class RustCoreBridge {
 
   func makeSession(image: CGImage) -> RustDocumentSession? {
     RustDocumentSession(image: image)
+  }
+
+  func makeVideoSession(config: RustVideoSessionConfig) -> RustVideoSession? {
+    RustVideoSession(config: config)
+  }
+}
+
+final class RustVideoSession {
+  private let handle: UnsafeMutableRawPointer
+
+  init?(config: RustVideoSessionConfig) {
+    let rawConfig = vs_video_session_config(
+      frame_rate: UInt32(max(1, config.frameRate)),
+      capture_system_audio: config.captureSystemAudio,
+      capture_microphone: config.captureMicrophone,
+      show_webcam: config.showWebcam,
+      highlight_mouse_clicks: config.highlightMouseClicks,
+      highlight_keystrokes: config.highlightKeystrokes
+    )
+    guard let rawHandle = vs_video_session_create(rawConfig) else {
+      return nil
+    }
+    handle = rawHandle
+  }
+
+  deinit {
+    vs_video_session_destroy(handle)
+  }
+
+  func addKeyEvent(timestampNS: UInt64, token: String) -> Bool {
+    let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return false
+    }
+
+    let utf8 = Array(trimmed.utf8)
+    return utf8.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return false
+      }
+      let event = vs_video_key_event(
+        timestamp_ns: timestampNS,
+        token_ptr: base,
+        token_len: UInt(raw.count)
+      )
+      return vs_video_session_add_key_event(handle, event) == 0
+    }
+  }
+
+  func addClickEvent(timestampNS: UInt64, normalizedX: CGFloat, normalizedY: CGFloat, button: UInt32) -> Bool {
+    let event = vs_video_click_event(
+      timestamp_ns: timestampNS,
+      normalized_x: Float(normalizedX),
+      normalized_y: Float(normalizedY),
+      button: button
+    )
+    return vs_video_session_add_click_event(handle, event) == 0
+  }
+
+  func setTrim(startMS: Int, endMS: Int) -> Bool {
+    guard startMS >= 0, endMS >= 0 else {
+      return false
+    }
+    return vs_video_session_set_trim(handle, UInt32(startMS), UInt32(endMS)) == 0
+  }
+
+  func exportPlan() -> RustVideoExportPlan? {
+    var raw = vs_video_export_plan(trim_start_ms: 0, trim_end_ms: 0, key_event_count: 0, click_event_count: 0)
+    guard vs_video_session_get_export_plan(handle, &raw) == 0 else {
+      return nil
+    }
+    return RustVideoExportPlan(
+      trimStartMS: Int(raw.trim_start_ms),
+      trimEndMS: Int(raw.trim_end_ms),
+      keyEventCount: Int(raw.key_event_count),
+      clickEventCount: Int(raw.click_event_count)
+    )
   }
 }
 

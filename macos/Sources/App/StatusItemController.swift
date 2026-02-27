@@ -68,7 +68,7 @@ final class StatusItemController: NSObject {
       object: settings,
       queue: .main
     ) { [weak self] _ in
-      Task { @MainActor in
+      MainActor.assumeIsolated {
         self?.applyHotKeyFromSettings()
       }
     }

@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Carbon
 import SwiftUI
 
@@ -34,6 +35,7 @@ private struct SettingsView: View {
   @ObservedObject var settings: AppSettings
   @State private var isRecordingShortcut = false
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
+  @State private var webcamDevices: [WebcamDeviceOption] = []
   @State private var draggingTool: AnnotationTool?
 
   var body: some View {
@@ -77,6 +79,169 @@ private struct SettingsView: View {
           Toggle("Show Capture Helper", isOn: captureShowHelperBinding)
             .toggleStyle(.switch)
             .controlSize(.small)
+        }
+
+        Section("Video Capture") {
+          HStack(spacing: 10) {
+            Text("Default")
+              .frame(width: 78, alignment: .leading)
+            Spacer(minLength: 0)
+            Picker("Default Capture Type", selection: defaultCaptureTypeBinding) {
+              ForEach(CaptureContentType.allCases) { type in
+                Text(type.title).tag(type)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 190, alignment: .trailing)
+          }
+
+          HStack(spacing: 10) {
+            Text("Quality")
+              .frame(width: 78, alignment: .leading)
+            Spacer(minLength: 0)
+            Picker("Video Quality", selection: videoCodecBinding) {
+              ForEach(VideoCodecOption.allCases) { codec in
+                Text(codec.title).tag(codec)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 190, alignment: .trailing)
+          }
+
+          HStack(spacing: 10) {
+            Text("Frame Rate")
+              .frame(width: 78, alignment: .leading)
+            Spacer(minLength: 0)
+            Picker("Video Frame Rate", selection: videoFrameRateBinding) {
+              ForEach(VideoFrameRateOption.allCases) { rate in
+                Text(rate.title).tag(rate)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 190, alignment: .trailing)
+          }
+
+          HStack(spacing: 10) {
+            Text("Countdown")
+              .frame(width: 78, alignment: .leading)
+            Spacer(minLength: 0)
+            Picker("Video Countdown", selection: videoCountdownBinding) {
+              ForEach(VideoCountdownOption.allCases) { countdown in
+                Text(countdown.title).tag(countdown)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 190, alignment: .trailing)
+          }
+
+          Toggle("Record system audio", isOn: videoRecordSystemAudioBinding)
+            .toggleStyle(.switch)
+          Toggle("Record microphone", isOn: videoRecordMicrophoneBinding)
+            .toggleStyle(.switch)
+          Toggle("Show webcam", isOn: videoShowWebcamBinding)
+            .toggleStyle(.switch)
+          if settings.videoShowWebcam {
+            HStack(spacing: 10) {
+              Text("Camera")
+                .frame(width: 78, alignment: .leading)
+              Spacer(minLength: 0)
+              Picker("Webcam Device", selection: videoWebcamDeviceIDBinding) {
+                Text("System Default").tag("")
+                ForEach(webcamDevices) { device in
+                  Text(device.name).tag(device.id)
+                }
+                if !settings.videoWebcamDeviceID.isEmpty,
+                   !webcamDevices.contains(where: { $0.id == settings.videoWebcamDeviceID })
+                {
+                  Text("Unavailable Camera").tag(settings.videoWebcamDeviceID)
+                }
+              }
+              .labelsHidden()
+              .pickerStyle(.menu)
+              .frame(width: 190, alignment: .trailing)
+            }
+
+            HStack(spacing: 10) {
+              Text("Webcam Size")
+                .frame(width: 78, alignment: .leading)
+              Spacer(minLength: 0)
+              Picker("Webcam Overlay Size", selection: videoWebcamOverlaySizeBinding) {
+                ForEach(VideoWebcamOverlaySizeOption.allCases) { size in
+                  Text(size.title).tag(size)
+                }
+              }
+              .labelsHidden()
+              .pickerStyle(.menu)
+              .frame(width: 190, alignment: .trailing)
+            }
+
+            HStack(spacing: 10) {
+              Text("Webcam Shape")
+                .frame(width: 78, alignment: .leading)
+              Spacer(minLength: 0)
+              Picker("Webcam Overlay Shape", selection: videoWebcamOverlayShapeBinding) {
+                ForEach(VideoWebcamOverlayShapeOption.allCases) { shape in
+                  Text(shape.title).tag(shape)
+                }
+              }
+              .labelsHidden()
+              .pickerStyle(.menu)
+              .frame(width: 190, alignment: .trailing)
+            }
+          }
+          Toggle("Highlight mouse clicks", isOn: videoHighlightMouseClicksBinding)
+            .toggleStyle(.switch)
+          Toggle("Highlight keystrokes", isOn: videoHighlightKeystrokesBinding)
+            .toggleStyle(.switch)
+          Toggle("Hide notifications (best effort)", isOn: videoHideNotificationsBestEffortBinding)
+            .toggleStyle(.switch)
+
+          HStack {
+            Text("Webcam and keystroke overlays require additional permissions.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Spacer()
+            Button("Reset Video") {
+              settings.resetVideoCaptureSettings()
+            }
+          }
+        }
+
+        Section("Saving") {
+          LabeledContent("Default Folder") {
+            Text(defaultSaveDirectoryDisplay)
+              .font(.system(.callout, design: .monospaced))
+              .foregroundStyle(settings.defaultSaveDirectoryURL == nil ? .secondary : .primary)
+              .lineLimit(2)
+              .multilineTextAlignment(.trailing)
+          }
+
+          HStack {
+            Button("Choose Folder…") {
+              chooseDefaultSaveDirectory()
+            }
+            .buttonStyle(.bordered)
+
+            Button("Clear") {
+              settings.setDefaultSaveDirectory(nil)
+            }
+            .buttonStyle(.bordered)
+            .disabled(settings.defaultSaveDirectoryURL == nil)
+
+            Button("Show in Finder") {
+              revealDefaultSaveDirectoryInFinder()
+            }
+            .buttonStyle(.bordered)
+            .disabled(settings.defaultSaveDirectoryURL == nil)
+          }
+
+          Toggle("Always save to this folder (skip Save dialog)", isOn: alwaysSaveToDefaultDirectoryBinding)
+            .toggleStyle(.switch)
+            .disabled(settings.defaultSaveDirectoryURL == nil)
         }
 
         Section("Toolbar") {
@@ -239,6 +404,7 @@ private struct SettingsView: View {
     .frame(minWidth: 500, minHeight: 620)
     .onAppear {
       availableFamilies = AppSettings.availableTextFontFamilyNames()
+      refreshWebcamDevices()
     }
   }
 
@@ -301,6 +467,150 @@ private struct SettingsView: View {
       set: { settings.setCaptureShowHelper($0) }
     )
   }
+
+  private var alwaysSaveToDefaultDirectoryBinding: Binding<Bool> {
+    Binding(
+      get: { settings.alwaysSaveToDefaultDirectory },
+      set: { settings.setAlwaysSaveToDefaultDirectory($0) }
+    )
+  }
+
+  private var defaultCaptureTypeBinding: Binding<CaptureContentType> {
+    Binding(
+      get: { settings.defaultCaptureType },
+      set: { settings.setDefaultCaptureType($0) }
+    )
+  }
+
+  private var videoCodecBinding: Binding<VideoCodecOption> {
+    Binding(
+      get: { settings.videoCodec },
+      set: { settings.setVideoCodec($0) }
+    )
+  }
+
+  private var videoFrameRateBinding: Binding<VideoFrameRateOption> {
+    Binding(
+      get: { settings.videoFrameRate },
+      set: { settings.setVideoFrameRate($0) }
+    )
+  }
+
+  private var videoCountdownBinding: Binding<VideoCountdownOption> {
+    Binding(
+      get: { settings.videoCountdown },
+      set: { settings.setVideoCountdown($0) }
+    )
+  }
+
+  private var videoRecordSystemAudioBinding: Binding<Bool> {
+    Binding(
+      get: { settings.videoRecordSystemAudio },
+      set: { settings.setVideoRecordSystemAudio($0) }
+    )
+  }
+
+  private var videoRecordMicrophoneBinding: Binding<Bool> {
+    Binding(
+      get: { settings.videoRecordMicrophone },
+      set: { settings.setVideoRecordMicrophone($0) }
+    )
+  }
+
+  private var videoShowWebcamBinding: Binding<Bool> {
+    Binding(
+      get: { settings.videoShowWebcam },
+      set: { settings.setVideoShowWebcam($0) }
+    )
+  }
+
+  private var videoWebcamDeviceIDBinding: Binding<String> {
+    Binding(
+      get: { settings.videoWebcamDeviceID },
+      set: { settings.setVideoWebcamDeviceID($0) }
+    )
+  }
+
+  private var videoWebcamOverlaySizeBinding: Binding<VideoWebcamOverlaySizeOption> {
+    Binding(
+      get: { settings.videoWebcamOverlaySize },
+      set: { settings.setVideoWebcamOverlaySize($0) }
+    )
+  }
+
+  private var videoWebcamOverlayShapeBinding: Binding<VideoWebcamOverlayShapeOption> {
+    Binding(
+      get: { settings.videoWebcamOverlayShape },
+      set: { settings.setVideoWebcamOverlayShape($0) }
+    )
+  }
+
+  private var videoHighlightMouseClicksBinding: Binding<Bool> {
+    Binding(
+      get: { settings.videoHighlightMouseClicks },
+      set: { settings.setVideoHighlightMouseClicks($0) }
+    )
+  }
+
+  private var videoHighlightKeystrokesBinding: Binding<Bool> {
+    Binding(
+      get: { settings.videoHighlightKeystrokes },
+      set: { settings.setVideoHighlightKeystrokes($0) }
+    )
+  }
+
+  private var videoHideNotificationsBestEffortBinding: Binding<Bool> {
+    Binding(
+      get: { settings.videoHideNotificationsBestEffort },
+      set: { settings.setVideoHideNotificationsBestEffort($0) }
+    )
+  }
+
+  private var defaultSaveDirectoryDisplay: String {
+    guard let url = settings.defaultSaveDirectoryURL else {
+      return "Not set"
+    }
+    return (url.path as NSString).abbreviatingWithTildeInPath
+  }
+
+  private func chooseDefaultSaveDirectory() {
+    let panel = NSOpenPanel()
+    panel.canChooseDirectories = true
+    panel.canChooseFiles = false
+    panel.allowsMultipleSelection = false
+    panel.canCreateDirectories = true
+    panel.prompt = "Choose"
+    panel.title = "Choose Default Save Folder"
+    panel.directoryURL = settings.defaultSaveDirectoryURL
+      ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+
+    if panel.runModal() == .OK {
+      settings.setDefaultSaveDirectory(panel.url)
+    }
+  }
+
+  private func revealDefaultSaveDirectoryInFinder() {
+    guard let url = settings.defaultSaveDirectoryURL else {
+      return
+    }
+    NSWorkspace.shared.activateFileViewerSelecting([url])
+  }
+
+  private func refreshWebcamDevices() {
+    let discovery = AVCaptureDevice.DiscoverySession(
+      deviceTypes: [.builtInWideAngleCamera, .externalUnknown],
+      mediaType: .video,
+      position: .unspecified
+    )
+    webcamDevices = discovery.devices
+      .map { WebcamDeviceOption(id: $0.uniqueID, name: $0.localizedName) }
+      .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+  }
+}
+
+private struct WebcamDeviceOption: Identifiable, Hashable {
+  let id: String
+  let name: String
 }
 
 private struct ReorderHandleGlyph: View {

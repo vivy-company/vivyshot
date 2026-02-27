@@ -135,6 +135,43 @@ pub struct vs_annotation_info {
   pub height: i32,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_video_session_config {
+  pub frame_rate: u32,
+  pub capture_system_audio: bool,
+  pub capture_microphone: bool,
+  pub show_webcam: bool,
+  pub highlight_mouse_clicks: bool,
+  pub highlight_keystrokes: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_video_key_event {
+  pub timestamp_ns: u64,
+  pub token_ptr: *const u8,
+  pub token_len: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_video_click_event {
+  pub timestamp_ns: u64,
+  pub normalized_x: f32,
+  pub normalized_y: f32,
+  pub button: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_video_export_plan {
+  pub trim_start_ms: u32,
+  pub trim_end_ms: u32,
+  pub key_event_count: u32,
+  pub click_event_count: u32,
+}
+
 #[derive(Clone)]
 enum VsCommand {
   Rect(vs_rect_command),
@@ -153,6 +190,29 @@ enum VsCommand {
   },
   Pixelate(vs_pixelate_rect_command),
   Blur(vs_blur_rect_command),
+}
+
+#[derive(Clone)]
+struct VsVideoKeyEvent {
+  timestamp_ns: u64,
+  token: String,
+}
+
+#[derive(Clone, Copy)]
+struct VsVideoClickEvent {
+  timestamp_ns: u64,
+  normalized_x: f32,
+  normalized_y: f32,
+  button: u32,
+}
+
+#[repr(C)]
+struct vs_video_session {
+  config: vs_video_session_config,
+  key_events: Vec<VsVideoKeyEvent>,
+  click_events: Vec<VsVideoClickEvent>,
+  trim_start_ms: u32,
+  trim_end_ms: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -351,6 +411,151 @@ pub unsafe extern "C" fn vs_destroy_document(doc: *mut c_void) {
   // SAFETY: `doc` came from `Box::into_raw` in `vs_create_document_from_bgra`.
   unsafe {
     drop(Box::from_raw(doc.cast::<vs_document>()));
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn vs_video_session_create(config: vs_video_session_config) -> *mut c_void {
+  let session = vs_video_session {
+    config,
+    key_events: Vec::new(),
+    click_events: Vec::new(),
+    trim_start_ms: 0,
+    trim_end_ms: 0,
+  };
+
+  Box::into_raw(Box::new(session)).cast()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_session_add_key_event(
+  session: *mut c_void,
+  event: vs_video_key_event,
+) -> i32 {
+  if session.is_null() {
+    return -1;
+  }
+
+  if event.token_ptr.is_null() || event.token_len == 0 || event.token_len > 128 {
+    return -2;
+  }
+
+  // SAFETY: `token_ptr` is validated non-null and bounded by `token_len`.
+  let token_bytes = unsafe { slice::from_raw_parts(event.token_ptr, event.token_len) };
+  let token = match std::str::from_utf8(token_bytes) {
+    Ok(value) => value.trim(),
+    Err(_) => return -3,
+  };
+
+  if token.is_empty() {
+    return -4;
+  }
+
+  // SAFETY: `session` comes from `vs_video_session_create`.
+  let session_ref = unsafe { &mut *session.cast::<vs_video_session>() };
+  session_ref.key_events.push(VsVideoKeyEvent {
+    timestamp_ns: event.timestamp_ns,
+    token: token.to_string(),
+  });
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_session_add_click_event(
+  session: *mut c_void,
+  event: vs_video_click_event,
+) -> i32 {
+  if session.is_null() {
+    return -1;
+  }
+
+  if !event.normalized_x.is_finite() || !event.normalized_y.is_finite() {
+    return -2;
+  }
+
+  // SAFETY: `session` comes from `vs_video_session_create`.
+  let session_ref = unsafe { &mut *session.cast::<vs_video_session>() };
+  session_ref.click_events.push(VsVideoClickEvent {
+    timestamp_ns: event.timestamp_ns,
+    normalized_x: event.normalized_x.clamp(0.0, 1.0),
+    normalized_y: event.normalized_y.clamp(0.0, 1.0),
+    button: event.button,
+  });
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_session_set_trim(
+  session: *mut c_void,
+  start_ms: u32,
+  end_ms: u32,
+) -> i32 {
+  if session.is_null() {
+    return -1;
+  }
+
+  if end_ms < start_ms {
+    return -2;
+  }
+
+  // SAFETY: `session` comes from `vs_video_session_create`.
+  let session_ref = unsafe { &mut *session.cast::<vs_video_session>() };
+  session_ref.trim_start_ms = start_ms;
+  session_ref.trim_end_ms = end_ms;
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_session_get_export_plan(
+  session: *mut c_void,
+  out_plan: *mut vs_video_export_plan,
+) -> i32 {
+  if session.is_null() || out_plan.is_null() {
+    return -1;
+  }
+
+  // SAFETY: `session` comes from `vs_video_session_create`.
+  let session_ref = unsafe { &*session.cast::<vs_video_session>() };
+  let key_count = session_ref.key_events.len().min(u32::MAX as usize) as u32;
+  let click_count = session_ref.click_events.len().min(u32::MAX as usize) as u32;
+  let _config_snapshot = (
+    session_ref.config.frame_rate,
+    session_ref.config.capture_system_audio,
+    session_ref.config.capture_microphone,
+    session_ref.config.show_webcam,
+    session_ref.config.highlight_mouse_clicks,
+    session_ref.config.highlight_keystrokes,
+  );
+  let _latest_key_timestamp_ns = session_ref.key_events.last().map(|event| event.timestamp_ns).unwrap_or(0);
+  let _latest_click_timestamp_ns = session_ref.click_events.last().map(|event| event.timestamp_ns).unwrap_or(0);
+  let _total_key_token_bytes: usize = session_ref.key_events.iter().map(|event| event.token.len()).sum();
+  let _click_checksum: f32 = session_ref
+    .click_events
+    .iter()
+    .map(|event| event.normalized_x + event.normalized_y + event.button as f32)
+    .sum();
+
+  // SAFETY: `out_plan` is validated non-null and points to writable memory owned by caller.
+  unsafe {
+    *out_plan = vs_video_export_plan {
+      trim_start_ms: session_ref.trim_start_ms,
+      trim_end_ms: session_ref.trim_end_ms,
+      key_event_count: key_count,
+      click_event_count: click_count,
+    };
+  }
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_session_destroy(session: *mut c_void) {
+  if session.is_null() {
+    return;
+  }
+
+  // SAFETY: `session` came from `Box::into_raw` in `vs_video_session_create`.
+  unsafe {
+    drop(Box::from_raw(session.cast::<vs_video_session>()));
   }
 }
 
