@@ -8,6 +8,20 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define VS_STATUS_OK 0
+
+#define VS_STATUS_NO_CHANGE 1
+
+#define VS_STATUS_NULL_POINTER -1
+
+#define VS_STATUS_INVALID_ARGUMENT -2
+
+#define VS_STATUS_REJECTED -3
+
+#define VS_STATUS_BUFFER_TOO_SMALL -4
+
+#define VS_STATUS_NOT_FOUND -5
+
 typedef struct vs_video_session_config {
   uint32_t frame_rate;
   bool capture_system_audio;
@@ -239,6 +253,13 @@ typedef struct vs_timeline_track_info {
   bool visible;
   uint32_t clip_count;
 } vs_timeline_track_info;
+
+typedef struct vs_timeline_text_export_clip_info {
+  uint32_t track_index;
+  uint32_t clip_id;
+  uint32_t start_ms;
+  uint32_t end_ms;
+} vs_timeline_text_export_clip_info;
 
 typedef struct vs_clip_transform {
   float x;
@@ -550,6 +571,13 @@ int32_t vs_timeline_derive_export_context(const void *handle,
                                           bool source_has_audio,
                                           bool source_has_webcam_asset,
                                           struct vs_video_export_context *out_context);
+
+int32_t vs_timeline_is_webcam_track_visible_for_export(const void *handle, bool *out_visible);
+
+int32_t vs_timeline_get_text_export_clips(const void *handle,
+                                          struct vs_timeline_text_export_clip_info *out_ptr,
+                                          uint32_t out_cap,
+                                          uint32_t *out_written);
 
 int32_t vs_timeline_bootstrap_capture_tracks(void *handle,
                                              bool source_has_audio,

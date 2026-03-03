@@ -21,8 +21,8 @@ jobs:
         run: cargo fmt --all --check
       - name: Run strict clippy for portable core
         run: cargo clippy -p vivyshot-core --all-targets -- -D warnings
-      - name: Run clippy for FFI adapter (warning surfacing)
-        run: cargo clippy -p vivyshot-ffi --all-targets
+      - name: Run strict clippy for FFI adapter
+        run: cargo clippy -p vivyshot-ffi --all-targets -- -D warnings
       - name: Run Rust tests
         run: cargo test --workspace
       - name: Build Rust docs

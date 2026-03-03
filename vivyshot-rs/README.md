@@ -35,3 +35,7 @@ Open the generated docs:
 
 - `target/doc/vivyshot_domain/index.html` (`vivyshot-core`)
 - `target/doc/vivyshot_core/index.html` (`vivyshot-ffi`)
+- `target/doc/vivyshot_domain/video/index.html`
+- `target/doc/vivyshot_domain/timeline/index.html`
+- `target/doc/vivyshot_domain/geometry/index.html`
+- `target/doc/vivyshot_domain/stitch/index.html`

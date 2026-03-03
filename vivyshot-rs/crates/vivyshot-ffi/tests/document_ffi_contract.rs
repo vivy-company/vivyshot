@@ -21,7 +21,7 @@ fn core_version_returns_nonempty_c_string() {
 
 #[test]
 fn create_document_rejects_invalid_inputs() {
-    let base = vec![0u8; 4 * 4 * 4];
+    let base = [0u8; 4 * 4 * 4];
 
     // SAFETY: pointers remain valid for each FFI call.
     unsafe {

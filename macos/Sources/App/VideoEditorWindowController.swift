@@ -712,12 +712,10 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
     var exportIncludeWebcam = includeWebcamTrack
 
     if let state = timelineState {
-      let tracks = state.session.getTracks()
       exportTextOverlays = []
-      for (idx, track) in tracks.enumerated() where track.kind == .text && track.visible {
-        let clips = state.session.getClips(trackIndex: idx)
-        for clip in clips {
-          let text = state.session.getClipText(trackIndex: idx, clipID: clip.id) ?? ""
+      for clip in state.session.getTextExportClips() {
+        let text = state.session.getClipText(trackIndex: clip.trackIndex, clipID: clip.clipID) ?? ""
+        if !text.isEmpty {
           exportTextOverlays.append(VideoTextOverlayClip(
             id: UUID(),
             text: text,
@@ -726,7 +724,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
           ))
         }
       }
-      exportIncludeWebcam = tracks.first(where: { $0.kind == .webcam })?.visible ?? false
+      exportIncludeWebcam = state.session.isWebcamTrackVisibleForExport()
     }
 
     return VideoExportOverlayConfiguration(

@@ -88,6 +88,24 @@ pub struct TimelineTrackSummary {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TimelineTextClipExportInput {
+    pub track_index: u32,
+    pub track_order: u32,
+    pub clip_id: u32,
+    pub start_ms: u32,
+    pub end_ms: u32,
+    pub track_visible: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TimelineTextClipExportRef {
+    pub track_index: u32,
+    pub clip_id: u32,
+    pub start_ms: u32,
+    pub end_ms: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct I32Rect {
     pub x: i32,
     pub y: i32,
@@ -101,6 +119,32 @@ pub struct Rgba8 {
     pub g: u8,
     pub b: u8,
     pub a: u8,
+}
+
+pub const STITCH_SIDE_TOP: u8 = 0;
+pub const STITCH_SIDE_BOTTOM: u8 = 1;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct StitchDelta {
+    pub rows: u32,
+    pub side: u8,
+    pub score: f32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BgraImageOwned {
+    pub width: u32,
+    pub height: u32,
+    pub stride: u32,
+    pub pixels: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct BgraImageView<'a> {
+    pub width: u32,
+    pub height: u32,
+    pub stride: u32,
+    pub pixels: &'a [u8],
 }
 
 pub fn compute_video_export_plan(
@@ -175,6 +219,33 @@ pub fn derive_video_export_context(
         webcam_track_visible,
         text_overlay_count,
     }
+}
+
+pub fn timeline_webcam_visible_for_export(tracks: &[TimelineTrackSummary]) -> bool {
+    tracks
+        .iter()
+        .any(|track| track.kind == 1 && track.visible && track.clip_count > 0)
+}
+
+pub fn timeline_collect_text_export_clips(
+    clips: &[TimelineTextClipExportInput],
+) -> Vec<TimelineTextClipExportRef> {
+    let mut visible = clips
+        .iter()
+        .copied()
+        .filter(|clip| clip.track_visible && clip.end_ms > clip.start_ms)
+        .collect::<Vec<_>>();
+    visible.sort_by_key(|clip| (clip.track_order, clip.start_ms, clip.clip_id));
+
+    visible
+        .into_iter()
+        .map(|clip| TimelineTextClipExportRef {
+            track_index: clip.track_index,
+            clip_id: clip.clip_id,
+            start_ms: clip.start_ms,
+            end_ms: clip.end_ms,
+        })
+        .collect()
 }
 
 pub fn normalize_click_point(normalized_x: f32, normalized_y: f32) -> Option<(f32, f32)> {
@@ -342,6 +413,431 @@ pub fn stitch_autoscroll_update(
     }
 
     next
+}
+
+impl BgraImageOwned {
+    pub fn view(&self) -> BgraImageView<'_> {
+        BgraImageView {
+            width: self.width,
+            height: self.height,
+            stride: self.stride,
+            pixels: &self.pixels,
+        }
+    }
+
+    fn row_bytes(&self) -> Option<usize> {
+        (self.width as usize).checked_mul(4)
+    }
+}
+
+pub fn bgra_view_to_owned(view: BgraImageView<'_>) -> Option<BgraImageOwned> {
+    let width = view.width as usize;
+    let height = view.height as usize;
+    let stride = view.stride as usize;
+    if width == 0 || height == 0 {
+        return None;
+    }
+
+    let row_bytes = width.checked_mul(4)?;
+    if stride < row_bytes {
+        return None;
+    }
+    let required_len = stride.checked_mul(height)?;
+    if view.pixels.len() < required_len {
+        return None;
+    }
+
+    Some(BgraImageOwned {
+        width: view.width,
+        height: view.height,
+        stride: view.stride,
+        pixels: view.pixels[..required_len].to_vec(),
+    })
+}
+
+fn stitch_pixel_diff(a: &[u8], ai: usize, b: &[u8], bi: usize) -> u64 {
+    let db = (a[ai] as i32 - b[bi] as i32).unsigned_abs() as u64;
+    let dg = (a[ai + 1] as i32 - b[bi + 1] as i32).unsigned_abs() as u64;
+    let dr = (a[ai + 2] as i32 - b[bi + 2] as i32).unsigned_abs() as u64;
+    dr + dg + db
+}
+
+pub fn stitch_extract_strip(frame: &BgraImageOwned, rows: u32, side: u8) -> Option<BgraImageOwned> {
+    if rows == 0 || rows >= frame.height {
+        return None;
+    }
+    let row_bytes = frame.row_bytes()?;
+    if frame.stride < row_bytes as u32 {
+        return None;
+    }
+
+    let rows_usize = rows as usize;
+    let height_usize = frame.height as usize;
+    let stride = frame.stride as usize;
+    let start_row = if side == STITCH_SIDE_BOTTOM {
+        0usize
+    } else if side == STITCH_SIDE_TOP {
+        height_usize.saturating_sub(rows_usize)
+    } else {
+        return None;
+    };
+
+    let mut pixels = vec![0u8; rows_usize.checked_mul(row_bytes)?];
+    for row in 0..rows_usize {
+        let src_row = start_row + row;
+        let src_start = src_row.checked_mul(stride)?;
+        let dst_start = row.checked_mul(row_bytes)?;
+        pixels[dst_start..dst_start + row_bytes]
+            .copy_from_slice(&frame.pixels[src_start..src_start + row_bytes]);
+    }
+
+    Some(BgraImageOwned {
+        width: frame.width,
+        height: rows,
+        stride: row_bytes as u32,
+        pixels,
+    })
+}
+
+pub fn stitch_resize_width_nearest(
+    frame: &BgraImageOwned,
+    target_width: u32,
+) -> Option<BgraImageOwned> {
+    if frame.width == target_width {
+        return Some(frame.clone());
+    }
+    if frame.width == 0 || frame.height == 0 || target_width == 0 {
+        return None;
+    }
+
+    let src_width = frame.width as usize;
+    let src_height = frame.height as usize;
+    let src_stride = frame.stride as usize;
+    let src_row_bytes = frame.row_bytes()?;
+    if src_stride < src_row_bytes {
+        return None;
+    }
+
+    let dst_width = target_width as usize;
+    let scale = dst_width as f64 / src_width as f64;
+    let dst_height = ((src_height as f64 * scale).round() as usize).max(1);
+    let dst_row_bytes = dst_width.checked_mul(4)?;
+    let dst_len = dst_row_bytes.checked_mul(dst_height)?;
+    let mut dst_pixels = vec![0u8; dst_len];
+
+    for y in 0..dst_height {
+        let src_y = ((y as f64 / dst_height as f64) * src_height as f64)
+            .floor()
+            .clamp(0.0, (src_height.saturating_sub(1)) as f64) as usize;
+        let src_row_start = src_y.checked_mul(src_stride)?;
+        let dst_row_start = y.checked_mul(dst_row_bytes)?;
+
+        for x in 0..dst_width {
+            let src_x = ((x as f64 / dst_width as f64) * src_width as f64)
+                .floor()
+                .clamp(0.0, (src_width.saturating_sub(1)) as f64) as usize;
+            let src_idx = src_row_start + src_x * 4;
+            let dst_idx = dst_row_start + x * 4;
+            dst_pixels[dst_idx..dst_idx + 4].copy_from_slice(&frame.pixels[src_idx..src_idx + 4]);
+        }
+    }
+
+    Some(BgraImageOwned {
+        width: target_width,
+        height: dst_height as u32,
+        stride: dst_row_bytes as u32,
+        pixels: dst_pixels,
+    })
+}
+
+pub fn stitch_merge_frames(
+    base: &BgraImageOwned,
+    segment: &BgraImageOwned,
+    side: u8,
+) -> Option<BgraImageOwned> {
+    if side != STITCH_SIDE_TOP && side != STITCH_SIDE_BOTTOM {
+        return None;
+    }
+    if base.width != segment.width {
+        return None;
+    }
+
+    let width = base.width as usize;
+    let base_height = base.height as usize;
+    let segment_height = segment.height as usize;
+    let base_stride = base.stride as usize;
+    let segment_stride = segment.stride as usize;
+    let row_bytes = width.checked_mul(4)?;
+    if base_stride < row_bytes || segment_stride < row_bytes {
+        return None;
+    }
+
+    let out_height = base_height.checked_add(segment_height)?;
+    let out_stride = row_bytes;
+    let out_len = out_stride.checked_mul(out_height)?;
+    let mut out_pixels = vec![0u8; out_len];
+
+    let mut copy_rows = |src: &[u8], src_stride: usize, src_height: usize, dst_start_row: usize| {
+        for row in 0..src_height {
+            let src_start = row * src_stride;
+            let dst_start = (dst_start_row + row) * out_stride;
+            out_pixels[dst_start..dst_start + row_bytes]
+                .copy_from_slice(&src[src_start..src_start + row_bytes]);
+        }
+    };
+
+    if side == STITCH_SIDE_BOTTOM {
+        copy_rows(&base.pixels, base_stride, base_height, 0);
+        copy_rows(&segment.pixels, segment_stride, segment_height, base_height);
+    } else {
+        copy_rows(&segment.pixels, segment_stride, segment_height, 0);
+        copy_rows(&base.pixels, base_stride, base_height, segment_height);
+    }
+
+    Some(BgraImageOwned {
+        width: base.width,
+        height: out_height as u32,
+        stride: out_stride as u32,
+        pixels: out_pixels,
+    })
+}
+
+pub fn stitch_crop_frame(
+    frame: &BgraImageOwned,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> Option<BgraImageOwned> {
+    if width == 0 || height == 0 {
+        return None;
+    }
+
+    let x_end = x.checked_add(width)?;
+    let y_end = y.checked_add(height)?;
+    if x_end > frame.width || y_end > frame.height {
+        return None;
+    }
+
+    let src_stride = frame.stride as usize;
+    let src_row_bytes = frame.row_bytes()?;
+    if src_stride < src_row_bytes {
+        return None;
+    }
+
+    let x_usize = x as usize;
+    let y_usize = y as usize;
+    let width_usize = width as usize;
+    let height_usize = height as usize;
+    let out_row_bytes = width_usize.checked_mul(4)?;
+    let out_len = out_row_bytes.checked_mul(height_usize)?;
+    let mut out_pixels = vec![0u8; out_len];
+
+    for row in 0..height_usize {
+        let src_row = y_usize + row;
+        let src_start = src_row
+            .checked_mul(src_stride)?
+            .checked_add(x_usize.checked_mul(4)?)?;
+        let dst_start = row.checked_mul(out_row_bytes)?;
+        out_pixels[dst_start..dst_start + out_row_bytes]
+            .copy_from_slice(&frame.pixels[src_start..src_start + out_row_bytes]);
+    }
+
+    Some(BgraImageOwned {
+        width,
+        height,
+        stride: out_row_bytes as u32,
+        pixels: out_pixels,
+    })
+}
+
+pub fn stitch_estimate_delta(
+    previous: BgraImageView<'_>,
+    current: BgraImageView<'_>,
+    preferred_side: Option<u8>,
+    expected_rows: Option<u32>,
+    relaxed: bool,
+) -> Option<StitchDelta> {
+    let prev_width = previous.width as usize;
+    let prev_height = previous.height as usize;
+    let prev_stride = previous.stride as usize;
+    let curr_width = current.width as usize;
+    let curr_height = current.height as usize;
+    let curr_stride = current.stride as usize;
+    let prev = previous.pixels;
+    let curr = current.pixels;
+
+    let prev_row_bytes = prev_width.checked_mul(4)?;
+    let curr_row_bytes = curr_width.checked_mul(4)?;
+    if prev_row_bytes > prev_stride || curr_row_bytes > curr_stride {
+        return None;
+    }
+    if prev_stride.checked_mul(prev_height)? > prev.len()
+        || curr_stride.checked_mul(curr_height)? > curr.len()
+    {
+        return None;
+    }
+    if prev_width != curr_width || prev_height != curr_height {
+        return None;
+    }
+
+    let width = prev_width;
+    let height = prev_height;
+    if width < 32 || height < 24 {
+        return None;
+    }
+
+    if matches!(preferred_side, Some(side) if side != STITCH_SIDE_TOP && side != STITCH_SIDE_BOTTOM)
+    {
+        return None;
+    }
+
+    let min_overlap_rows = 24usize.max((height as f64 * 0.14).round() as usize);
+    let max_shift = 4usize.max((height - 4).min(height.saturating_sub(min_overlap_rows)));
+    if max_shift < 2 {
+        return None;
+    }
+
+    let x_inset = 8usize.max(width / 16);
+    let y_inset = 10usize.max(height / 8);
+    let sample_min_x = x_inset;
+    let sample_max_x = (sample_min_x + 8).max(width.saturating_sub(x_inset));
+    if sample_max_x <= sample_min_x {
+        return None;
+    }
+    let sample_span_x = (sample_max_x - sample_min_x).max(8);
+    let step_x = (sample_span_x / 74).max(2);
+
+    let mut best_rows = 0usize;
+    let mut best_side = STITCH_SIDE_BOTTOM;
+    let mut best_score = f64::MAX;
+    let mut second_best_score = f64::MAX;
+    let mut consider = |rows: usize, side: u8, score: f64| {
+        if score < best_score {
+            second_best_score = best_score;
+            best_score = score;
+            best_rows = rows;
+            best_side = side;
+        } else if score < second_best_score {
+            second_best_score = score;
+        }
+    };
+
+    let mut search_start = 2usize;
+    let mut search_end = max_shift;
+    if let Some(expected) = expected_rows {
+        let expected = expected as usize;
+        let band_scale = if relaxed { 1.05 } else { 0.65 };
+        let band = 10usize.max((expected.max(6) as f64 * band_scale).round() as usize);
+        search_start = 2usize.max(expected.saturating_sub(band));
+        search_end = max_shift.min(expected.saturating_add(band));
+        if search_start > search_end {
+            search_start = 2;
+            search_end = max_shift;
+        }
+    }
+
+    for shift in search_start..=search_end {
+        let overlap = height.saturating_sub(shift);
+        if overlap < 10 {
+            continue;
+        }
+
+        let sample_min_y = y_inset;
+        let sample_max_y = (sample_min_y + 8).max(overlap.saturating_sub(y_inset));
+        if sample_max_y <= sample_min_y {
+            continue;
+        }
+
+        let sample_span_y = sample_max_y - sample_min_y;
+        if sample_span_y < 8 {
+            continue;
+        }
+        let step_y = (sample_span_y / 64).max(2);
+
+        let mut diff_bottom: u64 = 0;
+        let mut diff_top: u64 = 0;
+        let mut samples: u64 = 0;
+
+        let mut y = sample_min_y;
+        while y < sample_max_y {
+            let prev_bottom_row = y + shift;
+            let curr_bottom_row = y;
+            let prev_top_row = y;
+            let curr_top_row = y + shift;
+
+            let prev_bottom_base = prev_bottom_row * prev_stride;
+            let curr_bottom_base = curr_bottom_row * curr_stride;
+            let prev_top_base = prev_top_row * prev_stride;
+            let curr_top_base = curr_top_row * curr_stride;
+
+            let mut x = sample_min_x;
+            while x < sample_max_x {
+                let prev_bottom_index = prev_bottom_base + x * 4;
+                let curr_bottom_index = curr_bottom_base + x * 4;
+                diff_bottom += stitch_pixel_diff(prev, prev_bottom_index, curr, curr_bottom_index);
+
+                let prev_top_index = prev_top_base + x * 4;
+                let curr_top_index = curr_top_base + x * 4;
+                diff_top += stitch_pixel_diff(prev, prev_top_index, curr, curr_top_index);
+
+                samples += 1;
+                x += step_x;
+            }
+            y += step_y;
+        }
+
+        if samples == 0 {
+            continue;
+        }
+
+        if preferred_side.is_none() || preferred_side == Some(STITCH_SIDE_BOTTOM) {
+            let score = diff_bottom as f64 / samples as f64;
+            consider(shift, STITCH_SIDE_BOTTOM, score);
+        }
+        if preferred_side.is_none() || preferred_side == Some(STITCH_SIDE_TOP) {
+            let score = diff_top as f64 / samples as f64;
+            consider(shift, STITCH_SIDE_TOP, score);
+        }
+    }
+
+    if best_rows < 4 {
+        return None;
+    }
+
+    let score_threshold = if relaxed {
+        if preferred_side.is_none() {
+            82.0
+        } else {
+            94.0
+        }
+    } else if preferred_side.is_none() {
+        56.0
+    } else {
+        62.0
+    };
+
+    if best_score >= score_threshold {
+        return None;
+    }
+
+    if !relaxed && second_best_score.is_finite() {
+        let separation = (second_best_score - best_score) / second_best_score.max(1.0);
+        let minimum = if preferred_side.is_none() {
+            0.08
+        } else {
+            0.055
+        };
+        if separation < minimum {
+            return None;
+        }
+    }
+
+    Some(StitchDelta {
+        rows: best_rows as u32,
+        side: best_side,
+        score: best_score as f32,
+    })
 }
 
 fn standardize_rect(rect: F32Rect) -> Option<(f32, f32, f32, f32)> {
@@ -814,6 +1310,45 @@ pub fn timeline_normalize_text_clip_range(
     (clamped_start, clamped_end)
 }
 
+/// Video export and interaction policy APIs.
+pub mod video {
+    pub use super::{
+        click_event_is_duplicate, compute_video_export_plan, derive_video_export_context,
+        normalize_click_point, VideoExportContext, VideoExportPlan, VIDEO_PLAN_MODE_COMPOSITE_MP4,
+        VIDEO_PLAN_MODE_PASSTHROUGH,
+    };
+}
+
+/// Timeline normalization and export-query APIs.
+pub mod timeline {
+    pub use super::{
+        timeline_clamp_clip_end, timeline_collect_text_export_clips, timeline_full_duration_end,
+        timeline_normalize_text_clip_range, timeline_webcam_visible_for_export,
+        TimelineTextClipExportInput, TimelineTextClipExportRef, TimelineTrackSummary,
+    };
+}
+
+/// Geometry and selection transformation APIs.
+pub mod geometry {
+    pub use super::{
+        image_delta_to_view_delta, image_rect_to_view_rect, quantize_image_point,
+        quantize_image_rect, quantize_rgba, selection_move_rect, selection_resize_rect,
+        view_delta_to_image_delta, view_rect_to_image_rect, viewport_clamp_pan_offset, F32Point,
+        F32Rect, I32Rect, ResizeCorner, Rgba8,
+    };
+}
+
+/// Stitching and GIF/trim policy APIs.
+pub mod stitch {
+    pub use super::{
+        bgra_view_to_owned, build_gif_export_plan, gif_frame_time_ms, normalize_trim_range,
+        stitch_autoscroll_reset, stitch_autoscroll_update, stitch_crop_frame,
+        stitch_estimate_delta, stitch_extract_strip, stitch_merge_frames,
+        stitch_resize_width_nearest, BgraImageOwned, BgraImageView, GifExportPlan,
+        StitchAutoscrollState, StitchDelta, TrimHandle, STITCH_SIDE_BOTTOM, STITCH_SIDE_TOP,
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -887,6 +1422,51 @@ mod tests {
     }
 
     #[test]
+    fn timeline_export_clip_collection_filters_and_orders() {
+        let clips = vec![
+            TimelineTextClipExportInput {
+                track_index: 2,
+                track_order: 2,
+                clip_id: 10,
+                start_ms: 4_000,
+                end_ms: 5_000,
+                track_visible: true,
+            },
+            TimelineTextClipExportInput {
+                track_index: 1,
+                track_order: 1,
+                clip_id: 9,
+                start_ms: 2_000,
+                end_ms: 3_000,
+                track_visible: true,
+            },
+            TimelineTextClipExportInput {
+                track_index: 1,
+                track_order: 1,
+                clip_id: 8,
+                start_ms: 1_000,
+                end_ms: 1_000,
+                track_visible: true,
+            },
+            TimelineTextClipExportInput {
+                track_index: 3,
+                track_order: 3,
+                clip_id: 11,
+                start_ms: 1_500,
+                end_ms: 2_500,
+                track_visible: false,
+            },
+        ];
+
+        let refs = timeline_collect_text_export_clips(&clips);
+        assert_eq!(refs.len(), 2);
+        assert_eq!(refs[0].track_index, 1);
+        assert_eq!(refs[0].clip_id, 9);
+        assert_eq!(refs[1].track_index, 2);
+        assert_eq!(refs[1].clip_id, 10);
+    }
+
+    #[test]
     fn gif_plan_and_frame_time_are_stable() {
         let plan = build_gif_export_plan(0, 1_000, 12.0, 9_999);
         assert_eq!(plan.frame_count, 12);
@@ -904,6 +1484,87 @@ mod tests {
         assert_eq!(state.direction_sign, 1);
         assert!(state.did_flip_direction);
         assert_eq!(state.no_motion_ticks, 0);
+    }
+
+    #[test]
+    fn stitch_estimator_detects_bottom_shift() {
+        let width = 96usize;
+        let height = 64usize;
+        let shift = 9usize;
+        let stride = width * 4;
+
+        let mut previous = vec![0u8; stride * height];
+        for y in 0..height {
+            for x in 0..width {
+                let idx = y * stride + x * 4;
+                previous[idx] = ((x * 5 + y * 11) % 251) as u8;
+                previous[idx + 1] = ((x * 13 + y * 7) % 251) as u8;
+                previous[idx + 2] = ((x * 3 + y * 17) % 251) as u8;
+                previous[idx + 3] = 255;
+            }
+        }
+
+        let mut current = vec![0u8; stride * height];
+        for y in 0..(height - shift) {
+            let src = (y + shift) * stride;
+            let dst = y * stride;
+            current[dst..dst + stride].copy_from_slice(&previous[src..src + stride]);
+        }
+        for y in (height - shift)..height {
+            for x in 0..width {
+                let idx = y * stride + x * 4;
+                current[idx] = ((x * 19 + y * 23 + 31) % 251) as u8;
+                current[idx + 1] = ((x * 29 + y * 7 + 41) % 251) as u8;
+                current[idx + 2] = ((x * 3 + y * 37 + 53) % 251) as u8;
+                current[idx + 3] = 255;
+            }
+        }
+
+        let delta = stitch_estimate_delta(
+            BgraImageView {
+                width: width as u32,
+                height: height as u32,
+                stride: stride as u32,
+                pixels: &previous,
+            },
+            BgraImageView {
+                width: width as u32,
+                height: height as u32,
+                stride: stride as u32,
+                pixels: &current,
+            },
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(delta.side, STITCH_SIDE_BOTTOM);
+        assert_eq!(delta.rows, shift as u32);
+    }
+
+    #[test]
+    fn stitch_merge_and_crop_preserve_dimensions() {
+        let base = BgraImageOwned {
+            width: 4,
+            height: 3,
+            stride: 16,
+            pixels: vec![10; 16 * 3],
+        };
+        let segment = BgraImageOwned {
+            width: 4,
+            height: 2,
+            stride: 16,
+            pixels: vec![200; 16 * 2],
+        };
+
+        let merged = stitch_merge_frames(&base, &segment, STITCH_SIDE_BOTTOM).unwrap();
+        assert_eq!(merged.width, 4);
+        assert_eq!(merged.height, 5);
+
+        let cropped = stitch_crop_frame(&merged, 1, 1, 2, 3).unwrap();
+        assert_eq!(cropped.width, 2);
+        assert_eq!(cropped.height, 3);
     }
 
     #[test]

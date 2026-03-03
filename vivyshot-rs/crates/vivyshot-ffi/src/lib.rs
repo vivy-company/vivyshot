@@ -3,6 +3,11 @@
 //! This crate owns `extern "C"` interop, pointer validation, and memory
 //! ownership across the FFI boundary. Portable policy/state machines should
 //! live in `vivyshot-core` and be called from this adapter.
+#![allow(clippy::manual_clamp)]
+#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::wrong_self_convention)]
 
 use font8x8::UnicodeFonts;
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
@@ -17,9 +22,9 @@ use std::os::raw::c_char;
 use std::slice;
 use std::sync::OnceLock;
 use vivyshot_domain::{
+    bgra_view_to_owned as domain_bgra_view_to_owned,
     build_gif_export_plan as domain_build_gif_export_plan,
     click_event_is_duplicate as domain_click_event_is_duplicate,
-    compute_video_export_plan as domain_compute_video_export_plan,
     gif_frame_time_ms as domain_gif_frame_time_ms,
     normalize_click_point as domain_normalize_click_point,
     normalize_trim_range as domain_normalize_trim_range,
@@ -27,9 +32,15 @@ use vivyshot_domain::{
     quantize_image_rect as domain_quantize_image_rect, quantize_rgba as domain_quantize_rgba,
     stitch_autoscroll_reset as domain_stitch_autoscroll_reset,
     stitch_autoscroll_update as domain_stitch_autoscroll_update,
+    stitch_crop_frame as domain_stitch_crop_frame,
+    stitch_extract_strip as domain_stitch_extract_strip,
+    stitch_merge_frames as domain_stitch_merge_frames,
+    stitch_resize_width_nearest as domain_stitch_resize_width_nearest,
     timeline_clamp_clip_end as domain_timeline_clamp_clip_end,
     timeline_full_duration_end as domain_timeline_full_duration_end,
     timeline_normalize_text_clip_range as domain_timeline_normalize_text_clip_range,
+    BgraImageOwned as DomainBgraImageOwned, BgraImageView as DomainBgraImageView,
+    STITCH_SIDE_BOTTOM as DOMAIN_STITCH_SIDE_BOTTOM, STITCH_SIDE_TOP as DOMAIN_STITCH_SIDE_TOP,
 };
 
 #[cfg(test)]
@@ -37,13 +48,17 @@ use vivyshot_domain::VIDEO_PLAN_MODE_COMPOSITE_MP4 as DOMAIN_VIDEO_PLAN_MODE_COM
 
 mod ffi;
 
+use ffi::document as ffi_document;
 use ffi::domain::{
     to_domain_f32_rect, to_domain_gif_plan, to_domain_stitch_autoscroll_state,
-    to_domain_trim_handle, to_domain_video_export_context, to_ffi_gif_plan, to_ffi_i32_rect,
-    to_ffi_rgba8, to_ffi_stitch_autoscroll_state, to_ffi_video_export_plan,
+    to_domain_trim_handle, to_ffi_gif_plan, to_ffi_i32_rect, to_ffi_rgba8,
+    to_ffi_stitch_autoscroll_state,
 };
+use ffi::encode as ffi_encode;
 use ffi::geometry as ffi_geometry;
+use ffi::stitch as ffi_stitch;
 use ffi::timeline as ffi_timeline;
+use ffi::video as ffi_video;
 
 static VERSION: &[u8] = b"0.1.0\0";
 static SYSTEM_FONTS: OnceLock<Vec<fontdue::Font>> = OnceLock::new();
@@ -743,14 +758,13 @@ fn compute_video_export_plan(
     click_event_count: u32,
     context: vs_video_export_context,
 ) -> Option<vs_video_export_plan> {
-    domain_compute_video_export_plan(
+    ffi_video::compute_export_plan(
         trim_start_ms,
         trim_end_ms,
         key_event_count,
         click_event_count,
-        to_domain_video_export_context(context),
+        context,
     )
-    .map(to_ffi_video_export_plan)
 }
 
 #[no_mangle]
@@ -1126,8 +1140,8 @@ const VS_VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = DOMAIN_VIDEO_PLAN_MODE_COMPOSITE_MP
 const VS_IMAGE_ENCODE_PNG: u8 = 0;
 const VS_IMAGE_ENCODE_JPEG: u8 = 1;
 
-const VS_STITCH_SIDE_TOP: u8 = 0;
-const VS_STITCH_SIDE_BOTTOM: u8 = 1;
+const VS_STITCH_SIDE_TOP: u8 = DOMAIN_STITCH_SIDE_TOP;
+const VS_STITCH_SIDE_BOTTOM: u8 = DOMAIN_STITCH_SIDE_BOTTOM;
 const VS_RESIZE_CORNER_TOP_LEFT: u8 = 0;
 const VS_RESIZE_CORNER_TOP: u8 = 1;
 const VS_RESIZE_CORNER_TOP_RIGHT: u8 = 2;
@@ -1145,6 +1159,14 @@ const VS_KEY_MOD_CONTROL: u32 = 1 << 3;
 const VS_TRIM_HANDLE_UNKNOWN: u8 = 0;
 const VS_TRIM_HANDLE_START: u8 = 1;
 const VS_TRIM_HANDLE_END: u8 = 2;
+
+pub const VS_STATUS_OK: i32 = 0;
+pub const VS_STATUS_NO_CHANGE: i32 = 1;
+pub const VS_STATUS_NULL_POINTER: i32 = -1;
+pub const VS_STATUS_INVALID_ARGUMENT: i32 = -2;
+pub const VS_STATUS_REJECTED: i32 = -3;
+pub const VS_STATUS_BUFFER_TOO_SMALL: i32 = -4;
+pub const VS_STATUS_NOT_FOUND: i32 = -5;
 
 unsafe fn bgra_view_slice<'a>(view: vs_bgra_image_view) -> Option<(&'a [u8], usize, usize, usize)> {
     if view.ptr.is_null() || view.width == 0 || view.height == 0 {
@@ -1169,13 +1191,6 @@ unsafe fn bgra_view_slice<'a>(view: vs_bgra_image_view) -> Option<(&'a [u8], usi
     Some((bytes, width, height, stride))
 }
 
-fn stitch_pixel_diff(a: &[u8], ai: usize, b: &[u8], bi: usize) -> u64 {
-    let db = (a[ai] as i32 - b[bi] as i32).unsigned_abs() as u64;
-    let dg = (a[ai + 1] as i32 - b[bi + 1] as i32).unsigned_abs() as u64;
-    let dr = (a[ai + 2] as i32 - b[bi + 2] as i32).unsigned_abs() as u64;
-    dr + dg + db
-}
-
 #[derive(Clone)]
 struct OwnedBgraFrame {
     width: u32,
@@ -1195,8 +1210,22 @@ impl OwnedBgraFrame {
         }
     }
 
-    fn row_bytes(&self) -> Option<usize> {
-        (self.width as usize).checked_mul(4)
+    fn to_domain_owned(&self) -> DomainBgraImageOwned {
+        DomainBgraImageOwned {
+            width: self.width,
+            height: self.height,
+            stride: self.stride,
+            pixels: self.pixels.clone(),
+        }
+    }
+
+    fn from_domain_owned(frame: DomainBgraImageOwned) -> Self {
+        OwnedBgraFrame {
+            width: frame.width,
+            height: frame.height,
+            stride: frame.stride,
+            pixels: frame.pixels,
+        }
     }
 
     fn to_owned_image(&self) -> vs_bgra_owned_image {
@@ -1226,97 +1255,23 @@ struct vs_stitch_session {
 fn copy_bgra_view_to_owned(view: vs_bgra_image_view) -> Option<OwnedBgraFrame> {
     // SAFETY: `bgra_view_slice` validates all pointer/length invariants.
     let (bytes, width, height, stride) = unsafe { bgra_view_slice(view) }?;
-    Some(OwnedBgraFrame {
+    let domain = domain_bgra_view_to_owned(DomainBgraImageView {
         width: width as u32,
         height: height as u32,
         stride: stride as u32,
-        pixels: bytes.to_vec(),
-    })
+        pixels: bytes,
+    })?;
+    Some(OwnedBgraFrame::from_domain_owned(domain))
 }
 
 fn extract_strip(frame: &OwnedBgraFrame, rows: u32, side: u8) -> Option<OwnedBgraFrame> {
-    if rows == 0 || rows >= frame.height {
-        return None;
-    }
-    let row_bytes = frame.row_bytes()?;
-    if frame.stride < row_bytes as u32 {
-        return None;
-    }
-
-    let rows_usize = rows as usize;
-    let height_usize = frame.height as usize;
-    let stride = frame.stride as usize;
-    let start_row = if side == VS_STITCH_SIDE_BOTTOM {
-        0usize
-    } else if side == VS_STITCH_SIDE_TOP {
-        height_usize.saturating_sub(rows_usize)
-    } else {
-        return None;
-    };
-
-    let mut pixels = vec![0u8; rows_usize.checked_mul(row_bytes)?];
-    for row in 0..rows_usize {
-        let src_row = start_row + row;
-        let src_start = src_row.checked_mul(stride)?;
-        let dst_start = row.checked_mul(row_bytes)?;
-        pixels[dst_start..dst_start + row_bytes]
-            .copy_from_slice(&frame.pixels[src_start..src_start + row_bytes]);
-    }
-
-    Some(OwnedBgraFrame {
-        width: frame.width,
-        height: rows,
-        stride: row_bytes as u32,
-        pixels,
-    })
+    domain_stitch_extract_strip(&frame.to_domain_owned(), rows, side)
+        .map(OwnedBgraFrame::from_domain_owned)
 }
 
 fn resize_frame_width_nearest(frame: &OwnedBgraFrame, target_width: u32) -> Option<OwnedBgraFrame> {
-    if frame.width == target_width {
-        return Some(frame.clone());
-    }
-    if frame.width == 0 || frame.height == 0 || target_width == 0 {
-        return None;
-    }
-
-    let src_width = frame.width as usize;
-    let src_height = frame.height as usize;
-    let src_stride = frame.stride as usize;
-    let src_row_bytes = frame.row_bytes()?;
-    if src_stride < src_row_bytes {
-        return None;
-    }
-
-    let dst_width = target_width as usize;
-    let scale = dst_width as f64 / src_width as f64;
-    let dst_height = ((src_height as f64 * scale).round() as usize).max(1);
-    let dst_row_bytes = dst_width.checked_mul(4)?;
-    let dst_len = dst_row_bytes.checked_mul(dst_height)?;
-    let mut dst_pixels = vec![0u8; dst_len];
-
-    for y in 0..dst_height {
-        let src_y = ((y as f64 / dst_height as f64) * src_height as f64)
-            .floor()
-            .clamp(0.0, (src_height.saturating_sub(1)) as f64) as usize;
-        let src_row_start = src_y.checked_mul(src_stride)?;
-        let dst_row_start = y.checked_mul(dst_row_bytes)?;
-
-        for x in 0..dst_width {
-            let src_x = ((x as f64 / dst_width as f64) * src_width as f64)
-                .floor()
-                .clamp(0.0, (src_width.saturating_sub(1)) as f64) as usize;
-            let src_idx = src_row_start + src_x * 4;
-            let dst_idx = dst_row_start + x * 4;
-            dst_pixels[dst_idx..dst_idx + 4].copy_from_slice(&frame.pixels[src_idx..src_idx + 4]);
-        }
-    }
-
-    Some(OwnedBgraFrame {
-        width: target_width,
-        height: dst_height as u32,
-        stride: dst_row_bytes as u32,
-        pixels: dst_pixels,
-    })
+    domain_stitch_resize_width_nearest(&frame.to_domain_owned(), target_width)
+        .map(OwnedBgraFrame::from_domain_owned)
 }
 
 fn merge_bgra_frames(
@@ -1324,51 +1279,8 @@ fn merge_bgra_frames(
     segment: &OwnedBgraFrame,
     side: u8,
 ) -> Option<OwnedBgraFrame> {
-    if side != VS_STITCH_SIDE_TOP && side != VS_STITCH_SIDE_BOTTOM {
-        return None;
-    }
-    if base.width != segment.width {
-        return None;
-    }
-
-    let width = base.width as usize;
-    let base_height = base.height as usize;
-    let segment_height = segment.height as usize;
-    let base_stride = base.stride as usize;
-    let segment_stride = segment.stride as usize;
-    let row_bytes = width.checked_mul(4)?;
-    if base_stride < row_bytes || segment_stride < row_bytes {
-        return None;
-    }
-
-    let out_height = base_height.checked_add(segment_height)?;
-    let out_stride = row_bytes;
-    let out_len = out_stride.checked_mul(out_height)?;
-    let mut out_pixels = vec![0u8; out_len];
-
-    let mut copy_rows = |src: &[u8], src_stride: usize, src_height: usize, dst_start_row: usize| {
-        for row in 0..src_height {
-            let src_start = row * src_stride;
-            let dst_start = (dst_start_row + row) * out_stride;
-            out_pixels[dst_start..dst_start + row_bytes]
-                .copy_from_slice(&src[src_start..src_start + row_bytes]);
-        }
-    };
-
-    if side == VS_STITCH_SIDE_BOTTOM {
-        copy_rows(&base.pixels, base_stride, base_height, 0);
-        copy_rows(&segment.pixels, segment_stride, segment_height, base_height);
-    } else {
-        copy_rows(&segment.pixels, segment_stride, segment_height, 0);
-        copy_rows(&base.pixels, base_stride, base_height, segment_height);
-    }
-
-    Some(OwnedBgraFrame {
-        width: base.width,
-        height: out_height as u32,
-        stride: out_stride as u32,
-        pixels: out_pixels,
-    })
+    domain_stitch_merge_frames(&base.to_domain_owned(), &segment.to_domain_owned(), side)
+        .map(OwnedBgraFrame::from_domain_owned)
 }
 
 fn crop_bgra_frame(
@@ -1378,46 +1290,8 @@ fn crop_bgra_frame(
     width: u32,
     height: u32,
 ) -> Option<OwnedBgraFrame> {
-    if width == 0 || height == 0 {
-        return None;
-    }
-
-    let x_end = x.checked_add(width)?;
-    let y_end = y.checked_add(height)?;
-    if x_end > frame.width || y_end > frame.height {
-        return None;
-    }
-
-    let src_stride = frame.stride as usize;
-    let src_row_bytes = frame.row_bytes()?;
-    if src_stride < src_row_bytes {
-        return None;
-    }
-
-    let x_usize = x as usize;
-    let y_usize = y as usize;
-    let width_usize = width as usize;
-    let height_usize = height as usize;
-    let out_row_bytes = width_usize.checked_mul(4)?;
-    let out_len = out_row_bytes.checked_mul(height_usize)?;
-    let mut out_pixels = vec![0u8; out_len];
-
-    for row in 0..height_usize {
-        let src_row = y_usize + row;
-        let src_start = src_row
-            .checked_mul(src_stride)?
-            .checked_add(x_usize.checked_mul(4)?)?;
-        let dst_start = row.checked_mul(out_row_bytes)?;
-        out_pixels[dst_start..dst_start + out_row_bytes]
-            .copy_from_slice(&frame.pixels[src_start..src_start + out_row_bytes]);
-    }
-
-    Some(OwnedBgraFrame {
-        width,
-        height,
-        stride: out_row_bytes as u32,
-        pixels: out_pixels,
-    })
+    domain_stitch_crop_frame(&frame.to_domain_owned(), x, y, width, height)
+        .map(OwnedBgraFrame::from_domain_owned)
 }
 
 fn default_stitch_session_result(
@@ -2039,165 +1913,32 @@ pub unsafe extern "C" fn vs_stitch_estimate_delta_bgra(
         Some(v) => v,
         None => return -2,
     };
-
-    if prev_width != curr_width || prev_height != curr_height {
-        return -2;
-    }
-
-    let width = prev_width;
-    let height = prev_height;
-    if width < 32 || height < 24 {
+    let Some(delta) = ffi_stitch::estimate_delta(
+        DomainBgraImageView {
+            width: prev_width as u32,
+            height: prev_height as u32,
+            stride: prev_stride as u32,
+            pixels: prev,
+        },
+        DomainBgraImageView {
+            width: curr_width as u32,
+            height: curr_height as u32,
+            stride: curr_stride as u32,
+            pixels: curr,
+        },
+        preferred_side,
+        expected_rows,
+        has_expected_rows,
+        relaxed,
+    ) else {
         return -3;
-    }
-
-    let preferred = match preferred_side {
-        0 => Some(VS_STITCH_SIDE_TOP),
-        1 => Some(VS_STITCH_SIDE_BOTTOM),
-        _ => None,
     };
-
-    let min_overlap_rows = 24usize.max((height as f64 * 0.14).round() as usize);
-    let max_shift = 4usize.max((height - 4).min(height.saturating_sub(min_overlap_rows)));
-    if max_shift < 2 {
-        return -3;
-    }
-
-    let x_inset = 8usize.max(width / 16);
-    let y_inset = 10usize.max(height / 8);
-    let sample_min_x = x_inset;
-    let sample_max_x = (sample_min_x + 8).max(width.saturating_sub(x_inset));
-    if sample_max_x <= sample_min_x {
-        return -3;
-    }
-    let sample_span_x = (sample_max_x - sample_min_x).max(8);
-    let step_x = (sample_span_x / 74).max(2);
-
-    let mut best_rows = 0usize;
-    let mut best_side = VS_STITCH_SIDE_BOTTOM;
-    let mut best_score = f64::MAX;
-    let mut second_best_score = f64::MAX;
-    let mut consider = |rows: usize, side: u8, score: f64| {
-        if score < best_score {
-            second_best_score = best_score;
-            best_score = score;
-            best_rows = rows;
-            best_side = side;
-        } else if score < second_best_score {
-            second_best_score = score;
-        }
-    };
-
-    let mut search_start = 2usize;
-    let mut search_end = max_shift;
-    if has_expected_rows {
-        let expected = expected_rows as usize;
-        let band_scale = if relaxed { 1.05 } else { 0.65 };
-        let band = 10usize.max((expected.max(6) as f64 * band_scale).round() as usize);
-        search_start = 2usize.max(expected.saturating_sub(band));
-        search_end = max_shift.min(expected.saturating_add(band));
-        if search_start > search_end {
-            search_start = 2;
-            search_end = max_shift;
-        }
-    }
-
-    for shift in search_start..=search_end {
-        let overlap = height.saturating_sub(shift);
-        if overlap < 10 {
-            continue;
-        }
-
-        let sample_min_y = y_inset;
-        let sample_max_y = (sample_min_y + 8).max(overlap.saturating_sub(y_inset));
-        if sample_max_y <= sample_min_y {
-            continue;
-        }
-
-        let sample_span_y = sample_max_y - sample_min_y;
-        if sample_span_y < 8 {
-            continue;
-        }
-        let step_y = (sample_span_y / 64).max(2);
-
-        let mut diff_bottom: u64 = 0;
-        let mut diff_top: u64 = 0;
-        let mut samples: u64 = 0;
-
-        let mut y = sample_min_y;
-        while y < sample_max_y {
-            let prev_bottom_row = y + shift;
-            let curr_bottom_row = y;
-            let prev_top_row = y;
-            let curr_top_row = y + shift;
-
-            let prev_bottom_base = prev_bottom_row * prev_stride;
-            let curr_bottom_base = curr_bottom_row * curr_stride;
-            let prev_top_base = prev_top_row * prev_stride;
-            let curr_top_base = curr_top_row * curr_stride;
-
-            let mut x = sample_min_x;
-            while x < sample_max_x {
-                let prev_bottom_index = prev_bottom_base + x * 4;
-                let curr_bottom_index = curr_bottom_base + x * 4;
-                diff_bottom += stitch_pixel_diff(prev, prev_bottom_index, curr, curr_bottom_index);
-
-                let prev_top_index = prev_top_base + x * 4;
-                let curr_top_index = curr_top_base + x * 4;
-                diff_top += stitch_pixel_diff(prev, prev_top_index, curr, curr_top_index);
-
-                samples += 1;
-                x += step_x;
-            }
-            y += step_y;
-        }
-
-        if samples == 0 {
-            continue;
-        }
-
-        if preferred.is_none() || preferred == Some(VS_STITCH_SIDE_BOTTOM) {
-            let score = diff_bottom as f64 / samples as f64;
-            consider(shift, VS_STITCH_SIDE_BOTTOM, score);
-        }
-        if preferred.is_none() || preferred == Some(VS_STITCH_SIDE_TOP) {
-            let score = diff_top as f64 / samples as f64;
-            consider(shift, VS_STITCH_SIDE_TOP, score);
-        }
-    }
-
-    if best_rows < 4 {
-        return -3;
-    }
-
-    let score_threshold = if relaxed {
-        if preferred.is_none() {
-            82.0
-        } else {
-            94.0
-        }
-    } else if preferred.is_none() {
-        56.0
-    } else {
-        62.0
-    };
-
-    if best_score >= score_threshold {
-        return -3;
-    }
-
-    if !relaxed && second_best_score.is_finite() {
-        let separation = (second_best_score - best_score) / second_best_score.max(1.0);
-        let minimum = if preferred.is_none() { 0.08 } else { 0.055 };
-        if separation < minimum {
-            return -3;
-        }
-    }
 
     unsafe {
         *out_delta = vs_stitch_delta {
-            rows: best_rows as u32,
-            side: best_side,
-            score: best_score as f32,
+            rows: delta.rows,
+            side: delta.side,
+            score: delta.score,
         };
     }
     0
@@ -2366,6 +2107,9 @@ pub unsafe extern "C" fn vs_encode_bgra_image(
         Some(v) => v,
         None => return -2,
     };
+    if !ffi_encode::supports_image_format(format, VS_IMAGE_ENCODE_PNG, VS_IMAGE_ENCODE_JPEG) {
+        return -2;
+    }
 
     let encoded = match format {
         VS_IMAGE_ENCODE_PNG => {
@@ -2380,11 +2124,7 @@ pub unsafe extern "C" fn vs_encode_bgra_image(
             out
         }
         VS_IMAGE_ENCODE_JPEG => {
-            let quality = if jpeg_quality == 0 {
-                90
-            } else {
-                jpeg_quality.min(100)
-            };
+            let quality = ffi_encode::normalized_jpeg_quality(jpeg_quality);
             let rgb = rgba_to_rgb(&rgba);
             let mut out = Vec::<u8>::new();
             let encoder = JpegEncoder::new_with_quality(&mut out, quality);
@@ -2396,7 +2136,7 @@ pub unsafe extern "C" fn vs_encode_bgra_image(
             }
             out
         }
-        _ => return -2,
+        _ => unreachable!("format validated above"),
     };
 
     let mut owned = encoded;
@@ -2826,8 +2566,10 @@ pub unsafe extern "C" fn vs_move_annotation(doc: *mut c_void, index: u32, dx: i3
 
     // SAFETY: `doc` nullability is checked above.
     let doc = unsafe { &mut *doc.cast::<vs_document>() };
-    let idx = index as usize;
-    if idx >= doc.cursor || idx >= doc.commands.len() {
+    let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
+        return -2;
+    };
+    if idx >= doc.cursor {
         return -2;
     }
 
@@ -2864,8 +2606,10 @@ pub unsafe extern "C" fn vs_remove_annotation(doc: *mut c_void, index: u32) -> i
 
     // SAFETY: `doc` nullability is checked above.
     let doc = unsafe { &mut *doc.cast::<vs_document>() };
-    let idx = index as usize;
-    if idx >= doc.cursor || idx >= doc.commands.len() {
+    let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
+        return -2;
+    };
+    if idx >= doc.cursor {
         return -2;
     }
 
@@ -2914,8 +2658,10 @@ pub unsafe extern "C" fn vs_resize_annotation(
 
     // SAFETY: `doc` nullability is checked above.
     let doc = unsafe { &mut *doc.cast::<vs_document>() };
-    let idx = index as usize;
-    if idx >= doc.cursor || idx >= doc.commands.len() {
+    let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
+        return -3;
+    };
+    if idx >= doc.cursor {
         return -3;
     }
 
@@ -4672,6 +4418,23 @@ pub struct vs_timeline_clip_info {
     pub transform: vs_clip_transform,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_timeline_text_export_clip_info {
+    pub track_index: u32,
+    pub clip_id: u32,
+    pub start_ms: u32,
+    pub end_ms: u32,
+}
+
+#[derive(Clone, Copy, Default)]
+struct TimelineTextClipExportRef {
+    track_index: u32,
+    clip_id: u32,
+    start_ms: u32,
+    end_ms: u32,
+}
+
 #[derive(Clone, Copy)]
 struct ClipTransform {
     x: f32,
@@ -5371,6 +5134,50 @@ pub unsafe extern "C" fn vs_timeline_derive_export_context(
 
     unsafe {
         *out_context = context;
+    }
+    0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_is_webcam_track_visible_for_export(
+    handle: *const c_void,
+    out_visible: *mut bool,
+) -> i32 {
+    if handle.is_null() || out_visible.is_null() {
+        return -1;
+    }
+
+    // SAFETY: handle was created by `vs_timeline_create`.
+    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let visible = ffi_timeline::webcam_visible_for_export(&tl.tracks);
+    unsafe {
+        *out_visible = visible;
+    }
+    0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_get_text_export_clips(
+    handle: *const c_void,
+    out_ptr: *mut vs_timeline_text_export_clip_info,
+    out_cap: u32,
+    out_written: *mut u32,
+) -> i32 {
+    if handle.is_null() || out_written.is_null() {
+        return -1;
+    }
+    if out_cap > 0 && out_ptr.is_null() {
+        return -2;
+    }
+
+    // SAFETY: handle was created by `vs_timeline_create`.
+    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let refs = ffi_timeline::text_export_clip_refs(&tl.tracks);
+    if out_cap > 0 {
+        ffi_timeline::write_text_export_clip_refs(&refs, out_ptr, out_cap);
+    }
+    unsafe {
+        *out_written = refs.len().min(u32::MAX as usize) as u32;
     }
     0
 }
@@ -7012,6 +6819,68 @@ mod tests {
             assert!(context.audio_track_visible);
             assert!(!context.webcam_track_visible);
             assert_eq!(context.text_overlay_count, 2);
+
+            vs_timeline_destroy(tl);
+        }
+    }
+
+    #[test]
+    fn timeline_export_text_clip_refs_are_filtered_and_sorted() {
+        let tl = vs_timeline_create(9_000, 1280, 720);
+        assert!(!tl.is_null());
+
+        // SAFETY: handle is valid and destroyed at end of test.
+        unsafe {
+            assert_eq!(vs_timeline_add_track(tl, 0), 0); // video
+            assert_eq!(vs_timeline_add_track(tl, 1), 0); // webcam
+            assert_eq!(vs_timeline_add_track(tl, 3), 0); // text
+
+            let mut clip_id = 0u32;
+            assert_eq!(vs_timeline_add_clip(tl, 1, 0, 8_000, 1, &mut clip_id), 0);
+            assert_eq!(
+                vs_timeline_add_clip(tl, 2, 3_000, 4_000, 3, &mut clip_id),
+                0
+            );
+            assert_eq!(
+                vs_timeline_add_clip(tl, 2, 1_000, 2_000, 3, &mut clip_id),
+                0
+            );
+
+            let mut webcam_visible = false;
+            assert_eq!(
+                vs_timeline_is_webcam_track_visible_for_export(tl, &mut webcam_visible),
+                0
+            );
+            assert!(webcam_visible);
+
+            let mut written = 0u32;
+            assert_eq!(
+                vs_timeline_get_text_export_clips(tl, std::ptr::null_mut(), 0, &mut written),
+                0
+            );
+            assert_eq!(written, 2);
+
+            let mut clips = vec![vs_timeline_text_export_clip_info::default(); written as usize];
+            assert_eq!(
+                vs_timeline_get_text_export_clips(
+                    tl,
+                    clips.as_mut_ptr(),
+                    clips.len() as u32,
+                    &mut written
+                ),
+                0
+            );
+            assert_eq!(written, 2);
+            assert_eq!(clips[0].start_ms, 1_000);
+            assert_eq!(clips[1].start_ms, 3_000);
+
+            assert_eq!(vs_timeline_set_track_visible(tl, 1, false), 0);
+            webcam_visible = true;
+            assert_eq!(
+                vs_timeline_is_webcam_track_visible_for_export(tl, &mut webcam_visible),
+                0
+            );
+            assert!(!webcam_visible);
 
             vs_timeline_destroy(tl);
         }

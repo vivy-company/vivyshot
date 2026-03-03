@@ -65,6 +65,26 @@ enum RustImageEncodeFormat: UInt8 {
   case jpeg = 1
 }
 
+enum RustFFIStatus: Int32 {
+  case ok = 0
+  case noChange = 1
+  case nullPointer = -1
+  case invalidArgument = -2
+  case rejected = -3
+  case bufferTooSmall = -4
+  case notFound = -5
+
+  static func isSuccess(_ raw: Int32, allowNoChange: Bool = false) -> Bool {
+    if raw == RustFFIStatus.ok.rawValue {
+      return true
+    }
+    if allowNoChange, raw == RustFFIStatus.noChange.rawValue {
+      return true
+    }
+    return false
+  }
+}
+
 enum RustTrimHandle: UInt8 {
   case unknown = 0
   case start = 1
@@ -295,7 +315,7 @@ final class RustCoreBridge {
       rawContext,
       &raw
     )
-    guard status == 0 else {
+    guard RustFFIStatus.isSuccess(status) else {
       return nil
     }
     return RustVideoExportPlan(
@@ -1778,6 +1798,13 @@ struct TimelineClipInfo {
   let transform: ClipTransform
 }
 
+struct TimelineTextExportClipInfo {
+  let trackIndex: Int
+  let clipID: UInt32
+  let startMS: UInt32
+  let endMS: UInt32
+}
+
 // MARK: - RustTimelineSession
 
 final class RustTimelineSession {
@@ -1834,7 +1861,7 @@ final class RustTimelineSession {
       text_overlay_count: 0
     )
     let status = vs_timeline_derive_export_context(handle, sourceHasAudio, sourceHasWebcamAsset, &raw)
-    guard status == 0 else {
+    guard RustFFIStatus.isSuccess(status) else {
       return nil
     }
     return RustVideoExportContext(
@@ -1963,6 +1990,24 @@ final class RustTimelineSession {
     }
   }
 
+  func isWebcamTrackVisibleForExport() -> Bool {
+    var visible = false
+    let result = vs_timeline_is_webcam_track_visible_for_export(handle, &visible)
+    return RustFFIStatus.isSuccess(result) ? visible : false
+  }
+
+  func getTextExportClips() -> [TimelineTextExportClipInfo] {
+    let infos = loadTextExportClipInfos()
+    return infos.map { info in
+      TimelineTextExportClipInfo(
+        trackIndex: Int(info.track_index),
+        clipID: info.clip_id,
+        startMS: info.start_ms,
+        endMS: info.end_ms
+      )
+    }
+  }
+
   func getClipText(trackIndex: Int, clipID: UInt32) -> String? {
     var capacity = 256
     while capacity <= Self.maxTextBytes {
@@ -2068,6 +2113,29 @@ final class RustTimelineSession {
         vs_timeline_get_visible_clips_at(handle, atTimeMS, ptr.baseAddress, UInt32(ptr.count), &written)
       }
       guard result == 0 else { return [] }
+
+      let total = Int(written)
+      if total <= buffer.count {
+        return Array(buffer.prefix(total))
+      }
+
+      capacity = max(capacity * 2, total)
+    }
+    return []
+  }
+
+  private func loadTextExportClipInfos() -> [vs_timeline_text_export_clip_info] {
+    var capacity = 256
+    while capacity <= Self.maxTimelineBufferCount {
+      var buffer = [vs_timeline_text_export_clip_info](
+        repeating: vs_timeline_text_export_clip_info(),
+        count: capacity
+      )
+      var written: UInt32 = 0
+      let result = buffer.withUnsafeMutableBufferPointer { ptr in
+        vs_timeline_get_text_export_clips(handle, ptr.baseAddress, UInt32(ptr.count), &written)
+      }
+      guard RustFFIStatus.isSuccess(result) else { return [] }
 
       let total = Int(written)
       if total <= buffer.count {

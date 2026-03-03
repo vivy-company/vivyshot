@@ -68,4 +68,86 @@ final class VivyShotTests: XCTestCase {
     XCTAssertEqual(state.no_motion_ticks, 0)
     XCTAssertTrue(state.did_flip_direction)
   }
+
+  func testTimelineExportContracts() {
+    guard let timeline = vs_timeline_create(9_000, 1280, 720) else {
+      XCTFail("Unable to create timeline")
+      return
+    }
+    defer { vs_timeline_destroy(timeline) }
+
+    XCTAssertEqual(vs_timeline_add_track(timeline, 0), 0) // video
+    XCTAssertEqual(vs_timeline_add_track(timeline, 1), 0) // webcam
+    XCTAssertEqual(vs_timeline_add_track(timeline, 3), 0) // text (track index 2)
+
+    var clipID: UInt32 = 0
+    XCTAssertEqual(vs_timeline_add_clip(timeline, 1, 0, 8_000, 1, &clipID), 0)
+    XCTAssertEqual(vs_timeline_add_clip(timeline, 2, 3_000, 4_000, 3, &clipID), 0)
+    XCTAssertEqual(vs_timeline_add_clip(timeline, 2, 1_000, 2_000, 3, &clipID), 0)
+
+    var webcamVisible = false
+    XCTAssertEqual(vs_timeline_is_webcam_track_visible_for_export(timeline, &webcamVisible), 0)
+    XCTAssertTrue(webcamVisible)
+
+    var written: UInt32 = 0
+    XCTAssertEqual(vs_timeline_get_text_export_clips(timeline, nil, 0, &written), 0)
+    XCTAssertEqual(written, 2)
+
+    var clips = [vs_timeline_text_export_clip_info](repeating: vs_timeline_text_export_clip_info(), count: Int(written))
+    clips.withUnsafeMutableBufferPointer { ptr in
+      XCTAssertEqual(
+        vs_timeline_get_text_export_clips(timeline, ptr.baseAddress, UInt32(ptr.count), &written),
+        0
+      )
+    }
+    XCTAssertEqual(written, 2)
+    XCTAssertEqual(clips[0].start_ms, 1_000)
+    XCTAssertEqual(clips[1].start_ms, 3_000)
+
+    XCTAssertEqual(vs_timeline_set_track_visible(timeline, 1, false), 0)
+    webcamVisible = true
+    XCTAssertEqual(vs_timeline_is_webcam_track_visible_for_export(timeline, &webcamVisible), 0)
+    XCTAssertFalse(webcamVisible)
+  }
+
+  func testGeometryErrorEdgeContracts() {
+    var outRect = vs_f32_rect()
+    XCTAssertEqual(
+      vs_view_rect_to_image_rect(
+        vs_f32_rect(x: 0, y: 0, width: 10, height: 10),
+        vs_f32_rect(x: 0, y: 0, width: 100, height: 100),
+        0,
+        1080,
+        &outRect
+      ),
+      -2
+    )
+
+    var moved = vs_f32_rect()
+    XCTAssertEqual(
+      vs_selection_move_rect(
+        vs_f32_rect(x: 10, y: 10, width: 40, height: 20),
+        vs_f32_rect(x: 0, y: 0, width: 100, height: 60),
+        Float.nan,
+        0,
+        &moved
+      ),
+      -2
+    )
+
+    var resized = vs_f32_rect()
+    XCTAssertEqual(
+      vs_selection_resize_rect(
+        vs_f32_rect(x: 10, y: 10, width: 40, height: 20),
+        vs_f32_rect(x: 0, y: 0, width: 100, height: 60),
+        99,
+        5,
+        5,
+        10,
+        10,
+        &resized
+      ),
+      -3
+    )
+  }
 }
