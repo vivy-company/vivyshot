@@ -271,7 +271,7 @@ vivyshot/
   macos/
     VivyShot.xcodeproj
     VivyShot/
-  core-rs/
+  vivyshot-rs/
     Cargo.toml
     src/
   ffi/
@@ -290,7 +290,7 @@ vivyshot/
 
 - Scaffold `macos` AppKit app with menu bar item + global hotkey.
 - Build overlay selection UI and region rect output.
-- Scaffold `core-rs` staticlib and FFI header generation.
+- Scaffold `vivyshot-rs` staticlib and FFI header generation.
 - Implement document create/destroy + rectangle annotation + full render.
 - Wire Swift host <-> Rust FFI end-to-end.
 
@@ -342,7 +342,7 @@ vivyshot/
 ### Completed
 
 - Repo scaffold created:
-- `macos/`, `core-rs/`, `ffi/`, `scripts/`, `docs/`
+- `macos/`, `vivyshot-rs/`, `ffi/`, `scripts/`, `docs/`
 - Xcode project generation with `xcodegen` from `macos/project.yml`
 - Rust core static library build scripts:
 - `scripts/build-rust.sh`

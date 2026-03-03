@@ -319,7 +319,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"$(SRCROOT)/../core-rs/target/universal-apple-darwin/release/libvivyshot_core.a",
+					"$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot;
 				PRODUCT_NAME = VivyShot;
@@ -495,7 +495,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"$(SRCROOT)/../core-rs/target/universal-apple-darwin/release/libvivyshot_core.a",
+					"$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.dev;
 				PRODUCT_NAME = VivyShotDev;

@@ -3,7 +3,7 @@
 *.app.bak.*
 
 # Rust
-core-rs/target/
+vivyshot-rs/target/
 
 # SwiftPM (if added later)
 .build/

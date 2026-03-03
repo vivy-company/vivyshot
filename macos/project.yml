@@ -51,7 +51,7 @@ targets:
           - "$(SRCROOT)/../ffi"
         OTHER_LDFLAGS:
           - "$(inherited)"
-          - "$(SRCROOT)/../core-rs/target/universal-apple-darwin/release/libvivyshot_core.a"
+          - "$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a"
       configs:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.dev

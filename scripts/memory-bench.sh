@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CORE_DIR="$ROOT_DIR/core-rs"
+CORE_DIR="$ROOT_DIR/vivyshot-rs"
 SESSIONS="${1:-100}"
 
 if [ ! -f "$CORE_DIR/Cargo.toml" ]; then
