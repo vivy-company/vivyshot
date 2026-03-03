@@ -1,5 +1,8 @@
 use font8x8::UnicodeFonts;
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
+use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::PngEncoder;
+use image::{ColorType, ImageEncoder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::ffi::c_void;
@@ -206,6 +209,13 @@ pub struct vs_bgra_owned_image {
   pub width: u32,
   pub height: u32,
   pub stride: u32,
+  pub ptr: *mut u8,
+  pub len: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_encoded_bytes {
   pub ptr: *mut u8,
   pub len: usize,
 }
@@ -843,9 +853,19 @@ pub unsafe extern "C" fn vs_video_session_deserialize_json(
 
 const VS_VIDEO_PLAN_MODE_PASSTHROUGH: u8 = 0;
 const VS_VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = 1;
+const VS_IMAGE_ENCODE_PNG: u8 = 0;
+const VS_IMAGE_ENCODE_JPEG: u8 = 1;
 
 const VS_STITCH_SIDE_TOP: u8 = 0;
 const VS_STITCH_SIDE_BOTTOM: u8 = 1;
+const VS_RESIZE_CORNER_TOP_LEFT: u8 = 0;
+const VS_RESIZE_CORNER_TOP: u8 = 1;
+const VS_RESIZE_CORNER_TOP_RIGHT: u8 = 2;
+const VS_RESIZE_CORNER_RIGHT: u8 = 3;
+const VS_RESIZE_CORNER_BOTTOM: u8 = 4;
+const VS_RESIZE_CORNER_LEFT: u8 = 5;
+const VS_RESIZE_CORNER_BOTTOM_LEFT: u8 = 6;
+const VS_RESIZE_CORNER_BOTTOM_RIGHT: u8 = 7;
 
 unsafe fn bgra_view_slice<'a>(view: vs_bgra_image_view) -> Option<(&'a [u8], usize, usize, usize)> {
   if view.ptr.is_null() || view.width == 0 || view.height == 0 {
@@ -1183,6 +1203,31 @@ fn zero_bgra_owned_image(image: &mut vs_bgra_owned_image) {
   image.stride = 0;
   image.ptr = std::ptr::null_mut();
   image.len = 0;
+}
+
+fn zero_encoded_bytes(bytes: &mut vs_encoded_bytes) {
+  bytes.ptr = std::ptr::null_mut();
+  bytes.len = 0;
+}
+
+fn standardize_rect(rect: vs_f32_rect) -> Option<(f32, f32, f32, f32)> {
+  if !rect.x.is_finite() || !rect.y.is_finite() || !rect.width.is_finite() || !rect.height.is_finite() {
+    return None;
+  }
+  let x0 = rect.x.min(rect.x + rect.width);
+  let y0 = rect.y.min(rect.y + rect.height);
+  let x1 = rect.x.max(rect.x + rect.width);
+  let y1 = rect.y.max(rect.y + rect.height);
+  let width = x1 - x0;
+  let height = y1 - y0;
+  if width <= 0.0 || height <= 0.0 {
+    return None;
+  }
+  Some((x0, y0, x1, y1))
+}
+
+fn clamp_f32(value: f32, min_value: f32, max_value: f32) -> f32 {
+  value.clamp(min_value, max_value)
 }
 
 fn stitch_session_push_internal(
@@ -1627,6 +1672,280 @@ pub unsafe extern "C" fn vs_bgra_crop(
     *out_image = cropped.to_owned_image();
   }
   0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_selection_move_rect(
+  current: vs_f32_rect,
+  bounds: vs_f32_rect,
+  delta_x: f32,
+  delta_y: f32,
+  out_rect: *mut vs_f32_rect,
+) -> i32 {
+  if out_rect.is_null() || !delta_x.is_finite() || !delta_y.is_finite() {
+    return -1;
+  }
+
+  let (current_min_x, current_min_y, current_max_x, current_max_y) = match standardize_rect(current) {
+    Some(v) => v,
+    None => return -2,
+  };
+  let (bounds_min_x, bounds_min_y, bounds_max_x, bounds_max_y) = match standardize_rect(bounds) {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  let width = current_max_x - current_min_x;
+  let height = current_max_y - current_min_y;
+  let bounds_width = bounds_max_x - bounds_min_x;
+  let bounds_height = bounds_max_y - bounds_min_y;
+  if width <= 0.0 || height <= 0.0 || width > bounds_width || height > bounds_height {
+    return -2;
+  }
+
+  let candidate_x = clamp_f32(current_min_x + delta_x, bounds_min_x, bounds_max_x - width);
+  let candidate_y = clamp_f32(current_min_y + delta_y, bounds_min_y, bounds_max_y - height);
+
+  let moved = (candidate_x - current_min_x).abs() > 0.01 || (candidate_y - current_min_y).abs() > 0.01;
+  unsafe {
+    *out_rect = vs_f32_rect {
+      x: candidate_x,
+      y: candidate_y,
+      width,
+      height,
+    };
+  }
+  if moved { 0 } else { 1 }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_selection_resize_rect(
+  start: vs_f32_rect,
+  bounds: vs_f32_rect,
+  corner: u8,
+  delta_x: f32,
+  delta_y: f32,
+  min_width: f32,
+  min_height: f32,
+  out_rect: *mut vs_f32_rect,
+) -> i32 {
+  if out_rect.is_null()
+    || !delta_x.is_finite()
+    || !delta_y.is_finite()
+    || !min_width.is_finite()
+    || !min_height.is_finite()
+    || min_width <= 0.0
+    || min_height <= 0.0
+  {
+    return -1;
+  }
+
+  let (start_min_x, start_min_y, start_max_x, start_max_y) = match standardize_rect(start) {
+    Some(v) => v,
+    None => return -2,
+  };
+  let (bounds_min_x, bounds_min_y, bounds_max_x, bounds_max_y) = match standardize_rect(bounds) {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  let mut min_x = start_min_x;
+  let mut max_x = start_max_x;
+  let mut min_y = start_min_y;
+  let mut max_y = start_max_y;
+
+  match corner {
+    VS_RESIZE_CORNER_TOP_LEFT => {
+      min_x += delta_x;
+      max_y += delta_y;
+    }
+    VS_RESIZE_CORNER_TOP => {
+      max_y += delta_y;
+    }
+    VS_RESIZE_CORNER_TOP_RIGHT => {
+      max_x += delta_x;
+      max_y += delta_y;
+    }
+    VS_RESIZE_CORNER_RIGHT => {
+      max_x += delta_x;
+    }
+    VS_RESIZE_CORNER_BOTTOM => {
+      min_y += delta_y;
+    }
+    VS_RESIZE_CORNER_LEFT => {
+      min_x += delta_x;
+    }
+    VS_RESIZE_CORNER_BOTTOM_LEFT => {
+      min_x += delta_x;
+      min_y += delta_y;
+    }
+    VS_RESIZE_CORNER_BOTTOM_RIGHT => {
+      max_x += delta_x;
+      min_y += delta_y;
+    }
+    _ => return -2,
+  }
+
+  match corner {
+    VS_RESIZE_CORNER_TOP_LEFT => {
+      min_x = min_x.min(max_x - min_width);
+      max_y = max_y.max(min_y + min_height);
+    }
+    VS_RESIZE_CORNER_TOP => {
+      max_y = max_y.max(min_y + min_height);
+    }
+    VS_RESIZE_CORNER_TOP_RIGHT => {
+      max_x = max_x.max(min_x + min_width);
+      max_y = max_y.max(min_y + min_height);
+    }
+    VS_RESIZE_CORNER_RIGHT => {
+      max_x = max_x.max(min_x + min_width);
+    }
+    VS_RESIZE_CORNER_BOTTOM => {
+      min_y = min_y.min(max_y - min_height);
+    }
+    VS_RESIZE_CORNER_LEFT => {
+      min_x = min_x.min(max_x - min_width);
+    }
+    VS_RESIZE_CORNER_BOTTOM_LEFT => {
+      min_x = min_x.min(max_x - min_width);
+      min_y = min_y.min(max_y - min_height);
+    }
+    VS_RESIZE_CORNER_BOTTOM_RIGHT => {
+      max_x = max_x.max(min_x + min_width);
+      min_y = min_y.min(max_y - min_height);
+    }
+    _ => unreachable!(),
+  }
+
+  min_x = min_x.max(bounds_min_x);
+  max_x = max_x.min(bounds_max_x);
+  min_y = min_y.max(bounds_min_y);
+  max_y = max_y.min(bounds_max_y);
+
+  let width = max_x - min_x;
+  let height = max_y - min_y;
+  if width < min_width || height < min_height {
+    return -3;
+  }
+
+  unsafe {
+    *out_rect = vs_f32_rect {
+      x: min_x,
+      y: min_y,
+      width,
+      height,
+    };
+  }
+  0
+}
+
+fn bgra_to_rgba(bytes: &[u8], width: usize, height: usize, stride: usize) -> Option<Vec<u8>> {
+  let row_bytes = width.checked_mul(4)?;
+  if stride < row_bytes {
+    return None;
+  }
+
+  let mut rgba = vec![0u8; row_bytes.checked_mul(height)?];
+  for y in 0..height {
+    let src_row = &bytes[y * stride..y * stride + row_bytes];
+    let dst_row = &mut rgba[y * row_bytes..(y + 1) * row_bytes];
+    for x in 0..width {
+      let si = x * 4;
+      let di = si;
+      dst_row[di] = src_row[si + 2];
+      dst_row[di + 1] = src_row[si + 1];
+      dst_row[di + 2] = src_row[si];
+      dst_row[di + 3] = src_row[si + 3];
+    }
+  }
+  Some(rgba)
+}
+
+fn rgba_to_rgb(rgba: &[u8]) -> Vec<u8> {
+  let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
+  for chunk in rgba.chunks_exact(4) {
+    rgb.push(chunk[0]);
+    rgb.push(chunk[1]);
+    rgb.push(chunk[2]);
+  }
+  rgb
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_encode_bgra_image(
+  source: vs_bgra_image_view,
+  format: u8,
+  jpeg_quality: u8,
+  out_bytes: *mut vs_encoded_bytes,
+) -> i32 {
+  if out_bytes.is_null() {
+    return -1;
+  }
+
+  // SAFETY: caller provides writable pointer.
+  let out_bytes_ref = unsafe { &mut *out_bytes };
+  zero_encoded_bytes(out_bytes_ref);
+
+  // SAFETY: validates pointer/len invariants before returning bytes.
+  let (bytes, width, height, stride) = match unsafe { bgra_view_slice(source) } {
+    Some(v) => v,
+    None => return -2,
+  };
+  let rgba = match bgra_to_rgba(bytes, width, height, stride) {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  let encoded = match format {
+    VS_IMAGE_ENCODE_PNG => {
+      let mut out = Vec::<u8>::new();
+      let encoder = PngEncoder::new(&mut out);
+      if encoder
+        .write_image(&rgba, width as u32, height as u32, ColorType::Rgba8.into())
+        .is_err()
+      {
+        return -3;
+      }
+      out
+    }
+    VS_IMAGE_ENCODE_JPEG => {
+      let quality = if jpeg_quality == 0 { 90 } else { jpeg_quality.min(100) };
+      let rgb = rgba_to_rgb(&rgba);
+      let mut out = Vec::<u8>::new();
+      let encoder = JpegEncoder::new_with_quality(&mut out, quality);
+      if encoder
+        .write_image(&rgb, width as u32, height as u32, ColorType::Rgb8.into())
+        .is_err()
+      {
+        return -3;
+      }
+      out
+    }
+    _ => return -2,
+  };
+
+  let mut owned = encoded;
+  out_bytes_ref.ptr = owned.as_mut_ptr();
+  out_bytes_ref.len = owned.len();
+  std::mem::forget(owned);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_encoded_bytes_destroy(bytes: *mut vs_encoded_bytes) {
+  if bytes.is_null() {
+    return;
+  }
+
+  let bytes_ref = unsafe { &mut *bytes };
+  if !bytes_ref.ptr.is_null() && bytes_ref.len > 0 {
+    // SAFETY: pointer/len came from Vec allocation in `vs_encode_bgra_image`.
+    unsafe {
+      drop(Vec::from_raw_parts(bytes_ref.ptr, bytes_ref.len, bytes_ref.len));
+    }
+  }
+  zero_encoded_bytes(bytes_ref);
 }
 
 #[no_mangle]
@@ -4340,6 +4659,51 @@ pub unsafe extern "C" fn vs_timeline_get_tracks(
   0
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_derive_export_context(
+  handle: *const c_void,
+  source_has_audio: bool,
+  source_has_webcam_asset: bool,
+  out_context: *mut vs_video_export_context,
+) -> i32 {
+  if handle.is_null() || out_context.is_null() {
+    return -1;
+  }
+
+  // SAFETY: handle was created by `vs_timeline_create`.
+  let tl = unsafe { &*handle.cast::<VsTimeline>() };
+
+  let mut audio_track_visible = false;
+  let mut webcam_track_visible = false;
+  let mut text_overlay_count = 0u32;
+
+  for track in &tl.tracks {
+    if !track.visible || track.clips.is_empty() {
+      continue;
+    }
+
+    match track.kind {
+      2 => audio_track_visible = true,
+      1 => webcam_track_visible = true,
+      3 => {
+        text_overlay_count = text_overlay_count.saturating_add(track.clips.len().min(u32::MAX as usize) as u32);
+      }
+      _ => {}
+    }
+  }
+
+  unsafe {
+    *out_context = vs_video_export_context {
+      source_has_audio,
+      source_has_webcam_asset,
+      audio_track_visible,
+      webcam_track_visible,
+      text_overlay_count,
+    };
+  }
+  0
+}
+
 // ---------------------------------------------------------------------------
 // Timeline FFI: clips
 // ---------------------------------------------------------------------------
@@ -5481,6 +5845,113 @@ mod tests {
   }
 
   #[test]
+  fn selection_move_rect_clamps_to_bounds() {
+    let current = vs_f32_rect {
+      x: 50.0,
+      y: 40.0,
+      width: 120.0,
+      height: 80.0,
+    };
+    let bounds = vs_f32_rect {
+      x: 0.0,
+      y: 0.0,
+      width: 200.0,
+      height: 160.0,
+    };
+    let mut out = vs_f32_rect::default();
+
+    // SAFETY: out pointer is valid.
+    let status = unsafe { vs_selection_move_rect(current, bounds, 200.0, -100.0, &mut out) };
+    assert_eq!(status, 0);
+    assert_eq!(out.x, 80.0);
+    assert_eq!(out.y, 0.0);
+    assert_eq!(out.width, 120.0);
+    assert_eq!(out.height, 80.0);
+  }
+
+  #[test]
+  fn selection_resize_rect_applies_corner_and_minimums() {
+    let start = vs_f32_rect {
+      x: 60.0,
+      y: 30.0,
+      width: 120.0,
+      height: 100.0,
+    };
+    let bounds = vs_f32_rect {
+      x: 0.0,
+      y: 0.0,
+      width: 300.0,
+      height: 200.0,
+    };
+    let mut out = vs_f32_rect::default();
+
+    // SAFETY: out pointer is valid.
+    let status = unsafe {
+      vs_selection_resize_rect(
+        start,
+        bounds,
+        VS_RESIZE_CORNER_TOP_LEFT,
+        200.0,
+        -90.0,
+        80.0,
+        60.0,
+        &mut out,
+      )
+    };
+    assert_eq!(status, 0);
+    assert_eq!(out.width, 80.0);
+    assert_eq!(out.height, 60.0);
+    assert!(out.x >= 0.0);
+    assert!(out.y >= 0.0);
+  }
+
+  #[test]
+  fn encode_bgra_image_outputs_png_and_jpeg_bytes() {
+    let width = 5usize;
+    let height = 4usize;
+    let stride = width * 4;
+    let pixels = solid_bgra(width, height, 12, 34, 56, 255);
+    let source = vs_bgra_image_view {
+      width: width as u32,
+      height: height as u32,
+      stride: stride as u32,
+      ptr: pixels.as_ptr(),
+      len: pixels.len(),
+    };
+    let mut png = vs_encoded_bytes {
+      ptr: std::ptr::null_mut(),
+      len: 0,
+    };
+    let mut jpeg = png;
+
+    // SAFETY: source view is valid and owned buffers are released below.
+    unsafe {
+      assert_eq!(
+        vs_encode_bgra_image(source, VS_IMAGE_ENCODE_PNG, 0, &mut png),
+        0
+      );
+      assert!(png.len > 8);
+      let png_bytes = std::slice::from_raw_parts(png.ptr, png.len);
+      assert_eq!(png_bytes[0], 0x89);
+      assert_eq!(png_bytes[1], b'P');
+      assert_eq!(png_bytes[2], b'N');
+      assert_eq!(png_bytes[3], b'G');
+
+      assert_eq!(
+        vs_encode_bgra_image(source, VS_IMAGE_ENCODE_JPEG, 90, &mut jpeg),
+        0
+      );
+      assert!(jpeg.len > 4);
+      let jpeg_bytes = std::slice::from_raw_parts(jpeg.ptr, jpeg.len);
+      assert_eq!(jpeg_bytes[0], 0xFF);
+      assert_eq!(jpeg_bytes[1], 0xD8);
+
+      vs_encoded_bytes_destroy(&mut png);
+      vs_encoded_bytes_destroy(&mut jpeg);
+    }
+  }
+
+  #[test]
   fn stitch_session_push_frame_and_merge_accumulates_segments() {
     let width = 96usize;
     let height = 68usize;
@@ -5626,6 +6097,43 @@ mod tests {
       );
       assert_eq!(written as usize, bytes.len());
       assert_eq!(&buffer[..], &bytes[..buffer.len()]);
+
+      vs_timeline_destroy(tl);
+    }
+  }
+
+  #[test]
+  fn timeline_derive_export_context_counts_only_visible_tracks() {
+    let tl = vs_timeline_create(9_000, 1280, 720);
+    assert!(!tl.is_null());
+
+    // SAFETY: handle is valid and destroyed at end of test.
+    unsafe {
+      assert_eq!(vs_timeline_add_track(tl, 0), 0); // video
+      assert_eq!(vs_timeline_add_track(tl, 2), 0); // audio
+      assert_eq!(vs_timeline_add_track(tl, 1), 0); // webcam
+      assert_eq!(vs_timeline_add_track(tl, 3), 0); // text
+
+      let mut clip_id = 0u32;
+      assert_eq!(vs_timeline_add_clip(tl, 1, 0, 8_000, 2, &mut clip_id), 0);
+      assert_eq!(vs_timeline_add_clip(tl, 2, 0, 8_000, 1, &mut clip_id), 0);
+      assert_eq!(vs_timeline_add_clip(tl, 3, 0, 2_000, 3, &mut clip_id), 0);
+      assert_eq!(vs_timeline_add_clip(tl, 3, 3_000, 5_000, 3, &mut clip_id), 0);
+      assert_eq!(vs_timeline_set_track_visible(tl, 2, false), 0); // webcam hidden
+
+      let mut context = vs_video_export_context {
+        source_has_audio: false,
+        source_has_webcam_asset: false,
+        audio_track_visible: false,
+        webcam_track_visible: false,
+        text_overlay_count: 0,
+      };
+      assert_eq!(vs_timeline_derive_export_context(tl, true, true, &mut context), 0);
+      assert!(context.source_has_audio);
+      assert!(context.source_has_webcam_asset);
+      assert!(context.audio_track_visible);
+      assert!(!context.webcam_track_visible);
+      assert_eq!(context.text_overlay_count, 2);
 
       vs_timeline_destroy(tl);
     }

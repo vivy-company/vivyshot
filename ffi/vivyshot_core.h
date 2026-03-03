@@ -68,6 +68,11 @@ typedef struct vs_bgra_owned_image {
   uintptr_t len;
 } vs_bgra_owned_image;
 
+typedef struct vs_encoded_bytes {
+  uint8_t *ptr;
+  uintptr_t len;
+} vs_encoded_bytes;
+
 typedef struct vs_stitch_delta {
   uint32_t rows;
   uint8_t side;
@@ -325,7 +330,29 @@ int32_t vs_bgra_crop(struct vs_bgra_image_view source,
                      uint32_t height,
                      struct vs_bgra_owned_image *out_image);
 
+int32_t vs_selection_move_rect(struct vs_f32_rect current,
+                               struct vs_f32_rect bounds,
+                               float delta_x,
+                               float delta_y,
+                               struct vs_f32_rect *out_rect);
+
+int32_t vs_selection_resize_rect(struct vs_f32_rect start,
+                                 struct vs_f32_rect bounds,
+                                 uint8_t corner,
+                                 float delta_x,
+                                 float delta_y,
+                                 float min_width,
+                                 float min_height,
+                                 struct vs_f32_rect *out_rect);
+
+int32_t vs_encode_bgra_image(struct vs_bgra_image_view source,
+                             uint8_t format,
+                             uint8_t jpeg_quality,
+                             struct vs_encoded_bytes *out_bytes);
+
 void vs_bgra_owned_image_destroy(struct vs_bgra_owned_image *image);
+
+void vs_encoded_bytes_destroy(struct vs_encoded_bytes *bytes);
 
 int32_t vs_add_rect(void *doc, struct vs_rect_command cmd);
 
@@ -405,6 +432,11 @@ int32_t vs_timeline_get_tracks(void *handle,
                                struct vs_timeline_track_info *out_ptr,
                                uint32_t out_cap,
                                uint32_t *out_written);
+
+int32_t vs_timeline_derive_export_context(const void *handle,
+                                          bool source_has_audio,
+                                          bool source_has_webcam_asset,
+                                          struct vs_video_export_context *out_context);
 
 int32_t vs_timeline_add_clip(void *handle,
                              uint32_t track_index,

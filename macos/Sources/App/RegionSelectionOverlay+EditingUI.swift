@@ -442,22 +442,11 @@ extension RegionSelectionView {
       return false
     }
 
-    let width = current.width
-    let height = current.height
-    guard width >= 2, height >= 2 else {
-      return false
-    }
-
-    let minX = bounds.minX
-    let maxX = max(minX, bounds.maxX - width)
-    let minY = bounds.minY
-    let maxY = max(minY, bounds.maxY - height)
-
-    let candidateX = min(max(minX, current.minX + delta.x), maxX)
-    let candidateY = min(max(minY, current.minY + delta.y), maxY)
-    let candidate = CGRect(x: candidateX, y: candidateY, width: width, height: height).standardized
-
-    guard abs(candidate.minX - current.minX) > 0.01 || abs(candidate.minY - current.minY) > 0.01 else {
+    guard let candidate = RustCoreBridge.shared.moveSelectionRect(
+      current: current,
+      bounds: bounds,
+      delta: delta
+    ) else {
       return false
     }
 
@@ -481,72 +470,14 @@ extension RegionSelectionView {
   }
 
   func resizedSelectionRect(from start: CGRect, corner: ResizeCorner, delta: CGPoint) -> CGRect? {
-    var minX = start.minX
-    var maxX = start.maxX
-    var minY = start.minY
-    var maxY = start.maxY
-
-    switch corner {
-    case .topLeft:
-      minX += delta.x
-      maxY += delta.y
-    case .top:
-      maxY += delta.y
-    case .topRight:
-      maxX += delta.x
-      maxY += delta.y
-    case .right:
-      maxX += delta.x
-    case .bottom:
-      minY += delta.y
-    case .left:
-      minX += delta.x
-    case .bottomLeft:
-      minX += delta.x
-      minY += delta.y
-    case .bottomRight:
-      maxX += delta.x
-      minY += delta.y
-    }
-
-    let minWidth: CGFloat = 80
-    let minHeight: CGFloat = 60
-
-    switch corner {
-    case .topLeft:
-      minX = min(minX, maxX - minWidth)
-      maxY = max(maxY, minY + minHeight)
-    case .top:
-      maxY = max(maxY, minY + minHeight)
-    case .topRight:
-      maxX = max(maxX, minX + minWidth)
-      maxY = max(maxY, minY + minHeight)
-    case .right:
-      maxX = max(maxX, minX + minWidth)
-    case .bottom:
-      minY = min(minY, maxY - minHeight)
-    case .left:
-      minX = min(minX, maxX - minWidth)
-    case .bottomLeft:
-      minX = min(minX, maxX - minWidth)
-      minY = min(minY, maxY - minHeight)
-    case .bottomRight:
-      maxX = max(maxX, minX + minWidth)
-      minY = min(minY, maxY - minHeight)
-    }
-
-    minX = max(bounds.minX, minX)
-    maxX = min(bounds.maxX, maxX)
-    minY = max(bounds.minY, minY)
-    maxY = min(bounds.maxY, maxY)
-
-    let width = maxX - minX
-    let height = maxY - minY
-    guard width >= minWidth, height >= minHeight else {
-      return nil
-    }
-
-    return CGRect(x: minX, y: minY, width: width, height: height).integral
+    RustCoreBridge.shared.resizeSelectionRect(
+      start: start,
+      bounds: bounds,
+      corner: corner,
+      delta: delta,
+      minWidth: 80,
+      minHeight: 60
+    )?.integral
   }
 
   func makeToolbarView() -> AnyView {

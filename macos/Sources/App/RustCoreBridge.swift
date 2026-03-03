@@ -60,6 +60,11 @@ enum RustVideoPlanMode: UInt8 {
   case compositeMP4 = 1
 }
 
+enum RustImageEncodeFormat: UInt8 {
+  case png = 0
+  case jpeg = 1
+}
+
 struct RustStitchSessionResult {
   let accepted: Bool
   let rows: Int
@@ -159,6 +164,115 @@ final class RustCoreBridge {
       pixels: pixels
     )
     return cropped.toCGImage()
+  }
+
+  func moveSelectionRect(current: CGRect, bounds: CGRect, delta: CGPoint) -> CGRect? {
+    var outRect = vs_f32_rect()
+    let status = vs_selection_move_rect(
+      Self.makeF32Rect(current),
+      Self.makeF32Rect(bounds),
+      Float(delta.x),
+      Float(delta.y),
+      &outRect
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return Self.makeCGRect(outRect).standardized
+  }
+
+  func resizeSelectionRect(
+    start: CGRect,
+    bounds: CGRect,
+    corner: ResizeCorner,
+    delta: CGPoint,
+    minWidth: CGFloat = 80,
+    minHeight: CGFloat = 60
+  ) -> CGRect? {
+    var outRect = vs_f32_rect()
+    let status = vs_selection_resize_rect(
+      Self.makeF32Rect(start),
+      Self.makeF32Rect(bounds),
+      Self.resizeCornerCode(corner),
+      Float(delta.x),
+      Float(delta.y),
+      Float(minWidth),
+      Float(minHeight),
+      &outRect
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return Self.makeCGRect(outRect).standardized
+  }
+
+  func encodeImage(_ image: CGImage, format: RustImageEncodeFormat, jpegQuality: Int = 90) -> Data? {
+    guard let raster = RasterImage.from(cgImage: image) else {
+      return nil
+    }
+
+    var rawBytes = vs_encoded_bytes(ptr: nil, len: 0)
+    defer {
+      vs_encoded_bytes_destroy(&rawBytes)
+    }
+
+    let clampedQuality = UInt8(max(1, min(100, jpegQuality)))
+    let status = raster.pixels.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return Int32(-1)
+      }
+      let view = vs_bgra_image_view(
+        width: UInt32(raster.width),
+        height: UInt32(raster.height),
+        stride: UInt32(raster.stride),
+        ptr: base,
+        len: UInt(raw.count)
+      )
+      return vs_encode_bgra_image(view, format.rawValue, clampedQuality, &rawBytes)
+    }
+    guard status == 0, let ptr = rawBytes.ptr, rawBytes.len > 0 else {
+      return nil
+    }
+    return Data(bytes: ptr, count: Int(rawBytes.len))
+  }
+
+  private static func makeF32Rect(_ rect: CGRect) -> vs_f32_rect {
+    vs_f32_rect(
+      x: Float(rect.origin.x),
+      y: Float(rect.origin.y),
+      width: Float(rect.size.width),
+      height: Float(rect.size.height)
+    )
+  }
+
+  private static func makeCGRect(_ rect: vs_f32_rect) -> CGRect {
+    CGRect(
+      x: CGFloat(rect.x),
+      y: CGFloat(rect.y),
+      width: CGFloat(rect.width),
+      height: CGFloat(rect.height)
+    )
+  }
+
+  private static func resizeCornerCode(_ corner: ResizeCorner) -> UInt8 {
+    switch corner {
+    case .topLeft:
+      return 0
+    case .top:
+      return 1
+    case .topRight:
+      return 2
+    case .right:
+      return 3
+    case .bottom:
+      return 4
+    case .left:
+      return 5
+    case .bottomLeft:
+      return 6
+    case .bottomRight:
+      return 7
+    }
   }
 }
 
@@ -1262,6 +1376,27 @@ final class RustTimelineSession {
         clipCount: Int(info.clip_count)
       )
     }
+  }
+
+  func deriveExportContext(sourceHasAudio: Bool, sourceHasWebcamAsset: Bool) -> RustVideoExportContext? {
+    var raw = vs_video_export_context(
+      source_has_audio: sourceHasAudio,
+      source_has_webcam_asset: sourceHasWebcamAsset,
+      audio_track_visible: false,
+      webcam_track_visible: false,
+      text_overlay_count: 0
+    )
+    let status = vs_timeline_derive_export_context(handle, sourceHasAudio, sourceHasWebcamAsset, &raw)
+    guard status == 0 else {
+      return nil
+    }
+    return RustVideoExportContext(
+      sourceHasAudio: raw.source_has_audio,
+      sourceHasWebcamAsset: raw.source_has_webcam_asset,
+      audioTrackVisible: raw.audio_track_visible,
+      webcamTrackVisible: raw.webcam_track_visible,
+      textOverlayCount: Int(raw.text_overlay_count)
+    )
   }
 
   // MARK: Clips

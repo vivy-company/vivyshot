@@ -663,19 +663,12 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
   private func currentRustExportContext() -> RustVideoExportContext {
     let sourceHasWebcam = overlay.webcamURL != nil
     if let state = timelineState {
-      let tracks = state.session.getTracks()
-      let audioVisible = tracks.first(where: { $0.kind == .audio })?.visible ?? false
-      let webcamVisible = tracks.first(where: { $0.kind == .webcam })?.visible ?? false
-      let textCount = tracks
-        .filter { $0.kind == .text && $0.visible }
-        .reduce(0) { $0 + max(0, $1.clipCount) }
-      return RustVideoExportContext(
+      if let derived = state.session.deriveExportContext(
         sourceHasAudio: hasSourceAudioTrack,
-        sourceHasWebcamAsset: sourceHasWebcam,
-        audioTrackVisible: audioVisible,
-        webcamTrackVisible: webcamVisible,
-        textOverlayCount: textCount
-      )
+        sourceHasWebcamAsset: sourceHasWebcam
+      ) {
+        return derived
+      }
     }
 
     return RustVideoExportContext(

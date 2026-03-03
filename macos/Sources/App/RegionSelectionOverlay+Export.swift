@@ -1,6 +1,5 @@
 import AppKit
 import CoreGraphics
-import ImageIO
 import UniformTypeIdentifiers
 
 @MainActor
@@ -173,18 +172,16 @@ extension RegionSelectionView {
       targetURL = url
     }
 
-    guard let destination = CGImageDestinationCreateWithURL(
-      targetURL as CFURL,
-      selectedType.identifier as CFString,
-      1,
-      nil
-    ) else {
+    let format: RustImageEncodeFormat = selectedType == .jpeg ? .jpeg : .png
+    let quality = selectedType == .jpeg ? 88 : 100
+    guard let encoded = RustCoreBridge.shared.encodeImage(image, format: format, jpegQuality: quality) else {
       NSSound.beep()
       return
     }
 
-    CGImageDestinationAddImage(destination, image, nil)
-    guard CGImageDestinationFinalize(destination) else {
+    do {
+      try encoded.write(to: targetURL, options: .atomic)
+    } catch {
       NSSound.beep()
       return
     }
