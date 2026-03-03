@@ -460,7 +460,7 @@
 		B70BE023B56DF8EDB27D2BCB /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
+				BUNDLE_LOADER = "";
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -471,7 +471,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VivyShotDev.app/Contents/MacOS/VivyShotDev";
+				TEST_HOST = "";
 			};
 			name = Debug;
 		};
@@ -507,7 +507,7 @@
 		E5F9CF79E7E45D7C092414BE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
+				BUNDLE_LOADER = "";
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -518,7 +518,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VivyShot.app/Contents/MacOS/VivyShot";
+				TEST_HOST = "";
 			};
 			name = Release;
 		};

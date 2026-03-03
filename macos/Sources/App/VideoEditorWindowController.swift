@@ -277,36 +277,15 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
       width: UInt32(transformedSize.width),
       height: UInt32(transformedSize.height)
     ) {
-      // Add default video track with full-duration clip
-      _ = session.addTrack(kind: .video)
-      _ = session.addClip(trackIndex: 0, startMS: 0, endMS: durationMS, kind: .video)
+      _ = session.bootstrapCaptureTracks(
+        sourceHasAudio: hasSourceAudioTrack,
+        sourceHasWebcamAsset: overlay.webcamURL != nil
+      )
 
-      // Add audio track if available
-      if hasSourceAudioTrack {
-        _ = session.addTrack(kind: .audio)
-        _ = session.addClip(trackIndex: 1, startMS: 0, endMS: durationMS, kind: .audio)
-      }
-
-      // Add webcam track if available
-      if overlay.webcamURL != nil {
-        let trackIdx = session.getTracks().count
-        _ = session.addTrack(kind: .webcam)
-        _ = session.addClip(trackIndex: trackIdx, startMS: 0, endMS: durationMS, kind: .webcam)
-      }
-
-      // Import existing text overlays
       for textClip in overlay.textOverlays {
-        let trackIdx: Int
-        let tracks = session.getTracks()
-        if let existingIdx = tracks.firstIndex(where: { $0.kind == .text }) {
-          trackIdx = existingIdx
-        } else {
-          _ = session.addTrack(kind: .text)
-          trackIdx = session.getTracks().count - 1
-        }
-        if let clipID = session.addClip(trackIndex: trackIdx, startMS: UInt32(textClip.startSeconds * 1000), endMS: UInt32(textClip.endSeconds * 1000), kind: .text) {
-          _ = session.setClipText(trackIndex: trackIdx, clipID: clipID, text: textClip.text)
-        }
+        let startMS = UInt32(max(0, (textClip.startSeconds * 1000).rounded()))
+        let endMS = UInt32(max(Double(startMS + 1), (textClip.endSeconds * 1000).rounded()))
+        _ = session.addTextClipAutoTrack(startMS: startMS, endMS: endMS, text: textClip.text)
       }
 
       let state = TimelineState(session: session, durationMS: durationMS)
@@ -397,28 +376,40 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
 
   @objc
   private func trimSliderChanged() {
-    let minGap = min(0.1, max(0.01, durationSeconds / 1000))
-    startSlider.doubleValue = max(0, min(startSlider.doubleValue, durationSeconds))
-    endSlider.doubleValue = max(0, min(endSlider.doubleValue, durationSeconds))
+    let minGapSeconds = min(0.1, max(0.01, durationSeconds / 1000))
+    let minGapMS = UInt32(max(1, (minGapSeconds * 1000).rounded()))
+    let durationMS = UInt32(max(1, (durationSeconds * 1000).rounded()))
+    let rawStartMS = UInt32(max(0, (startSlider.doubleValue * 1000).rounded()))
+    let rawEndMS = UInt32(max(0, (endSlider.doubleValue * 1000).rounded()))
 
-    if startSlider.doubleValue >= endSlider.doubleValue - minGap {
-      let activeHandle: TrimHandle
-      if startSlider.currentEditor() != nil {
-        activeHandle = .start
-      } else if endSlider.currentEditor() != nil {
-        activeHandle = .end
-      } else {
-        activeHandle = lastEditedTrimHandle
-      }
-
-      switch activeHandle {
+    let activeHandle: RustTrimHandle
+    if startSlider.currentEditor() != nil {
+      activeHandle = .start
+    } else if endSlider.currentEditor() != nil {
+      activeHandle = .end
+    } else {
+      switch lastEditedTrimHandle {
       case .start:
-        endSlider.doubleValue = min(durationSeconds, startSlider.doubleValue + minGap)
+        activeHandle = .start
       case .end:
-        startSlider.doubleValue = max(0, endSlider.doubleValue - minGap)
+        activeHandle = .end
       case .unknown:
-        startSlider.doubleValue = max(0, endSlider.doubleValue - minGap)
+        activeHandle = .unknown
       }
+    }
+
+    if let normalized = RustCoreBridge.shared.normalizeTrimRange(
+      durationMS: durationMS,
+      startMS: rawStartMS,
+      endMS: rawEndMS,
+      minGapMS: minGapMS,
+      activeHandle: activeHandle
+    ) {
+      startSlider.doubleValue = Double(normalized.startMS) / 1000.0
+      endSlider.doubleValue = Double(normalized.endMS) / 1000.0
+    } else {
+      startSlider.doubleValue = max(0, min(startSlider.doubleValue, durationSeconds))
+      endSlider.doubleValue = max(startSlider.doubleValue + minGapSeconds, min(endSlider.doubleValue, durationSeconds))
     }
 
     currentPlayheadSeconds = max(startSlider.doubleValue, min(currentPlayheadSeconds, endSlider.doubleValue))
@@ -681,39 +672,31 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
   }
 
   private func syncRustExportPlan(using context: RustVideoExportContext) -> RustVideoExportPlan? {
-    guard let rustSession else {
-      return nil
+    let trimRange = currentTimeRange
+    let startMS = max(0, Int((trimRange.start.seconds * 1000).rounded()))
+    let endMS = max(startMS + 1, Int(((trimRange.start.seconds + trimRange.duration.seconds) * 1000).rounded()))
+
+    if let rustSession {
+      _ = rustSession.setExportContext(context)
+      return rustSession.exportPlan()
     }
-    _ = rustSession.setExportContext(context)
-    return rustSession.exportPlan()
+
+    return RustCoreBridge.shared.computeVideoExportPlan(
+      trimStartMS: startMS,
+      trimEndMS: endMS,
+      keyEventCount: overlay.keyEvents.count,
+      clickEventCount: 0,
+      context: context
+    )
   }
 
-  private func fallbackOverlayEnhancements(using context: RustVideoExportContext) -> Bool {
-    (context.sourceHasWebcamAsset && context.webcamTrackVisible) || !overlay.keyEvents.isEmpty || context.textOverlayCount > 0
-  }
-
-  private func fallbackNeedsCustomCompositor(using context: RustVideoExportContext) -> Bool {
-    let includeAudio = context.sourceHasAudio && context.audioTrackVisible
-    return fallbackOverlayEnhancements(using: context) || (context.sourceHasAudio && !includeAudio)
-  }
-
-  private func shouldUseCompositeExportPlan(
-    plan: RustVideoExportPlan?,
-    context: RustVideoExportContext
-  ) -> Bool {
-    guard let plan else {
-      return fallbackNeedsCustomCompositor(using: context)
-    }
+  private func shouldUseCompositeExportPlan(plan: RustVideoExportPlan?) -> Bool {
+    guard let plan else { return false }
     return plan.planMode == RustVideoPlanMode.compositeMP4.rawValue || plan.needsCustomCompositor
   }
 
-  private func requiresIntermediateGIF(
-    plan: RustVideoExportPlan?,
-    context: RustVideoExportContext
-  ) -> Bool {
-    guard let plan else {
-      return fallbackOverlayEnhancements(using: context)
-    }
+  private func requiresIntermediateGIF(plan: RustVideoExportPlan?) -> Bool {
+    guard let plan else { return false }
     return plan.requiresIntermediateForGIF || plan.planMode == RustVideoPlanMode.compositeMP4.rawValue
   }
 
@@ -795,10 +778,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
       let exportContext = currentRustExportContext()
       let exportPlan = syncRustExportPlan(using: exportContext)
       let exportIncludeAudio = exportPlan?.includeAudio ?? (exportContext.sourceHasAudio && exportContext.audioTrackVisible)
-      let useCustomCompositor = shouldUseCompositeExportPlan(
-        plan: exportPlan,
-        context: exportContext
-      )
+      let useCustomCompositor = shouldUseCompositeExportPlan(plan: exportPlan)
 
       if useCustomCompositor {
         try await VideoCompositor.exportCompositeMP4(
@@ -865,7 +845,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
       var gifStart = trimRange.start.seconds
       var gifEnd = trimRange.start.seconds + trimRange.duration.seconds
 
-      if requiresIntermediateGIF(plan: exportPlan, context: exportContext) {
+      if requiresIntermediateGIF(plan: exportPlan) {
         let gifExportIncludeAudio = exportPlan?.includeAudio ?? (exportContext.sourceHasAudio && exportContext.audioTrackVisible)
         let temporaryURL = makeTemporaryExportURL(extension: "mp4")
         try await VideoCompositor.exportCompositeMP4(

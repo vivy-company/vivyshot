@@ -123,12 +123,39 @@ typedef struct vs_f32_rect {
   float height;
 } vs_f32_rect;
 
+typedef struct vs_f32_point {
+  float x;
+  float y;
+} vs_f32_point;
+
 typedef struct vs_i32_rect {
   int32_t x;
   int32_t y;
   int32_t width;
   int32_t height;
 } vs_i32_rect;
+
+typedef struct vs_rgba8 {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t a;
+} vs_rgba8;
+
+typedef struct vs_gif_export_plan {
+  uint32_t start_ms;
+  uint32_t end_ms;
+  float frame_rate;
+  uint32_t frame_count;
+  uint32_t max_dimension;
+  uint32_t frame_delay_ms;
+} vs_gif_export_plan;
+
+typedef struct vs_stitch_autoscroll_state {
+  int32_t direction_sign;
+  uint32_t no_motion_ticks;
+  bool did_flip_direction;
+} vs_stitch_autoscroll_state;
 
 typedef struct vs_rect_command {
   int32_t x;
@@ -277,7 +304,44 @@ int32_t vs_video_session_set_trim(void *session, uint32_t start_ms, uint32_t end
 
 int32_t vs_video_session_set_export_context(void *session, struct vs_video_export_context context);
 
+int32_t vs_video_compute_export_plan(uint32_t trim_start_ms,
+                                     uint32_t trim_end_ms,
+                                     uint32_t key_event_count,
+                                     uint32_t click_event_count,
+                                     struct vs_video_export_context context,
+                                     struct vs_video_export_plan *out_plan);
+
 int32_t vs_video_session_get_export_plan(void *session, struct vs_video_export_plan *out_plan);
+
+int32_t vs_normalize_key_token(uint16_t key_code,
+                               uint32_t modifiers,
+                               const uint8_t *chars_ptr,
+                               uint32_t chars_len,
+                               uint8_t *out_ptr,
+                               uint32_t out_cap,
+                               uint32_t *out_written);
+
+bool vs_key_event_is_duplicate(uint64_t last_timestamp_ns,
+                               const uint8_t *last_token_ptr,
+                               uint32_t last_token_len,
+                               uint64_t timestamp_ns,
+                               const uint8_t *token_ptr,
+                               uint32_t token_len);
+
+int32_t vs_normalize_click_point(float normalized_x,
+                                 float normalized_y,
+                                 float *out_x,
+                                 float *out_y);
+
+bool vs_click_event_is_duplicate(uint64_t last_timestamp_ns,
+                                 uint32_t last_button,
+                                 float last_x,
+                                 float last_y,
+                                 uint64_t timestamp_ns,
+                                 uint32_t button,
+                                 float x,
+                                 float y,
+                                 float epsilon);
 
 int32_t vs_video_session_serialize_json(void *session,
                                         uint8_t *out_ptr,
@@ -344,6 +408,87 @@ int32_t vs_selection_resize_rect(struct vs_f32_rect start,
                                  float min_width,
                                  float min_height,
                                  struct vs_f32_rect *out_rect);
+
+int32_t vs_view_rect_to_image_rect(struct vs_f32_rect view_rect,
+                                   struct vs_f32_rect destination_rect,
+                                   uint32_t image_width,
+                                   uint32_t image_height,
+                                   struct vs_f32_rect *out_rect);
+
+int32_t vs_image_rect_to_view_rect(struct vs_f32_rect image_rect,
+                                   struct vs_f32_rect destination_rect,
+                                   uint32_t image_width,
+                                   uint32_t image_height,
+                                   struct vs_f32_rect *out_rect);
+
+int32_t vs_view_delta_to_image_delta(float delta_x,
+                                     float delta_y,
+                                     struct vs_f32_rect destination_rect,
+                                     uint32_t image_width,
+                                     uint32_t image_height,
+                                     struct vs_f32_point *out_point);
+
+int32_t vs_image_delta_to_view_delta(float delta_x,
+                                     float delta_y,
+                                     struct vs_f32_rect destination_rect,
+                                     uint32_t image_width,
+                                     uint32_t image_height,
+                                     struct vs_f32_point *out_point);
+
+int32_t vs_viewport_clamp_pan_offset(float bounds_width,
+                                     float bounds_height,
+                                     uint32_t image_width,
+                                     uint32_t image_height,
+                                     float zoom_scale,
+                                     float overscroll,
+                                     float candidate_x,
+                                     float candidate_y,
+                                     struct vs_f32_point *out_point);
+
+int32_t vs_quantize_image_rect(uint32_t image_width,
+                               uint32_t image_height,
+                               struct vs_f32_rect rect,
+                               struct vs_i32_rect *out_rect);
+
+int32_t vs_quantize_image_point(uint32_t image_width,
+                                uint32_t image_height,
+                                float x,
+                                float y,
+                                int32_t *out_x,
+                                int32_t *out_y);
+
+int32_t vs_quantize_rgba(float r,
+                         float g,
+                         float b,
+                         float a,
+                         struct vs_rgba8 *out_color);
+
+int32_t vs_normalize_trim_range(uint32_t duration_ms,
+                                uint32_t start_ms,
+                                uint32_t end_ms,
+                                uint32_t min_gap_ms,
+                                uint8_t active_handle,
+                                uint32_t *out_start_ms,
+                                uint32_t *out_end_ms);
+
+int32_t vs_build_gif_export_plan(uint32_t start_ms,
+                                 uint32_t end_ms,
+                                 float preferred_fps,
+                                 uint32_t max_dimension,
+                                 struct vs_gif_export_plan *out_plan);
+
+int32_t vs_gif_frame_time_ms(struct vs_gif_export_plan plan,
+                             uint32_t index,
+                             uint32_t *out_time_ms);
+
+int32_t vs_stitch_autoscroll_reset(struct vs_stitch_autoscroll_state *out_state);
+
+int32_t vs_stitch_autoscroll_update(bool enabled,
+                                    bool direction_locked,
+                                    bool did_merge,
+                                    uint32_t threshold_ticks,
+                                    struct vs_stitch_autoscroll_state state,
+                                    struct vs_stitch_autoscroll_state *out_state);
 
 int32_t vs_encode_bgra_image(struct vs_bgra_image_view source,
                              uint8_t format,
@@ -437,6 +582,17 @@ int32_t vs_timeline_derive_export_context(const void *handle,
                                           bool source_has_audio,
                                           bool source_has_webcam_asset,
                                           struct vs_video_export_context *out_context);
+
+int32_t vs_timeline_bootstrap_capture_tracks(void *handle,
+                                             bool source_has_audio,
+                                             bool source_has_webcam_asset);
+
+int32_t vs_timeline_add_text_clip_auto_track(void *handle,
+                                             uint32_t start_ms,
+                                             uint32_t end_ms,
+                                             const uint8_t *text_ptr,
+                                             uint32_t text_len,
+                                             uint32_t *out_clip_id);
 
 int32_t vs_timeline_add_clip(void *handle,
                              uint32_t track_index,

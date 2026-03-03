@@ -834,34 +834,11 @@ final class AnnotationCanvasView: NSView {
     guard let image, let destination = imageDestinationRect() else {
       return nil
     }
-
-    let clipped = viewRect.intersection(destination)
-    guard !clipped.isNull, clipped.width >= 1, clipped.height >= 1 else {
-      return nil
-    }
-
-    let scaleX = CGFloat(image.width) / destination.width
-    let scaleY = CGFloat(image.height) / destination.height
-    let imageHeight = CGFloat(image.height)
-
-    let x0 = (clipped.minX - destination.minX) * scaleX
-    let x1 = (clipped.maxX - destination.minX) * scaleX
-    let y0FromBottom = (clipped.minY - destination.minY) * scaleY
-    let y1FromBottom = (clipped.maxY - destination.minY) * scaleY
-
-    // Rust renderer uses image-space origin at top-left (y grows downward).
-    let imageRect = CGRect(
-      x: x0,
-      y: imageHeight - y1FromBottom,
-      width: x1 - x0,
-      height: y1FromBottom - y0FromBottom
-    ).integral
-
-    guard imageRect.width >= 1, imageRect.height >= 1 else {
-      return nil
-    }
-
-    return imageRect
+    return RustCoreBridge.shared.viewRectToImageRect(
+      viewRect: viewRect,
+      destinationRect: destination,
+      imageSize: CGSize(width: image.width, height: image.height)
+    )
   }
 
   func exportImageRect(fromViewRect viewRect: CGRect) -> CGRect? {
@@ -872,43 +849,21 @@ final class AnnotationCanvasView: NSView {
     guard let image, let destination = imageDestinationRect() else {
       return nil
     }
-
-    let scaleX = destination.width / CGFloat(image.width)
-    let scaleY = destination.height / CGFloat(image.height)
-    guard scaleX > 0, scaleY > 0 else {
-      return nil
-    }
-
-    let x0 = destination.minX + imageRect.minX * scaleX
-    let x1 = destination.minX + imageRect.maxX * scaleX
-
-    let yTop = destination.minY + (CGFloat(image.height) - imageRect.minY) * scaleY
-    let yBottom = destination.minY + (CGFloat(image.height) - imageRect.maxY) * scaleY
-
-    let rect = CGRect(
-      x: min(x0, x1),
-      y: min(yBottom, yTop),
-      width: abs(x1 - x0),
-      height: abs(yTop - yBottom)
+    return RustCoreBridge.shared.imageRectToViewRect(
+      imageRect: imageRect,
+      destinationRect: destination,
+      imageSize: CGSize(width: image.width, height: image.height)
     )
-    guard rect.width >= 1, rect.height >= 1 else {
-      return nil
-    }
-    return rect.integral
   }
 
   private func viewDeltaFromImageDelta(_ delta: CGPoint) -> CGPoint? {
     guard let image, let destination = imageDestinationRect() else {
       return nil
     }
-    let scaleX = CGFloat(image.width) / destination.width
-    let scaleY = CGFloat(image.height) / destination.height
-    guard scaleX > 0, scaleY > 0 else {
-      return nil
-    }
-    return CGPoint(
-      x: delta.x / scaleX,
-      y: -delta.y / scaleY
+    return RustCoreBridge.shared.imageDeltaToViewDelta(
+      delta,
+      destinationRect: destination,
+      imageSize: CGSize(width: image.width, height: image.height)
     )
   }
 
@@ -986,57 +941,17 @@ final class AnnotationCanvasView: NSView {
     handle: AnnotationResizeHandle,
     delta: CGPoint
   ) -> CGRect? {
-    var minX = start.minX
-    var maxX = start.maxX
-    var minY = start.minY
-    var maxY = start.maxY
-
-    switch handle {
-    case .topLeft:
-      minX += delta.x
-      maxY += delta.y
-    case .topRight:
-      maxX += delta.x
-      maxY += delta.y
-    case .bottomLeft:
-      minX += delta.x
-      minY += delta.y
-    case .bottomRight:
-      maxX += delta.x
-      minY += delta.y
-    }
-
-    let minSize: CGFloat = 6
-    switch handle {
-    case .topLeft:
-      minX = min(minX, maxX - minSize)
-      maxY = max(maxY, minY + minSize)
-    case .topRight:
-      maxX = max(maxX, minX + minSize)
-      maxY = max(maxY, minY + minSize)
-    case .bottomLeft:
-      minX = min(minX, maxX - minSize)
-      minY = min(minY, maxY - minSize)
-    case .bottomRight:
-      maxX = max(maxX, minX + minSize)
-      minY = min(minY, maxY - minSize)
-    }
-
     guard let imageRect = imageDestinationRect() else {
       return nil
     }
-    minX = max(imageRect.minX, minX)
-    maxX = min(imageRect.maxX, maxX)
-    minY = max(imageRect.minY, minY)
-    maxY = min(imageRect.maxY, maxY)
-
-    let width = maxX - minX
-    let height = maxY - minY
-    guard width >= minSize, height >= minSize else {
-      return nil
-    }
-
-    return CGRect(x: minX, y: minY, width: width, height: height).integral
+    return RustCoreBridge.shared.resizeRect(
+      start: start,
+      bounds: imageRect,
+      cornerCode: resizeCornerCode(for: handle),
+      delta: delta,
+      minWidth: 6,
+      minHeight: 6
+    )?.integral
   }
 
   private func drawPaintPathPreview(context: CGContext) {
@@ -1107,26 +1022,32 @@ final class AnnotationCanvasView: NSView {
   }
 
   private func clampedPanOffset(for image: CGImage, zoomScale: CGFloat, candidate: CGPoint) -> CGPoint {
-    let imageWidth = CGFloat(image.width)
-    let imageHeight = CGFloat(image.height)
-    guard imageWidth > 0, imageHeight > 0, bounds.width > 0, bounds.height > 0 else {
+    guard bounds.width > 0, bounds.height > 0 else {
       return .zero
     }
-
-    let fitScale = min(bounds.width / imageWidth, bounds.height / imageHeight)
-    let drawScale = fitScale * zoomScale
-    let drawWidth = imageWidth * drawScale
-    let drawHeight = imageHeight * drawScale
-
-    // Keep the image reachable while allowing a little overscroll breathing room.
-    let overscroll: CGFloat = 24
-    let maxX = max(0, (drawWidth - bounds.width) * 0.5 + overscroll)
-    let maxY = max(0, (drawHeight - bounds.height) * 0.5 + overscroll)
-
-    return CGPoint(
-      x: min(max(candidate.x, -maxX), maxX),
-      y: min(max(candidate.y, -maxY), maxY)
+    return RustCoreBridge.shared.clampPanOffset(
+      boundsSize: bounds.size,
+      imageSize: CGSize(width: image.width, height: image.height),
+      zoomScale: zoomScale,
+      overscroll: 24,
+      candidate: candidate
+    ) ?? CGPoint(
+      x: min(max(candidate.x, -24), 24),
+      y: min(max(candidate.y, -24), 24)
     )
+  }
+
+  private func resizeCornerCode(for handle: AnnotationResizeHandle) -> UInt8 {
+    switch handle {
+    case .topLeft:
+      return 0
+    case .topRight:
+      return 2
+    case .bottomLeft:
+      return 6
+    case .bottomRight:
+      return 7
+    }
   }
 
   private func clampPanOffset() {

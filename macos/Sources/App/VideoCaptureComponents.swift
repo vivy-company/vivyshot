@@ -2,7 +2,6 @@ import AppKit
 import ApplicationServices
 import AVFoundation
 import AVKit
-import Carbon
 import CoreGraphics
 import CoreMedia
 import ImageIO
@@ -540,8 +539,12 @@ final class RecordingInputMonitor {
     stateLock.lock()
     defer { stateLock.unlock() }
     if let last = lastKeyEventSignature,
-       last.timestampNS == timestampNS,
-       last.token == token
+       RustCoreBridge.isDuplicateKeyEventPortable(
+         lastTimestampNS: last.timestampNS,
+         lastToken: last.token,
+         timestampNS: timestampNS,
+         token: token
+       )
     {
       return
     }
@@ -567,8 +570,11 @@ final class RecordingInputMonitor {
 
     let nx = (point.x - captureRectInScreen.minX) / captureRectInScreen.width
     let ny = (point.y - captureRectInScreen.minY) / captureRectInScreen.height
-    let normalizedX = max(0, min(1, nx))
-    let normalizedY = max(0, min(1, ny))
+    guard let normalized = RustCoreBridge.normalizeClickPointPortable(x: nx, y: ny) else {
+      return
+    }
+    let normalizedX = normalized.x
+    let normalizedY = normalized.y
 
     let button: UInt32
     switch event.type {
@@ -583,10 +589,16 @@ final class RecordingInputMonitor {
     stateLock.lock()
     defer { stateLock.unlock() }
     if let last = lastClickEventSignature,
-       last.timestampNS == timestampNS,
-       last.button == button,
-       abs(last.x - normalizedX) < 0.0001,
-       abs(last.y - normalizedY) < 0.0001
+       RustCoreBridge.isDuplicateClickEventPortable(
+         lastTimestampNS: last.timestampNS,
+         lastButton: last.button,
+         lastX: last.x,
+         lastY: last.y,
+         timestampNS: timestampNS,
+         button: button,
+         x: normalizedX,
+         y: normalizedY
+       )
     {
       return
     }
@@ -613,63 +625,29 @@ final class RecordingInputMonitor {
   }
 
   private func displayToken(for event: NSEvent) -> String {
-    var parts: [String] = []
-    if event.modifierFlags.contains(.command) {
-      parts.append("⌘")
-    }
-    if event.modifierFlags.contains(.shift) {
-      parts.append("⇧")
-    }
-    if event.modifierFlags.contains(.option) {
-      parts.append("⌥")
-    }
-    if event.modifierFlags.contains(.control) {
-      parts.append("⌃")
-    }
-
-    let keyLabel: String
-    if let chars = event.charactersIgnoringModifiers?.trimmingCharacters(in: .whitespacesAndNewlines),
-       !chars.isEmpty,
-       chars.count == 1 {
-      keyLabel = chars.uppercased()
-    } else {
-      keyLabel = fallbackKeyLabel(for: event.keyCode)
-    }
-    parts.append(keyLabel)
-
-    let token = parts.joined()
-    if token.count > 24 {
-      return String(token.prefix(24))
-    }
-    return token
+    let modifiers = keyModifierMask(for: event.modifierFlags)
+    return RustCoreBridge.normalizeKeyTokenPortable(
+      keyCode: event.keyCode,
+      modifiers: modifiers,
+      characters: event.charactersIgnoringModifiers
+    ) ?? ""
   }
 
-  private func fallbackKeyLabel(for keyCode: UInt16) -> String {
-    switch Int(keyCode) {
-    case kVK_Return: return "Return"
-    case kVK_Tab: return "Tab"
-    case kVK_Space: return "Space"
-    case kVK_Delete: return "Delete"
-    case kVK_Escape: return "Esc"
-    case kVK_LeftArrow: return "←"
-    case kVK_RightArrow: return "→"
-    case kVK_UpArrow: return "↑"
-    case kVK_DownArrow: return "↓"
-    case kVK_F1: return "F1"
-    case kVK_F2: return "F2"
-    case kVK_F3: return "F3"
-    case kVK_F4: return "F4"
-    case kVK_F5: return "F5"
-    case kVK_F6: return "F6"
-    case kVK_F7: return "F7"
-    case kVK_F8: return "F8"
-    case kVK_F9: return "F9"
-    case kVK_F10: return "F10"
-    case kVK_F11: return "F11"
-    case kVK_F12: return "F12"
-    default:
-      return "Key \(keyCode)"
+  private func keyModifierMask(for flags: NSEvent.ModifierFlags) -> UInt32 {
+    var raw: UInt32 = 0
+    if flags.contains(.command) {
+      raw |= 1 << 0
     }
+    if flags.contains(.shift) {
+      raw |= 1 << 1
+    }
+    if flags.contains(.option) {
+      raw |= 1 << 2
+    }
+    if flags.contains(.control) {
+      raw |= 1 << 3
+    }
+    return raw
   }
 }
 

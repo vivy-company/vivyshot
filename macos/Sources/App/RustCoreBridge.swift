@@ -65,6 +65,27 @@ enum RustImageEncodeFormat: UInt8 {
   case jpeg = 1
 }
 
+enum RustTrimHandle: UInt8 {
+  case unknown = 0
+  case start = 1
+  case end = 2
+}
+
+struct RustGIFExportPlan {
+  let startMS: UInt32
+  let endMS: UInt32
+  let frameRate: Double
+  let frameCount: Int
+  let maxDimension: Int
+  let frameDelayMS: Int
+}
+
+struct RustStitchAutoScrollState {
+  var directionSign: Int32
+  var noMotionTicks: UInt32
+  var didFlipDirection: Bool
+}
+
 struct RustStitchSessionResult {
   let accepted: Bool
   let rows: Int
@@ -234,6 +255,457 @@ final class RustCoreBridge {
       return nil
     }
     return Data(bytes: ptr, count: Int(rawBytes.len))
+  }
+
+  func computeVideoExportPlan(
+    trimStartMS: Int,
+    trimEndMS: Int,
+    keyEventCount: Int,
+    clickEventCount: Int,
+    context: RustVideoExportContext
+  ) -> RustVideoExportPlan? {
+    guard trimStartMS >= 0, trimEndMS >= 0, keyEventCount >= 0, clickEventCount >= 0 else {
+      return nil
+    }
+    var raw = vs_video_export_plan(
+      trim_start_ms: 0,
+      trim_end_ms: 0,
+      key_event_count: 0,
+      click_event_count: 0,
+      plan_mode: 0,
+      include_audio: false,
+      include_webcam: false,
+      text_overlay_count: 0,
+      overlay_item_count: 0,
+      requires_intermediate_for_gif: false,
+      needs_custom_compositor: false
+    )
+    let rawContext = vs_video_export_context(
+      source_has_audio: context.sourceHasAudio,
+      source_has_webcam_asset: context.sourceHasWebcamAsset,
+      audio_track_visible: context.audioTrackVisible,
+      webcam_track_visible: context.webcamTrackVisible,
+      text_overlay_count: UInt32(max(0, context.textOverlayCount))
+    )
+    let status = vs_video_compute_export_plan(
+      UInt32(trimStartMS),
+      UInt32(trimEndMS),
+      UInt32(keyEventCount),
+      UInt32(clickEventCount),
+      rawContext,
+      &raw
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return RustVideoExportPlan(
+      trimStartMS: Int(raw.trim_start_ms),
+      trimEndMS: Int(raw.trim_end_ms),
+      keyEventCount: Int(raw.key_event_count),
+      clickEventCount: Int(raw.click_event_count),
+      planMode: raw.plan_mode,
+      includeAudio: raw.include_audio,
+      includeWebcam: raw.include_webcam,
+      textOverlayCount: Int(raw.text_overlay_count),
+      overlayItemCount: Int(raw.overlay_item_count),
+      requiresIntermediateForGIF: raw.requires_intermediate_for_gif,
+      needsCustomCompositor: raw.needs_custom_compositor
+    )
+  }
+
+  nonisolated static func normalizeKeyTokenPortable(
+    keyCode: UInt16,
+    modifiers: UInt32,
+    characters: String?
+  ) -> String? {
+    let charsData = characters?.data(using: .utf8)
+    let charsLen = UInt32(charsData?.count ?? 0)
+
+    var capacity = 64
+    while capacity <= 1024 {
+      var buffer = [UInt8](repeating: 0, count: capacity)
+      var written: UInt32 = 0
+      let status: Int32 = buffer.withUnsafeMutableBufferPointer { out in
+        let outPtr = out.baseAddress
+        let outCap = UInt32(out.count)
+        return charsData.map { data in
+          data.withUnsafeBytes { raw in
+            let charsPtr = raw.baseAddress?.assumingMemoryBound(to: UInt8.self)
+            return vs_normalize_key_token(
+              keyCode,
+              modifiers,
+              charsPtr,
+              charsLen,
+              outPtr,
+              outCap,
+              &written
+            )
+          }
+        } ?? vs_normalize_key_token(
+          keyCode,
+          modifiers,
+          nil,
+          0,
+          outPtr,
+          outCap,
+          &written
+        )
+      }
+
+      guard status == 0 else {
+        return nil
+      }
+      if Int(written) <= buffer.count {
+        let token = String(decoding: buffer.prefix(Int(written)), as: UTF8.self)
+        return token.isEmpty ? nil : token
+      }
+      capacity = max(capacity * 2, Int(written))
+    }
+    return nil
+  }
+
+  func normalizeKeyToken(keyCode: UInt16, modifiers: UInt32, characters: String?) -> String? {
+    Self.normalizeKeyTokenPortable(keyCode: keyCode, modifiers: modifiers, characters: characters)
+  }
+
+  nonisolated static func isDuplicateKeyEventPortable(
+    lastTimestampNS: UInt64,
+    lastToken: String,
+    timestampNS: UInt64,
+    token: String
+  ) -> Bool {
+    let lastBytes = Array(lastToken.utf8)
+    let tokenBytes = Array(token.utf8)
+    guard !lastBytes.isEmpty, !tokenBytes.isEmpty else {
+      return false
+    }
+    return lastBytes.withUnsafeBufferPointer { lastPtr in
+      tokenBytes.withUnsafeBufferPointer { tokenPtr in
+        vs_key_event_is_duplicate(
+          lastTimestampNS,
+          lastPtr.baseAddress,
+          UInt32(lastPtr.count),
+          timestampNS,
+          tokenPtr.baseAddress,
+          UInt32(tokenPtr.count)
+        )
+      }
+    }
+  }
+
+  func isDuplicateKeyEvent(
+    lastTimestampNS: UInt64,
+    lastToken: String,
+    timestampNS: UInt64,
+    token: String
+  ) -> Bool {
+    Self.isDuplicateKeyEventPortable(
+      lastTimestampNS: lastTimestampNS,
+      lastToken: lastToken,
+      timestampNS: timestampNS,
+      token: token
+    )
+  }
+
+  nonisolated static func normalizeClickPointPortable(x: CGFloat, y: CGFloat) -> CGPoint? {
+    var outX: Float = 0
+    var outY: Float = 0
+    let status = vs_normalize_click_point(Float(x), Float(y), &outX, &outY)
+    guard status == 0 else {
+      return nil
+    }
+    return CGPoint(x: CGFloat(outX), y: CGFloat(outY))
+  }
+
+  func normalizeClickPoint(x: CGFloat, y: CGFloat) -> CGPoint? {
+    Self.normalizeClickPointPortable(x: x, y: y)
+  }
+
+  nonisolated static func isDuplicateClickEventPortable(
+    lastTimestampNS: UInt64,
+    lastButton: UInt32,
+    lastX: CGFloat,
+    lastY: CGFloat,
+    timestampNS: UInt64,
+    button: UInt32,
+    x: CGFloat,
+    y: CGFloat,
+    epsilon: CGFloat = 0.0001
+  ) -> Bool {
+    vs_click_event_is_duplicate(
+      lastTimestampNS,
+      lastButton,
+      Float(lastX),
+      Float(lastY),
+      timestampNS,
+      button,
+      Float(x),
+      Float(y),
+      Float(epsilon)
+    )
+  }
+
+  func isDuplicateClickEvent(
+    lastTimestampNS: UInt64,
+    lastButton: UInt32,
+    lastX: CGFloat,
+    lastY: CGFloat,
+    timestampNS: UInt64,
+    button: UInt32,
+    x: CGFloat,
+    y: CGFloat,
+    epsilon: CGFloat = 0.0001
+  ) -> Bool {
+    Self.isDuplicateClickEventPortable(
+      lastTimestampNS: lastTimestampNS,
+      lastButton: lastButton,
+      lastX: lastX,
+      lastY: lastY,
+      timestampNS: timestampNS,
+      button: button,
+      x: x,
+      y: y,
+      epsilon: epsilon
+    )
+  }
+
+  func viewRectToImageRect(viewRect: CGRect, destinationRect: CGRect, imageSize: CGSize) -> CGRect? {
+    guard imageSize.width >= 1, imageSize.height >= 1 else {
+      return nil
+    }
+    var outRect = vs_f32_rect()
+    let status = vs_view_rect_to_image_rect(
+      Self.makeF32Rect(viewRect),
+      Self.makeF32Rect(destinationRect),
+      UInt32(imageSize.width.rounded()),
+      UInt32(imageSize.height.rounded()),
+      &outRect
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return Self.makeCGRect(outRect).integral
+  }
+
+  func imageRectToViewRect(imageRect: CGRect, destinationRect: CGRect, imageSize: CGSize) -> CGRect? {
+    guard imageSize.width >= 1, imageSize.height >= 1 else {
+      return nil
+    }
+    var outRect = vs_f32_rect()
+    let status = vs_image_rect_to_view_rect(
+      Self.makeF32Rect(imageRect),
+      Self.makeF32Rect(destinationRect),
+      UInt32(imageSize.width.rounded()),
+      UInt32(imageSize.height.rounded()),
+      &outRect
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return Self.makeCGRect(outRect).integral
+  }
+
+  func viewDeltaToImageDelta(_ delta: CGPoint, destinationRect: CGRect, imageSize: CGSize) -> CGPoint? {
+    guard imageSize.width >= 1, imageSize.height >= 1 else {
+      return nil
+    }
+    var out = vs_f32_point()
+    let status = vs_view_delta_to_image_delta(
+      Float(delta.x),
+      Float(delta.y),
+      Self.makeF32Rect(destinationRect),
+      UInt32(imageSize.width.rounded()),
+      UInt32(imageSize.height.rounded()),
+      &out
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return CGPoint(x: CGFloat(out.x), y: CGFloat(out.y))
+  }
+
+  func imageDeltaToViewDelta(_ delta: CGPoint, destinationRect: CGRect, imageSize: CGSize) -> CGPoint? {
+    guard imageSize.width >= 1, imageSize.height >= 1 else {
+      return nil
+    }
+    var out = vs_f32_point()
+    let status = vs_image_delta_to_view_delta(
+      Float(delta.x),
+      Float(delta.y),
+      Self.makeF32Rect(destinationRect),
+      UInt32(imageSize.width.rounded()),
+      UInt32(imageSize.height.rounded()),
+      &out
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return CGPoint(x: CGFloat(out.x), y: CGFloat(out.y))
+  }
+
+  func clampPanOffset(
+    boundsSize: CGSize,
+    imageSize: CGSize,
+    zoomScale: CGFloat,
+    overscroll: CGFloat,
+    candidate: CGPoint
+  ) -> CGPoint? {
+    guard imageSize.width >= 1, imageSize.height >= 1 else {
+      return nil
+    }
+    var out = vs_f32_point()
+    let status = vs_viewport_clamp_pan_offset(
+      Float(boundsSize.width),
+      Float(boundsSize.height),
+      UInt32(imageSize.width.rounded()),
+      UInt32(imageSize.height.rounded()),
+      Float(zoomScale),
+      Float(overscroll),
+      Float(candidate.x),
+      Float(candidate.y),
+      &out
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return CGPoint(x: CGFloat(out.x), y: CGFloat(out.y))
+  }
+
+  func resizeRect(
+    start: CGRect,
+    bounds: CGRect,
+    cornerCode: UInt8,
+    delta: CGPoint,
+    minWidth: CGFloat,
+    minHeight: CGFloat
+  ) -> CGRect? {
+    var outRect = vs_f32_rect()
+    let status = vs_selection_resize_rect(
+      Self.makeF32Rect(start),
+      Self.makeF32Rect(bounds),
+      cornerCode,
+      Float(delta.x),
+      Float(delta.y),
+      Float(minWidth),
+      Float(minHeight),
+      &outRect
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return Self.makeCGRect(outRect).standardized
+  }
+
+  func normalizeTrimRange(
+    durationMS: UInt32,
+    startMS: UInt32,
+    endMS: UInt32,
+    minGapMS: UInt32,
+    activeHandle: RustTrimHandle
+  ) -> (startMS: UInt32, endMS: UInt32)? {
+    var outStart: UInt32 = 0
+    var outEnd: UInt32 = 0
+    let status = vs_normalize_trim_range(
+      durationMS,
+      startMS,
+      endMS,
+      minGapMS,
+      activeHandle.rawValue,
+      &outStart,
+      &outEnd
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return (outStart, outEnd)
+  }
+
+  func buildGIFExportPlan(
+    startMS: UInt32,
+    endMS: UInt32,
+    preferredFPS: Double = 12,
+    maxDimension: Int = 960
+  ) -> RustGIFExportPlan? {
+    var raw = vs_gif_export_plan()
+    let status = vs_build_gif_export_plan(
+      startMS,
+      endMS,
+      Float(preferredFPS),
+      UInt32(max(64, min(2048, maxDimension))),
+      &raw
+    )
+    guard status == 0 else {
+      return nil
+    }
+    return RustGIFExportPlan(
+      startMS: raw.start_ms,
+      endMS: raw.end_ms,
+      frameRate: Double(raw.frame_rate),
+      frameCount: Int(raw.frame_count),
+      maxDimension: Int(raw.max_dimension),
+      frameDelayMS: Int(raw.frame_delay_ms)
+    )
+  }
+
+  func gifFrameTimeMS(plan: RustGIFExportPlan, index: Int) -> UInt32? {
+    guard index >= 0 else {
+      return nil
+    }
+    let rawPlan = vs_gif_export_plan(
+      start_ms: plan.startMS,
+      end_ms: plan.endMS,
+      frame_rate: Float(plan.frameRate),
+      frame_count: UInt32(max(1, plan.frameCount)),
+      max_dimension: UInt32(max(64, plan.maxDimension)),
+      frame_delay_ms: UInt32(max(1, plan.frameDelayMS))
+    )
+    var out: UInt32 = 0
+    let status = vs_gif_frame_time_ms(rawPlan, UInt32(index), &out)
+    return status == 0 ? out : nil
+  }
+
+  func resetStitchAutoScrollState() -> RustStitchAutoScrollState {
+    var raw = vs_stitch_autoscroll_state()
+    let status = vs_stitch_autoscroll_reset(&raw)
+    if status == 0 {
+      return RustStitchAutoScrollState(
+        directionSign: raw.direction_sign,
+        noMotionTicks: raw.no_motion_ticks,
+        didFlipDirection: raw.did_flip_direction
+      )
+    }
+    return RustStitchAutoScrollState(directionSign: -1, noMotionTicks: 0, didFlipDirection: false)
+  }
+
+  func updateStitchAutoScrollState(
+    enabled: Bool,
+    directionLocked: Bool,
+    didMerge: Bool,
+    thresholdTicks: UInt32,
+    state: RustStitchAutoScrollState
+  ) -> RustStitchAutoScrollState {
+    var out = vs_stitch_autoscroll_state()
+    let rawState = vs_stitch_autoscroll_state(
+      direction_sign: state.directionSign,
+      no_motion_ticks: state.noMotionTicks,
+      did_flip_direction: state.didFlipDirection
+    )
+    let status = vs_stitch_autoscroll_update(
+      enabled,
+      directionLocked,
+      didMerge,
+      thresholdTicks,
+      rawState,
+      &out
+    )
+    guard status == 0 else {
+      return state
+    }
+    return RustStitchAutoScrollState(
+      directionSign: out.direction_sign,
+      noMotionTicks: out.no_motion_ticks,
+      didFlipDirection: out.did_flip_direction
+    )
   }
 
   private static func makeF32Rect(_ rect: CGRect) -> vs_f32_rect {
@@ -929,23 +1401,15 @@ final class RustDocumentSession {
     guard index >= 0 else {
       return nil
     }
-
-    let normalized = imageRect.standardized
-
-    let x = clampToImageCoordinate(Int(normalized.minX.rounded(.down)), limit: width)
-    let y = clampToImageCoordinate(Int(normalized.minY.rounded(.down)), limit: height)
-    let maxWidth = max(1, width - x)
-    let maxHeight = max(1, height - y)
-    let commandWidth = min(maxWidth, max(1, Int(normalized.width.rounded(.up))))
-    let commandHeight = min(maxHeight, max(1, Int(normalized.height.rounded(.up))))
+    let rect = quantizedImageRect(imageRect)
 
     let status = vs_resize_annotation(
       handle,
       UInt32(index),
-      Int32(x),
-      Int32(y),
-      Int32(commandWidth),
-      Int32(commandHeight)
+      rect.x,
+      rect.y,
+      rect.width,
+      rect.height
     )
     if status == 1 {
       return currentImage()
@@ -988,23 +1452,14 @@ final class RustDocumentSession {
     color: NSColor,
     strokeWidth: UInt32
   ) -> vs_rect_command {
-    let normalized = imageRect.standardized
-
-    let x = clampToImageCoordinate(Int(normalized.minX.rounded(.down)), limit: width)
-    let y = clampToImageCoordinate(Int(normalized.minY.rounded(.down)), limit: height)
-
-    let maxWidth = max(1, width - x)
-    let maxHeight = max(1, height - y)
-    let commandWidth = min(maxWidth, max(1, Int(normalized.width.rounded(.up))))
-    let commandHeight = min(maxHeight, max(1, Int(normalized.height.rounded(.up))))
-
-    let rgba = colorComponents(color)
+    let rect = quantizedImageRect(imageRect)
+    let rgba = quantizedColor(color)
 
     return vs_rect_command(
-      x: Int32(x),
-      y: Int32(y),
-      width: Int32(commandWidth),
-      height: Int32(commandHeight),
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
       stroke_width: strokeWidth,
       r: rgba.r,
       g: rgba.g,
@@ -1019,17 +1474,15 @@ final class RustDocumentSession {
     color: NSColor,
     strokeWidth: UInt32
   ) -> vs_line_command {
-    let sx = clampToImageCoordinate(Int(start.x.rounded()), limit: width)
-    let sy = clampToImageCoordinate(Int(start.y.rounded()), limit: height)
-    let ex = clampToImageCoordinate(Int(end.x.rounded()), limit: width)
-    let ey = clampToImageCoordinate(Int(end.y.rounded()), limit: height)
-    let rgba = colorComponents(color)
+    let (sx, sy) = quantizedImagePoint(start)
+    let (ex, ey) = quantizedImagePoint(end)
+    let rgba = quantizedColor(color)
 
     return vs_line_command(
-      x0: Int32(sx),
-      y0: Int32(sy),
-      x1: Int32(ex),
-      y1: Int32(ey),
+      x0: sx,
+      y0: sy,
+      x1: ex,
+      y1: ey,
       stroke_width: strokeWidth,
       r: rgba.r,
       g: rgba.g,
@@ -1043,23 +1496,14 @@ final class RustDocumentSession {
     color: NSColor,
     strokeWidth: UInt32
   ) -> vs_ellipse_command {
-    let normalized = imageRect.standardized
-
-    let x = clampToImageCoordinate(Int(normalized.minX.rounded(.down)), limit: width)
-    let y = clampToImageCoordinate(Int(normalized.minY.rounded(.down)), limit: height)
-
-    let maxWidth = max(1, width - x)
-    let maxHeight = max(1, height - y)
-    let commandWidth = min(maxWidth, max(1, Int(normalized.width.rounded(.up))))
-    let commandHeight = min(maxHeight, max(1, Int(normalized.height.rounded(.up))))
-
-    let rgba = colorComponents(color)
+    let rect = quantizedImageRect(imageRect)
+    let rgba = quantizedColor(color)
 
     return vs_ellipse_command(
-      x: Int32(x),
-      y: Int32(y),
-      width: Int32(commandWidth),
-      height: Int32(commandHeight),
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
       stroke_width: strokeWidth,
       r: rgba.r,
       g: rgba.g,
@@ -1074,17 +1518,15 @@ final class RustDocumentSession {
     color: NSColor,
     strokeWidth: UInt32
   ) -> vs_arrow_command {
-    let sx = clampToImageCoordinate(Int(start.x.rounded()), limit: width)
-    let sy = clampToImageCoordinate(Int(start.y.rounded()), limit: height)
-    let ex = clampToImageCoordinate(Int(end.x.rounded()), limit: width)
-    let ey = clampToImageCoordinate(Int(end.y.rounded()), limit: height)
-    let rgba = colorComponents(color)
+    let (sx, sy) = quantizedImagePoint(start)
+    let (ex, ey) = quantizedImagePoint(end)
+    let rgba = quantizedColor(color)
 
     return vs_arrow_command(
-      x0: Int32(sx),
-      y0: Int32(sy),
-      x1: Int32(ex),
-      y1: Int32(ey),
+      x0: sx,
+      y0: sy,
+      x1: ex,
+      y1: ey,
       stroke_width: strokeWidth,
       r: rgba.r,
       g: rgba.g,
@@ -1094,7 +1536,7 @@ final class RustDocumentSession {
   }
 
   private func makePathStyle(color: NSColor, strokeWidth: UInt32) -> vs_path_style {
-    let rgba = colorComponents(color)
+    let rgba = quantizedColor(color)
     return vs_path_style(
       stroke_width: max(1, strokeWidth),
       r: rgba.r,
@@ -1111,8 +1553,7 @@ final class RustDocumentSession {
     var lastX = Int32.min
     var lastY = Int32.min
     for point in points {
-      let x = Int32(clampToImageCoordinate(Int(point.x.rounded()), limit: width))
-      let y = Int32(clampToImageCoordinate(Int(point.y.rounded()), limit: height))
+      let (x, y) = quantizedImagePoint(point)
       if x == lastX, y == lastY {
         continue
       }
@@ -1125,14 +1566,13 @@ final class RustDocumentSession {
   }
 
   private func makeTextCommand(at point: CGPoint, style: TextAnnotationStyle) -> vs_text_command {
-    let x = clampToImageCoordinate(Int(point.x.rounded()), limit: width)
-    let y = clampToImageCoordinate(Int(point.y.rounded()), limit: height)
-    let color = colorComponents(style.color)
+    let (x, y) = quantizedImagePoint(point)
+    let color = quantizedColor(style.color)
     let fontPx = UInt32(clampToRange(Int(style.fontSize.rounded()), min: 8, max: 96))
 
     return vs_text_command(
-      x: Int32(x),
-      y: Int32(y),
+      x: x,
+      y: y,
       font_px: fontPx,
       r: color.r,
       g: color.g,
@@ -1142,59 +1582,72 @@ final class RustDocumentSession {
   }
 
   private func makePixelateCommand(from imageRect: CGRect) -> vs_pixelate_rect_command {
-    let normalized = imageRect.standardized
-
-    let x = clampToImageCoordinate(Int(normalized.minX.rounded(.down)), limit: width)
-    let y = clampToImageCoordinate(Int(normalized.minY.rounded(.down)), limit: height)
-
-    let maxWidth = max(1, width - x)
-    let maxHeight = max(1, height - y)
-    let commandWidth = min(maxWidth, max(1, Int(normalized.width.rounded(.up))))
-    let commandHeight = min(maxHeight, max(1, Int(normalized.height.rounded(.up))))
+    let rect = quantizedImageRect(imageRect)
 
     return vs_pixelate_rect_command(
-      x: Int32(x),
-      y: Int32(y),
-      width: Int32(commandWidth),
-      height: Int32(commandHeight),
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
       block_size: 12
     )
   }
 
   private func makeBlurCommand(from imageRect: CGRect) -> vs_blur_rect_command {
-    let normalized = imageRect.standardized
-
-    let x = clampToImageCoordinate(Int(normalized.minX.rounded(.down)), limit: width)
-    let y = clampToImageCoordinate(Int(normalized.minY.rounded(.down)), limit: height)
-
-    let maxWidth = max(1, width - x)
-    let maxHeight = max(1, height - y)
-    let commandWidth = min(maxWidth, max(1, Int(normalized.width.rounded(.up))))
-    let commandHeight = min(maxHeight, max(1, Int(normalized.height.rounded(.up))))
+    let rect = quantizedImageRect(imageRect)
 
     return vs_blur_rect_command(
-      x: Int32(x),
-      y: Int32(y),
-      width: Int32(commandWidth),
-      height: Int32(commandHeight),
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
       radius: 4
     )
-  }
-
-  private func clampToImageCoordinate(_ value: Int, limit: Int) -> Int {
-    guard limit > 0 else {
-      return 0
-    }
-    return min(max(0, value), limit - 1)
   }
 
   private func clampToRange(_ value: Int, min lower: Int, max upper: Int) -> Int {
     Swift.max(lower, Swift.min(value, upper))
   }
 
-  private func colorComponents(_ color: NSColor) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+  private func quantizedImageRect(_ imageRect: CGRect) -> vs_i32_rect {
+    var raw = vs_i32_rect()
+    let status = vs_quantize_image_rect(
+      UInt32(max(1, width)),
+      UInt32(max(1, height)),
+      vs_f32_rect(
+        x: Float(imageRect.origin.x),
+        y: Float(imageRect.origin.y),
+        width: Float(imageRect.size.width),
+        height: Float(imageRect.size.height)
+      ),
+      &raw
+    )
+    if status == 0 {
+      return raw
+    }
+    return vs_i32_rect(x: 0, y: 0, width: Int32(max(1, width)), height: Int32(max(1, height)))
+  }
+
+  private func quantizedImagePoint(_ point: CGPoint) -> (Int32, Int32) {
+    var outX: Int32 = 0
+    var outY: Int32 = 0
+    let status = vs_quantize_image_point(
+      UInt32(max(1, width)),
+      UInt32(max(1, height)),
+      Float(point.x),
+      Float(point.y),
+      &outX,
+      &outY
+    )
+    if status == 0 {
+      return (outX, outY)
+    }
+    return (0, 0)
+  }
+
+  private func quantizedColor(_ color: NSColor) -> vs_rgba8 {
     guard let rgb = color.usingColorSpace(.deviceRGB) else {
-      return (255, 255, 255, 245)
+      return vs_rgba8(r: 255, g: 255, b: 255, a: 245)
     }
 
     var r: CGFloat = 1
@@ -1203,18 +1656,12 @@ final class RustDocumentSession {
     var a: CGFloat = 1
     rgb.getRed(&r, green: &g, blue: &b, alpha: &a)
 
-    return (
-      uint8FromUnit(r),
-      uint8FromUnit(g),
-      uint8FromUnit(b),
-      uint8FromUnit(a)
-    )
-  }
-
-  private func uint8FromUnit(_ value: CGFloat) -> UInt8 {
-    let scaled = (value * 255).rounded()
-    let clamped = Swift.max(0, Swift.min(255, scaled))
-    return UInt8(clamped)
+    var raw = vs_rgba8()
+    let status = vs_quantize_rgba(Float(r), Float(g), Float(b), Float(a), &raw)
+    if status == 0 {
+      return raw
+    }
+    return vs_rgba8(r: 255, g: 255, b: 255, a: 245)
   }
 }
 
@@ -1397,6 +1844,29 @@ final class RustTimelineSession {
       webcamTrackVisible: raw.webcam_track_visible,
       textOverlayCount: Int(raw.text_overlay_count)
     )
+  }
+
+  func bootstrapCaptureTracks(sourceHasAudio: Bool, sourceHasWebcamAsset: Bool) -> Bool {
+    vs_timeline_bootstrap_capture_tracks(handle, sourceHasAudio, sourceHasWebcamAsset) == 0
+  }
+
+  func addTextClipAutoTrack(startMS: UInt32, endMS: UInt32, text: String) -> UInt32? {
+    let bytes = Array(text.utf8)
+    guard !bytes.isEmpty else {
+      return nil
+    }
+    var clipID: UInt32 = 0
+    let status = bytes.withUnsafeBufferPointer { ptr in
+      vs_timeline_add_text_clip_auto_track(
+        handle,
+        startMS,
+        endMS,
+        ptr.baseAddress,
+        UInt32(ptr.count),
+        &clipID
+      )
+    }
+    return status == 0 ? clipID : nil
   }
 
   // MARK: Clips

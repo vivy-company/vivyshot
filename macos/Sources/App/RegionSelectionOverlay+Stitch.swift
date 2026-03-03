@@ -172,11 +172,24 @@ extension RegionSelectionView {
   }
 
   func resetStitchAutoScrollState() {
-    stitchAutoScrollDirectionSign = -1
-    stitchAutoScrollNoMotionTicks = 0
-    stitchAutoScrollDidFlipDirection = false
+    let state = RustCoreBridge.shared.resetStitchAutoScrollState()
+    applyRustStitchAutoScrollState(state)
     stitchAutoScrollTrusted = false
     stitchTargetApp = nil
+  }
+
+  func currentRustStitchAutoScrollState() -> RustStitchAutoScrollState {
+    RustStitchAutoScrollState(
+      directionSign: stitchAutoScrollDirectionSign,
+      noMotionTicks: UInt32(max(0, stitchAutoScrollNoMotionTicks)),
+      didFlipDirection: stitchAutoScrollDidFlipDirection
+    )
+  }
+
+  func applyRustStitchAutoScrollState(_ state: RustStitchAutoScrollState) {
+    stitchAutoScrollDirectionSign = state.directionSign == 0 ? -1 : state.directionSign
+    stitchAutoScrollNoMotionTicks = Int(state.noMotionTicks)
+    stitchAutoScrollDidFlipDirection = state.didFlipDirection
   }
 
   func refreshAutoScrollTrust(promptIfNeeded: Bool) {
@@ -267,26 +280,14 @@ extension RegionSelectionView {
   }
 
   func updateAutoScrollFeedback(didMerge: Bool) {
-    guard stitchAutoScrollEnabled else {
-      return
-    }
-
-    if didMerge {
-      stitchAutoScrollNoMotionTicks = 0
-      return
-    }
-
-    stitchAutoScrollNoMotionTicks += 1
-    guard !stitchDirectionLocked,
-          !stitchAutoScrollDidFlipDirection,
-          stitchAutoScrollNoMotionTicks >= 4
-    else {
-      return
-    }
-
-    stitchAutoScrollDidFlipDirection = true
-    stitchAutoScrollNoMotionTicks = 0
-    stitchAutoScrollDirectionSign *= -1
+    let next = RustCoreBridge.shared.updateStitchAutoScrollState(
+      enabled: stitchAutoScrollEnabled,
+      directionLocked: stitchDirectionLocked,
+      didMerge: didMerge,
+      thresholdTicks: 4,
+      state: currentRustStitchAutoScrollState()
+    )
+    applyRustStitchAutoScrollState(next)
   }
 
   func processStitchCapturedFrame(_ frame: CGImage) -> Bool {

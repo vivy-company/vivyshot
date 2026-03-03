@@ -81,8 +81,5 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.tests
         GENERATE_INFOPLIST_FILE: YES
-      configs:
-        Debug:
-          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShotDev.app/Contents/MacOS/VivyShotDev"
-        Release:
-          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShot.app/Contents/MacOS/VivyShot"
+        TEST_HOST: ""
+        BUNDLE_LOADER: ""

@@ -327,14 +327,28 @@ enum VideoCompositor {
     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
       DispatchQueue.global(qos: .userInitiated).async {
         do {
-          let frameRate: Double = 12
+          let requestedStartMS = UInt32(max(0, (startSeconds * 1000).rounded()))
+          let requestedEndMS = UInt32(max(Double(requestedStartMS + 1), (endSeconds * 1000).rounded()))
+          guard let gifPlan = RustCoreBridge.shared.buildGIFExportPlan(
+            startMS: requestedStartMS,
+            endMS: requestedEndMS,
+            preferredFPS: 12,
+            maxDimension: 960
+          ) else {
+            throw NSError(
+              domain: "com.vivyshot.video",
+              code: -46,
+              userInfo: [NSLocalizedDescriptionKey: "Unable to build GIF export plan."]
+            )
+          }
+
           let generator = AVAssetImageGenerator(asset: AVAsset(url: sourceURL))
           generator.appliesPreferredTrackTransform = true
-          generator.maximumSize = CGSize(width: 960, height: 960)
+          generator.maximumSize = CGSize(width: gifPlan.maxDimension, height: gifPlan.maxDimension)
           generator.requestedTimeToleranceAfter = .zero
           generator.requestedTimeToleranceBefore = .zero
 
-          let frameCount = max(1, Int(ceil((endSeconds - startSeconds) * frameRate)))
+          let frameCount = max(1, gifPlan.frameCount)
           guard let destination = CGImageDestinationCreateWithURL(
             outputURL as CFURL,
             UTType.gif.identifier as CFString,
@@ -355,10 +369,13 @@ enum VideoCompositor {
           ]
           CGImageDestinationSetProperties(destination, gifProps as CFDictionary)
 
-          let frameDelay = 1.0 / frameRate
+          let frameDelay = Double(gifPlan.frameDelayMS) / 1000.0
           for index in 0 ..< frameCount {
-            let progress = Double(index) / Double(max(1, frameCount - 1))
-            let second = startSeconds + (endSeconds - startSeconds) * progress
+            let timeMS = RustCoreBridge.shared.gifFrameTimeMS(plan: gifPlan, index: index)
+              ?? UInt32(Double(gifPlan.startMS)
+                + (Double(gifPlan.endMS - gifPlan.startMS)
+                  * (Double(index) / Double(max(1, frameCount - 1)))))
+            let second = Double(timeMS) / 1000.0
             let time = CMTime(seconds: second, preferredTimescale: 600)
             let image = try generator.copyCGImage(at: time, actualTime: nil)
             let frameProps: [CFString: Any] = [
