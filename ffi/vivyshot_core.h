@@ -318,6 +318,13 @@ int32_t vs_stitch_merge_bgra(struct vs_bgra_image_view base,
                              uint8_t side,
                              struct vs_bgra_owned_image *out_image);
 
+int32_t vs_bgra_crop(struct vs_bgra_image_view source,
+                     uint32_t x,
+                     uint32_t y,
+                     uint32_t width,
+                     uint32_t height,
+                     struct vs_bgra_owned_image *out_image);
+
 void vs_bgra_owned_image_destroy(struct vs_bgra_owned_image *image);
 
 int32_t vs_add_rect(void *doc, struct vs_rect_command cmd);

@@ -1068,6 +1068,47 @@ fn merge_bgra_frames(base: &OwnedBgraFrame, segment: &OwnedBgraFrame, side: u8) 
   })
 }
 
+fn crop_bgra_frame(frame: &OwnedBgraFrame, x: u32, y: u32, width: u32, height: u32) -> Option<OwnedBgraFrame> {
+  if width == 0 || height == 0 {
+    return None;
+  }
+
+  let x_end = x.checked_add(width)?;
+  let y_end = y.checked_add(height)?;
+  if x_end > frame.width || y_end > frame.height {
+    return None;
+  }
+
+  let src_stride = frame.stride as usize;
+  let src_row_bytes = frame.row_bytes()?;
+  if src_stride < src_row_bytes {
+    return None;
+  }
+
+  let x_usize = x as usize;
+  let y_usize = y as usize;
+  let width_usize = width as usize;
+  let height_usize = height as usize;
+  let out_row_bytes = width_usize.checked_mul(4)?;
+  let out_len = out_row_bytes.checked_mul(height_usize)?;
+  let mut out_pixels = vec![0u8; out_len];
+
+  for row in 0..height_usize {
+    let src_row = y_usize + row;
+    let src_start = src_row.checked_mul(src_stride)?.checked_add(x_usize.checked_mul(4)?)?;
+    let dst_start = row.checked_mul(out_row_bytes)?;
+    out_pixels[dst_start..dst_start + out_row_bytes]
+      .copy_from_slice(&frame.pixels[src_start..src_start + out_row_bytes]);
+  }
+
+  Some(OwnedBgraFrame {
+    width,
+    height,
+    stride: out_row_bytes as u32,
+    pixels: out_pixels,
+  })
+}
+
 fn default_stitch_session_result(
   session: &vs_stitch_session,
   accepted: bool,
@@ -1555,6 +1596,35 @@ pub unsafe extern "C" fn vs_stitch_merge_bgra(
 
   unsafe {
     *out_image = merged.to_owned_image();
+  }
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_bgra_crop(
+  source: vs_bgra_image_view,
+  x: u32,
+  y: u32,
+  width: u32,
+  height: u32,
+  out_image: *mut vs_bgra_owned_image,
+) -> i32 {
+  if out_image.is_null() {
+    return -1;
+  }
+
+  let source_owned = match copy_bgra_view_to_owned(source) {
+    Some(v) => v,
+    None => return -2,
+  };
+  let cropped = match crop_bgra_frame(&source_owned, x, y, width, height) {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  // SAFETY: `out_image` is validated non-null above and points to writable memory from caller.
+  unsafe {
+    *out_image = cropped.to_owned_image();
   }
   0
 }
@@ -5363,6 +5433,50 @@ mod tests {
 
       vs_bgra_owned_image_destroy(&mut merged_bottom);
       vs_bgra_owned_image_destroy(&mut merged_top);
+    }
+  }
+
+  #[test]
+  fn bgra_crop_extracts_expected_region() {
+    let width = 8usize;
+    let height = 6usize;
+    let stride = width * 4;
+    let mut pixels = vec![0u8; stride * height];
+
+    for y in 0..height {
+      for x in 0..width {
+        let idx = y * stride + x * 4;
+        pixels[idx] = (x as u8).wrapping_mul(10);
+        pixels[idx + 1] = (y as u8).wrapping_mul(20);
+        pixels[idx + 2] = 140;
+        pixels[idx + 3] = 255;
+      }
+    }
+
+    let source_view = vs_bgra_image_view {
+      width: width as u32,
+      height: height as u32,
+      stride: stride as u32,
+      ptr: pixels.as_ptr(),
+      len: pixels.len(),
+    };
+    let mut cropped = vs_bgra_owned_image {
+      width: 0,
+      height: 0,
+      stride: 0,
+      ptr: std::ptr::null_mut(),
+      len: 0,
+    };
+
+    // SAFETY: view references valid source bytes and owned image is released below.
+    unsafe {
+      assert_eq!(vs_bgra_crop(source_view, 2, 1, 3, 4, &mut cropped), 0);
+      assert_eq!(cropped.width, 3);
+      assert_eq!(cropped.height, 4);
+      let cropped_pixels = std::slice::from_raw_parts(cropped.ptr, cropped.len);
+      assert_eq!(pixel_bgra(cropped_pixels, cropped.stride as usize, 0, 0), (20, 20, 140, 255));
+      assert_eq!(pixel_bgra(cropped_pixels, cropped.stride as usize, 2, 3), (40, 80, 140, 255));
+      vs_bgra_owned_image_destroy(&mut cropped);
     }
   }
 

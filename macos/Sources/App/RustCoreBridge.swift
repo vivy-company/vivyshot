@@ -92,6 +92,74 @@ final class RustCoreBridge {
   func makeTimelineSession(durationMS: UInt32, width: UInt32, height: UInt32) -> RustTimelineSession? {
     RustTimelineSession(durationMS: durationMS, width: width, height: height)
   }
+
+  func cropImage(_ image: CGImage, imageRect: CGRect) -> CGImage? {
+    guard let raster = RasterImage.from(cgImage: image) else {
+      return nil
+    }
+
+    let standardized = imageRect.standardized.integral
+    let maxWidth = raster.width
+    let maxHeight = raster.height
+    guard maxWidth > 0, maxHeight > 0 else {
+      return nil
+    }
+
+    var x = Int(floor(standardized.minX))
+    var y = Int(floor(standardized.minY))
+    var width = Int(ceil(standardized.width))
+    var height = Int(ceil(standardized.height))
+    guard width > 0, height > 0 else {
+      return nil
+    }
+
+    x = min(max(0, x), maxWidth - 1)
+    y = min(max(0, y), maxHeight - 1)
+    width = min(width, maxWidth - x)
+    height = min(height, maxHeight - y)
+    guard width > 0, height > 0 else {
+      return nil
+    }
+
+    var rawCropped = vs_bgra_owned_image(width: 0, height: 0, stride: 0, ptr: nil, len: 0)
+    defer {
+      vs_bgra_owned_image_destroy(&rawCropped)
+    }
+
+    let status = raster.pixels.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return Int32(-1)
+      }
+      let view = vs_bgra_image_view(
+        width: UInt32(raster.width),
+        height: UInt32(raster.height),
+        stride: UInt32(raster.stride),
+        ptr: base,
+        len: UInt(raw.count)
+      )
+      return vs_bgra_crop(
+        view,
+        UInt32(x),
+        UInt32(y),
+        UInt32(width),
+        UInt32(height),
+        &rawCropped
+      )
+    }
+
+    guard status == 0, let ptr = rawCropped.ptr, rawCropped.len > 0 else {
+      return nil
+    }
+
+    let pixels = Array(UnsafeBufferPointer(start: ptr, count: Int(rawCropped.len)))
+    let cropped = RasterImage(
+      width: Int(rawCropped.width),
+      height: Int(rawCropped.height),
+      stride: Int(rawCropped.stride),
+      pixels: pixels
+    )
+    return cropped.toCGImage()
+  }
 }
 
 final class RustVideoSession {
