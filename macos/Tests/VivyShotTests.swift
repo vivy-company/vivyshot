@@ -150,4 +150,75 @@ final class VivyShotTests: XCTestCase {
       -3
     )
   }
+
+  func testRustFFIStatusSemantics() {
+    func isSuccess(_ raw: Int32, allowNoChange: Bool = false) -> Bool {
+      if raw == VS_STATUS_OK {
+        return true
+      }
+      if allowNoChange && raw == VS_STATUS_NO_CHANGE {
+        return true
+      }
+      return false
+    }
+
+    XCTAssertTrue(isSuccess(VS_STATUS_OK))
+    XCTAssertFalse(isSuccess(VS_STATUS_NO_CHANGE))
+    XCTAssertTrue(isSuccess(VS_STATUS_NO_CHANGE, allowNoChange: true))
+    XCTAssertFalse(isSuccess(VS_STATUS_INVALID_ARGUMENT))
+    XCTAssertFalse(isSuccess(VS_STATUS_NULL_POINTER))
+  }
+
+  func testVideoDecisionAndABIVersionStatusContracts() {
+    let rawPlan = vs_video_export_plan(
+      trim_start_ms: 100,
+      trim_end_ms: 800,
+      key_event_count: 2,
+      click_event_count: 1,
+      plan_mode: 1,
+      include_audio: true,
+      include_webcam: true,
+      text_overlay_count: 1,
+      overlay_item_count: 3,
+      requires_intermediate_for_gif: true,
+      needs_custom_compositor: true
+    )
+    var decision = vs_video_export_decision(
+      use_custom_compositor: false,
+      requires_intermediate_for_gif: false,
+      include_audio: false,
+      include_webcam: false
+    )
+
+    XCTAssertEqual(
+      vs_video_derive_export_decision(UInt8(VS_VIDEO_EXPORT_TARGET_MP4), rawPlan, &decision),
+      VS_STATUS_OK
+    )
+    XCTAssertTrue(decision.use_custom_compositor)
+    XCTAssertTrue(decision.requires_intermediate_for_gif)
+
+    XCTAssertEqual(
+      vs_video_derive_export_decision(255, rawPlan, &decision),
+      VS_STATUS_INVALID_ARGUMENT
+    )
+    XCTAssertEqual(
+      vs_video_derive_export_decision(UInt8(VS_VIDEO_EXPORT_TARGET_GIF), rawPlan, nil),
+      VS_STATUS_NULL_POINTER
+    )
+
+    var major: UInt32 = 0
+    var minor: UInt32 = 0
+    var patch: UInt32 = 0
+    XCTAssertEqual(
+      vs_core_abi_version(&major, &minor, &patch),
+      VS_STATUS_OK
+    )
+    XCTAssertEqual(major, UInt32(VS_CORE_ABI_VERSION_MAJOR))
+    XCTAssertEqual(minor, UInt32(VS_CORE_ABI_VERSION_MINOR))
+    XCTAssertEqual(patch, UInt32(VS_CORE_ABI_VERSION_PATCH))
+    XCTAssertEqual(
+      vs_core_abi_version(nil, &minor, &patch),
+      VS_STATUS_NULL_POINTER
+    )
+  }
 }

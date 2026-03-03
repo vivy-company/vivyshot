@@ -690,14 +690,9 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
     )
   }
 
-  private func shouldUseCompositeExportPlan(plan: RustVideoExportPlan?) -> Bool {
-    guard let plan else { return false }
-    return plan.planMode == RustVideoPlanMode.compositeMP4.rawValue || plan.needsCustomCompositor
-  }
-
-  private func requiresIntermediateGIF(plan: RustVideoExportPlan?) -> Bool {
-    guard let plan else { return false }
-    return plan.requiresIntermediateForGIF || plan.planMode == RustVideoPlanMode.compositeMP4.rawValue
+  private func rustDecision(for target: RustVideoExportTarget, plan: RustVideoExportPlan?) -> RustVideoExportDecision? {
+    guard let plan else { return nil }
+    return RustCoreBridge.shared.deriveVideoExportDecision(target: target, plan: plan)
   }
 
   private func persistTrimIntoRustModel(_ range: CMTimeRange) {
@@ -775,8 +770,9 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
 
       let exportContext = currentRustExportContext()
       let exportPlan = syncRustExportPlan(using: exportContext)
-      let exportIncludeAudio = exportPlan?.includeAudio ?? (exportContext.sourceHasAudio && exportContext.audioTrackVisible)
-      let useCustomCompositor = shouldUseCompositeExportPlan(plan: exportPlan)
+      let decision = rustDecision(for: .mp4, plan: exportPlan)
+      let exportIncludeAudio = decision?.includeAudio ?? (exportContext.sourceHasAudio && exportContext.audioTrackVisible)
+      let useCustomCompositor = decision?.useCustomCompositor ?? false
 
       if useCustomCompositor {
         try await VideoCompositor.exportCompositeMP4(
@@ -838,13 +834,14 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate, N
       persistTrimIntoRustModel(trimRange)
       let exportContext = currentRustExportContext()
       let exportPlan = syncRustExportPlan(using: exportContext)
+      let decision = rustDecision(for: .gif, plan: exportPlan)
 
       var gifSourceURL = inputURL
       var gifStart = trimRange.start.seconds
       var gifEnd = trimRange.start.seconds + trimRange.duration.seconds
 
-      if requiresIntermediateGIF(plan: exportPlan) {
-        let gifExportIncludeAudio = exportPlan?.includeAudio ?? (exportContext.sourceHasAudio && exportContext.audioTrackVisible)
+      if decision?.requiresIntermediateForGIF ?? false {
+        let gifExportIncludeAudio = decision?.includeAudio ?? (exportContext.sourceHasAudio && exportContext.audioTrackVisible)
         let temporaryURL = makeTemporaryExportURL(extension: "mp4")
         try await VideoCompositor.exportCompositeMP4(
           sourceURL: inputURL,

@@ -14,6 +14,18 @@ Optional custom session count:
 ./scripts/memory-bench.sh 150
 ```
 
+CI benchmark gate:
+
+```sh
+./scripts/ci-bench-gate.sh 20
+```
+
+Gate knobs (optional):
+
+```sh
+VIVYSHOT_BENCH_MAX_AVG_MS=180 VIVYSHOT_BENCH_MAX_P95_MS=280 ./scripts/ci-bench-gate.sh 20
+```
+
 What it does:
 
 - Runs 100 (or custom) synthetic edit sessions in Rust core.

@@ -12,6 +12,8 @@ pub enum TrimHandle {
 
 pub const VIDEO_PLAN_MODE_PASSTHROUGH: u8 = 0;
 pub const VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = 1;
+pub const VIDEO_EXPORT_TARGET_MP4: u8 = 0;
+pub const VIDEO_EXPORT_TARGET_GIF: u8 = 1;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VideoExportContext {
@@ -35,6 +37,14 @@ pub struct VideoExportPlan {
     pub overlay_item_count: u32,
     pub requires_intermediate_for_gif: bool,
     pub needs_custom_compositor: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VideoExportDecision {
+    pub use_custom_compositor: bool,
+    pub requires_intermediate_for_gif: bool,
+    pub include_audio: bool,
+    pub include_webcam: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -246,6 +256,27 @@ pub fn timeline_collect_text_export_clips(
             end_ms: clip.end_ms,
         })
         .collect()
+}
+
+pub fn derive_video_export_decision(
+    target: u8,
+    plan: VideoExportPlan,
+) -> Option<VideoExportDecision> {
+    let is_composite =
+        plan.plan_mode == VIDEO_PLAN_MODE_COMPOSITE_MP4 || plan.needs_custom_compositor;
+    let requires_intermediate_for_gif = plan.requires_intermediate_for_gif || is_composite;
+    let use_custom_compositor = match target {
+        VIDEO_EXPORT_TARGET_MP4 => is_composite,
+        VIDEO_EXPORT_TARGET_GIF => requires_intermediate_for_gif,
+        _ => return None,
+    };
+
+    Some(VideoExportDecision {
+        use_custom_compositor,
+        requires_intermediate_for_gif,
+        include_audio: plan.include_audio,
+        include_webcam: plan.include_webcam,
+    })
 }
 
 pub fn normalize_click_point(normalized_x: f32, normalized_y: f32) -> Option<(f32, f32)> {
@@ -1314,8 +1345,9 @@ pub fn timeline_normalize_text_clip_range(
 pub mod video {
     pub use super::{
         click_event_is_duplicate, compute_video_export_plan, derive_video_export_context,
-        normalize_click_point, VideoExportContext, VideoExportPlan, VIDEO_PLAN_MODE_COMPOSITE_MP4,
-        VIDEO_PLAN_MODE_PASSTHROUGH,
+        derive_video_export_decision, normalize_click_point, VideoExportContext,
+        VideoExportDecision, VideoExportPlan, VIDEO_EXPORT_TARGET_GIF, VIDEO_EXPORT_TARGET_MP4,
+        VIDEO_PLAN_MODE_COMPOSITE_MP4, VIDEO_PLAN_MODE_PASSTHROUGH,
     };
 }
 
@@ -1386,6 +1418,34 @@ mod tests {
         assert!(!plan.include_audio);
         assert!(plan.needs_custom_compositor);
         assert_eq!(plan.overlay_item_count, 3);
+    }
+
+    #[test]
+    fn export_decision_derives_mp4_and_gif_paths_from_plan() {
+        let plan = compute_video_export_plan(
+            100,
+            800,
+            2,
+            1,
+            VideoExportContext {
+                source_has_audio: true,
+                source_has_webcam_asset: true,
+                audio_track_visible: false,
+                webcam_track_visible: true,
+                text_overlay_count: 1,
+            },
+        )
+        .unwrap();
+
+        let mp4 = derive_video_export_decision(VIDEO_EXPORT_TARGET_MP4, plan).unwrap();
+        assert!(mp4.use_custom_compositor);
+        assert!(mp4.requires_intermediate_for_gif);
+        assert!(!mp4.include_audio);
+        assert!(mp4.include_webcam);
+
+        let gif = derive_video_export_decision(VIDEO_EXPORT_TARGET_GIF, plan).unwrap();
+        assert!(gif.use_custom_compositor);
+        assert!(gif.requires_intermediate_for_gif);
     }
 
     #[test]

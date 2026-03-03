@@ -25,6 +25,7 @@ use vivyshot_domain::{
     bgra_view_to_owned as domain_bgra_view_to_owned,
     build_gif_export_plan as domain_build_gif_export_plan,
     click_event_is_duplicate as domain_click_event_is_duplicate,
+    derive_video_export_decision as domain_derive_video_export_decision,
     gif_frame_time_ms as domain_gif_frame_time_ms,
     normalize_click_point as domain_normalize_click_point,
     normalize_trim_range as domain_normalize_trim_range,
@@ -51,8 +52,8 @@ mod ffi;
 use ffi::document as ffi_document;
 use ffi::domain::{
     to_domain_f32_rect, to_domain_gif_plan, to_domain_stitch_autoscroll_state,
-    to_domain_trim_handle, to_ffi_gif_plan, to_ffi_i32_rect, to_ffi_rgba8,
-    to_ffi_stitch_autoscroll_state,
+    to_domain_trim_handle, to_domain_video_export_plan, to_ffi_gif_plan, to_ffi_i32_rect,
+    to_ffi_rgba8, to_ffi_stitch_autoscroll_state, to_ffi_video_export_decision,
 };
 use ffi::encode as ffi_encode;
 use ffi::geometry as ffi_geometry;
@@ -230,6 +231,15 @@ pub struct vs_video_export_plan {
     pub overlay_item_count: u32,
     pub requires_intermediate_for_gif: bool,
     pub needs_custom_compositor: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_video_export_decision {
+    pub use_custom_compositor: bool,
+    pub requires_intermediate_for_gif: bool,
+    pub include_audio: bool,
+    pub include_webcam: bool,
 }
 
 #[repr(C)]
@@ -580,6 +590,24 @@ pub extern "C" fn vs_core_version() -> *const c_char {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn vs_core_abi_version(
+    out_major: *mut u32,
+    out_minor: *mut u32,
+    out_patch: *mut u32,
+) -> i32 {
+    if out_major.is_null() || out_minor.is_null() || out_patch.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+
+    unsafe {
+        *out_major = VS_CORE_ABI_VERSION_MAJOR;
+        *out_minor = VS_CORE_ABI_VERSION_MINOR;
+        *out_patch = VS_CORE_ABI_VERSION_PATCH;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn vs_create_document_from_bgra(
     width: u32,
     height: u32,
@@ -795,6 +823,33 @@ pub unsafe extern "C" fn vs_video_compute_export_plan(
         *out_plan = plan;
     }
     0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_derive_export_decision(
+    target: u8,
+    plan: vs_video_export_plan,
+    out_decision: *mut vs_video_export_decision,
+) -> i32 {
+    if out_decision.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+
+    let target = match target {
+        VS_VIDEO_EXPORT_TARGET_MP4 | VS_VIDEO_EXPORT_TARGET_GIF => target,
+        _ => return VS_STATUS_INVALID_ARGUMENT,
+    };
+
+    let Some(decision) =
+        domain_derive_video_export_decision(target, to_domain_video_export_plan(plan))
+    else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+
+    unsafe {
+        *out_decision = to_ffi_video_export_decision(decision);
+    }
+    VS_STATUS_OK
 }
 
 #[no_mangle]
@@ -1159,6 +1214,12 @@ const VS_KEY_MOD_CONTROL: u32 = 1 << 3;
 const VS_TRIM_HANDLE_UNKNOWN: u8 = 0;
 const VS_TRIM_HANDLE_START: u8 = 1;
 const VS_TRIM_HANDLE_END: u8 = 2;
+pub const VS_VIDEO_EXPORT_TARGET_MP4: u8 = 0;
+pub const VS_VIDEO_EXPORT_TARGET_GIF: u8 = 1;
+
+pub const VS_CORE_ABI_VERSION_MAJOR: u32 = 1;
+pub const VS_CORE_ABI_VERSION_MINOR: u32 = 0;
+pub const VS_CORE_ABI_VERSION_PATCH: u32 = 0;
 
 pub const VS_STATUS_OK: i32 = 0;
 pub const VS_STATUS_NO_CHANGE: i32 = 1;

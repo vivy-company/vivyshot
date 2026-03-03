@@ -47,6 +47,13 @@ struct RustVideoExportPlan {
   let needsCustomCompositor: Bool
 }
 
+struct RustVideoExportDecision {
+  let useCustomCompositor: Bool
+  let requiresIntermediateForGIF: Bool
+  let includeAudio: Bool
+  let includeWebcam: Bool
+}
+
 struct RustVideoExportContext {
   let sourceHasAudio: Bool
   let sourceHasWebcamAsset: Bool
@@ -58,6 +65,11 @@ struct RustVideoExportContext {
 enum RustVideoPlanMode: UInt8 {
   case passthrough = 0
   case compositeMP4 = 1
+}
+
+enum RustVideoExportTarget: UInt8 {
+  case mp4 = 0
+  case gif = 1
 }
 
 enum RustImageEncodeFormat: UInt8 {
@@ -330,6 +342,41 @@ final class RustCoreBridge {
       overlayItemCount: Int(raw.overlay_item_count),
       requiresIntermediateForGIF: raw.requires_intermediate_for_gif,
       needsCustomCompositor: raw.needs_custom_compositor
+    )
+  }
+
+  func deriveVideoExportDecision(
+    target: RustVideoExportTarget,
+    plan: RustVideoExportPlan
+  ) -> RustVideoExportDecision? {
+    let rawPlan = vs_video_export_plan(
+      trim_start_ms: UInt32(max(0, plan.trimStartMS)),
+      trim_end_ms: UInt32(max(0, plan.trimEndMS)),
+      key_event_count: UInt32(max(0, plan.keyEventCount)),
+      click_event_count: UInt32(max(0, plan.clickEventCount)),
+      plan_mode: plan.planMode,
+      include_audio: plan.includeAudio,
+      include_webcam: plan.includeWebcam,
+      text_overlay_count: UInt32(max(0, plan.textOverlayCount)),
+      overlay_item_count: UInt32(max(0, plan.overlayItemCount)),
+      requires_intermediate_for_gif: plan.requiresIntermediateForGIF,
+      needs_custom_compositor: plan.needsCustomCompositor
+    )
+    var rawDecision = vs_video_export_decision(
+      use_custom_compositor: false,
+      requires_intermediate_for_gif: false,
+      include_audio: false,
+      include_webcam: false
+    )
+    let status = vs_video_derive_export_decision(target.rawValue, rawPlan, &rawDecision)
+    guard RustFFIStatus.isSuccess(status) else {
+      return nil
+    }
+    return RustVideoExportDecision(
+      useCustomCompositor: rawDecision.use_custom_compositor,
+      requiresIntermediateForGIF: rawDecision.requires_intermediate_for_gif,
+      includeAudio: rawDecision.include_audio,
+      includeWebcam: rawDecision.include_webcam
     )
   }
 

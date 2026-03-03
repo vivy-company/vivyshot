@@ -1,11 +1,14 @@
 use vivyshot_core::{
-    vs_click_event_is_duplicate, vs_key_event_is_duplicate, vs_normalize_click_point,
-    vs_normalize_key_token, vs_video_click_event, vs_video_compute_export_plan,
-    vs_video_export_context, vs_video_export_plan, vs_video_key_event,
+    vs_click_event_is_duplicate, vs_core_abi_version, vs_key_event_is_duplicate,
+    vs_normalize_click_point, vs_normalize_key_token, vs_video_click_event,
+    vs_video_compute_export_plan, vs_video_derive_export_decision, vs_video_export_context,
+    vs_video_export_decision, vs_video_export_plan, vs_video_key_event,
     vs_video_session_add_click_event, vs_video_session_add_key_event, vs_video_session_config,
     vs_video_session_create, vs_video_session_deserialize_json, vs_video_session_destroy,
     vs_video_session_get_export_plan, vs_video_session_serialize_json,
-    vs_video_session_set_export_context, vs_video_session_set_trim,
+    vs_video_session_set_export_context, vs_video_session_set_trim, VS_CORE_ABI_VERSION_MAJOR,
+    VS_CORE_ABI_VERSION_MINOR, VS_CORE_ABI_VERSION_PATCH, VS_STATUS_INVALID_ARGUMENT,
+    VS_STATUS_NULL_POINTER, VS_VIDEO_EXPORT_TARGET_GIF, VS_VIDEO_EXPORT_TARGET_MP4,
 };
 
 fn sample_config() -> vs_video_session_config {
@@ -32,6 +35,83 @@ fn blank_plan() -> vs_video_export_plan {
         overlay_item_count: 0,
         requires_intermediate_for_gif: false,
         needs_custom_compositor: false,
+    }
+}
+
+fn blank_decision() -> vs_video_export_decision {
+    vs_video_export_decision {
+        use_custom_compositor: false,
+        requires_intermediate_for_gif: false,
+        include_audio: false,
+        include_webcam: false,
+    }
+}
+
+#[test]
+fn core_abi_version_contract_matches_exported_constants() {
+    let mut major = 0u32;
+    let mut minor = 0u32;
+    let mut patch = 0u32;
+
+    // SAFETY: output pointers are valid.
+    unsafe {
+        assert_eq!(vs_core_abi_version(&mut major, &mut minor, &mut patch), 0);
+    }
+
+    assert_eq!(major, VS_CORE_ABI_VERSION_MAJOR);
+    assert_eq!(minor, VS_CORE_ABI_VERSION_MINOR);
+    assert_eq!(patch, VS_CORE_ABI_VERSION_PATCH);
+
+    // SAFETY: null pointer check should fail with stable status code.
+    unsafe {
+        assert_eq!(
+            vs_core_abi_version(std::ptr::null_mut(), &mut minor, &mut patch),
+            VS_STATUS_NULL_POINTER
+        );
+    }
+}
+
+#[test]
+fn video_export_decision_contract_validates_target_and_pointer() {
+    let mut plan = blank_plan();
+    plan.plan_mode = 1;
+    plan.include_audio = true;
+    plan.include_webcam = true;
+    let mut decision = blank_decision();
+
+    // SAFETY: output pointer is valid for successful calls.
+    unsafe {
+        assert_eq!(
+            vs_video_derive_export_decision(VS_VIDEO_EXPORT_TARGET_MP4, plan, &mut decision),
+            0
+        );
+    }
+    assert!(decision.use_custom_compositor);
+    assert!(decision.requires_intermediate_for_gif);
+    assert!(decision.include_audio);
+    assert!(decision.include_webcam);
+
+    decision = blank_decision();
+    // SAFETY: output pointer is valid for successful calls.
+    unsafe {
+        assert_eq!(
+            vs_video_derive_export_decision(VS_VIDEO_EXPORT_TARGET_GIF, plan, &mut decision),
+            0
+        );
+    }
+    assert!(decision.use_custom_compositor);
+    assert!(decision.requires_intermediate_for_gif);
+
+    // SAFETY: invalid target/null pointer checks.
+    unsafe {
+        assert_eq!(
+            vs_video_derive_export_decision(255, plan, &mut decision),
+            VS_STATUS_INVALID_ARGUMENT
+        );
+        assert_eq!(
+            vs_video_derive_export_decision(VS_VIDEO_EXPORT_TARGET_MP4, plan, std::ptr::null_mut()),
+            VS_STATUS_NULL_POINTER
+        );
     }
 }
 

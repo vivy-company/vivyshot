@@ -1,16 +1,18 @@
 use crate::{
     vs_f32_point, vs_f32_rect, vs_gif_export_plan, vs_i32_rect, vs_rgba8,
-    vs_stitch_autoscroll_state, vs_video_export_context, vs_video_export_plan,
-    VS_RESIZE_CORNER_BOTTOM, VS_RESIZE_CORNER_BOTTOM_LEFT, VS_RESIZE_CORNER_BOTTOM_RIGHT,
-    VS_RESIZE_CORNER_LEFT, VS_RESIZE_CORNER_RIGHT, VS_RESIZE_CORNER_TOP, VS_RESIZE_CORNER_TOP_LEFT,
-    VS_RESIZE_CORNER_TOP_RIGHT, VS_TRIM_HANDLE_END, VS_TRIM_HANDLE_START, VS_TRIM_HANDLE_UNKNOWN,
+    vs_stitch_autoscroll_state, vs_video_export_context, vs_video_export_decision,
+    vs_video_export_plan, VS_RESIZE_CORNER_BOTTOM, VS_RESIZE_CORNER_BOTTOM_LEFT,
+    VS_RESIZE_CORNER_BOTTOM_RIGHT, VS_RESIZE_CORNER_LEFT, VS_RESIZE_CORNER_RIGHT,
+    VS_RESIZE_CORNER_TOP, VS_RESIZE_CORNER_TOP_LEFT, VS_RESIZE_CORNER_TOP_RIGHT,
+    VS_TRIM_HANDLE_END, VS_TRIM_HANDLE_START, VS_TRIM_HANDLE_UNKNOWN,
 };
 use vivyshot_domain::{
     F32Point as DomainF32Point, F32Rect as DomainF32Rect, GifExportPlan as DomainGifExportPlan,
     I32Rect as DomainI32Rect, ResizeCorner as DomainResizeCorner, Rgba8 as DomainRgba8,
     StitchAutoscrollState as DomainStitchAutoscrollState,
     TimelineTrackSummary as DomainTimelineTrackSummary, TrimHandle as DomainTrimHandle,
-    VideoExportContext as DomainVideoExportContext, VideoExportPlan as DomainVideoExportPlan,
+    VideoExportContext as DomainVideoExportContext,
+    VideoExportDecision as DomainVideoExportDecision, VideoExportPlan as DomainVideoExportPlan,
 };
 
 pub(crate) fn to_domain_trim_handle(raw: u8) -> Option<DomainTrimHandle> {
@@ -101,6 +103,33 @@ pub(crate) fn to_ffi_video_export_plan(plan: DomainVideoExportPlan) -> vs_video_
         overlay_item_count: plan.overlay_item_count,
         requires_intermediate_for_gif: plan.requires_intermediate_for_gif,
         needs_custom_compositor: plan.needs_custom_compositor,
+    }
+}
+
+pub(crate) fn to_domain_video_export_plan(plan: vs_video_export_plan) -> DomainVideoExportPlan {
+    DomainVideoExportPlan {
+        trim_start_ms: plan.trim_start_ms,
+        trim_end_ms: plan.trim_end_ms,
+        key_event_count: plan.key_event_count,
+        click_event_count: plan.click_event_count,
+        plan_mode: plan.plan_mode,
+        include_audio: plan.include_audio,
+        include_webcam: plan.include_webcam,
+        text_overlay_count: plan.text_overlay_count,
+        overlay_item_count: plan.overlay_item_count,
+        requires_intermediate_for_gif: plan.requires_intermediate_for_gif,
+        needs_custom_compositor: plan.needs_custom_compositor,
+    }
+}
+
+pub(crate) fn to_ffi_video_export_decision(
+    decision: DomainVideoExportDecision,
+) -> vs_video_export_decision {
+    vs_video_export_decision {
+        use_custom_compositor: decision.use_custom_compositor,
+        requires_intermediate_for_gif: decision.requires_intermediate_for_gif,
+        include_audio: decision.include_audio,
+        include_webcam: decision.include_webcam,
     }
 }
 

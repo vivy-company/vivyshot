@@ -25,6 +25,11 @@ jobs:
         run: cargo clippy -p vivyshot-ffi --all-targets -- -D warnings
       - name: Run Rust tests
         run: cargo test --workspace
+      - name: Run benchmark smoke gate
+        run: ../scripts/ci-bench-gate.sh 20
+        env:
+          VIVYSHOT_BENCH_MAX_AVG_MS: "180"
+          VIVYSHOT_BENCH_MAX_P95_MS: "280"
       - name: Build Rust docs
         run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 

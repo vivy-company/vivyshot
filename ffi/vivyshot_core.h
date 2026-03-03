@@ -8,6 +8,16 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define VS_VIDEO_EXPORT_TARGET_MP4 0
+
+#define VS_VIDEO_EXPORT_TARGET_GIF 1
+
+#define VS_CORE_ABI_VERSION_MAJOR 1
+
+#define VS_CORE_ABI_VERSION_MINOR 0
+
+#define VS_CORE_ABI_VERSION_PATCH 0
+
 #define VS_STATUS_OK 0
 
 #define VS_STATUS_NO_CHANGE 1
@@ -65,6 +75,13 @@ typedef struct vs_video_export_plan {
   bool requires_intermediate_for_gif;
   bool needs_custom_compositor;
 } vs_video_export_plan;
+
+typedef struct vs_video_export_decision {
+  bool use_custom_compositor;
+  bool requires_intermediate_for_gif;
+  bool include_audio;
+  bool include_webcam;
+} vs_video_export_decision;
 
 typedef struct vs_f32_rect {
   float x;
@@ -281,6 +298,8 @@ typedef struct vs_timeline_clip_info {
 
 const char *vs_core_version(void);
 
+int32_t vs_core_abi_version(uint32_t *out_major, uint32_t *out_minor, uint32_t *out_patch);
+
 void *vs_create_document_from_bgra(uint32_t width,
                                    uint32_t height,
                                    uint32_t stride,
@@ -305,6 +324,10 @@ int32_t vs_video_compute_export_plan(uint32_t trim_start_ms,
                                      uint32_t click_event_count,
                                      struct vs_video_export_context context,
                                      struct vs_video_export_plan *out_plan);
+
+int32_t vs_video_derive_export_decision(uint8_t target,
+                                        struct vs_video_export_plan plan,
+                                        struct vs_video_export_decision *out_decision);
 
 int32_t vs_video_session_get_export_plan(void *session, struct vs_video_export_plan *out_plan);
 

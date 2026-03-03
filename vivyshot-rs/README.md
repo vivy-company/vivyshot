@@ -8,6 +8,7 @@ Rust workspace for VivyShot portable core + FFI adapter.
 - `crates/vivyshot-ffi`: `extern "C"` adapter + staticlib (`libvivyshot_core.a`)
 - `crates/vivyshot-ffi/src/bin/memory_bench.rs`: memory/perf smoke benchmark
 - `crates/vivyshot-ffi/tests/*`: FFI contract and property tests
+- ABI policy/versioning: [`../docs/ffi-abi-policy.md`](../docs/ffi-abi-policy.md)
 
 ## Commands
 
@@ -21,6 +22,7 @@ cargo test -p vivyshot-ffi --test geometry_ffi_contract
 cargo test -p vivyshot-ffi --test stitch_ffi_contract
 cargo test -p vivyshot-ffi --test timeline_ffi_contract
 cargo test -p vivyshot-ffi --test property_geometry
+../scripts/ci-bench-gate.sh 20
 ```
 
 ## Rustdocs
