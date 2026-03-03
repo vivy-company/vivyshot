@@ -8,8 +8,8 @@ on:
   pull_request:
 
 jobs:
-  rust-tests:
-    name: Rust Workspace Tests
+  rust-quality:
+    name: Rust Quality Gates
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -17,8 +17,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run strict clippy for portable core
+        run: cargo clippy -p vivyshot-core --all-targets -- -D warnings
+      - name: Run clippy for FFI adapter (warning surfacing)
+        run: cargo clippy -p vivyshot-ffi --all-targets
       - name: Run Rust tests
         run: cargo test --workspace
+      - name: Build Rust docs
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
   ffi-header-drift:
     name: FFI Header Drift Check

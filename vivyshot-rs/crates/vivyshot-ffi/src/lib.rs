@@ -1,3 +1,9 @@
+//! C ABI adapter for VivyShot portable core logic.
+//!
+//! This crate owns `extern "C"` interop, pointer validation, and memory
+//! ownership across the FFI boundary. Portable policy/state machines should
+//! live in `vivyshot-core` and be called from this adapter.
+
 use font8x8::UnicodeFonts;
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
 use image::codecs::jpeg::JpegEncoder;
@@ -36,6 +42,8 @@ use ffi::domain::{
     to_domain_trim_handle, to_domain_video_export_context, to_ffi_gif_plan, to_ffi_i32_rect,
     to_ffi_rgba8, to_ffi_stitch_autoscroll_state, to_ffi_video_export_plan,
 };
+use ffi::geometry as ffi_geometry;
+use ffi::timeline as ffi_timeline;
 
 static VERSION: &[u8] = b"0.1.0\0";
 static SYSTEM_FONTS: OnceLock<Vec<fontdue::Font>> = OnceLock::new();
@@ -1496,37 +1504,6 @@ fn zero_encoded_bytes(bytes: &mut vs_encoded_bytes) {
     bytes.len = 0;
 }
 
-fn standardize_rect(rect: vs_f32_rect) -> Option<(f32, f32, f32, f32)> {
-    if !rect.x.is_finite()
-        || !rect.y.is_finite()
-        || !rect.width.is_finite()
-        || !rect.height.is_finite()
-    {
-        return None;
-    }
-    let x0 = rect.x.min(rect.x + rect.width);
-    let y0 = rect.y.min(rect.y + rect.height);
-    let x1 = rect.x.max(rect.x + rect.width);
-    let y1 = rect.y.max(rect.y + rect.height);
-    let width = x1 - x0;
-    let height = y1 - y0;
-    if width <= 0.0 || height <= 0.0 {
-        return None;
-    }
-    Some((x0, y0, x1, y1))
-}
-
-fn clamp_f32(value: f32, min_value: f32, max_value: f32) -> f32 {
-    value.clamp(min_value, max_value)
-}
-
-fn set_f32_rect(out_rect: &mut vs_f32_rect, min_x: f32, min_y: f32, max_x: f32, max_y: f32) {
-    out_rect.x = min_x;
-    out_rect.y = min_y;
-    out_rect.width = max_x - min_x;
-    out_rect.height = max_y - min_y;
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn vs_view_rect_to_image_rect(
     view_rect: vs_f32_rect,
@@ -1535,49 +1512,19 @@ pub unsafe extern "C" fn vs_view_rect_to_image_rect(
     image_height: u32,
     out_rect: *mut vs_f32_rect,
 ) -> i32 {
-    if out_rect.is_null() || image_width == 0 || image_height == 0 {
+    if out_rect.is_null() {
         return -1;
     }
-    let (view_min_x, view_min_y, view_max_x, view_max_y) = match standardize_rect(view_rect) {
-        Some(v) => v,
-        None => return -2,
-    };
-    let (dst_min_x, dst_min_y, dst_max_x, dst_max_y) = match standardize_rect(destination_rect) {
-        Some(v) => v,
-        None => return -2,
-    };
-
-    let clipped_min_x = view_min_x.max(dst_min_x);
-    let clipped_min_y = view_min_y.max(dst_min_y);
-    let clipped_max_x = view_max_x.min(dst_max_x);
-    let clipped_max_y = view_max_y.min(dst_max_y);
-    if clipped_max_x <= clipped_min_x || clipped_max_y <= clipped_min_y {
-        return -3;
-    }
-
-    let dst_width = dst_max_x - dst_min_x;
-    let dst_height = dst_max_y - dst_min_y;
-    if dst_width <= 0.0 || dst_height <= 0.0 {
+    let Some(rect) = ffi_geometry::view_rect_to_image_rect(
+        view_rect,
+        destination_rect,
+        image_width,
+        image_height,
+    ) else {
         return -2;
-    }
-
-    let scale_x = image_width as f32 / dst_width;
-    let scale_y = image_height as f32 / dst_height;
-    let image_h = image_height as f32;
-
-    let x0 = (clipped_min_x - dst_min_x) * scale_x;
-    let x1 = (clipped_max_x - dst_min_x) * scale_x;
-    let y0_from_bottom = (clipped_min_y - dst_min_y) * scale_y;
-    let y1_from_bottom = (clipped_max_y - dst_min_y) * scale_y;
-    let y0 = image_h - y1_from_bottom;
-    let y1 = image_h - y0_from_bottom;
-    if x1 <= x0 || y1 <= y0 {
-        return -3;
-    }
-
-    // SAFETY: `out_rect` validated non-null above.
+    };
     unsafe {
-        set_f32_rect(&mut *out_rect, x0, y0, x1, y1);
+        *out_rect = rect;
     }
     0
 }
@@ -1590,46 +1537,19 @@ pub unsafe extern "C" fn vs_image_rect_to_view_rect(
     image_height: u32,
     out_rect: *mut vs_f32_rect,
 ) -> i32 {
-    if out_rect.is_null() || image_width == 0 || image_height == 0 {
+    if out_rect.is_null() {
         return -1;
     }
-    let (img_min_x, img_min_y, img_max_x, img_max_y) = match standardize_rect(image_rect) {
-        Some(v) => v,
-        None => return -2,
-    };
-    let (dst_min_x, dst_min_y, dst_max_x, dst_max_y) = match standardize_rect(destination_rect) {
-        Some(v) => v,
-        None => return -2,
-    };
-
-    let dst_width = dst_max_x - dst_min_x;
-    let dst_height = dst_max_y - dst_min_y;
-    if dst_width <= 0.0 || dst_height <= 0.0 {
+    let Some(rect) = ffi_geometry::image_rect_to_view_rect(
+        image_rect,
+        destination_rect,
+        image_width,
+        image_height,
+    ) else {
         return -2;
-    }
-
-    let scale_x = dst_width / image_width as f32;
-    let scale_y = dst_height / image_height as f32;
-    if scale_x <= 0.0 || scale_y <= 0.0 {
-        return -2;
-    }
-
-    let image_h = image_height as f32;
-    let x0 = dst_min_x + img_min_x * scale_x;
-    let x1 = dst_min_x + img_max_x * scale_x;
-    let y_top = dst_min_y + (image_h - img_min_y) * scale_y;
-    let y_bottom = dst_min_y + (image_h - img_max_y) * scale_y;
-    let min_x = x0.min(x1);
-    let max_x = x0.max(x1);
-    let min_y = y_bottom.min(y_top);
-    let max_y = y_bottom.max(y_top);
-    if max_x <= min_x || max_y <= min_y {
-        return -3;
-    }
-
-    // SAFETY: `out_rect` validated non-null above.
+    };
     unsafe {
-        set_f32_rect(&mut *out_rect, min_x, min_y, max_x, max_y);
+        *out_rect = rect;
     }
     0
 }
@@ -1643,33 +1563,20 @@ pub unsafe extern "C" fn vs_view_delta_to_image_delta(
     image_height: u32,
     out_point: *mut vs_f32_point,
 ) -> i32 {
-    if out_point.is_null()
-        || !delta_x.is_finite()
-        || !delta_y.is_finite()
-        || image_width == 0
-        || image_height == 0
-    {
+    if out_point.is_null() {
         return -1;
     }
-    let (dst_min_x, dst_min_y, dst_max_x, dst_max_y) = match standardize_rect(destination_rect) {
-        Some(v) => v,
-        None => return -2,
+    let Some(point) = ffi_geometry::view_delta_to_image_delta(
+        delta_x,
+        delta_y,
+        destination_rect,
+        image_width,
+        image_height,
+    ) else {
+        return -2;
     };
-    let dst_width = dst_max_x - dst_min_x;
-    let dst_height = dst_max_y - dst_min_y;
-    if dst_width <= 0.0 || dst_height <= 0.0 {
-        return -2;
-    }
-
-    let scale_x = image_width as f32 / dst_width;
-    let scale_y = image_height as f32 / dst_height;
-    if scale_x <= 0.0 || scale_y <= 0.0 {
-        return -2;
-    }
-    // SAFETY: `out_point` validated non-null above.
     unsafe {
-        (*out_point).x = delta_x * scale_x;
-        (*out_point).y = -delta_y * scale_y;
+        *out_point = point;
     }
     0
 }
@@ -1683,33 +1590,20 @@ pub unsafe extern "C" fn vs_image_delta_to_view_delta(
     image_height: u32,
     out_point: *mut vs_f32_point,
 ) -> i32 {
-    if out_point.is_null()
-        || !delta_x.is_finite()
-        || !delta_y.is_finite()
-        || image_width == 0
-        || image_height == 0
-    {
+    if out_point.is_null() {
         return -1;
     }
-    let (dst_min_x, dst_min_y, dst_max_x, dst_max_y) = match standardize_rect(destination_rect) {
-        Some(v) => v,
-        None => return -2,
+    let Some(point) = ffi_geometry::image_delta_to_view_delta(
+        delta_x,
+        delta_y,
+        destination_rect,
+        image_width,
+        image_height,
+    ) else {
+        return -2;
     };
-    let dst_width = dst_max_x - dst_min_x;
-    let dst_height = dst_max_y - dst_min_y;
-    if dst_width <= 0.0 || dst_height <= 0.0 {
-        return -2;
-    }
-
-    let scale_x = image_width as f32 / dst_width;
-    let scale_y = image_height as f32 / dst_height;
-    if scale_x <= 0.0 || scale_y <= 0.0 {
-        return -2;
-    }
-    // SAFETY: `out_point` validated non-null above.
     unsafe {
-        (*out_point).x = delta_x / scale_x;
-        (*out_point).y = -delta_y / scale_y;
+        *out_point = point;
     }
     0
 }
@@ -1726,35 +1620,23 @@ pub unsafe extern "C" fn vs_viewport_clamp_pan_offset(
     candidate_y: f32,
     out_point: *mut vs_f32_point,
 ) -> i32 {
-    if out_point.is_null()
-        || image_width == 0
-        || image_height == 0
-        || !bounds_width.is_finite()
-        || !bounds_height.is_finite()
-        || !zoom_scale.is_finite()
-        || !overscroll.is_finite()
-        || !candidate_x.is_finite()
-        || !candidate_y.is_finite()
-    {
+    if out_point.is_null() {
         return -1;
     }
-    if bounds_width <= 0.0 || bounds_height <= 0.0 || zoom_scale <= 0.0 {
+    let Some(point) = ffi_geometry::viewport_clamp_pan_offset(
+        bounds_width,
+        bounds_height,
+        image_width,
+        image_height,
+        zoom_scale,
+        overscroll,
+        candidate_x,
+        candidate_y,
+    ) else {
         return -2;
-    }
-
-    let image_width_f = image_width as f32;
-    let image_height_f = image_height as f32;
-    let fit_scale = (bounds_width / image_width_f).min(bounds_height / image_height_f);
-    let draw_scale = fit_scale * zoom_scale;
-    let draw_width = image_width_f * draw_scale;
-    let draw_height = image_height_f * draw_scale;
-    let max_x = ((draw_width - bounds_width) * 0.5 + overscroll).max(0.0);
-    let max_y = ((draw_height - bounds_height) * 0.5 + overscroll).max(0.0);
-
-    // SAFETY: `out_point` validated non-null above.
+    };
     unsafe {
-        (*out_point).x = clamp_f32(candidate_x, -max_x, max_x);
-        (*out_point).y = clamp_f32(candidate_y, -max_y, max_y);
+        *out_point = point;
     }
     0
 }
@@ -2388,40 +2270,15 @@ pub unsafe extern "C" fn vs_selection_move_rect(
     delta_y: f32,
     out_rect: *mut vs_f32_rect,
 ) -> i32 {
-    if out_rect.is_null() || !delta_x.is_finite() || !delta_y.is_finite() {
+    if out_rect.is_null() {
         return -1;
     }
-
-    let (current_min_x, current_min_y, current_max_x, current_max_y) =
-        match standardize_rect(current) {
-            Some(v) => v,
-            None => return -2,
-        };
-    let (bounds_min_x, bounds_min_y, bounds_max_x, bounds_max_y) = match standardize_rect(bounds) {
-        Some(v) => v,
-        None => return -2,
-    };
-
-    let width = current_max_x - current_min_x;
-    let height = current_max_y - current_min_y;
-    let bounds_width = bounds_max_x - bounds_min_x;
-    let bounds_height = bounds_max_y - bounds_min_y;
-    if width <= 0.0 || height <= 0.0 || width > bounds_width || height > bounds_height {
+    let Some((rect, moved)) = ffi_geometry::selection_move_rect(current, bounds, delta_x, delta_y)
+    else {
         return -2;
-    }
-
-    let candidate_x = clamp_f32(current_min_x + delta_x, bounds_min_x, bounds_max_x - width);
-    let candidate_y = clamp_f32(current_min_y + delta_y, bounds_min_y, bounds_max_y - height);
-
-    let moved =
-        (candidate_x - current_min_x).abs() > 0.01 || (candidate_y - current_min_y).abs() > 0.01;
+    };
     unsafe {
-        *out_rect = vs_f32_rect {
-            x: candidate_x,
-            y: candidate_y,
-            width,
-            height,
-        };
+        *out_rect = rect;
     }
     if moved {
         0
@@ -2441,114 +2298,15 @@ pub unsafe extern "C" fn vs_selection_resize_rect(
     min_height: f32,
     out_rect: *mut vs_f32_rect,
 ) -> i32 {
-    if out_rect.is_null()
-        || !delta_x.is_finite()
-        || !delta_y.is_finite()
-        || !min_width.is_finite()
-        || !min_height.is_finite()
-        || min_width <= 0.0
-        || min_height <= 0.0
-    {
+    if out_rect.is_null() {
         return -1;
     }
-
-    let (start_min_x, start_min_y, start_max_x, start_max_y) = match standardize_rect(start) {
-        Some(v) => v,
-        None => return -2,
-    };
-    let (bounds_min_x, bounds_min_y, bounds_max_x, bounds_max_y) = match standardize_rect(bounds) {
-        Some(v) => v,
-        None => return -2,
-    };
-
-    let mut min_x = start_min_x;
-    let mut max_x = start_max_x;
-    let mut min_y = start_min_y;
-    let mut max_y = start_max_y;
-
-    match corner {
-        VS_RESIZE_CORNER_TOP_LEFT => {
-            min_x += delta_x;
-            max_y += delta_y;
-        }
-        VS_RESIZE_CORNER_TOP => {
-            max_y += delta_y;
-        }
-        VS_RESIZE_CORNER_TOP_RIGHT => {
-            max_x += delta_x;
-            max_y += delta_y;
-        }
-        VS_RESIZE_CORNER_RIGHT => {
-            max_x += delta_x;
-        }
-        VS_RESIZE_CORNER_BOTTOM => {
-            min_y += delta_y;
-        }
-        VS_RESIZE_CORNER_LEFT => {
-            min_x += delta_x;
-        }
-        VS_RESIZE_CORNER_BOTTOM_LEFT => {
-            min_x += delta_x;
-            min_y += delta_y;
-        }
-        VS_RESIZE_CORNER_BOTTOM_RIGHT => {
-            max_x += delta_x;
-            min_y += delta_y;
-        }
-        _ => return -2,
-    }
-
-    match corner {
-        VS_RESIZE_CORNER_TOP_LEFT => {
-            min_x = min_x.min(max_x - min_width);
-            max_y = max_y.max(min_y + min_height);
-        }
-        VS_RESIZE_CORNER_TOP => {
-            max_y = max_y.max(min_y + min_height);
-        }
-        VS_RESIZE_CORNER_TOP_RIGHT => {
-            max_x = max_x.max(min_x + min_width);
-            max_y = max_y.max(min_y + min_height);
-        }
-        VS_RESIZE_CORNER_RIGHT => {
-            max_x = max_x.max(min_x + min_width);
-        }
-        VS_RESIZE_CORNER_BOTTOM => {
-            min_y = min_y.min(max_y - min_height);
-        }
-        VS_RESIZE_CORNER_LEFT => {
-            min_x = min_x.min(max_x - min_width);
-        }
-        VS_RESIZE_CORNER_BOTTOM_LEFT => {
-            min_x = min_x.min(max_x - min_width);
-            min_y = min_y.min(max_y - min_height);
-        }
-        VS_RESIZE_CORNER_BOTTOM_RIGHT => {
-            max_x = max_x.max(min_x + min_width);
-            min_y = min_y.min(max_y - min_height);
-        }
-        _ => unreachable!(),
-    }
-
-    min_x = min_x.max(bounds_min_x);
-    max_x = max_x.min(bounds_max_x);
-    min_y = min_y.max(bounds_min_y);
-    max_y = max_y.min(bounds_max_y);
-
-    let width = max_x - min_x;
-    let height = max_y - min_y;
-    if width < min_width || height < min_height {
+    let Some(rect) = ffi_geometry::selection_resize_rect(
+        start, bounds, corner, delta_x, delta_y, min_width, min_height,
+    ) else {
         return -3;
-    }
-
-    unsafe {
-        *out_rect = vs_f32_rect {
-            x: min_x,
-            y: min_y,
-            width,
-            height,
-        };
-    }
+    };
+    unsafe { *out_rect = rect };
     0
 }
 
@@ -5608,35 +5366,11 @@ pub unsafe extern "C" fn vs_timeline_derive_export_context(
 
     // SAFETY: handle was created by `vs_timeline_create`.
     let tl = unsafe { &*handle.cast::<VsTimeline>() };
-
-    let mut audio_track_visible = false;
-    let mut webcam_track_visible = false;
-    let mut text_overlay_count = 0u32;
-
-    for track in &tl.tracks {
-        if !track.visible || track.clips.is_empty() {
-            continue;
-        }
-
-        match track.kind {
-            2 => audio_track_visible = true,
-            1 => webcam_track_visible = true,
-            3 => {
-                text_overlay_count = text_overlay_count
-                    .saturating_add(track.clips.len().min(u32::MAX as usize) as u32);
-            }
-            _ => {}
-        }
-    }
+    let context =
+        ffi_timeline::derive_export_context(source_has_audio, source_has_webcam_asset, &tl.tracks);
 
     unsafe {
-        *out_context = vs_video_export_context {
-            source_has_audio,
-            source_has_webcam_asset,
-            audio_track_visible,
-            webcam_track_visible,
-            text_overlay_count,
-        };
+        *out_context = context;
     }
     0
 }

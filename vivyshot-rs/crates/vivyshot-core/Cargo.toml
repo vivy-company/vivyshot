@@ -5,3 +5,6 @@ edition = "2021"
 
 [lib]
 name = "vivyshot_domain"
+
+[dev-dependencies]
+proptest = "1.5"

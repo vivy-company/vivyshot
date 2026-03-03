@@ -1,13 +1,16 @@
 use crate::{
-    vs_f32_rect, vs_gif_export_plan, vs_i32_rect, vs_rgba8, vs_stitch_autoscroll_state,
-    vs_video_export_context, vs_video_export_plan, VS_TRIM_HANDLE_END, VS_TRIM_HANDLE_START,
-    VS_TRIM_HANDLE_UNKNOWN,
+    vs_f32_point, vs_f32_rect, vs_gif_export_plan, vs_i32_rect, vs_rgba8,
+    vs_stitch_autoscroll_state, vs_video_export_context, vs_video_export_plan,
+    VS_RESIZE_CORNER_BOTTOM, VS_RESIZE_CORNER_BOTTOM_LEFT, VS_RESIZE_CORNER_BOTTOM_RIGHT,
+    VS_RESIZE_CORNER_LEFT, VS_RESIZE_CORNER_RIGHT, VS_RESIZE_CORNER_TOP, VS_RESIZE_CORNER_TOP_LEFT,
+    VS_RESIZE_CORNER_TOP_RIGHT, VS_TRIM_HANDLE_END, VS_TRIM_HANDLE_START, VS_TRIM_HANDLE_UNKNOWN,
 };
 use vivyshot_domain::{
-    F32Rect as DomainF32Rect, GifExportPlan as DomainGifExportPlan, I32Rect as DomainI32Rect,
-    Rgba8 as DomainRgba8, StitchAutoscrollState as DomainStitchAutoscrollState,
-    TrimHandle as DomainTrimHandle, VideoExportContext as DomainVideoExportContext,
-    VideoExportPlan as DomainVideoExportPlan,
+    F32Point as DomainF32Point, F32Rect as DomainF32Rect, GifExportPlan as DomainGifExportPlan,
+    I32Rect as DomainI32Rect, ResizeCorner as DomainResizeCorner, Rgba8 as DomainRgba8,
+    StitchAutoscrollState as DomainStitchAutoscrollState,
+    TimelineTrackSummary as DomainTimelineTrackSummary, TrimHandle as DomainTrimHandle,
+    VideoExportContext as DomainVideoExportContext, VideoExportPlan as DomainVideoExportPlan,
 };
 
 pub(crate) fn to_domain_trim_handle(raw: u8) -> Option<DomainTrimHandle> {
@@ -73,6 +76,18 @@ pub(crate) fn to_domain_video_export_context(
     }
 }
 
+pub(crate) fn to_ffi_video_export_context(
+    context: DomainVideoExportContext,
+) -> vs_video_export_context {
+    vs_video_export_context {
+        source_has_audio: context.source_has_audio,
+        source_has_webcam_asset: context.source_has_webcam_asset,
+        audio_track_visible: context.audio_track_visible,
+        webcam_track_visible: context.webcam_track_visible,
+        text_overlay_count: context.text_overlay_count,
+    }
+}
+
 pub(crate) fn to_ffi_video_export_plan(plan: DomainVideoExportPlan) -> vs_video_export_plan {
     vs_video_export_plan {
         trim_start_ms: plan.trim_start_ms,
@@ -98,6 +113,22 @@ pub(crate) fn to_domain_f32_rect(rect: vs_f32_rect) -> DomainF32Rect {
     }
 }
 
+pub(crate) fn to_ffi_f32_rect(rect: DomainF32Rect) -> vs_f32_rect {
+    vs_f32_rect {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+    }
+}
+
+pub(crate) fn to_ffi_f32_point(point: DomainF32Point) -> vs_f32_point {
+    vs_f32_point {
+        x: point.x,
+        y: point.y,
+    }
+}
+
 pub(crate) fn to_ffi_i32_rect(rect: DomainI32Rect) -> vs_i32_rect {
     vs_i32_rect {
         x: rect.x,
@@ -113,5 +144,31 @@ pub(crate) fn to_ffi_rgba8(color: DomainRgba8) -> vs_rgba8 {
         g: color.g,
         b: color.b,
         a: color.a,
+    }
+}
+
+pub(crate) fn to_domain_resize_corner(raw: u8) -> Option<DomainResizeCorner> {
+    match raw {
+        VS_RESIZE_CORNER_TOP_LEFT => Some(DomainResizeCorner::TopLeft),
+        VS_RESIZE_CORNER_TOP => Some(DomainResizeCorner::Top),
+        VS_RESIZE_CORNER_TOP_RIGHT => Some(DomainResizeCorner::TopRight),
+        VS_RESIZE_CORNER_RIGHT => Some(DomainResizeCorner::Right),
+        VS_RESIZE_CORNER_BOTTOM => Some(DomainResizeCorner::Bottom),
+        VS_RESIZE_CORNER_LEFT => Some(DomainResizeCorner::Left),
+        VS_RESIZE_CORNER_BOTTOM_LEFT => Some(DomainResizeCorner::BottomLeft),
+        VS_RESIZE_CORNER_BOTTOM_RIGHT => Some(DomainResizeCorner::BottomRight),
+        _ => None,
+    }
+}
+
+pub(crate) fn to_domain_timeline_track_summary(
+    kind: u8,
+    visible: bool,
+    clip_count: u32,
+) -> DomainTimelineTrackSummary {
+    DomainTimelineTrackSummary {
+        kind,
+        visible,
+        clip_count,
     }
 }

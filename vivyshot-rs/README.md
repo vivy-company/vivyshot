@@ -22,3 +22,16 @@ cargo test -p vivyshot-ffi --test stitch_ffi_contract
 cargo test -p vivyshot-ffi --test timeline_ffi_contract
 cargo test -p vivyshot-ffi --test property_geometry
 ```
+
+## Rustdocs
+
+Build workspace docs:
+
+```bash
+cargo doc --workspace --no-deps
+```
+
+Open the generated docs:
+
+- `target/doc/vivyshot_domain/index.html` (`vivyshot-core`)
+- `target/doc/vivyshot_core/index.html` (`vivyshot-ffi`)

@@ -1,0 +1,16 @@
+name: Rustdocs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rustdocs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vivyshot-rs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build workspace docs with warnings as errors
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
