@@ -1661,13 +1661,14 @@ final class RegionSelectionView: NSView {
       }
 
       guard let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
-            let screenBounds = CGRect(dictionaryRepresentation: boundsDict),
-            screenBounds.width >= 40,
-            screenBounds.height >= 30
+            let cgBounds = CGRect(dictionaryRepresentation: boundsDict),
+            cgBounds.width >= 40,
+            cgBounds.height >= 30
       else {
         continue
       }
 
+      let screenBounds = cgDisplayRectToCocoaRect(cgBounds)
       guard screenBounds.contains(screenPoint) else {
         continue
       }
@@ -2876,7 +2877,7 @@ final class RegionSelectionView: NSView {
     }
 
     return await withCheckedContinuation { continuation in
-      SCScreenshotManager.captureImage(in: frame) { image, _ in
+      SCScreenshotManager.captureImage(in: cocoaRectToCGDisplayRect(frame)) { image, _ in
         continuation.resume(returning: image)
       }
     }
@@ -3225,4 +3226,14 @@ final class RegionSelectionView: NSView {
 
     context.restoreGState()
   }
+}
+
+private func cocoaRectToCGDisplayRect(_ rect: CGRect) -> CGRect {
+  guard let primaryHeight = NSScreen.screens.first?.frame.height else { return rect }
+  return CGRect(x: rect.origin.x, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
+}
+
+private func cgDisplayRectToCocoaRect(_ rect: CGRect) -> CGRect {
+  guard let primaryHeight = NSScreen.screens.first?.frame.height else { return rect }
+  return CGRect(x: rect.origin.x, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
 }

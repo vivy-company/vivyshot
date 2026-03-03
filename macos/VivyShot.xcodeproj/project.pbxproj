@@ -23,11 +23,13 @@
 		9F3C9C56A6A11D7ECC1E6AA5 /* AnnotationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B7A128022B20D8F38EBCAC /* AnnotationTool.swift */; };
 		AF35CADFF4D07722F3BAEB41 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F5079EEFFB8B0148129030 /* SettingsWindowController.swift */; };
 		B4193BAA01F88737DA067419 /* VideoEditorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */; };
+		BF1A07D7AF73D1DA674272B0 /* VideoCaptureUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C1C76C7C7456EF9C6DC6FB /* VideoCaptureUI.swift */; };
 		C58CC03E11356E4910F00E73 /* AnnotationCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1F5533C4A2DCB93A4F923D3 /* AnnotationCanvasView.swift */; };
 		CCF52A14B990DA2AD82374E7 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1469BCC6DA4E3C25059E3157 /* LiquidGlassViews.swift */; };
 		E5D3D50E1917A9D9F5549D08 /* CaptureShaderTransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08837013088E38A1384FB907 /* CaptureShaderTransitionView.swift */; };
 		EB3E6477E114CD8A24B71BBC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C95B974185169F4506825172 /* main.swift */; };
 		EC617084194681EA91933639 /* VideoEditorTimelineUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21D6BF24F47C4279EFBE2FC0 /* VideoEditorTimelineUI.swift */; };
+		F00B17C0BD106713EB84EF7C /* VideoCaptureComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE4DD184B63DB3EF0CEB6DB /* VideoCaptureComponents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,8 +62,10 @@
 		B41D12D461242E09C0229723 /* VivyShotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VivyShotTests.swift; sourceTree = "<group>"; };
 		C95B974185169F4506825172 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		D148AF3AEBB1F0F3BCEAB8AF /* TransientToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransientToast.swift; sourceTree = "<group>"; };
+		E4C1C76C7C7456EF9C6DC6FB /* VideoCaptureUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCaptureUI.swift; sourceTree = "<group>"; };
 		E95580789557A9F46E87BFED /* RustCoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustCoreBridge.swift; sourceTree = "<group>"; };
 		EA17DB09C430A0ED8B3F7FDB /* VivyShotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VivyShotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDE4DD184B63DB3EF0CEB6DB /* VideoCaptureComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCaptureComponents.swift; sourceTree = "<group>"; };
 		F7AA7C5F7923A58F518A7391 /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
 		FC1D489BCA356CB095B94260 /* CaptureMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureMode.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -95,6 +99,8 @@
 				99F5079EEFFB8B0148129030 /* SettingsWindowController.swift */,
 				6CF04D44D3DE8238D9505281 /* StatusItemController.swift */,
 				D148AF3AEBB1F0F3BCEAB8AF /* TransientToast.swift */,
+				EDE4DD184B63DB3EF0CEB6DB /* VideoCaptureComponents.swift */,
+				E4C1C76C7C7456EF9C6DC6FB /* VideoCaptureUI.swift */,
 				70A3AB49BB015C9C68963BD8 /* VideoCompositor.swift */,
 				21D6BF24F47C4279EFBE2FC0 /* VideoEditorTimelineUI.swift */,
 				B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */,
@@ -249,6 +255,8 @@
 				AF35CADFF4D07722F3BAEB41 /* SettingsWindowController.swift in Sources */,
 				71B5AC1202344E9202E44C87 /* StatusItemController.swift in Sources */,
 				470E988399A885E208E1E38F /* TransientToast.swift in Sources */,
+				F00B17C0BD106713EB84EF7C /* VideoCaptureComponents.swift in Sources */,
+				BF1A07D7AF73D1DA674272B0 /* VideoCaptureUI.swift in Sources */,
 				2C185EA0D0A6B26D2F79AB75 /* VideoCompositor.swift in Sources */,
 				EC617084194681EA91933639 /* VideoEditorTimelineUI.swift in Sources */,
 				B4193BAA01F88737DA067419 /* VideoEditorWindowController.swift in Sources */,
