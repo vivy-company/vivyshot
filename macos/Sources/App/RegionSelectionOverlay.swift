@@ -97,10 +97,9 @@ final class RegionSelectionView: NSView {
   private var stitchRecordingActive = false
   private var stitchSegmentCount = 1
   private var stitchCaptureTask: Task<Void, Never>?
+  private var stitchSession: RustStitchSession?
   private var stitchWorkingImage: CGImage?
-  private var stitchLastFrame: CGImage?
-  private var stitchDirection: StitchStripSide?
-  private var stitchExpectedDeltaRows: Int?
+  private var stitchDirectionLocked = false
   private var stitchCaptureRectInScreen: CGRect?
   private var preStitchImage: CGImage?
   private var preStitchSelectionRect: CGRect?
@@ -473,10 +472,9 @@ final class RegionSelectionView: NSView {
     stitchSegmentCount = 1
     stitchCaptureTask?.cancel()
     stitchCaptureTask = nil
+    stitchSession = nil
     stitchWorkingImage = nil
-    stitchLastFrame = nil
-    stitchDirection = nil
-    stitchExpectedDeltaRows = nil
+    stitchDirectionLocked = false
     stitchCaptureRectInScreen = nil
     resetStitchAutoScrollState()
     preStitchImage = nil
@@ -527,10 +525,9 @@ final class RegionSelectionView: NSView {
     stitchSegmentCount = 1
     stitchCaptureTask?.cancel()
     stitchCaptureTask = nil
+    stitchSession = nil
     stitchWorkingImage = nil
-    stitchLastFrame = nil
-    stitchDirection = nil
-    stitchExpectedDeltaRows = nil
+    stitchDirectionLocked = false
     stitchCaptureRectInScreen = nil
     resetStitchAutoScrollState()
     preStitchImage = nil
@@ -2039,12 +2036,12 @@ final class RegionSelectionView: NSView {
     stitchRecordingActive = false
     stitchCaptureInProgress = false
     stitchPassThroughOverlayActive = false
+    stitchSession = nil
     windowCapturePickPending = false
     screenCapturePickPending = false
     windowCaptureHoverRect = nil
     syncLiveCaptureTargetPickingState()
-    stitchDirection = nil
-    stitchExpectedDeltaRows = nil
+    stitchDirectionLocked = false
     resetStitchAutoScrollState()
     window?.ignoresMouseEvents = false
     hideStitchControlPanel()
@@ -2391,10 +2388,16 @@ final class RegionSelectionView: NSView {
       baseImage = selectedImage
     }
 
+    guard let rustStitchSession = RustCoreBridge.shared.makeStitchSession(),
+          rustStitchSession.setBaseImage(baseImage, baseSegmentCount: stitchSegmentCount)
+    else {
+      NSSound.beep()
+      return
+    }
+
+    stitchSession = rustStitchSession
     stitchWorkingImage = baseImage
-    stitchLastFrame = nil
-    stitchDirection = nil
-    stitchExpectedDeltaRows = nil
+    stitchDirectionLocked = false
     stitchCaptureInProgress = false
     resetStitchAutoScrollState()
     refreshAutoScrollTrust(promptIfNeeded: stitchAutoScrollEnabled)
@@ -2437,11 +2440,10 @@ final class RegionSelectionView: NSView {
       finalizeStitchWorkingImage()
     } else {
       stitchWorkingImage = nil
-      stitchLastFrame = nil
-      stitchDirection = nil
-      stitchExpectedDeltaRows = nil
+      stitchDirectionLocked = false
       resetStitchAutoScrollState()
     }
+    stitchSession = nil
 
     if applyResult {
       resetStitchAutoScrollState()
@@ -2596,7 +2598,7 @@ final class RegionSelectionView: NSView {
     }
 
     stitchAutoScrollNoMotionTicks += 1
-    guard stitchDirection == nil,
+    guard !stitchDirectionLocked,
           !stitchAutoScrollDidFlipDirection,
           stitchAutoScrollNoMotionTicks >= 4
     else {
@@ -2609,69 +2611,37 @@ final class RegionSelectionView: NSView {
   }
 
   private func processStitchCapturedFrame(_ frame: CGImage) -> Bool {
-    guard stitchRecordingActive else {
-      return false
-    }
-
-    guard let previous = stitchLastFrame else {
-      stitchLastFrame = frame
-      return false
-    }
-
-    guard let working = stitchWorkingImage else {
-      stitchLastFrame = frame
-      return false
-    }
-
-    defer {
-      stitchLastFrame = frame
-    }
-
-    let strictDelta = estimateStitchDelta(
-      previous: previous,
-      current: frame,
-      preferredSide: stitchDirection,
-      expectedRows: stitchExpectedDeltaRows,
-      relaxed: false
-    )
-
-    let delta = strictDelta ?? estimateStitchDelta(
-      previous: previous,
-      current: frame,
-      preferredSide: stitchDirection,
-      expectedRows: stitchExpectedDeltaRows,
-      relaxed: true
-    )
-
-    guard let delta,
-          delta.rows >= 4,
-          let strip = extractStrip(from: frame, rows: delta.rows, side: delta.side),
-          let stitched = mergeSegment(base: working, segment: strip, side: delta.side)
+    guard stitchRecordingActive,
+          let stitchSession
     else {
       return false
     }
+    guard let pushResult = stitchSession.pushFrameAndMerge(frame) else {
+      return false
+    }
 
-    if stitchDirection == nil, stitchAutoScrollEnabled {
-      stitchAutoScrollDirectionSign = (delta.side == .bottom) ? -1 : 1
+    let wasDirectionLocked = stitchDirectionLocked
+    let (result, mergedImage) = pushResult
+    stitchDirectionLocked = result.directionLocked
+    stitchSegmentCount = max(stitchSegmentCount, result.segmentCount)
+
+    if stitchAutoScrollEnabled, !wasDirectionLocked, result.directionLocked {
+      stitchAutoScrollDirectionSign = Int32(result.scrollDirectionSign)
     }
-    stitchDirection = stitchDirection ?? delta.side
-    if let previousExpected = stitchExpectedDeltaRows {
-      let blended = Int((Double(previousExpected) * 0.65 + Double(delta.rows) * 0.35).rounded())
-      stitchExpectedDeltaRows = max(4, blended)
-    } else {
-      stitchExpectedDeltaRows = delta.rows
+
+    guard result.accepted, let mergedImage else {
+      return false
     }
-    stitchWorkingImage = stitched
-    stitchSegmentCount += 1
+
+    stitchWorkingImage = mergedImage
     return true
   }
 
   private func finalizeStitchWorkingImage() {
     defer {
+      stitchSession = nil
       stitchWorkingImage = nil
-      stitchLastFrame = nil
-      stitchDirection = nil
-      stitchExpectedDeltaRows = nil
+      stitchDirectionLocked = false
       resetStitchAutoScrollState()
       needsLayout = true
       needsDisplay = true
@@ -2750,10 +2720,9 @@ final class RegionSelectionView: NSView {
     stitchCaptureTask = nil
     stitchRecordingActive = false
     stitchCaptureInProgress = false
+    stitchSession = nil
     stitchWorkingImage = nil
-    stitchLastFrame = nil
-    stitchDirection = nil
-    stitchExpectedDeltaRows = nil
+    stitchDirectionLocked = false
     resetStitchAutoScrollState()
     stitchPassThroughOverlayActive = false
     postStitchEditorMode = false
@@ -2901,69 +2870,6 @@ final class RegionSelectionView: NSView {
     stitchControlPanel = nil
   }
 
-  private enum StitchStripSide {
-    case top
-    case bottom
-  }
-
-  private struct StitchDeltaEstimate {
-    let rows: Int
-    let side: StitchStripSide
-    let score: Double
-  }
-
-  private func estimateStitchDelta(
-    previous: CGImage,
-    current: CGImage,
-    preferredSide: StitchStripSide?,
-    expectedRows: Int?,
-    relaxed: Bool
-  ) -> StitchDeltaEstimate? {
-    let rawPreferred: UInt8?
-    switch preferredSide {
-    case .top:
-      rawPreferred = 0
-    case .bottom:
-      rawPreferred = 1
-    case nil:
-      rawPreferred = nil
-    }
-
-    guard let delta = RustCoreBridge.shared.estimateStitchDelta(
-      previous: previous,
-      current: current,
-      preferredSide: rawPreferred,
-      expectedRows: expectedRows,
-      relaxed: relaxed
-    ) else {
-      return nil
-    }
-
-    let side: StitchStripSide
-    switch delta.side {
-    case 0:
-      side = .top
-    case 1:
-      side = .bottom
-    default:
-      return nil
-    }
-
-    return StitchDeltaEstimate(rows: delta.rows, side: side, score: delta.score)
-  }
-
-  private func extractStrip(from image: CGImage, rows: Int, side: StitchStripSide) -> CGImage? {
-    let clampedRows = max(1, min(rows, image.height - 1))
-    let cropRect: CGRect
-    switch side {
-    case .bottom:
-      cropRect = CGRect(x: 0, y: 0, width: image.width, height: clampedRows)
-    case .top:
-      cropRect = CGRect(x: 0, y: image.height - clampedRows, width: image.width, height: clampedRows)
-    }
-    return image.cropping(to: cropRect.integral)
-  }
-
   private func captureScreenImage(frame: CGRect) async -> CGImage? {
     guard #available(macOS 15.2, *) else {
       return nil
@@ -3010,44 +2916,6 @@ final class RegionSelectionView: NSView {
     }
 
     return image.cropping(to: cropRect.integral)
-  }
-
-  private func mergeSegment(base: CGImage, segment: CGImage, side: StitchStripSide) -> CGImage? {
-    let sideRaw: UInt8 = (side == .top) ? 0 : 1
-    let normalized = (segment.width == base.width) ? segment : normalizedSegmentWidth(segment, targetWidth: base.width)
-    guard let normalized else {
-      return nil
-    }
-    return RustCoreBridge.shared.mergeStitchSegment(
-      base: base,
-      segment: normalized,
-      side: sideRaw
-    )
-  }
-
-  private func normalizedSegmentWidth(_ segment: CGImage, targetWidth: Int) -> CGImage? {
-    if segment.width == targetWidth {
-      return segment
-    }
-
-    let scale = CGFloat(targetWidth) / CGFloat(segment.width)
-    let targetHeight = max(1, Int((CGFloat(segment.height) * scale).rounded()))
-
-    guard let context = CGContext(
-      data: nil,
-      width: targetWidth,
-      height: targetHeight,
-      bitsPerComponent: 8,
-      bytesPerRow: targetWidth * 4,
-      space: CGColorSpaceCreateDeviceRGB(),
-      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-    ) else {
-      return nil
-    }
-
-    context.interpolationQuality = .high
-    context.draw(segment, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
-    return context.makeImage()
   }
 
   private func performCopy() {

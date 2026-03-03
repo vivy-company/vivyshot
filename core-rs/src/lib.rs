@@ -1,5 +1,6 @@
 use font8x8::UnicodeFonts;
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::ffi::c_void;
 use std::fs;
@@ -136,7 +137,7 @@ pub struct vs_annotation_info {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct vs_video_session_config {
   pub frame_rate: u32,
   pub capture_system_audio: bool,
@@ -170,9 +171,12 @@ pub struct vs_video_export_plan {
   pub trim_end_ms: u32,
   pub key_event_count: u32,
   pub click_event_count: u32,
+  pub plan_mode: u8,
   pub include_audio: bool,
   pub include_webcam: bool,
   pub text_overlay_count: u32,
+  pub overlay_item_count: u32,
+  pub requires_intermediate_for_gif: bool,
   pub needs_custom_compositor: bool,
 }
 
@@ -214,6 +218,69 @@ pub struct vs_stitch_delta {
   pub score: f32,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_stitch_session_result {
+  pub accepted: bool,
+  pub rows: u32,
+  pub side: u8,
+  pub score: f32,
+  pub direction_locked: bool,
+  pub expected_rows: u32,
+  pub segment_count: u32,
+  pub scroll_direction_sign: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_overlay_key_event_input {
+  pub timestamp_ns: u64,
+  pub token_len: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_overlay_text_clip_input {
+  pub start_ms: u32,
+  pub end_ms: u32,
+  pub text_len: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_overlay_plan_item {
+  pub kind: u8,
+  pub source_index: u32,
+  pub start_ms: u32,
+  pub duration_ms: u32,
+  pub x_norm: f32,
+  pub y_norm: f32,
+  pub width_norm: f32,
+  pub height_norm: f32,
+  pub font_size_px: f32,
+  pub corner_radius_norm: f32,
+  pub fade_in_frac: f32,
+  pub hold_frac: f32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_f32_rect {
+  pub x: f32,
+  pub y: f32,
+  pub width: f32,
+  pub height: f32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_i32_rect {
+  pub x: i32,
+  pub y: i32,
+  pub width: i32,
+  pub height: i32,
+}
+
 #[derive(Clone)]
 enum VsCommand {
   Rect(vs_rect_command),
@@ -234,13 +301,13 @@ enum VsCommand {
   Blur(vs_blur_rect_command),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct VsVideoKeyEvent {
   timestamp_ns: u64,
   token: String,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 struct VsVideoClickEvent {
   timestamp_ns: u64,
   normalized_x: f32,
@@ -250,6 +317,21 @@ struct VsVideoClickEvent {
 
 #[repr(C)]
 struct vs_video_session {
+  config: vs_video_session_config,
+  key_events: Vec<VsVideoKeyEvent>,
+  click_events: Vec<VsVideoClickEvent>,
+  trim_start_ms: u32,
+  trim_end_ms: u32,
+  source_has_audio: bool,
+  source_has_webcam_asset: bool,
+  audio_track_visible: bool,
+  webcam_track_visible: bool,
+  text_overlay_count: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct VsVideoSessionSnapshot {
+  version: u32,
   config: vs_video_session_config,
   key_events: Vec<VsVideoKeyEvent>,
   click_events: Vec<VsVideoClickEvent>,
@@ -610,10 +692,18 @@ pub unsafe extern "C" fn vs_video_session_get_export_plan(
   let include_webcam = session_ref.source_has_webcam_asset && session_ref.webcam_track_visible;
   let has_text_overlays = session_ref.text_overlay_count > 0;
   let has_key_overlays = !session_ref.key_events.is_empty();
+  let overlay_item_count = session_ref
+    .text_overlay_count
+    .saturating_add(session_ref.key_events.len().min(u32::MAX as usize) as u32);
   let needs_custom_compositor = include_webcam
     || has_text_overlays
     || has_key_overlays
     || (session_ref.source_has_audio && !include_audio);
+  let plan_mode = if needs_custom_compositor {
+    VS_VIDEO_PLAN_MODE_COMPOSITE_MP4
+  } else {
+    VS_VIDEO_PLAN_MODE_PASSTHROUGH
+  };
 
   // SAFETY: `out_plan` is validated non-null and points to writable memory owned by caller.
   unsafe {
@@ -622,9 +712,12 @@ pub unsafe extern "C" fn vs_video_session_get_export_plan(
       trim_end_ms: session_ref.trim_end_ms,
       key_event_count: key_count,
       click_event_count: click_count,
+      plan_mode,
       include_audio,
       include_webcam,
       text_overlay_count: session_ref.text_overlay_count,
+      overlay_item_count,
+      requires_intermediate_for_gif: needs_custom_compositor,
       needs_custom_compositor,
     };
   }
@@ -642,6 +735,114 @@ pub unsafe extern "C" fn vs_video_session_destroy(session: *mut c_void) {
     drop(Box::from_raw(session.cast::<vs_video_session>()));
   }
 }
+
+unsafe fn write_bytes_to_output(
+  bytes: &[u8],
+  out_ptr: *mut u8,
+  out_cap: u32,
+  out_written: *mut u32,
+) -> i32 {
+  if out_written.is_null() {
+    return -1;
+  }
+
+  let total_len = bytes.len();
+  let total_u32 = if total_len > u32::MAX as usize {
+    u32::MAX
+  } else {
+    total_len as u32
+  };
+
+  // SAFETY: caller provided non-null pointer to writable memory for `out_written`.
+  unsafe {
+    *out_written = total_u32;
+  }
+
+  if out_ptr.is_null() || out_cap == 0 || total_len == 0 {
+    return 0;
+  }
+
+  let copy_len = total_len.min(out_cap as usize);
+  // SAFETY: pointers are validated and destination capacity is bounded by `copy_len`.
+  unsafe {
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, copy_len);
+  }
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_session_serialize_json(
+  session: *const c_void,
+  out_ptr: *mut u8,
+  out_cap: u32,
+  out_written: *mut u32,
+) -> i32 {
+  if session.is_null() {
+    return -1;
+  }
+
+  // SAFETY: `session` comes from `vs_video_session_create`.
+  let session_ref = unsafe { &*session.cast::<vs_video_session>() };
+  let snapshot = VsVideoSessionSnapshot {
+    version: 1,
+    config: session_ref.config,
+    key_events: session_ref.key_events.clone(),
+    click_events: session_ref.click_events.clone(),
+    trim_start_ms: session_ref.trim_start_ms,
+    trim_end_ms: session_ref.trim_end_ms,
+    source_has_audio: session_ref.source_has_audio,
+    source_has_webcam_asset: session_ref.source_has_webcam_asset,
+    audio_track_visible: session_ref.audio_track_visible,
+    webcam_track_visible: session_ref.webcam_track_visible,
+    text_overlay_count: session_ref.text_overlay_count,
+  };
+
+  let json_bytes = match serde_json::to_vec(&snapshot) {
+    Ok(v) => v,
+    Err(_) => return -2,
+  };
+
+  unsafe { write_bytes_to_output(&json_bytes, out_ptr, out_cap, out_written) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_session_deserialize_json(
+  json_ptr: *const u8,
+  json_len: u32,
+) -> *mut c_void {
+  if json_ptr.is_null() || json_len == 0 {
+    return std::ptr::null_mut();
+  }
+
+  // SAFETY: caller provides valid pointer/len for call duration.
+  let json_bytes = unsafe { slice::from_raw_parts(json_ptr, json_len as usize) };
+  let snapshot: VsVideoSessionSnapshot = match serde_json::from_slice(json_bytes) {
+    Ok(v) => v,
+    Err(_) => return std::ptr::null_mut(),
+  };
+
+  if snapshot.trim_end_ms < snapshot.trim_start_ms {
+    return std::ptr::null_mut();
+  }
+
+  let session = vs_video_session {
+    config: snapshot.config,
+    key_events: snapshot.key_events,
+    click_events: snapshot.click_events,
+    trim_start_ms: snapshot.trim_start_ms,
+    trim_end_ms: snapshot.trim_end_ms,
+    source_has_audio: snapshot.source_has_audio,
+    source_has_webcam_asset: snapshot.source_has_webcam_asset,
+    audio_track_visible: snapshot.audio_track_visible,
+    webcam_track_visible: snapshot.webcam_track_visible,
+    text_overlay_count: snapshot.text_overlay_count,
+  };
+
+  Box::into_raw(Box::new(session)).cast()
+}
+
+const VS_VIDEO_PLAN_MODE_PASSTHROUGH: u8 = 0;
+const VS_VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = 1;
 
 const VS_STITCH_SIDE_TOP: u8 = 0;
 const VS_STITCH_SIDE_BOTTOM: u8 = 1;
@@ -674,6 +875,476 @@ fn stitch_pixel_diff(a: &[u8], ai: usize, b: &[u8], bi: usize) -> u64 {
   let dg = (a[ai + 1] as i32 - b[bi + 1] as i32).unsigned_abs() as u64;
   let dr = (a[ai + 2] as i32 - b[bi + 2] as i32).unsigned_abs() as u64;
   dr + dg + db
+}
+
+#[derive(Clone)]
+struct OwnedBgraFrame {
+  width: u32,
+  height: u32,
+  stride: u32,
+  pixels: Vec<u8>,
+}
+
+impl OwnedBgraFrame {
+  fn as_view(&self) -> vs_bgra_image_view {
+    vs_bgra_image_view {
+      width: self.width,
+      height: self.height,
+      stride: self.stride,
+      ptr: self.pixels.as_ptr(),
+      len: self.pixels.len(),
+    }
+  }
+
+  fn row_bytes(&self) -> Option<usize> {
+    (self.width as usize).checked_mul(4)
+  }
+
+  fn to_owned_image(&self) -> vs_bgra_owned_image {
+    let mut pixels = self.pixels.clone();
+    let ptr = pixels.as_mut_ptr();
+    let len = pixels.len();
+    std::mem::forget(pixels);
+    vs_bgra_owned_image {
+      width: self.width,
+      height: self.height,
+      stride: self.stride,
+      ptr,
+      len,
+    }
+  }
+}
+
+#[repr(C)]
+struct vs_stitch_session {
+  working_image: Option<OwnedBgraFrame>,
+  last_frame: Option<OwnedBgraFrame>,
+  direction: Option<u8>,
+  expected_rows: Option<u32>,
+  segment_count: u32,
+}
+
+fn copy_bgra_view_to_owned(view: vs_bgra_image_view) -> Option<OwnedBgraFrame> {
+  // SAFETY: `bgra_view_slice` validates all pointer/length invariants.
+  let (bytes, width, height, stride) = unsafe { bgra_view_slice(view) }?;
+  Some(OwnedBgraFrame {
+    width: width as u32,
+    height: height as u32,
+    stride: stride as u32,
+    pixels: bytes.to_vec(),
+  })
+}
+
+fn extract_strip(frame: &OwnedBgraFrame, rows: u32, side: u8) -> Option<OwnedBgraFrame> {
+  if rows == 0 || rows >= frame.height {
+    return None;
+  }
+  let row_bytes = frame.row_bytes()?;
+  if frame.stride < row_bytes as u32 {
+    return None;
+  }
+
+  let rows_usize = rows as usize;
+  let height_usize = frame.height as usize;
+  let stride = frame.stride as usize;
+  let start_row = if side == VS_STITCH_SIDE_BOTTOM {
+    0usize
+  } else if side == VS_STITCH_SIDE_TOP {
+    height_usize.saturating_sub(rows_usize)
+  } else {
+    return None;
+  };
+
+  let mut pixels = vec![0u8; rows_usize.checked_mul(row_bytes)?];
+  for row in 0..rows_usize {
+    let src_row = start_row + row;
+    let src_start = src_row.checked_mul(stride)?;
+    let dst_start = row.checked_mul(row_bytes)?;
+    pixels[dst_start..dst_start + row_bytes]
+      .copy_from_slice(&frame.pixels[src_start..src_start + row_bytes]);
+  }
+
+  Some(OwnedBgraFrame {
+    width: frame.width,
+    height: rows,
+    stride: row_bytes as u32,
+    pixels,
+  })
+}
+
+fn resize_frame_width_nearest(frame: &OwnedBgraFrame, target_width: u32) -> Option<OwnedBgraFrame> {
+  if frame.width == target_width {
+    return Some(frame.clone());
+  }
+  if frame.width == 0 || frame.height == 0 || target_width == 0 {
+    return None;
+  }
+
+  let src_width = frame.width as usize;
+  let src_height = frame.height as usize;
+  let src_stride = frame.stride as usize;
+  let src_row_bytes = frame.row_bytes()?;
+  if src_stride < src_row_bytes {
+    return None;
+  }
+
+  let dst_width = target_width as usize;
+  let scale = dst_width as f64 / src_width as f64;
+  let dst_height = ((src_height as f64 * scale).round() as usize).max(1);
+  let dst_row_bytes = dst_width.checked_mul(4)?;
+  let dst_len = dst_row_bytes.checked_mul(dst_height)?;
+  let mut dst_pixels = vec![0u8; dst_len];
+
+  for y in 0..dst_height {
+    let src_y = ((y as f64 / dst_height as f64) * src_height as f64)
+      .floor()
+      .clamp(0.0, (src_height.saturating_sub(1)) as f64) as usize;
+    let src_row_start = src_y.checked_mul(src_stride)?;
+    let dst_row_start = y.checked_mul(dst_row_bytes)?;
+
+    for x in 0..dst_width {
+      let src_x = ((x as f64 / dst_width as f64) * src_width as f64)
+        .floor()
+        .clamp(0.0, (src_width.saturating_sub(1)) as f64) as usize;
+      let src_idx = src_row_start + src_x * 4;
+      let dst_idx = dst_row_start + x * 4;
+      dst_pixels[dst_idx..dst_idx + 4].copy_from_slice(&frame.pixels[src_idx..src_idx + 4]);
+    }
+  }
+
+  Some(OwnedBgraFrame {
+    width: target_width,
+    height: dst_height as u32,
+    stride: dst_row_bytes as u32,
+    pixels: dst_pixels,
+  })
+}
+
+fn merge_bgra_frames(base: &OwnedBgraFrame, segment: &OwnedBgraFrame, side: u8) -> Option<OwnedBgraFrame> {
+  if side != VS_STITCH_SIDE_TOP && side != VS_STITCH_SIDE_BOTTOM {
+    return None;
+  }
+  if base.width != segment.width {
+    return None;
+  }
+
+  let width = base.width as usize;
+  let base_height = base.height as usize;
+  let segment_height = segment.height as usize;
+  let base_stride = base.stride as usize;
+  let segment_stride = segment.stride as usize;
+  let row_bytes = width.checked_mul(4)?;
+  if base_stride < row_bytes || segment_stride < row_bytes {
+    return None;
+  }
+
+  let out_height = base_height.checked_add(segment_height)?;
+  let out_stride = row_bytes;
+  let out_len = out_stride.checked_mul(out_height)?;
+  let mut out_pixels = vec![0u8; out_len];
+
+  let mut copy_rows = |src: &[u8], src_stride: usize, src_height: usize, dst_start_row: usize| {
+    for row in 0..src_height {
+      let src_start = row * src_stride;
+      let dst_start = (dst_start_row + row) * out_stride;
+      out_pixels[dst_start..dst_start + row_bytes]
+        .copy_from_slice(&src[src_start..src_start + row_bytes]);
+    }
+  };
+
+  if side == VS_STITCH_SIDE_BOTTOM {
+    copy_rows(&base.pixels, base_stride, base_height, 0);
+    copy_rows(&segment.pixels, segment_stride, segment_height, base_height);
+  } else {
+    copy_rows(&segment.pixels, segment_stride, segment_height, 0);
+    copy_rows(&base.pixels, base_stride, base_height, segment_height);
+  }
+
+  Some(OwnedBgraFrame {
+    width: base.width,
+    height: out_height as u32,
+    stride: out_stride as u32,
+    pixels: out_pixels,
+  })
+}
+
+fn default_stitch_session_result(
+  session: &vs_stitch_session,
+  accepted: bool,
+  delta: Option<vs_stitch_delta>,
+) -> vs_stitch_session_result {
+  let direction_locked = session.direction.is_some();
+  let expected_rows = session.expected_rows.unwrap_or(0);
+  let scroll_direction_sign = match session.direction {
+    Some(VS_STITCH_SIDE_BOTTOM) => -1,
+    Some(VS_STITCH_SIDE_TOP) => 1,
+    _ => -1,
+  };
+  let (rows, side, score) = match delta {
+    Some(d) => (d.rows, d.side, d.score),
+    None => (0, 0, 0.0),
+  };
+  vs_stitch_session_result {
+    accepted,
+    rows,
+    side,
+    score,
+    direction_locked,
+    expected_rows,
+    segment_count: session.segment_count,
+    scroll_direction_sign,
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn vs_stitch_session_create() -> *mut c_void {
+  let session = vs_stitch_session {
+    working_image: None,
+    last_frame: None,
+    direction: None,
+    expected_rows: None,
+    segment_count: 1,
+  };
+  Box::into_raw(Box::new(session)).cast()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_stitch_session_destroy(session: *mut c_void) {
+  if session.is_null() {
+    return;
+  }
+
+  // SAFETY: `session` was created by `vs_stitch_session_create`.
+  unsafe {
+    drop(Box::from_raw(session.cast::<vs_stitch_session>()));
+  }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_stitch_session_reset(session: *mut c_void, base_segment_count: u32) -> i32 {
+  if session.is_null() {
+    return -1;
+  }
+
+  // SAFETY: `session` was created by `vs_stitch_session_create`.
+  let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
+  session_ref.working_image = None;
+  session_ref.last_frame = None;
+  session_ref.direction = None;
+  session_ref.expected_rows = None;
+  session_ref.segment_count = base_segment_count.max(1);
+  0
+}
+
+fn zero_bgra_owned_image(image: &mut vs_bgra_owned_image) {
+  image.width = 0;
+  image.height = 0;
+  image.stride = 0;
+  image.ptr = std::ptr::null_mut();
+  image.len = 0;
+}
+
+fn stitch_session_push_internal(
+  session_ref: &mut vs_stitch_session,
+  current_frame: OwnedBgraFrame,
+) -> (vs_stitch_session_result, Option<OwnedBgraFrame>) {
+  let mut maybe_delta: Option<vs_stitch_delta> = None;
+  let mut merged_output: Option<OwnedBgraFrame> = None;
+  let mut accepted = false;
+
+  if let Some(previous_frame) = session_ref.last_frame.as_ref() {
+    let prev_view = previous_frame.as_view();
+    let curr_view = current_frame.as_view();
+    if prev_view.width == curr_view.width && prev_view.height == curr_view.height {
+      let preferred_side = match session_ref.direction {
+        Some(VS_STITCH_SIDE_TOP) => 0,
+        Some(VS_STITCH_SIDE_BOTTOM) => 1,
+        _ => -1,
+      };
+      let expected_rows = session_ref.expected_rows.unwrap_or(0);
+      let has_expected_rows = session_ref.expected_rows.is_some();
+      let mut delta = vs_stitch_delta::default();
+
+      // SAFETY: views point to owned frame memory and remain valid for call duration.
+      let strict_status = unsafe {
+        vs_stitch_estimate_delta_bgra(
+          prev_view,
+          curr_view,
+          preferred_side,
+          expected_rows,
+          has_expected_rows,
+          false,
+          &mut delta,
+        )
+      };
+      let relaxed_status = if strict_status == 0 {
+        0
+      } else {
+        // SAFETY: same as strict call.
+        unsafe {
+          vs_stitch_estimate_delta_bgra(
+            prev_view,
+            curr_view,
+            preferred_side,
+            expected_rows,
+            has_expected_rows,
+            true,
+            &mut delta,
+          )
+        }
+      };
+
+      if relaxed_status == 0 && delta.rows >= 4 {
+        let mut merge_ok = true;
+        if let Some(base_image) = session_ref.working_image.as_ref() {
+          merge_ok = false;
+          if let Some(strip) = extract_strip(&current_frame, delta.rows, delta.side) {
+            let normalized_strip = if strip.width == base_image.width {
+              Some(strip)
+            } else {
+              resize_frame_width_nearest(&strip, base_image.width)
+            };
+            if let Some(normalized_strip) = normalized_strip {
+              if let Some(merged) = merge_bgra_frames(base_image, &normalized_strip, delta.side) {
+                merge_ok = true;
+                merged_output = Some(merged);
+              }
+            }
+          }
+        }
+
+        if merge_ok {
+          accepted = true;
+          maybe_delta = Some(delta);
+          if session_ref.direction.is_none() {
+            session_ref.direction = Some(delta.side);
+          }
+          session_ref.expected_rows = Some(match session_ref.expected_rows {
+            Some(previous_expected) => {
+              let blended = ((previous_expected as f64) * 0.65 + (delta.rows as f64) * 0.35).round() as u32;
+              blended.max(4)
+            }
+            None => delta.rows,
+          });
+          session_ref.segment_count = session_ref.segment_count.saturating_add(1);
+          if let Some(merged) = merged_output.as_ref() {
+            session_ref.working_image = Some(merged.clone());
+          }
+        }
+      }
+    } else {
+      session_ref.direction = None;
+      session_ref.expected_rows = None;
+    }
+  }
+
+  session_ref.last_frame = Some(current_frame);
+  let result = default_stitch_session_result(session_ref, accepted, maybe_delta);
+  (result, merged_output)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_stitch_session_set_base_bgra(
+  session: *mut c_void,
+  base: vs_bgra_image_view,
+  base_segment_count: u32,
+) -> i32 {
+  if session.is_null() {
+    return -1;
+  }
+
+  let base_frame = match copy_bgra_view_to_owned(base) {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  // SAFETY: `session` was created by `vs_stitch_session_create`.
+  let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
+  session_ref.working_image = Some(base_frame);
+  session_ref.last_frame = None;
+  session_ref.direction = None;
+  session_ref.expected_rows = None;
+  session_ref.segment_count = base_segment_count.max(1);
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_stitch_session_get_merged_image_bgra(
+  session: *mut c_void,
+  out_image: *mut vs_bgra_owned_image,
+) -> i32 {
+  if session.is_null() || out_image.is_null() {
+    return -1;
+  }
+
+  // SAFETY: `session` was created by `vs_stitch_session_create`.
+  let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
+  // SAFETY: caller passed a valid writable pointer.
+  let out_image_ref = unsafe { &mut *out_image };
+  zero_bgra_owned_image(out_image_ref);
+
+  let Some(merged) = session_ref.working_image.as_ref() else {
+    return 1;
+  };
+
+  *out_image_ref = merged.to_owned_image();
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_stitch_session_push_frame_bgra(
+  session: *mut c_void,
+  frame: vs_bgra_image_view,
+  out_result: *mut vs_stitch_session_result,
+) -> i32 {
+  if session.is_null() || out_result.is_null() {
+    return -1;
+  }
+
+  let current_frame = match copy_bgra_view_to_owned(frame) {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  // SAFETY: `session` was created by `vs_stitch_session_create`.
+  let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
+  let (result, _) = stitch_session_push_internal(session_ref, current_frame);
+  // SAFETY: `out_result` was checked non-null and points to writable memory.
+  unsafe {
+    *out_result = result;
+  }
+  0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_stitch_session_push_frame_and_merge_bgra(
+  session: *mut c_void,
+  frame: vs_bgra_image_view,
+  out_result: *mut vs_stitch_session_result,
+  out_image: *mut vs_bgra_owned_image,
+) -> i32 {
+  if session.is_null() || out_result.is_null() || out_image.is_null() {
+    return -1;
+  }
+
+  let current_frame = match copy_bgra_view_to_owned(frame) {
+    Some(v) => v,
+    None => return -2,
+  };
+
+  // SAFETY: pointers are non-null and owned by caller/session creator.
+  let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
+  let out_image_ref = unsafe { &mut *out_image };
+  zero_bgra_owned_image(out_image_ref);
+
+  let (result, merged) = stitch_session_push_internal(session_ref, current_frame);
+  unsafe {
+    *out_result = result;
+  }
+  if let Some(merged) = merged {
+    *out_image_ref = merged.to_owned_image();
+  }
+  0
 }
 
 #[no_mangle]
@@ -869,65 +1540,21 @@ pub unsafe extern "C" fn vs_stitch_merge_bgra(
     return -1;
   }
 
-  let (base_bytes, base_width, base_height, base_stride) = match unsafe { bgra_view_slice(base) } {
+  let base_owned = match copy_bgra_view_to_owned(base) {
     Some(v) => v,
     None => return -2,
   };
-  let (segment_bytes, segment_width, segment_height, segment_stride) = match unsafe { bgra_view_slice(segment) } {
+  let segment_owned = match copy_bgra_view_to_owned(segment) {
     Some(v) => v,
     None => return -2,
   };
-
-  if base_width != segment_width {
-    return -2;
-  }
-  if side != VS_STITCH_SIDE_TOP && side != VS_STITCH_SIDE_BOTTOM {
-    return -2;
-  }
-
-  let width = base_width;
-  let row_bytes = match width.checked_mul(4) {
-    Some(v) => v,
-    None => return -2,
-  };
-  let out_height = match base_height.checked_add(segment_height) {
-    Some(v) => v,
-    None => return -2,
-  };
-  let out_stride = row_bytes;
-  let out_len = match out_stride.checked_mul(out_height) {
+  let merged = match merge_bgra_frames(&base_owned, &segment_owned, side) {
     Some(v) => v,
     None => return -2,
   };
 
-  let mut out_pixels = vec![0u8; out_len];
-  let mut copy_rows = |src: &[u8], src_stride: usize, src_height: usize, dst_start_row: usize| {
-    for row in 0..src_height {
-      let src_start = row * src_stride;
-      let dst_start = (dst_start_row + row) * out_stride;
-      out_pixels[dst_start..dst_start + row_bytes].copy_from_slice(&src[src_start..src_start + row_bytes]);
-    }
-  };
-
-  if side == VS_STITCH_SIDE_BOTTOM {
-    copy_rows(base_bytes, base_stride, base_height, 0);
-    copy_rows(segment_bytes, segment_stride, segment_height, base_height);
-  } else {
-    copy_rows(segment_bytes, segment_stride, segment_height, 0);
-    copy_rows(base_bytes, base_stride, base_height, segment_height);
-  }
-
-  let ptr = out_pixels.as_mut_ptr();
-  let len = out_pixels.len();
-  std::mem::forget(out_pixels);
   unsafe {
-    *out_image = vs_bgra_owned_image {
-      width: width as u32,
-      height: out_height as u32,
-      stride: out_stride as u32,
-      ptr,
-      len,
-    };
+    *out_image = merged.to_owned_image();
   }
   0
 }
@@ -4565,9 +5192,12 @@ mod tests {
         trim_end_ms: 0,
         key_event_count: 0,
         click_event_count: 0,
+        plan_mode: 0,
         include_audio: false,
         include_webcam: false,
         text_overlay_count: 0,
+        overlay_item_count: 0,
+        requires_intermediate_for_gif: false,
         needs_custom_compositor: false,
       };
       assert_eq!(vs_video_session_get_export_plan(session, &mut plan), 0);
@@ -4575,6 +5205,9 @@ mod tests {
       assert_eq!(plan.trim_end_ms, 980);
       assert_eq!(plan.key_event_count, 2);
       assert_eq!(plan.click_event_count, 1);
+      assert_eq!(plan.plan_mode, VS_VIDEO_PLAN_MODE_COMPOSITE_MP4);
+      assert_eq!(plan.overlay_item_count, 2);
+      assert!(plan.requires_intermediate_for_gif);
       assert_eq!(
         vs_video_session_set_export_context(
           session,
@@ -4592,6 +5225,9 @@ mod tests {
       assert!(!plan.include_audio);
       assert!(plan.include_webcam);
       assert_eq!(plan.text_overlay_count, 3);
+      assert_eq!(plan.overlay_item_count, 5);
+      assert_eq!(plan.plan_mode, VS_VIDEO_PLAN_MODE_COMPOSITE_MP4);
+      assert!(plan.requires_intermediate_for_gif);
       assert!(plan.needs_custom_compositor);
 
       vs_video_session_destroy(session);
@@ -4727,6 +5363,96 @@ mod tests {
 
       vs_bgra_owned_image_destroy(&mut merged_bottom);
       vs_bgra_owned_image_destroy(&mut merged_top);
+    }
+  }
+
+  #[test]
+  fn stitch_session_push_frame_and_merge_accumulates_segments() {
+    let width = 96usize;
+    let height = 68usize;
+    let shift = 9usize;
+    let stride = width * 4;
+
+    let mut frame_a = vec![0u8; stride * height];
+    for y in 0..height {
+      for x in 0..width {
+        let idx = y * stride + x * 4;
+        frame_a[idx] = ((x * 5 + y * 13) % 251) as u8;
+        frame_a[idx + 1] = ((x * 17 + y * 3) % 251) as u8;
+        frame_a[idx + 2] = ((x * 7 + y * 11) % 251) as u8;
+        frame_a[idx + 3] = 255;
+      }
+    }
+
+    let mut frame_b = vec![0u8; stride * height];
+    for y in 0..(height - shift) {
+      let src = (y + shift) * stride;
+      let dst = y * stride;
+      frame_b[dst..dst + stride].copy_from_slice(&frame_a[src..src + stride]);
+    }
+    for y in (height - shift)..height {
+      for x in 0..width {
+        let idx = y * stride + x * 4;
+        frame_b[idx] = ((x * 19 + y * 23 + 31) % 251) as u8;
+        frame_b[idx + 1] = ((x * 29 + y * 7 + 41) % 251) as u8;
+        frame_b[idx + 2] = ((x * 3 + y * 37 + 53) % 251) as u8;
+        frame_b[idx + 3] = 255;
+      }
+    }
+
+    let base_view = vs_bgra_image_view {
+      width: width as u32,
+      height: height as u32,
+      stride: stride as u32,
+      ptr: frame_a.as_ptr(),
+      len: frame_a.len(),
+    };
+    let first_view = base_view;
+    let second_view = vs_bgra_image_view {
+      width: width as u32,
+      height: height as u32,
+      stride: stride as u32,
+      ptr: frame_b.as_ptr(),
+      len: frame_b.len(),
+    };
+
+    let session = vs_stitch_session_create();
+    assert!(!session.is_null());
+
+    let mut first_result = vs_stitch_session_result::default();
+    let mut first_merged = vs_bgra_owned_image {
+      width: 0,
+      height: 0,
+      stride: 0,
+      ptr: std::ptr::null_mut(),
+      len: 0,
+    };
+    let mut second_result = first_result;
+    let mut second_merged = first_merged;
+
+    // SAFETY: pointers and handle are valid for call duration; owned output is destroyed below.
+    unsafe {
+      assert_eq!(vs_stitch_session_set_base_bgra(session, base_view, 1), 0);
+      assert_eq!(
+        vs_stitch_session_push_frame_and_merge_bgra(session, first_view, &mut first_result, &mut first_merged),
+        0
+      );
+      assert!(!first_result.accepted);
+      assert!(first_merged.ptr.is_null());
+
+      assert_eq!(
+        vs_stitch_session_push_frame_and_merge_bgra(session, second_view, &mut second_result, &mut second_merged),
+        0
+      );
+      assert!(second_result.accepted);
+      assert_eq!(second_result.side, VS_STITCH_SIDE_BOTTOM);
+      assert_eq!(second_result.rows, shift as u32);
+      assert_eq!(second_result.segment_count, 2);
+      assert_eq!(second_merged.width as usize, width);
+      assert_eq!(second_merged.height as usize, height + shift);
+
+      vs_bgra_owned_image_destroy(&mut second_merged);
+      vs_stitch_session_destroy(session);
     }
   }
 

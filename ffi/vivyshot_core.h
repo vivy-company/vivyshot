@@ -35,9 +35,12 @@ typedef struct vs_video_export_plan {
   uint32_t trim_end_ms;
   uint32_t key_event_count;
   uint32_t click_event_count;
+  uint8_t plan_mode;
   bool include_audio;
   bool include_webcam;
   uint32_t text_overlay_count;
+  uint32_t overlay_item_count;
+  bool requires_intermediate_for_gif;
   bool needs_custom_compositor;
 } vs_video_export_plan;
 
@@ -70,6 +73,57 @@ typedef struct vs_stitch_delta {
   uint8_t side;
   float score;
 } vs_stitch_delta;
+
+typedef struct vs_stitch_session_result {
+  bool accepted;
+  uint32_t rows;
+  uint8_t side;
+  float score;
+  bool direction_locked;
+  uint32_t expected_rows;
+  uint32_t segment_count;
+  int32_t scroll_direction_sign;
+} vs_stitch_session_result;
+
+typedef struct vs_overlay_key_event_input {
+  uint64_t timestamp_ns;
+  uint32_t token_len;
+} vs_overlay_key_event_input;
+
+typedef struct vs_overlay_text_clip_input {
+  uint32_t start_ms;
+  uint32_t end_ms;
+  uint32_t text_len;
+} vs_overlay_text_clip_input;
+
+typedef struct vs_overlay_plan_item {
+  uint8_t kind;
+  uint32_t source_index;
+  uint32_t start_ms;
+  uint32_t duration_ms;
+  float x_norm;
+  float y_norm;
+  float width_norm;
+  float height_norm;
+  float font_size_px;
+  float corner_radius_norm;
+  float fade_in_frac;
+  float hold_frac;
+} vs_overlay_plan_item;
+
+typedef struct vs_f32_rect {
+  float x;
+  float y;
+  float width;
+  float height;
+} vs_f32_rect;
+
+typedef struct vs_i32_rect {
+  int32_t x;
+  int32_t y;
+  int32_t width;
+  int32_t height;
+} vs_i32_rect;
 
 typedef struct vs_rect_command {
   int32_t x;
@@ -220,7 +274,36 @@ int32_t vs_video_session_set_export_context(void *session, struct vs_video_expor
 
 int32_t vs_video_session_get_export_plan(void *session, struct vs_video_export_plan *out_plan);
 
+int32_t vs_video_session_serialize_json(void *session,
+                                        uint8_t *out_ptr,
+                                        uint32_t out_cap,
+                                        uint32_t *out_written);
+
+void *vs_video_session_deserialize_json(const uint8_t *json_ptr, uint32_t json_len);
+
 void vs_video_session_destroy(void *session);
+
+void *vs_stitch_session_create(void);
+
+void vs_stitch_session_destroy(void *session);
+
+int32_t vs_stitch_session_reset(void *session, uint32_t base_segment_count);
+
+int32_t vs_stitch_session_set_base_bgra(void *session,
+                                        struct vs_bgra_image_view base,
+                                        uint32_t base_segment_count);
+
+int32_t vs_stitch_session_get_merged_image_bgra(void *session,
+                                                struct vs_bgra_owned_image *out_image);
+
+int32_t vs_stitch_session_push_frame_bgra(void *session,
+                                          struct vs_bgra_image_view frame,
+                                          struct vs_stitch_session_result *out_result);
+
+int32_t vs_stitch_session_push_frame_and_merge_bgra(void *session,
+                                                    struct vs_bgra_image_view frame,
+                                                    struct vs_stitch_session_result *out_result,
+                                                    struct vs_bgra_owned_image *out_image);
 
 int32_t vs_stitch_estimate_delta_bgra(struct vs_bgra_image_view previous,
                                       struct vs_bgra_image_view current,

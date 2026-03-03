@@ -38,9 +38,12 @@ struct RustVideoExportPlan {
   let trimEndMS: Int
   let keyEventCount: Int
   let clickEventCount: Int
+  let planMode: UInt8
   let includeAudio: Bool
   let includeWebcam: Bool
   let textOverlayCount: Int
+  let overlayItemCount: Int
+  let requiresIntermediateForGIF: Bool
   let needsCustomCompositor: Bool
 }
 
@@ -50,6 +53,22 @@ struct RustVideoExportContext {
   let audioTrackVisible: Bool
   let webcamTrackVisible: Bool
   let textOverlayCount: Int
+}
+
+enum RustVideoPlanMode: UInt8 {
+  case passthrough = 0
+  case compositeMP4 = 1
+}
+
+struct RustStitchSessionResult {
+  let accepted: Bool
+  let rows: Int
+  let side: UInt8
+  let score: Double
+  let directionLocked: Bool
+  let expectedRows: Int
+  let segmentCount: Int
+  let scrollDirectionSign: Int
 }
 
 @MainActor
@@ -66,178 +85,17 @@ final class RustCoreBridge {
     RustVideoSession(config: config)
   }
 
+  func makeStitchSession() -> RustStitchSession? {
+    RustStitchSession()
+  }
+
   func makeTimelineSession(durationMS: UInt32, width: UInt32, height: UInt32) -> RustTimelineSession? {
     RustTimelineSession(durationMS: durationMS, width: width, height: height)
-  }
-
-  func estimateStitchDelta(
-    previous: CGImage,
-    current: CGImage,
-    preferredSide: UInt8?,
-    expectedRows: Int?,
-    relaxed: Bool
-  ) -> (rows: Int, side: UInt8, score: Double)? {
-    RustStitchBridge.estimateDelta(
-      previous: previous,
-      current: current,
-      preferredSide: preferredSide,
-      expectedRows: expectedRows,
-      relaxed: relaxed
-    )
-  }
-
-  func mergeStitchSegment(base: CGImage, segment: CGImage, side: UInt8) -> CGImage? {
-    RustStitchBridge.merge(base: base, segment: segment, side: side)
-  }
-}
-
-private enum RustStitchBridge {
-  static let sideTop: UInt8 = 0
-  static let sideBottom: UInt8 = 1
-
-  static func estimateDelta(
-    previous: CGImage,
-    current: CGImage,
-    preferredSide: UInt8?,
-    expectedRows: Int?,
-    relaxed: Bool
-  ) -> (rows: Int, side: UInt8, score: Double)? {
-    guard let previousRaster = RasterImage.from(cgImage: previous),
-          let currentRaster = RasterImage.from(cgImage: current),
-          previousRaster.width == currentRaster.width,
-          previousRaster.height == currentRaster.height
-    else {
-      return nil
-    }
-
-    var delta = vs_stitch_delta(rows: 0, side: 0, score: 0)
-    let preferred = preferredSide.map { Int32($0) } ?? -1
-    let hasExpectedRows = expectedRows != nil
-    let clampedExpectedRows = UInt32(max(0, expectedRows ?? 0))
-
-    let status = previousRaster.pixels.withUnsafeBytes { previousBytes in
-      currentRaster.pixels.withUnsafeBytes { currentBytes in
-        guard let previousPtr = previousBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
-              let currentPtr = currentBytes.baseAddress?.assumingMemoryBound(to: UInt8.self)
-        else {
-          return Int32(-1)
-        }
-
-        let previousView = vs_bgra_image_view(
-          width: UInt32(previousRaster.width),
-          height: UInt32(previousRaster.height),
-          stride: UInt32(previousRaster.stride),
-          ptr: previousPtr,
-          len: UInt(previousBytes.count)
-        )
-        let currentView = vs_bgra_image_view(
-          width: UInt32(currentRaster.width),
-          height: UInt32(currentRaster.height),
-          stride: UInt32(currentRaster.stride),
-          ptr: currentPtr,
-          len: UInt(currentBytes.count)
-        )
-
-        return vs_stitch_estimate_delta_bgra(
-          previousView,
-          currentView,
-          preferred,
-          clampedExpectedRows,
-          hasExpectedRows,
-          relaxed,
-          &delta
-        )
-      }
-    }
-
-    guard status == 0 else {
-      return nil
-    }
-
-    let side = delta.side
-    guard side == sideTop || side == sideBottom else {
-      return nil
-    }
-
-    return (
-      rows: Int(delta.rows),
-      side: side,
-      score: Double(delta.score)
-    )
-  }
-
-  static func merge(base: CGImage, segment: CGImage, side: UInt8) -> CGImage? {
-    guard side == sideTop || side == sideBottom else {
-      return nil
-    }
-
-    guard let baseRaster = RasterImage.from(cgImage: base),
-          let segmentRaster = RasterImage.from(cgImage: segment)
-    else {
-      return nil
-    }
-
-    var merged = vs_bgra_owned_image(
-      width: 0,
-      height: 0,
-      stride: 0,
-      ptr: nil,
-      len: 0
-    )
-
-    let status = baseRaster.pixels.withUnsafeBytes { baseBytes in
-      segmentRaster.pixels.withUnsafeBytes { segmentBytes in
-        guard let basePtr = baseBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
-              let segmentPtr = segmentBytes.baseAddress?.assumingMemoryBound(to: UInt8.self)
-        else {
-          return Int32(-1)
-        }
-
-        let baseView = vs_bgra_image_view(
-          width: UInt32(baseRaster.width),
-          height: UInt32(baseRaster.height),
-          stride: UInt32(baseRaster.stride),
-          ptr: basePtr,
-          len: UInt(baseBytes.count)
-        )
-        let segmentView = vs_bgra_image_view(
-          width: UInt32(segmentRaster.width),
-          height: UInt32(segmentRaster.height),
-          stride: UInt32(segmentRaster.stride),
-          ptr: segmentPtr,
-          len: UInt(segmentBytes.count)
-        )
-
-        return vs_stitch_merge_bgra(baseView, segmentView, side, &merged)
-      }
-    }
-
-    guard status == 0 else {
-      return nil
-    }
-
-    defer {
-      vs_bgra_owned_image_destroy(&merged)
-    }
-
-    guard let mergedPtr = merged.ptr,
-          merged.len > 0
-    else {
-      return nil
-    }
-
-    let pixels = Array(UnsafeBufferPointer(start: mergedPtr, count: Int(merged.len)))
-    let mergedRaster = RasterImage(
-      width: Int(merged.width),
-      height: Int(merged.height),
-      stride: Int(merged.stride),
-      pixels: pixels
-    )
-    return mergedRaster.toCGImage()
   }
 }
 
 final class RustVideoSession {
+  private static let maxSerializedBytes = 8_388_608
   private let handle: UnsafeMutableRawPointer
 
   init?(config: RustVideoSessionConfig) {
@@ -253,6 +111,26 @@ final class RustVideoSession {
       return nil
     }
     handle = rawHandle
+  }
+
+  private init(handle: UnsafeMutableRawPointer) {
+    self.handle = handle
+  }
+
+  static func deserialize(json: Data) -> RustVideoSession? {
+    guard !json.isEmpty else {
+      return nil
+    }
+    let rawHandle: UnsafeMutableRawPointer? = json.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return nil
+      }
+      return vs_video_session_deserialize_json(base, UInt32(raw.count))
+    }
+    guard let rawHandle else {
+      return nil
+    }
+    return RustVideoSession(handle: rawHandle)
   }
 
   deinit {
@@ -302,9 +180,12 @@ final class RustVideoSession {
       trim_end_ms: 0,
       key_event_count: 0,
       click_event_count: 0,
+      plan_mode: 0,
       include_audio: false,
       include_webcam: false,
       text_overlay_count: 0,
+      overlay_item_count: 0,
+      requires_intermediate_for_gif: false,
       needs_custom_compositor: false
     )
     guard vs_video_session_get_export_plan(handle, &raw) == 0 else {
@@ -315,9 +196,12 @@ final class RustVideoSession {
       trimEndMS: Int(raw.trim_end_ms),
       keyEventCount: Int(raw.key_event_count),
       clickEventCount: Int(raw.click_event_count),
+      planMode: raw.plan_mode,
       includeAudio: raw.include_audio,
       includeWebcam: raw.include_webcam,
       textOverlayCount: Int(raw.text_overlay_count),
+      overlayItemCount: Int(raw.overlay_item_count),
+      requiresIntermediateForGIF: raw.requires_intermediate_for_gif,
       needsCustomCompositor: raw.needs_custom_compositor
     )
   }
@@ -331,6 +215,159 @@ final class RustVideoSession {
       text_overlay_count: UInt32(max(0, context.textOverlayCount))
     )
     return vs_video_session_set_export_context(handle, raw) == 0
+  }
+
+  func serializeJSON() -> Data? {
+    var capacity = 1024
+    while capacity <= Self.maxSerializedBytes {
+      var buffer = [UInt8](repeating: 0, count: capacity)
+      var written: UInt32 = 0
+      let result = buffer.withUnsafeMutableBufferPointer { ptr in
+        vs_video_session_serialize_json(handle, ptr.baseAddress, UInt32(ptr.count), &written)
+      }
+      guard result == 0 else {
+        return nil
+      }
+
+      let required = Int(written)
+      if required <= buffer.count {
+        return Data(buffer.prefix(required))
+      }
+      capacity = max(capacity * 2, required)
+    }
+    return nil
+  }
+}
+
+final class RustStitchSession {
+  private let handle: UnsafeMutableRawPointer
+
+  init?() {
+    guard let rawHandle = vs_stitch_session_create() else {
+      return nil
+    }
+    handle = rawHandle
+  }
+
+  deinit {
+    vs_stitch_session_destroy(handle)
+  }
+
+  func reset(baseSegmentCount: Int = 1) -> Bool {
+    vs_stitch_session_reset(handle, UInt32(max(1, baseSegmentCount))) == 0
+  }
+
+  func setBaseImage(_ image: CGImage, baseSegmentCount: Int = 1) -> Bool {
+    guard let raster = RasterImage.from(cgImage: image) else {
+      return false
+    }
+    return raster.pixels.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return false
+      }
+      let view = vs_bgra_image_view(
+        width: UInt32(raster.width),
+        height: UInt32(raster.height),
+        stride: UInt32(raster.stride),
+        ptr: base,
+        len: UInt(raw.count)
+      )
+      return vs_stitch_session_set_base_bgra(handle, view, UInt32(max(1, baseSegmentCount))) == 0
+    }
+  }
+
+  func pushFrame(_ frame: CGImage) -> RustStitchSessionResult? {
+    guard let raster = RasterImage.from(cgImage: frame) else {
+      return nil
+    }
+    var rawResult = vs_stitch_session_result()
+    let status = raster.pixels.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return Int32(-1)
+      }
+      let view = vs_bgra_image_view(
+        width: UInt32(raster.width),
+        height: UInt32(raster.height),
+        stride: UInt32(raster.stride),
+        ptr: base,
+        len: UInt(raw.count)
+      )
+      return vs_stitch_session_push_frame_bgra(handle, view, &rawResult)
+    }
+    guard status == 0 else {
+      return nil
+    }
+    return Self.mapResult(rawResult)
+  }
+
+  func pushFrameAndMerge(_ frame: CGImage) -> (RustStitchSessionResult, CGImage?)? {
+    guard let raster = RasterImage.from(cgImage: frame) else {
+      return nil
+    }
+    var rawResult = vs_stitch_session_result()
+    var rawImage = vs_bgra_owned_image(width: 0, height: 0, stride: 0, ptr: nil, len: 0)
+    defer {
+      vs_bgra_owned_image_destroy(&rawImage)
+    }
+
+    let status = raster.pixels.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return Int32(-1)
+      }
+      let view = vs_bgra_image_view(
+        width: UInt32(raster.width),
+        height: UInt32(raster.height),
+        stride: UInt32(raster.stride),
+        ptr: base,
+        len: UInt(raw.count)
+      )
+      return vs_stitch_session_push_frame_and_merge_bgra(handle, view, &rawResult, &rawImage)
+    }
+    guard status == 0 else {
+      return nil
+    }
+
+    let mergedImage = Self.makeImage(from: rawImage)
+    return (Self.mapResult(rawResult), mergedImage)
+  }
+
+  func mergedImage() -> CGImage? {
+    var rawImage = vs_bgra_owned_image(width: 0, height: 0, stride: 0, ptr: nil, len: 0)
+    defer {
+      vs_bgra_owned_image_destroy(&rawImage)
+    }
+    let status = vs_stitch_session_get_merged_image_bgra(handle, &rawImage)
+    guard status == 0 else {
+      return nil
+    }
+    return Self.makeImage(from: rawImage)
+  }
+
+  private static func mapResult(_ raw: vs_stitch_session_result) -> RustStitchSessionResult {
+    RustStitchSessionResult(
+      accepted: raw.accepted,
+      rows: Int(raw.rows),
+      side: raw.side,
+      score: Double(raw.score),
+      directionLocked: raw.direction_locked,
+      expectedRows: Int(raw.expected_rows),
+      segmentCount: Int(raw.segment_count),
+      scrollDirectionSign: Int(raw.scroll_direction_sign)
+    )
+  }
+
+  private static func makeImage(from raw: vs_bgra_owned_image) -> CGImage? {
+    guard let ptr = raw.ptr, raw.len > 0 else {
+      return nil
+    }
+    let pixels = Array(UnsafeBufferPointer(start: ptr, count: Int(raw.len)))
+    let raster = RasterImage(
+      width: Int(raw.width),
+      height: Int(raw.height),
+      stride: Int(raw.stride),
+      pixels: pixels
+    )
+    return raster.toCGImage()
   }
 }
 

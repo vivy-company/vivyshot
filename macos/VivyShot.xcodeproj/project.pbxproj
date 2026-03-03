@@ -10,6 +10,7 @@
 		0114FA970311A1DB1BF240A3 /* CaptureMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1D489BCA356CB095B94260 /* CaptureMode.swift */; };
 		096BCE34DFE7F931FD0CEBCB /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7AA7C5F7923A58F518A7391 /* CaptureCoordinator.swift */; };
 		142A871911391E81D9817C7E /* EditorTextStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813EAF6FC0E018DFDE3FB17F /* EditorTextStyle.swift */; };
+		2C185EA0D0A6B26D2F79AB75 /* VideoCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A3AB49BB015C9C68963BD8 /* VideoCompositor.swift */; };
 		4619D08016382187A7381A38 /* VivyShotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B41D12D461242E09C0229723 /* VivyShotTests.swift */; };
 		470E988399A885E208E1E38F /* TransientToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = D148AF3AEBB1F0F3BCEAB8AF /* TransientToast.swift */; };
 		497055ED15B48F833C854411 /* RustCoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E95580789557A9F46E87BFED /* RustCoreBridge.swift */; };
@@ -26,6 +27,7 @@
 		CCF52A14B990DA2AD82374E7 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1469BCC6DA4E3C25059E3157 /* LiquidGlassViews.swift */; };
 		E5D3D50E1917A9D9F5549D08 /* CaptureShaderTransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08837013088E38A1384FB907 /* CaptureShaderTransitionView.swift */; };
 		EB3E6477E114CD8A24B71BBC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C95B974185169F4506825172 /* main.swift */; };
+		EC617084194681EA91933639 /* VideoEditorTimelineUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21D6BF24F47C4279EFBE2FC0 /* VideoEditorTimelineUI.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,8 +45,10 @@
 		10B7A128022B20D8F38EBCAC /* AnnotationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTool.swift; sourceTree = "<group>"; };
 		1469BCC6DA4E3C25059E3157 /* LiquidGlassViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassViews.swift; sourceTree = "<group>"; };
 		1E9572635246F4748DDD82F3 /* RegionSelectionOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlayController.swift; sourceTree = "<group>"; };
+		21D6BF24F47C4279EFBE2FC0 /* VideoEditorTimelineUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditorTimelineUI.swift; sourceTree = "<group>"; };
 		284722E4DB47B0C985572EC0 /* RegionSelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlay.swift; sourceTree = "<group>"; };
 		6CF04D44D3DE8238D9505281 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		70A3AB49BB015C9C68963BD8 /* VideoCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCompositor.swift; sourceTree = "<group>"; };
 		7CBFCFCCEE548FD6DD72C2CD /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		7F1AA4CFC185D07152E6ACEB /* GlobalHotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKeyManager.swift; sourceTree = "<group>"; };
 		813EAF6FC0E018DFDE3FB17F /* EditorTextStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTextStyle.swift; sourceTree = "<group>"; };
@@ -91,6 +95,8 @@
 				99F5079EEFFB8B0148129030 /* SettingsWindowController.swift */,
 				6CF04D44D3DE8238D9505281 /* StatusItemController.swift */,
 				D148AF3AEBB1F0F3BCEAB8AF /* TransientToast.swift */,
+				70A3AB49BB015C9C68963BD8 /* VideoCompositor.swift */,
+				21D6BF24F47C4279EFBE2FC0 /* VideoEditorTimelineUI.swift */,
 				B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */,
 			);
 			path = App;
@@ -243,6 +249,8 @@
 				AF35CADFF4D07722F3BAEB41 /* SettingsWindowController.swift in Sources */,
 				71B5AC1202344E9202E44C87 /* StatusItemController.swift in Sources */,
 				470E988399A885E208E1E38F /* TransientToast.swift in Sources */,
+				2C185EA0D0A6B26D2F79AB75 /* VideoCompositor.swift in Sources */,
+				EC617084194681EA91933639 /* VideoEditorTimelineUI.swift in Sources */,
 				B4193BAA01F88737DA067419 /* VideoEditorWindowController.swift in Sources */,
 				EB3E6477E114CD8A24B71BBC /* main.swift in Sources */,
 			);
