@@ -13,13 +13,28 @@ use std::sync::OnceLock;
 use vivyshot_domain::{
     build_gif_export_plan as domain_build_gif_export_plan,
     click_event_is_duplicate as domain_click_event_is_duplicate,
+    compute_video_export_plan as domain_compute_video_export_plan,
     gif_frame_time_ms as domain_gif_frame_time_ms,
     normalize_click_point as domain_normalize_click_point,
     normalize_trim_range as domain_normalize_trim_range,
+    quantize_image_point as domain_quantize_image_point,
+    quantize_image_rect as domain_quantize_image_rect, quantize_rgba as domain_quantize_rgba,
     stitch_autoscroll_reset as domain_stitch_autoscroll_reset,
     stitch_autoscroll_update as domain_stitch_autoscroll_update,
-    GifExportPlan as DomainGifExportPlan, StitchAutoscrollState as DomainStitchAutoscrollState,
-    TrimHandle as DomainTrimHandle,
+    timeline_clamp_clip_end as domain_timeline_clamp_clip_end,
+    timeline_full_duration_end as domain_timeline_full_duration_end,
+    timeline_normalize_text_clip_range as domain_timeline_normalize_text_clip_range,
+};
+
+#[cfg(test)]
+use vivyshot_domain::VIDEO_PLAN_MODE_COMPOSITE_MP4 as DOMAIN_VIDEO_PLAN_MODE_COMPOSITE_MP4;
+
+mod ffi;
+
+use ffi::domain::{
+    to_domain_f32_rect, to_domain_gif_plan, to_domain_stitch_autoscroll_state,
+    to_domain_trim_handle, to_domain_video_export_context, to_ffi_gif_plan, to_ffi_i32_rect,
+    to_ffi_rgba8, to_ffi_stitch_autoscroll_state, to_ffi_video_export_plan,
 };
 
 static VERSION: &[u8] = b"0.1.0\0";
@@ -720,38 +735,14 @@ fn compute_video_export_plan(
     click_event_count: u32,
     context: vs_video_export_context,
 ) -> Option<vs_video_export_plan> {
-    if trim_end_ms < trim_start_ms {
-        return None;
-    }
-
-    let include_audio = context.source_has_audio && context.audio_track_visible;
-    let include_webcam = context.source_has_webcam_asset && context.webcam_track_visible;
-    let has_text_overlays = context.text_overlay_count > 0;
-    let has_key_overlays = key_event_count > 0;
-    let overlay_item_count = context.text_overlay_count.saturating_add(key_event_count);
-    let needs_custom_compositor = include_webcam
-        || has_text_overlays
-        || has_key_overlays
-        || (context.source_has_audio && !include_audio);
-    let plan_mode = if needs_custom_compositor {
-        VS_VIDEO_PLAN_MODE_COMPOSITE_MP4
-    } else {
-        VS_VIDEO_PLAN_MODE_PASSTHROUGH
-    };
-
-    Some(vs_video_export_plan {
+    domain_compute_video_export_plan(
         trim_start_ms,
         trim_end_ms,
         key_event_count,
         click_event_count,
-        plan_mode,
-        include_audio,
-        include_webcam,
-        text_overlay_count: context.text_overlay_count,
-        overlay_item_count,
-        requires_intermediate_for_gif: needs_custom_compositor,
-        needs_custom_compositor,
-    })
+        to_domain_video_export_context(context),
+    )
+    .map(to_ffi_video_export_plan)
 }
 
 #[no_mangle]
@@ -1122,8 +1113,8 @@ pub unsafe extern "C" fn vs_video_session_deserialize_json(
     Box::into_raw(Box::new(session)).cast()
 }
 
-const VS_VIDEO_PLAN_MODE_PASSTHROUGH: u8 = 0;
-const VS_VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = 1;
+#[cfg(test)]
+const VS_VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = DOMAIN_VIDEO_PLAN_MODE_COMPOSITE_MP4;
 const VS_IMAGE_ENCODE_PNG: u8 = 0;
 const VS_IMAGE_ENCODE_JPEG: u8 = 1;
 
@@ -1146,57 +1137,6 @@ const VS_KEY_MOD_CONTROL: u32 = 1 << 3;
 const VS_TRIM_HANDLE_UNKNOWN: u8 = 0;
 const VS_TRIM_HANDLE_START: u8 = 1;
 const VS_TRIM_HANDLE_END: u8 = 2;
-
-fn to_domain_trim_handle(raw: u8) -> Option<DomainTrimHandle> {
-    match raw {
-        VS_TRIM_HANDLE_UNKNOWN => Some(DomainTrimHandle::Unknown),
-        VS_TRIM_HANDLE_START => Some(DomainTrimHandle::Start),
-        VS_TRIM_HANDLE_END => Some(DomainTrimHandle::End),
-        _ => None,
-    }
-}
-
-fn to_ffi_gif_plan(plan: DomainGifExportPlan) -> vs_gif_export_plan {
-    vs_gif_export_plan {
-        start_ms: plan.start_ms,
-        end_ms: plan.end_ms,
-        frame_rate: plan.frame_rate,
-        frame_count: plan.frame_count,
-        max_dimension: plan.max_dimension,
-        frame_delay_ms: plan.frame_delay_ms,
-    }
-}
-
-fn to_domain_gif_plan(plan: vs_gif_export_plan) -> DomainGifExportPlan {
-    DomainGifExportPlan {
-        start_ms: plan.start_ms,
-        end_ms: plan.end_ms,
-        frame_rate: plan.frame_rate,
-        frame_count: plan.frame_count,
-        max_dimension: plan.max_dimension,
-        frame_delay_ms: plan.frame_delay_ms,
-    }
-}
-
-fn to_ffi_stitch_autoscroll_state(
-    state: DomainStitchAutoscrollState,
-) -> vs_stitch_autoscroll_state {
-    vs_stitch_autoscroll_state {
-        direction_sign: state.direction_sign,
-        no_motion_ticks: state.no_motion_ticks,
-        did_flip_direction: state.did_flip_direction,
-    }
-}
-
-fn to_domain_stitch_autoscroll_state(
-    state: vs_stitch_autoscroll_state,
-) -> DomainStitchAutoscrollState {
-    DomainStitchAutoscrollState {
-        direction_sign: state.direction_sign,
-        no_motion_ticks: state.no_motion_ticks,
-        did_flip_direction: state.did_flip_direction,
-    }
-}
 
 unsafe fn bgra_view_slice<'a>(view: vs_bgra_image_view) -> Option<(&'a [u8], usize, usize, usize)> {
     if view.ptr.is_null() || view.width == 0 || view.height == 0 {
@@ -1826,37 +1766,18 @@ pub unsafe extern "C" fn vs_quantize_image_rect(
     rect: vs_f32_rect,
     out_rect: *mut vs_i32_rect,
 ) -> i32 {
-    if out_rect.is_null() || image_width == 0 || image_height == 0 {
+    if out_rect.is_null() {
         return -1;
     }
-    let (min_x, min_y, max_x, max_y) = match standardize_rect(rect) {
-        Some(v) => v,
-        None => return -2,
-    };
-
-    let mut x = min_x.floor() as i32;
-    let mut y = min_y.floor() as i32;
-    let mut width = (max_x - min_x).ceil() as i32;
-    let mut height = (max_y - min_y).ceil() as i32;
-    if width <= 0 || height <= 0 {
+    let Some(result) =
+        domain_quantize_image_rect(image_width, image_height, to_domain_f32_rect(rect))
+    else {
         return -2;
-    }
-
-    let max_w = image_width as i32;
-    let max_h = image_height as i32;
-    x = x.clamp(0, max_w - 1);
-    y = y.clamp(0, max_h - 1);
-    width = width.clamp(1, max_w - x);
-    height = height.clamp(1, max_h - y);
+    };
 
     // SAFETY: `out_rect` validated non-null above.
     unsafe {
-        *out_rect = vs_i32_rect {
-            x,
-            y,
-            width,
-            height,
-        };
+        *out_rect = to_ffi_i32_rect(result);
     }
     0
 }
@@ -1870,19 +1791,12 @@ pub unsafe extern "C" fn vs_quantize_image_point(
     out_x: *mut i32,
     out_y: *mut i32,
 ) -> i32 {
-    if out_x.is_null()
-        || out_y.is_null()
-        || image_width == 0
-        || image_height == 0
-        || !x.is_finite()
-        || !y.is_finite()
-    {
+    if out_x.is_null() || out_y.is_null() {
         return -1;
     }
-    let max_x = image_width as i32 - 1;
-    let max_y = image_height as i32 - 1;
-    let px = (x.round() as i32).clamp(0, max_x);
-    let py = (y.round() as i32).clamp(0, max_y);
+    let Some((px, py)) = domain_quantize_image_point(image_width, image_height, x, y) else {
+        return -1;
+    };
     unsafe {
         *out_x = px;
         *out_y = py;
@@ -1898,19 +1812,15 @@ pub unsafe extern "C" fn vs_quantize_rgba(
     a: f32,
     out_color: *mut vs_rgba8,
 ) -> i32 {
-    if out_color.is_null() || !r.is_finite() || !g.is_finite() || !b.is_finite() || !a.is_finite() {
+    if out_color.is_null() {
         return -1;
     }
-
-    let to_u8 = |v: f32| -> u8 { (v.clamp(0.0, 1.0) * 255.0).round() as u8 };
+    let Some(color) = domain_quantize_rgba(r, g, b, a) else {
+        return -1;
+    };
     // SAFETY: output pointer validated non-null above.
     unsafe {
-        *out_color = vs_rgba8 {
-            r: to_u8(r),
-            g: to_u8(g),
-            b: to_u8(b),
-            a: to_u8(a),
-        };
+        *out_color = to_ffi_rgba8(color);
     }
     0
 }
@@ -5511,11 +5421,7 @@ fn timeline_next_clip(
 }
 
 fn timeline_full_duration_end(tl: &VsTimeline) -> u32 {
-    if tl.video_duration_ms == 0 {
-        1
-    } else {
-        tl.video_duration_ms.max(1)
-    }
+    domain_timeline_full_duration_end(tl.video_duration_ms)
 }
 
 // ---------------------------------------------------------------------------
@@ -5805,15 +5711,8 @@ pub unsafe extern "C" fn vs_timeline_add_text_clip_auto_track(
     }
 
     let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
-    let duration = timeline_full_duration_end(tl);
-    let mut clamped_start = start_ms.min(duration.saturating_sub(1));
-    let mut clamped_end = end_ms.min(duration);
-    if clamped_end <= clamped_start {
-        clamped_end = (clamped_start.saturating_add(1)).min(duration);
-    }
-    if clamped_end <= clamped_start {
-        clamped_start = clamped_end.saturating_sub(1);
-    }
+    let (clamped_start, clamped_end) =
+        domain_timeline_normalize_text_clip_range(tl.video_duration_ms, start_ms, end_ms);
 
     let track_index = match tl.tracks.iter().position(|track| track.kind == 3) {
         Some(idx) => idx,
@@ -5880,12 +5779,7 @@ pub unsafe extern "C" fn vs_timeline_add_clip(
         return -2;
     }
 
-    let clamped_end = if tl.video_duration_ms > 0 {
-        end_ms.min(tl.video_duration_ms)
-    } else {
-        end_ms
-    };
-    let clamped_end = clamped_end.max(start_ms + 1);
+    let clamped_end = domain_timeline_clamp_clip_end(tl.video_duration_ms, start_ms, end_ms);
 
     let clip_id = tl.next_clip_id;
     tl.next_clip_id = tl.next_clip_id.wrapping_add(1);

@@ -1,0 +1,17 @@
+name: Rust Coverage
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rust-coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vivyshot-rs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Run coverage gate
+        run: cargo llvm-cov --workspace --summary-only --fail-under-lines 75

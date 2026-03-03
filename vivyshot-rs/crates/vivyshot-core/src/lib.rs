@@ -5,6 +5,33 @@ pub enum TrimHandle {
     End,
 }
 
+pub const VIDEO_PLAN_MODE_PASSTHROUGH: u8 = 0;
+pub const VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = 1;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VideoExportContext {
+    pub source_has_audio: bool,
+    pub source_has_webcam_asset: bool,
+    pub audio_track_visible: bool,
+    pub webcam_track_visible: bool,
+    pub text_overlay_count: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VideoExportPlan {
+    pub trim_start_ms: u32,
+    pub trim_end_ms: u32,
+    pub key_event_count: u32,
+    pub click_event_count: u32,
+    pub plan_mode: u8,
+    pub include_audio: bool,
+    pub include_webcam: bool,
+    pub text_overlay_count: u32,
+    pub overlay_item_count: u32,
+    pub requires_intermediate_for_gif: bool,
+    pub needs_custom_compositor: bool,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GifExportPlan {
     pub start_ms: u32,
@@ -20,6 +47,71 @@ pub struct StitchAutoscrollState {
     pub direction_sign: i32,
     pub no_motion_ticks: u32,
     pub did_flip_direction: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct F32Rect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct I32Rect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Rgba8 {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+pub fn compute_video_export_plan(
+    trim_start_ms: u32,
+    trim_end_ms: u32,
+    key_event_count: u32,
+    click_event_count: u32,
+    context: VideoExportContext,
+) -> Option<VideoExportPlan> {
+    if trim_end_ms < trim_start_ms {
+        return None;
+    }
+
+    let include_audio = context.source_has_audio && context.audio_track_visible;
+    let include_webcam = context.source_has_webcam_asset && context.webcam_track_visible;
+    let has_text_overlays = context.text_overlay_count > 0;
+    let has_key_overlays = key_event_count > 0;
+    let overlay_item_count = context.text_overlay_count.saturating_add(key_event_count);
+    let needs_custom_compositor = include_webcam
+        || has_text_overlays
+        || has_key_overlays
+        || (context.source_has_audio && !include_audio);
+    let plan_mode = if needs_custom_compositor {
+        VIDEO_PLAN_MODE_COMPOSITE_MP4
+    } else {
+        VIDEO_PLAN_MODE_PASSTHROUGH
+    };
+
+    Some(VideoExportPlan {
+        trim_start_ms,
+        trim_end_ms,
+        key_event_count,
+        click_event_count,
+        plan_mode,
+        include_audio,
+        include_webcam,
+        text_overlay_count: context.text_overlay_count,
+        overlay_item_count,
+        requires_intermediate_for_gif: needs_custom_compositor,
+        needs_custom_compositor,
+    })
 }
 
 pub fn normalize_click_point(normalized_x: f32, normalized_y: f32) -> Option<(f32, f32)> {
@@ -188,6 +280,133 @@ pub fn stitch_autoscroll_update(
     next
 }
 
+fn standardize_rect(rect: F32Rect) -> Option<(f32, f32, f32, f32)> {
+    if !rect.x.is_finite()
+        || !rect.y.is_finite()
+        || !rect.width.is_finite()
+        || !rect.height.is_finite()
+    {
+        return None;
+    }
+    if rect.width == 0.0 || rect.height == 0.0 {
+        return None;
+    }
+
+    let x0 = rect.x;
+    let y0 = rect.y;
+    let x1 = rect.x + rect.width;
+    let y1 = rect.y + rect.height;
+
+    let min_x = x0.min(x1);
+    let max_x = x0.max(x1);
+    let min_y = y0.min(y1);
+    let max_y = y0.max(y1);
+
+    if !min_x.is_finite() || !max_x.is_finite() || !min_y.is_finite() || !max_y.is_finite() {
+        return None;
+    }
+
+    if max_x <= min_x || max_y <= min_y {
+        return None;
+    }
+
+    Some((min_x, min_y, max_x, max_y))
+}
+
+pub fn quantize_image_rect(image_width: u32, image_height: u32, rect: F32Rect) -> Option<I32Rect> {
+    if image_width == 0 || image_height == 0 {
+        return None;
+    }
+    let (min_x, min_y, max_x, max_y) = standardize_rect(rect)?;
+
+    let mut x = min_x.floor() as i32;
+    let mut y = min_y.floor() as i32;
+    let mut width = (max_x - min_x).ceil() as i32;
+    let mut height = (max_y - min_y).ceil() as i32;
+    if width <= 0 || height <= 0 {
+        return None;
+    }
+
+    let max_w = image_width as i32;
+    let max_h = image_height as i32;
+    x = x.clamp(0, max_w - 1);
+    y = y.clamp(0, max_h - 1);
+    width = width.clamp(1, max_w - x);
+    height = height.clamp(1, max_h - y);
+
+    Some(I32Rect {
+        x,
+        y,
+        width,
+        height,
+    })
+}
+
+pub fn quantize_image_point(
+    image_width: u32,
+    image_height: u32,
+    x: f32,
+    y: f32,
+) -> Option<(i32, i32)> {
+    if image_width == 0 || image_height == 0 || !x.is_finite() || !y.is_finite() {
+        return None;
+    }
+
+    let max_x = image_width as i32 - 1;
+    let max_y = image_height as i32 - 1;
+    let px = (x.round() as i32).clamp(0, max_x);
+    let py = (y.round() as i32).clamp(0, max_y);
+    Some((px, py))
+}
+
+pub fn quantize_rgba(r: f32, g: f32, b: f32, a: f32) -> Option<Rgba8> {
+    if !r.is_finite() || !g.is_finite() || !b.is_finite() || !a.is_finite() {
+        return None;
+    }
+
+    let to_u8 = |v: f32| -> u8 { (v.clamp(0.0, 1.0) * 255.0).round() as u8 };
+    Some(Rgba8 {
+        r: to_u8(r),
+        g: to_u8(g),
+        b: to_u8(b),
+        a: to_u8(a),
+    })
+}
+
+pub fn timeline_full_duration_end(video_duration_ms: u32) -> u32 {
+    if video_duration_ms == 0 {
+        1
+    } else {
+        video_duration_ms.max(1)
+    }
+}
+
+pub fn timeline_clamp_clip_end(video_duration_ms: u32, start_ms: u32, end_ms: u32) -> u32 {
+    let clamped_end = if video_duration_ms > 0 {
+        end_ms.min(video_duration_ms)
+    } else {
+        end_ms
+    };
+    clamped_end.max(start_ms.saturating_add(1))
+}
+
+pub fn timeline_normalize_text_clip_range(
+    video_duration_ms: u32,
+    start_ms: u32,
+    end_ms: u32,
+) -> (u32, u32) {
+    let duration = timeline_full_duration_end(video_duration_ms);
+    let mut clamped_start = start_ms.min(duration.saturating_sub(1));
+    let mut clamped_end = end_ms.min(duration);
+    if clamped_end <= clamped_start {
+        clamped_end = clamped_start.saturating_add(1).min(duration);
+    }
+    if clamped_end <= clamped_start {
+        clamped_start = clamped_end.saturating_sub(1);
+    }
+    (clamped_start, clamped_end)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,6 +416,29 @@ mod tests {
         let (start, end) = normalize_trim_range(1_000, 950, 960, 100, TrimHandle::End);
         assert_eq!(start, 860);
         assert_eq!(end, 960);
+    }
+
+    #[test]
+    fn export_plan_marks_custom_compositor_when_audio_hidden() {
+        let plan = compute_video_export_plan(
+            100,
+            800,
+            2,
+            1,
+            VideoExportContext {
+                source_has_audio: true,
+                source_has_webcam_asset: false,
+                audio_track_visible: false,
+                webcam_track_visible: true,
+                text_overlay_count: 1,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(plan.plan_mode, VIDEO_PLAN_MODE_COMPOSITE_MP4);
+        assert!(!plan.include_audio);
+        assert!(plan.needs_custom_compositor);
+        assert_eq!(plan.overlay_item_count, 3);
     }
 
     #[test]
@@ -225,5 +467,37 @@ mod tests {
         assert!(click_event_is_duplicate(
             7, 0, 0.4, 0.6, 7, 0, 0.40005, 0.59995, 0.001
         ));
+    }
+
+    #[test]
+    fn quantize_helpers_clamp() {
+        let rect = quantize_image_rect(
+            400,
+            300,
+            F32Rect {
+                x: -8.2,
+                y: 12.1,
+                width: 22.8,
+                height: 17.3,
+            },
+        )
+        .unwrap();
+        assert_eq!(rect.x, 0);
+        assert!(rect.width >= 1);
+
+        assert_eq!(quantize_image_point(400, 300, 500.0, -5.0), Some((399, 0)));
+
+        let color = quantize_rgba(1.2, -1.0, 0.5, 0.9).unwrap();
+        assert_eq!(color.r, 255);
+        assert_eq!(color.g, 0);
+    }
+
+    #[test]
+    fn timeline_helpers_enforce_nonempty_ranges() {
+        assert_eq!(timeline_full_duration_end(0), 1);
+        assert_eq!(timeline_clamp_clip_end(1_000, 950, 960), 960);
+        let (start, end) = timeline_normalize_text_clip_range(1_000, 990, 991);
+        assert!(end > start);
+        assert!(end <= 1_000);
     }
 }

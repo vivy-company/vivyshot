@@ -83,3 +83,9 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: ""
         BUNDLE_LOADER: ""
+        SWIFT_OBJC_BRIDGING_HEADER: Config/VivyShot-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/../ffi"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a"

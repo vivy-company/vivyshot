@@ -463,14 +463,22 @@
 				BUNDLE_LOADER = "";
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../ffi",
+				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.tests;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "Config/VivyShot-Bridging-Header.h";
 				TEST_HOST = "";
 			};
 			name = Debug;
@@ -510,14 +518,22 @@
 				BUNDLE_LOADER = "";
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../ffi",
+				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.tests;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "Config/VivyShot-Bridging-Header.h";
 				TEST_HOST = "";
 			};
 			name = Release;

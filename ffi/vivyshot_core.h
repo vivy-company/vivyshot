@@ -30,6 +30,14 @@ typedef struct vs_video_click_event {
   uint32_t button;
 } vs_video_click_event;
 
+typedef struct vs_video_export_context {
+  bool source_has_audio;
+  bool source_has_webcam_asset;
+  bool audio_track_visible;
+  bool webcam_track_visible;
+  uint32_t text_overlay_count;
+} vs_video_export_context;
+
 typedef struct vs_video_export_plan {
   uint32_t trim_start_ms;
   uint32_t trim_end_ms;
@@ -43,78 +51,6 @@ typedef struct vs_video_export_plan {
   bool requires_intermediate_for_gif;
   bool needs_custom_compositor;
 } vs_video_export_plan;
-
-typedef struct vs_video_export_context {
-  bool source_has_audio;
-  bool source_has_webcam_asset;
-  bool audio_track_visible;
-  bool webcam_track_visible;
-  uint32_t text_overlay_count;
-} vs_video_export_context;
-
-typedef struct vs_bgra_image_view {
-  uint32_t width;
-  uint32_t height;
-  uint32_t stride;
-  const uint8_t *ptr;
-  uintptr_t len;
-} vs_bgra_image_view;
-
-typedef struct vs_bgra_owned_image {
-  uint32_t width;
-  uint32_t height;
-  uint32_t stride;
-  uint8_t *ptr;
-  uintptr_t len;
-} vs_bgra_owned_image;
-
-typedef struct vs_encoded_bytes {
-  uint8_t *ptr;
-  uintptr_t len;
-} vs_encoded_bytes;
-
-typedef struct vs_stitch_delta {
-  uint32_t rows;
-  uint8_t side;
-  float score;
-} vs_stitch_delta;
-
-typedef struct vs_stitch_session_result {
-  bool accepted;
-  uint32_t rows;
-  uint8_t side;
-  float score;
-  bool direction_locked;
-  uint32_t expected_rows;
-  uint32_t segment_count;
-  int32_t scroll_direction_sign;
-} vs_stitch_session_result;
-
-typedef struct vs_overlay_key_event_input {
-  uint64_t timestamp_ns;
-  uint32_t token_len;
-} vs_overlay_key_event_input;
-
-typedef struct vs_overlay_text_clip_input {
-  uint32_t start_ms;
-  uint32_t end_ms;
-  uint32_t text_len;
-} vs_overlay_text_clip_input;
-
-typedef struct vs_overlay_plan_item {
-  uint8_t kind;
-  uint32_t source_index;
-  uint32_t start_ms;
-  uint32_t duration_ms;
-  float x_norm;
-  float y_norm;
-  float width_norm;
-  float height_norm;
-  float font_size_px;
-  float corner_radius_norm;
-  float fade_in_frac;
-  float hold_frac;
-} vs_overlay_plan_item;
 
 typedef struct vs_f32_rect {
   float x;
@@ -156,6 +92,44 @@ typedef struct vs_stitch_autoscroll_state {
   uint32_t no_motion_ticks;
   bool did_flip_direction;
 } vs_stitch_autoscroll_state;
+
+typedef struct vs_bgra_image_view {
+  uint32_t width;
+  uint32_t height;
+  uint32_t stride;
+  const uint8_t *ptr;
+  uintptr_t len;
+} vs_bgra_image_view;
+
+typedef struct vs_bgra_owned_image {
+  uint32_t width;
+  uint32_t height;
+  uint32_t stride;
+  uint8_t *ptr;
+  uintptr_t len;
+} vs_bgra_owned_image;
+
+typedef struct vs_stitch_session_result {
+  bool accepted;
+  uint32_t rows;
+  uint8_t side;
+  float score;
+  bool direction_locked;
+  uint32_t expected_rows;
+  uint32_t segment_count;
+  int32_t scroll_direction_sign;
+} vs_stitch_session_result;
+
+typedef struct vs_stitch_delta {
+  uint32_t rows;
+  uint8_t side;
+  float score;
+} vs_stitch_delta;
+
+typedef struct vs_encoded_bytes {
+  uint8_t *ptr;
+  uintptr_t len;
+} vs_encoded_bytes;
 
 typedef struct vs_rect_command {
   int32_t x;
@@ -313,6 +287,8 @@ int32_t vs_video_compute_export_plan(uint32_t trim_start_ms,
 
 int32_t vs_video_session_get_export_plan(void *session, struct vs_video_export_plan *out_plan);
 
+void vs_video_session_destroy(void *session);
+
 int32_t vs_normalize_key_token(uint16_t key_code,
                                uint32_t modifiers,
                                const uint8_t *chars_ptr,
@@ -343,20 +319,93 @@ bool vs_click_event_is_duplicate(uint64_t last_timestamp_ns,
                                  float y,
                                  float epsilon);
 
-int32_t vs_video_session_serialize_json(void *session,
+int32_t vs_video_session_serialize_json(const void *session,
                                         uint8_t *out_ptr,
                                         uint32_t out_cap,
                                         uint32_t *out_written);
 
 void *vs_video_session_deserialize_json(const uint8_t *json_ptr, uint32_t json_len);
 
-void vs_video_session_destroy(void *session);
-
 void *vs_stitch_session_create(void);
 
 void vs_stitch_session_destroy(void *session);
 
 int32_t vs_stitch_session_reset(void *session, uint32_t base_segment_count);
+
+int32_t vs_view_rect_to_image_rect(struct vs_f32_rect view_rect,
+                                   struct vs_f32_rect destination_rect,
+                                   uint32_t image_width,
+                                   uint32_t image_height,
+                                   struct vs_f32_rect *out_rect);
+
+int32_t vs_image_rect_to_view_rect(struct vs_f32_rect image_rect,
+                                   struct vs_f32_rect destination_rect,
+                                   uint32_t image_width,
+                                   uint32_t image_height,
+                                   struct vs_f32_rect *out_rect);
+
+int32_t vs_view_delta_to_image_delta(float delta_x,
+                                     float delta_y,
+                                     struct vs_f32_rect destination_rect,
+                                     uint32_t image_width,
+                                     uint32_t image_height,
+                                     struct vs_f32_point *out_point);
+
+int32_t vs_image_delta_to_view_delta(float delta_x,
+                                     float delta_y,
+                                     struct vs_f32_rect destination_rect,
+                                     uint32_t image_width,
+                                     uint32_t image_height,
+                                     struct vs_f32_point *out_point);
+
+int32_t vs_viewport_clamp_pan_offset(float bounds_width,
+                                     float bounds_height,
+                                     uint32_t image_width,
+                                     uint32_t image_height,
+                                     float zoom_scale,
+                                     float overscroll,
+                                     float candidate_x,
+                                     float candidate_y,
+                                     struct vs_f32_point *out_point);
+
+int32_t vs_quantize_image_rect(uint32_t image_width,
+                               uint32_t image_height,
+                               struct vs_f32_rect rect,
+                               struct vs_i32_rect *out_rect);
+
+int32_t vs_quantize_image_point(uint32_t image_width,
+                                uint32_t image_height,
+                                float x,
+                                float y,
+                                int32_t *out_x,
+                                int32_t *out_y);
+
+int32_t vs_quantize_rgba(float r, float g, float b, float a, struct vs_rgba8 *out_color);
+
+int32_t vs_normalize_trim_range(uint32_t duration_ms,
+                                uint32_t start_ms,
+                                uint32_t end_ms,
+                                uint32_t min_gap_ms,
+                                uint8_t active_handle,
+                                uint32_t *out_start_ms,
+                                uint32_t *out_end_ms);
+
+int32_t vs_build_gif_export_plan(uint32_t start_ms,
+                                 uint32_t end_ms,
+                                 float preferred_fps,
+                                 uint32_t max_dimension,
+                                 struct vs_gif_export_plan *out_plan);
+
+int32_t vs_gif_frame_time_ms(struct vs_gif_export_plan plan, uint32_t index, uint32_t *out_time_ms);
+
+int32_t vs_stitch_autoscroll_reset(struct vs_stitch_autoscroll_state *out_state);
+
+int32_t vs_stitch_autoscroll_update(bool enabled,
+                                    bool direction_locked,
+                                    bool did_merge,
+                                    uint32_t threshold_ticks,
+                                    struct vs_stitch_autoscroll_state state,
+                                    struct vs_stitch_autoscroll_state *out_state);
 
 int32_t vs_stitch_session_set_base_bgra(void *session,
                                         struct vs_bgra_image_view base,
@@ -409,95 +458,14 @@ int32_t vs_selection_resize_rect(struct vs_f32_rect start,
                                  float min_height,
                                  struct vs_f32_rect *out_rect);
 
-int32_t vs_view_rect_to_image_rect(struct vs_f32_rect view_rect,
-                                   struct vs_f32_rect destination_rect,
-                                   uint32_t image_width,
-                                   uint32_t image_height,
-                                   struct vs_f32_rect *out_rect);
-
-int32_t vs_image_rect_to_view_rect(struct vs_f32_rect image_rect,
-                                   struct vs_f32_rect destination_rect,
-                                   uint32_t image_width,
-                                   uint32_t image_height,
-                                   struct vs_f32_rect *out_rect);
-
-int32_t vs_view_delta_to_image_delta(float delta_x,
-                                     float delta_y,
-                                     struct vs_f32_rect destination_rect,
-                                     uint32_t image_width,
-                                     uint32_t image_height,
-                                     struct vs_f32_point *out_point);
-
-int32_t vs_image_delta_to_view_delta(float delta_x,
-                                     float delta_y,
-                                     struct vs_f32_rect destination_rect,
-                                     uint32_t image_width,
-                                     uint32_t image_height,
-                                     struct vs_f32_point *out_point);
-
-int32_t vs_viewport_clamp_pan_offset(float bounds_width,
-                                     float bounds_height,
-                                     uint32_t image_width,
-                                     uint32_t image_height,
-                                     float zoom_scale,
-                                     float overscroll,
-                                     float candidate_x,
-                                     float candidate_y,
-                                     struct vs_f32_point *out_point);
-
-int32_t vs_quantize_image_rect(uint32_t image_width,
-                               uint32_t image_height,
-                               struct vs_f32_rect rect,
-                               struct vs_i32_rect *out_rect);
-
-int32_t vs_quantize_image_point(uint32_t image_width,
-                                uint32_t image_height,
-                                float x,
-                                float y,
-                                int32_t *out_x,
-                                int32_t *out_y);
-
-int32_t vs_quantize_rgba(float r,
-                         float g,
-                         float b,
-                         float a,
-                         struct vs_rgba8 *out_color);
-
-int32_t vs_normalize_trim_range(uint32_t duration_ms,
-                                uint32_t start_ms,
-                                uint32_t end_ms,
-                                uint32_t min_gap_ms,
-                                uint8_t active_handle,
-                                uint32_t *out_start_ms,
-                                uint32_t *out_end_ms);
-
-int32_t vs_build_gif_export_plan(uint32_t start_ms,
-                                 uint32_t end_ms,
-                                 float preferred_fps,
-                                 uint32_t max_dimension,
-                                 struct vs_gif_export_plan *out_plan);
-
-int32_t vs_gif_frame_time_ms(struct vs_gif_export_plan plan,
-                             uint32_t index,
-                             uint32_t *out_time_ms);
-
-int32_t vs_stitch_autoscroll_reset(struct vs_stitch_autoscroll_state *out_state);
-
-int32_t vs_stitch_autoscroll_update(bool enabled,
-                                    bool direction_locked,
-                                    bool did_merge,
-                                    uint32_t threshold_ticks,
-                                    struct vs_stitch_autoscroll_state state,
-                                    struct vs_stitch_autoscroll_state *out_state);
-
 int32_t vs_encode_bgra_image(struct vs_bgra_image_view source,
                              uint8_t format,
                              uint8_t jpeg_quality,
                              struct vs_encoded_bytes *out_bytes);
 
-void vs_bgra_owned_image_destroy(struct vs_bgra_owned_image *image);
-
 void vs_encoded_bytes_destroy(struct vs_encoded_bytes *bytes);
+
+void vs_bgra_owned_image_destroy(struct vs_bgra_owned_image *image);
 
 int32_t vs_add_rect(void *doc, struct vs_rect_command cmd);
 
