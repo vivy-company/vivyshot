@@ -172,7 +172,7 @@ Rationale:
 
 ## 6. Rust Core Integration Plan
 
-Add a new Rust module group under `vivyshot-rs`:
+Add a new Rust module group under `vivyshot-rs/crates/vivyshot-core` and expose C ABI adapters from `vivyshot-rs/crates/vivyshot-ffi`:
 
 1. `video/session.rs`: recording session state machine.
 2. `video/model.rs`: serializable structs for capture settings, events, trims, export targets.

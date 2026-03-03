@@ -273,7 +273,11 @@ vivyshot/
     VivyShot/
   vivyshot-rs/
     Cargo.toml
-    src/
+    crates/
+      vivyshot-core/
+        src/
+      vivyshot-ffi/
+        src/
   ffi/
     vivyshot_core.h
   scripts/

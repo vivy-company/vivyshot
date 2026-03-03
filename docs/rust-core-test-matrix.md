@@ -11,7 +11,7 @@ This matrix tracks contract-level coverage for `vivyshot-rs` APIs.
 - `vs_copy_annotations_affine`
 - `vs_render_full` / `vs_render_dirty`
 
-Coverage file: `vivyshot-rs/tests/document_ffi_contract.rs`
+Coverage file: `vivyshot-rs/crates/vivyshot-ffi/tests/document_ffi_contract.rs`
 
 ## Video Session + Input APIs
 
@@ -23,7 +23,7 @@ Coverage file: `vivyshot-rs/tests/document_ffi_contract.rs`
 - `vs_normalize_key_token` / `vs_key_event_is_duplicate`
 - `vs_normalize_click_point` / `vs_click_event_is_duplicate`
 
-Coverage file: `vivyshot-rs/tests/video_ffi_contract.rs`
+Coverage file: `vivyshot-rs/crates/vivyshot-ffi/tests/video_ffi_contract.rs`
 
 ## Geometry + Policy APIs
 
@@ -36,8 +36,8 @@ Coverage file: `vivyshot-rs/tests/video_ffi_contract.rs`
 - `vs_build_gif_export_plan` / `vs_gif_frame_time_ms`
 
 Coverage files:
-- `vivyshot-rs/tests/geometry_ffi_contract.rs`
-- `vivyshot-rs/tests/property_geometry.rs`
+- `vivyshot-rs/crates/vivyshot-ffi/tests/geometry_ffi_contract.rs`
+- `vivyshot-rs/crates/vivyshot-ffi/tests/property_geometry.rs`
 
 ## Stitch + Image APIs
 
@@ -48,7 +48,7 @@ Coverage files:
 - `vs_stitch_session_*`
 - `vs_stitch_autoscroll_reset` / `vs_stitch_autoscroll_update`
 
-Coverage file: `vivyshot-rs/tests/stitch_ffi_contract.rs`
+Coverage file: `vivyshot-rs/crates/vivyshot-ffi/tests/stitch_ffi_contract.rs`
 
 ## Timeline APIs
 
@@ -66,4 +66,4 @@ Coverage file: `vivyshot-rs/tests/stitch_ffi_contract.rs`
 - `vs_timeline_get_video_info`
 - `vs_timeline_derive_export_context`
 
-Coverage file: `vivyshot-rs/tests/timeline_ffi_contract.rs`
+Coverage file: `vivyshot-rs/crates/vivyshot-ffi/tests/timeline_ffi_contract.rs`

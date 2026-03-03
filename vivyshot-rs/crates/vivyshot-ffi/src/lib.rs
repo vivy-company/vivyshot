@@ -10,6 +10,17 @@ use std::fs;
 use std::os::raw::c_char;
 use std::slice;
 use std::sync::OnceLock;
+use vivyshot_domain::{
+    build_gif_export_plan as domain_build_gif_export_plan,
+    click_event_is_duplicate as domain_click_event_is_duplicate,
+    gif_frame_time_ms as domain_gif_frame_time_ms,
+    normalize_click_point as domain_normalize_click_point,
+    normalize_trim_range as domain_normalize_trim_range,
+    stitch_autoscroll_reset as domain_stitch_autoscroll_reset,
+    stitch_autoscroll_update as domain_stitch_autoscroll_update,
+    GifExportPlan as DomainGifExportPlan, StitchAutoscrollState as DomainStitchAutoscrollState,
+    TrimHandle as DomainTrimHandle,
+};
 
 static VERSION: &[u8] = b"0.1.0\0";
 static SYSTEM_FONTS: OnceLock<Vec<fontdue::Font>> = OnceLock::new();
@@ -999,15 +1010,18 @@ pub unsafe extern "C" fn vs_normalize_click_point(
     out_x: *mut f32,
     out_y: *mut f32,
 ) -> i32 {
-    if !normalized_x.is_finite() || !normalized_y.is_finite() || out_x.is_null() || out_y.is_null()
-    {
+    if out_x.is_null() || out_y.is_null() {
         return -1;
     }
 
+    let Some((x, y)) = domain_normalize_click_point(normalized_x, normalized_y) else {
+        return -1;
+    };
+
     // SAFETY: output pointers are validated non-null above.
     unsafe {
-        *out_x = normalized_x.clamp(0.0, 1.0);
-        *out_y = normalized_y.clamp(0.0, 1.0);
+        *out_x = x;
+        *out_y = y;
     }
     0
 }
@@ -1024,18 +1038,17 @@ pub extern "C" fn vs_click_event_is_duplicate(
     y: f32,
     epsilon: f32,
 ) -> bool {
-    if !last_x.is_finite() || !last_y.is_finite() || !x.is_finite() || !y.is_finite() {
-        return false;
-    }
-    if last_timestamp_ns != timestamp_ns || last_button != button {
-        return false;
-    }
-    let eps = if epsilon.is_finite() {
-        epsilon.max(0.000001)
-    } else {
-        0.0001
-    };
-    (last_x - x).abs() <= eps && (last_y - y).abs() <= eps
+    domain_click_event_is_duplicate(
+        last_timestamp_ns,
+        last_button,
+        last_x,
+        last_y,
+        timestamp_ns,
+        button,
+        x,
+        y,
+        epsilon,
+    )
 }
 
 #[no_mangle]
@@ -1133,6 +1146,57 @@ const VS_KEY_MOD_CONTROL: u32 = 1 << 3;
 const VS_TRIM_HANDLE_UNKNOWN: u8 = 0;
 const VS_TRIM_HANDLE_START: u8 = 1;
 const VS_TRIM_HANDLE_END: u8 = 2;
+
+fn to_domain_trim_handle(raw: u8) -> Option<DomainTrimHandle> {
+    match raw {
+        VS_TRIM_HANDLE_UNKNOWN => Some(DomainTrimHandle::Unknown),
+        VS_TRIM_HANDLE_START => Some(DomainTrimHandle::Start),
+        VS_TRIM_HANDLE_END => Some(DomainTrimHandle::End),
+        _ => None,
+    }
+}
+
+fn to_ffi_gif_plan(plan: DomainGifExportPlan) -> vs_gif_export_plan {
+    vs_gif_export_plan {
+        start_ms: plan.start_ms,
+        end_ms: plan.end_ms,
+        frame_rate: plan.frame_rate,
+        frame_count: plan.frame_count,
+        max_dimension: plan.max_dimension,
+        frame_delay_ms: plan.frame_delay_ms,
+    }
+}
+
+fn to_domain_gif_plan(plan: vs_gif_export_plan) -> DomainGifExportPlan {
+    DomainGifExportPlan {
+        start_ms: plan.start_ms,
+        end_ms: plan.end_ms,
+        frame_rate: plan.frame_rate,
+        frame_count: plan.frame_count,
+        max_dimension: plan.max_dimension,
+        frame_delay_ms: plan.frame_delay_ms,
+    }
+}
+
+fn to_ffi_stitch_autoscroll_state(
+    state: DomainStitchAutoscrollState,
+) -> vs_stitch_autoscroll_state {
+    vs_stitch_autoscroll_state {
+        direction_sign: state.direction_sign,
+        no_motion_ticks: state.no_motion_ticks,
+        did_flip_direction: state.did_flip_direction,
+    }
+}
+
+fn to_domain_stitch_autoscroll_state(
+    state: vs_stitch_autoscroll_state,
+) -> DomainStitchAutoscrollState {
+    DomainStitchAutoscrollState {
+        direction_sign: state.direction_sign,
+        no_motion_ticks: state.no_motion_ticks,
+        did_flip_direction: state.did_flip_direction,
+    }
+}
 
 unsafe fn bgra_view_slice<'a>(view: vs_bgra_image_view) -> Option<(&'a [u8], usize, usize, usize)> {
     if view.ptr.is_null() || view.width == 0 || view.height == 0 {
@@ -1864,35 +1928,15 @@ pub unsafe extern "C" fn vs_normalize_trim_range(
     if out_start_ms.is_null() || out_end_ms.is_null() {
         return -1;
     }
-    let min_gap = min_gap_ms.max(1);
-    let mut start = start_ms.min(duration_ms);
-    let mut end = end_ms.min(duration_ms);
-
-    if start >= end.saturating_sub(min_gap) {
-        match active_handle {
-            VS_TRIM_HANDLE_START => {
-                end = start.saturating_add(min_gap).min(duration_ms);
-            }
-            VS_TRIM_HANDLE_END | VS_TRIM_HANDLE_UNKNOWN => {
-                start = end.saturating_sub(min_gap);
-            }
-            _ => return -2,
-        }
-    }
-
-    if start > duration_ms {
-        start = duration_ms;
-    }
-    if end < start.saturating_add(1) {
-        end = (start.saturating_add(1)).min(duration_ms);
-    }
-    if end <= start {
-        end = start.saturating_add(1);
-    }
+    let Some(handle) = to_domain_trim_handle(active_handle) else {
+        return -2;
+    };
+    let (start, end) =
+        domain_normalize_trim_range(duration_ms, start_ms, end_ms, min_gap_ms, handle);
 
     unsafe {
         *out_start_ms = start;
-        *out_end_ms = end.min(duration_ms.max(1));
+        *out_end_ms = end;
     }
     0
 }
@@ -1908,31 +1952,10 @@ pub unsafe extern "C" fn vs_build_gif_export_plan(
     if out_plan.is_null() {
         return -1;
     }
-    let start = start_ms;
-    let mut end = end_ms.max(start.saturating_add(1));
-    if end <= start {
-        end = start.saturating_add(1);
-    }
-    let duration_ms = end.saturating_sub(start).max(1);
-    let fps = if preferred_fps.is_finite() {
-        preferred_fps.clamp(1.0, 30.0)
-    } else {
-        12.0
-    };
-    let mut frame_count = (((duration_ms as f32) / 1000.0) * fps).ceil() as u32;
-    frame_count = frame_count.clamp(1, 2400);
-    let final_max_dim = max_dimension.clamp(64, 2048);
-    let frame_delay_ms = ((1000.0 / fps).round() as u32).max(1);
+    let plan = domain_build_gif_export_plan(start_ms, end_ms, preferred_fps, max_dimension);
 
     unsafe {
-        *out_plan = vs_gif_export_plan {
-            start_ms: start,
-            end_ms: end,
-            frame_rate: fps,
-            frame_count,
-            max_dimension: final_max_dim,
-            frame_delay_ms,
-        };
+        *out_plan = to_ffi_gif_plan(plan);
     }
     0
 }
@@ -1943,19 +1966,14 @@ pub unsafe extern "C" fn vs_gif_frame_time_ms(
     index: u32,
     out_time_ms: *mut u32,
 ) -> i32 {
-    if out_time_ms.is_null() || plan.frame_count == 0 || plan.end_ms <= plan.start_ms {
+    if out_time_ms.is_null() {
         return -1;
     }
-    let idx = index.min(plan.frame_count - 1);
-    let progress = if plan.frame_count <= 1 {
-        0.0
-    } else {
-        idx as f64 / (plan.frame_count - 1) as f64
+    let Some(value) = domain_gif_frame_time_ms(to_domain_gif_plan(plan), index) else {
+        return -1;
     };
-    let span = (plan.end_ms - plan.start_ms) as f64;
-    let t = plan.start_ms as f64 + span * progress;
     unsafe {
-        *out_time_ms = t.round() as u32;
+        *out_time_ms = value;
     }
     0
 }
@@ -1967,12 +1985,9 @@ pub unsafe extern "C" fn vs_stitch_autoscroll_reset(
     if out_state.is_null() {
         return -1;
     }
+    let state = domain_stitch_autoscroll_reset();
     unsafe {
-        *out_state = vs_stitch_autoscroll_state {
-            direction_sign: -1,
-            no_motion_ticks: 0,
-            did_flip_direction: false,
-        };
+        *out_state = to_ffi_stitch_autoscroll_state(state);
     }
     0
 }
@@ -1989,32 +2004,16 @@ pub unsafe extern "C" fn vs_stitch_autoscroll_update(
     if out_state.is_null() {
         return -1;
     }
-
-    let mut next = state;
-    if next.direction_sign == 0 {
-        next.direction_sign = -1;
-    }
-    if !enabled {
-        next.no_motion_ticks = 0;
-        next.did_flip_direction = false;
-        next.direction_sign = -1;
-    } else if did_merge {
-        next.no_motion_ticks = 0;
-    } else {
-        next.no_motion_ticks = next.no_motion_ticks.saturating_add(1);
-        let threshold = threshold_ticks.max(1);
-        if !direction_locked && !next.did_flip_direction && next.no_motion_ticks >= threshold {
-            next.did_flip_direction = true;
-            next.no_motion_ticks = 0;
-            next.direction_sign = -next.direction_sign;
-            if next.direction_sign == 0 {
-                next.direction_sign = -1;
-            }
-        }
-    }
+    let next = domain_stitch_autoscroll_update(
+        enabled,
+        direction_locked,
+        did_merge,
+        threshold_ticks,
+        to_domain_stitch_autoscroll_state(state),
+    );
 
     unsafe {
-        *out_state = next;
+        *out_state = to_ffi_stitch_autoscroll_state(next);
     }
     0
 }
