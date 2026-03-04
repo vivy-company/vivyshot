@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import AVKit
 import CoreMedia
 import SwiftUI
 
@@ -8,9 +9,11 @@ final class VideoRecordingHUDController: NSWindowController {
   private let recordSystemAudio: Bool
   private let recordMicrophone: Bool
   private let onStop: () -> Void
-  private let timerLabel = NSTextField(labelWithString: "● 00:00")
   private var timer: Timer?
   private var startedAt = Date()
+  private var elapsedSeconds = 0
+  private var anchorRect: CGRect = .zero
+  private var hostingView: NSHostingView<VideoRecordingFloatingBar>?
 
   init(
     recordSystemAudio: Bool,
@@ -22,17 +25,21 @@ final class VideoRecordingHUDController: NSWindowController {
     self.onStop = onStop
 
     let panel = NSPanel(
-      contentRect: CGRect(x: 0, y: 0, width: 230, height: 92),
-      styleMask: [.nonactivatingPanel, .hudWindow],
+      contentRect: CGRect(x: 0, y: 0, width: 300, height: 48),
+      styleMask: [.nonactivatingPanel, .borderless],
       backing: .buffered,
       defer: false
     )
     panel.isReleasedWhenClosed = false
     panel.level = .statusBar
-    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
     panel.hidesOnDeactivate = false
-    panel.titleVisibility = .hidden
-    panel.titlebarAppearsTransparent = true
+    panel.isOpaque = false
+    panel.backgroundColor = .clear
+    panel.hasShadow = true
+    panel.ignoresMouseEvents = false
+    panel.isMovable = true
+    panel.isMovableByWindowBackground = true
 
     super.init(window: panel)
     configureUI()
@@ -44,17 +51,16 @@ final class VideoRecordingHUDController: NSWindowController {
   }
 
   func show(near rect: CGRect) {
-    guard let panel = window else {
+    guard let panel = window as? NSPanel else {
       return
     }
 
-    let size = panel.frame.size
-    let x = rect.midX - size.width * 0.5
-    let y = rect.maxY + 12
-    panel.setFrame(CGRect(x: x, y: y, width: size.width, height: size.height).integral, display: false)
-    panel.orderFrontRegardless()
+    anchorRect = rect.standardized
     startedAt = Date()
-    updateTimerLabel()
+    elapsedSeconds = 0
+    refreshHUD()
+    positionPanel(panel, near: anchorRect)
+    panel.orderFrontRegardless()
 
     timer?.invalidate()
     timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -62,7 +68,7 @@ final class VideoRecordingHUDController: NSWindowController {
         return
       }
       MainActor.assumeIsolated {
-        self.updateTimerLabel()
+        self.refreshHUD()
       }
     }
   }
@@ -74,63 +80,63 @@ final class VideoRecordingHUDController: NSWindowController {
   }
 
   private func configureUI() {
-    guard let content = window?.contentView else {
+    guard let panel = window as? NSPanel else {
       return
     }
-
-    timerLabel.font = .monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
-    timerLabel.textColor = .systemRed
-    timerLabel.alignment = .left
-
-    let sourceLabel = NSTextField(labelWithString: sourceSummaryText())
-    sourceLabel.font = .systemFont(ofSize: 11, weight: .medium)
-    sourceLabel.textColor = .secondaryLabelColor
-
-    let stopButton = NSButton(title: "Stop", target: self, action: #selector(stopPressed))
-    stopButton.bezelStyle = .rounded
-    stopButton.keyEquivalent = "\r"
-
-    let topRow = NSStackView(views: [timerLabel, NSView(), stopButton])
-    topRow.orientation = .horizontal
-    topRow.alignment = .centerY
-    topRow.spacing = 8
-    topRow.translatesAutoresizingMaskIntoConstraints = false
-
-    sourceLabel.translatesAutoresizingMaskIntoConstraints = false
-    content.addSubview(topRow)
-    content.addSubview(sourceLabel)
-
-    NSLayoutConstraint.activate([
-      topRow.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-      topRow.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-      topRow.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
-      sourceLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-      sourceLabel.topAnchor.constraint(equalTo: topRow.bottomAnchor, constant: 8),
-      sourceLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-    ])
+    let host = NSHostingView(rootView: makeBarView())
+    panel.contentView = host
+    hostingView = host
+    refreshHUD()
   }
 
-  private func sourceSummaryText() -> String {
-    var parts: [String] = ["Screen"]
-    if recordSystemAudio {
-      parts.append("System Audio")
+  private func makeBarView() -> VideoRecordingFloatingBar {
+    VideoRecordingFloatingBar(
+      elapsedSeconds: elapsedSeconds,
+      recordSystemAudio: recordSystemAudio,
+      recordMicrophone: recordMicrophone,
+      onStop: { [weak self] in
+        self?.onStop()
+      }
+    )
+  }
+
+  private func refreshHUD() {
+    elapsedSeconds = max(0, Int(Date().timeIntervalSince(startedAt)))
+    guard let panel = window as? NSPanel, let hostingView else {
+      return
     }
-    if recordMicrophone {
-      parts.append("Microphone")
+    hostingView.rootView = makeBarView()
+    hostingView.layoutSubtreeIfNeeded()
+    let size = preferredPanelSize(for: hostingView.fittingSize)
+    hostingView.frame = CGRect(origin: .zero, size: size)
+    panel.setContentSize(size)
+    if !anchorRect.isEmpty {
+      positionPanel(panel, near: anchorRect)
     }
-    return parts.joined(separator: " + ")
   }
 
-  private func updateTimerLabel() {
-    let elapsed = max(0, Int(Date().timeIntervalSince(startedAt)))
-    let minutes = elapsed / 60
-    let seconds = elapsed % 60
-    timerLabel.stringValue = String(format: "● %02d:%02d", minutes, seconds)
+  private func preferredPanelSize(for fittingSize: CGSize) -> CGSize {
+    CGSize(
+      width: max(220, ceil(fittingSize.width)),
+      height: max(42, ceil(fittingSize.height))
+    )
   }
 
-  @objc
-  private func stopPressed() {
-    onStop()
+  private func positionPanel(_ panel: NSPanel, near rect: CGRect) {
+    let size = panel.frame.size
+    var x = rect.midX - size.width * 0.5
+    var y = rect.maxY + 12
+
+    if let screen = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) {
+      let visible = screen.visibleFrame
+      x = min(max(visible.minX + 8, x), visible.maxX - size.width - 8)
+      y = min(max(visible.minY + 8, y), visible.maxY - size.height - 8)
+    }
+
+    panel.setFrame(
+      CGRect(x: x, y: y, width: size.width, height: size.height).integral,
+      display: false
+    )
   }
 }
 
@@ -139,30 +145,95 @@ final class VideoRecordingHUDController: NSWindowController {
 enum PostRecordingAction {
   case saveMP4
   case saveGIF
-  case editVideo
+}
+
+struct PostRecordingDetails {
+  let frameRate: Int
+  let systemAudioEnabled: Bool
+  let microphoneEnabled: Bool
+  let webcamEnabled: Bool
+  let mouseClicksEnabled: Bool
+  let keystrokesEnabled: Bool
+  let keyEventCount: Int
+  let clickEventCount: Int
+
+  var toolsSummaryText: String {
+    var tools: [String] = ["Screen"]
+    if systemAudioEnabled { tools.append("System Audio") }
+    if microphoneEnabled { tools.append("Microphone") }
+    if webcamEnabled { tools.append("Webcam") }
+    if mouseClicksEnabled {
+      if clickEventCount > 0 {
+        tools.append("Mouse Clicks (\(clickEventCount))")
+      } else {
+        tools.append("Mouse Clicks")
+      }
+    }
+    if keystrokesEnabled {
+      if keyEventCount > 0 {
+        tools.append("Keystrokes (\(keyEventCount))")
+      } else {
+        tools.append("Keystrokes")
+      }
+    }
+    return tools.joined(separator: " • ")
+  }
+
+  func subtitleText(durationSeconds: Double, videoSize: CGSize?) -> String {
+    var parts: [String] = []
+    if let videoSize {
+      parts.append("\(Int(videoSize.width))×\(Int(videoSize.height))")
+    }
+    parts.append(formattedDuration(durationSeconds))
+    parts.append("\(frameRate) fps")
+    return parts.joined(separator: " • ")
+  }
+
+  private func formattedDuration(_ seconds: Double) -> String {
+    let total = max(0, Int(seconds))
+    let hours = total / 3600
+    let minutes = (total / 60) % 60
+    let secs = total % 60
+    if hours > 0 {
+      return String(format: "%02d:%02d:%02d", hours, minutes, secs)
+    }
+    return String(format: "%02d:%02d", minutes, secs)
+  }
 }
 
 @MainActor
 final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
   private let inputURL: URL
+  private let details: PostRecordingDetails
   private let onAction: (PostRecordingAction) -> Void
   private var didPickAction = false
 
-  init(inputURL: URL, onAction: @escaping (PostRecordingAction) -> Void) {
+  init(
+    inputURL: URL,
+    details: PostRecordingDetails,
+    onAction: @escaping (PostRecordingAction) -> Void
+  ) {
     self.inputURL = inputURL
+    self.details = details
     self.onAction = onAction
 
     let panel = NSPanel(
-      contentRect: CGRect(x: 0, y: 0, width: 360, height: 280),
+      contentRect: CGRect(x: 0, y: 0, width: 420, height: 360),
       styleMask: [.titled, .closable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
     panel.level = .floating
+    panel.title = "Recording Ready"
+    panel.toolbar = NSToolbar(identifier: "PostRecordingToolbar")
+    panel.toolbar?.showsBaselineSeparator = false
+    panel.toolbarStyle = .unified
     panel.titlebarAppearsTransparent = true
-    panel.titleVisibility = .hidden
+    panel.titleVisibility = .visible
     panel.isMovableByWindowBackground = true
     panel.isReleasedWhenClosed = false
+    panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+    panel.standardWindowButton(.zoomButton)?.isHidden = true
 
     super.init(window: panel)
     panel.delegate = self
@@ -170,15 +241,29 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
     let asset = AVAsset(url: inputURL)
     let durationSeconds = max(0, CMTimeGetSeconds(asset.duration))
     let thumbnail = generateThumbnail(asset: asset)
+    let videoSize = videoDisplaySize(asset: asset)
+    let subtitle = details.subtitleText(
+      durationSeconds: durationSeconds.isFinite ? durationSeconds : 0,
+      videoSize: videoSize
+    )
+    panel.subtitle = subtitle
 
     let actionView = PostRecordingActionView(
+      inputURL: inputURL,
       thumbnail: thumbnail,
-      durationSeconds: durationSeconds.isFinite ? durationSeconds : 0
+      durationSeconds: durationSeconds.isFinite ? durationSeconds : 0,
+      subtitleText: subtitle,
+      toolsSummaryText: details.toolsSummaryText
     ) { [weak self] action in
-      guard let self, !self.didPickAction else { return }
+      guard let self, !self.didPickAction else {
+        return
+      }
       self.didPickAction = true
       self.window?.close()
-      self.onAction(action)
+      let actionHandler = self.onAction
+      DispatchQueue.main.async {
+        actionHandler(action)
+      }
     }
     panel.contentView = NSHostingView(rootView: actionView)
   }
@@ -195,7 +280,10 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
   func windowWillClose(_ notification: Notification) {
     if !didPickAction {
       didPickAction = true
-      onAction(.editVideo)
+      let actionHandler = onAction
+      DispatchQueue.main.async {
+        actionHandler(.saveMP4)
+      }
     }
   }
 
@@ -210,12 +298,24 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
     }
     return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
   }
+
+  private func videoDisplaySize(asset: AVAsset) -> CGSize? {
+    guard let track = asset.tracks(withMediaType: .video).first else {
+      return nil
+    }
+    let transformed = track.naturalSize.applying(track.preferredTransform)
+    return CGSize(width: abs(transformed.width), height: abs(transformed.height))
+  }
 }
 
 private struct PostRecordingActionView: View {
+  let inputURL: URL
   let thumbnail: NSImage?
   let durationSeconds: Double
+  let subtitleText: String
+  let toolsSummaryText: String
   let onAction: (PostRecordingAction) -> Void
+  @State private var player: AVPlayer
 
   private var formattedDuration: String {
     let minutes = Int(durationSeconds) / 60
@@ -224,65 +324,150 @@ private struct PostRecordingActionView: View {
     return String(format: "%02d:%02d.%02d", minutes, seconds, centiseconds)
   }
 
+  init(
+    inputURL: URL,
+    thumbnail: NSImage?,
+    durationSeconds: Double,
+    subtitleText: String,
+    toolsSummaryText: String,
+    onAction: @escaping (PostRecordingAction) -> Void
+  ) {
+    self.inputURL = inputURL
+    self.thumbnail = thumbnail
+    self.durationSeconds = durationSeconds
+    self.subtitleText = subtitleText
+    self.toolsSummaryText = toolsSummaryText
+    self.onAction = onAction
+    _player = State(initialValue: AVPlayer(url: inputURL))
+  }
+
   var body: some View {
-    VStack(spacing: 16) {
-      if let thumbnail {
-        Image(nsImage: thumbnail)
-          .resizable()
-          .aspectRatio(contentMode: .fit)
-          .frame(maxWidth: 280, maxHeight: 160)
-          .background(Color.black)
-          .cornerRadius(8)
-      } else {
-        RoundedRectangle(cornerRadius: 8)
-          .fill(Color.black)
-          .frame(width: 280, height: 160)
-          .overlay(
-            Image(systemName: "film")
-              .font(.system(size: 32))
-              .foregroundColor(.secondary)
-          )
+    content
+      .padding(16)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var content: some View {
+    VStack(spacing: 12) {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(subtitleText)
+          .font(.system(size: 12.5, weight: .semibold))
+          .foregroundStyle(.secondary)
+        Text(toolsSummaryText)
+          .font(.system(size: 11.5, weight: .regular))
+          .foregroundStyle(.secondary.opacity(0.95))
+          .lineLimit(2)
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
 
-      Text(formattedDuration)
-        .font(.system(.body, design: .monospaced))
-        .foregroundColor(.secondary)
+      previewCard
 
-      VStack(spacing: 8) {
-        Button(action: { onAction(.saveMP4) }) {
-          Text("Save as MP4")
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .keyboardShortcut(.return, modifiers: [])
+      durationChip
 
-        HStack(spacing: 8) {
-          Button(action: { onAction(.saveGIF) }) {
-            Text("Save as GIF")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.bordered)
-          .controlSize(.large)
+      VStack(spacing: 9) {
+        primaryButton(title: "Save as MP4", action: { onAction(.saveMP4) })
+          .keyboardShortcut(.return, modifiers: [])
 
-          Button(action: { onAction(.editVideo) }) {
-            Text("Edit Video")
-              .frame(maxWidth: .infinity)
-          }
-          .buttonStyle(.bordered)
-          .controlSize(.large)
-        }
+        secondaryButton(title: "Save as GIF", action: { onAction(.saveGIF) })
       }
     }
-    .padding(24)
-    .background(
-      RoundedRectangle(cornerRadius: 16)
-        .fill(.ultraThinMaterial)
+  }
+
+  @ViewBuilder
+  private var previewCard: some View {
+    if FileManager.default.fileExists(atPath: inputURL.path) {
+      VideoPlayer(player: player)
+        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 182)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-          RoundedRectangle(cornerRadius: 16)
-            .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .stroke(Color.white.opacity(0.16), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.3), radius: 20, y: 8)
+        .onDisappear {
+          player.pause()
+        }
+    } else if let thumbnail {
+      Image(nsImage: thumbnail)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 182)
+        .background(Color.black.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+        )
+    } else {
+      RoundedRectangle(cornerRadius: 14, style: .continuous)
+        .fill(Color.black.opacity(0.82))
+        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 182)
+        .overlay(
+          Image(systemName: "film")
+            .font(.system(size: 34, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.7))
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+        )
+    }
+  }
+
+  private var durationChip: some View {
+    HStack(spacing: 6) {
+      Image(systemName: "clock.fill")
+        .font(.system(size: 11, weight: .semibold))
+      Text(formattedDuration)
+        .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
+    }
+    .foregroundStyle(.white.opacity(0.88))
+    .padding(.horizontal, 10)
+    .padding(.vertical, 6)
+    .background(
+      Capsule(style: .continuous)
+        .fill(Color.white.opacity(0.12))
+        .overlay(
+          Capsule(style: .continuous)
+            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
     )
+  }
+
+  @ViewBuilder
+  private func primaryButton(title: String, action: @escaping () -> Void) -> some View {
+    if #available(macOS 26.0, *) {
+      Button(action: action) {
+        Text(title)
+          .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.glassProminent)
+      .controlSize(.large)
+    } else {
+      Button(action: action) {
+        Text(title)
+          .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.large)
+    }
+  }
+
+  @ViewBuilder
+  private func secondaryButton(title: String, action: @escaping () -> Void) -> some View {
+    if #available(macOS 26.0, *) {
+      Button(action: action) {
+        Text(title)
+          .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.glass)
+      .controlSize(.large)
+    } else {
+      Button(action: action) {
+        Text(title)
+          .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.large)
+    }
   }
 }

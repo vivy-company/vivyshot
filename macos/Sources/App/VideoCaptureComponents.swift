@@ -18,11 +18,11 @@ final class VideoCaptureCoordinator {
   private var inputMonitor: RecordingInputMonitor?
   private var rustVideoSession: RustVideoSession?
   private var hudController: VideoRecordingHUDController?
-  private var editorController: VideoEditorWindowController?
-  private var postRecordingPanel: PostRecordingActionPanel?
+  private var postRecordingPanels: [PostRecordingActionPanel] = []
   private var onDone: (() -> Void)?
   private var onError: ((String) -> Void)?
   private var recordingRect: CGRect = .zero
+  private var capturedKeystrokesInSession = false
   var onRecordingStateChanged: ((Bool) -> Void)?
 
   private(set) var isRecordingActive = false {
@@ -109,6 +109,7 @@ final class VideoCaptureCoordinator {
         )
         monitor.start()
         inputMonitor = monitor
+        capturedKeystrokesInSession = capturesKeystrokes
 
         onStarted?()
         self.isRecordingActive = true
@@ -160,7 +161,7 @@ final class VideoCaptureCoordinator {
     hudController = nil
 
     guard let activeRecorder = recorder else {
-      onDone?()
+      markCaptureFlowFinished()
       cleanupRecordingSession()
       return
     }
@@ -196,15 +197,32 @@ final class VideoCaptureCoordinator {
         let overlay = VideoExportOverlayConfiguration(
           webcamURL: webcamURL,
           keyEvents: monitorResult.keyEvents,
+          clickEvents: monitorResult.clickEvents,
           webcamOverlayShape: settings.videoWebcamOverlayShape,
           webcamOverlaySize: settings.videoWebcamOverlaySize,
           textOverlays: []
         )
-        presentPostRecordingDialog(
-          inputURL: outputURL,
-          overlay: overlay,
-          rustSession: rustVideoSession
+        let recordingDetails = PostRecordingDetails(
+          frameRate: settings.videoFrameRate.rawValue,
+          systemAudioEnabled: settings.videoRecordSystemAudio,
+          microphoneEnabled: settings.videoRecordMicrophone,
+          webcamEnabled: webcamURL != nil,
+          mouseClicksEnabled: settings.videoHighlightMouseClicks,
+          keystrokesEnabled: capturedKeystrokesInSession,
+          keyEventCount: monitorResult.keyEvents.count,
+          clickEventCount: monitorResult.clickEvents.count
         )
+
+        // Recording is fully stopped: allow a new capture flow immediately.
+        markCaptureFlowFinished()
+        rustVideoSession = nil
+
+        await MainActor.run {
+          self.presentPostRecordingDialog(
+            inputURL: outputURL,
+            details: recordingDetails
+          )
+        }
       } catch {
         self.isRecordingActive = false
         cleanupRecordingSession()
@@ -213,41 +231,24 @@ final class VideoCaptureCoordinator {
     }
   }
 
-  private func presentTrimEditor(
-    inputURL: URL,
-    overlay: VideoExportOverlayConfiguration,
-    rustSession: RustVideoSession?
-  ) {
-    let editor = VideoEditorWindowController(
-      inputURL: inputURL,
-      overlay: overlay,
-      rustSession: rustSession
-    ) { [weak self] in
-      self?.cleanupRecordingSession()
-      self?.onDone?()
-    }
-    editorController = editor
-    editor.present()
-  }
-
   private func presentPostRecordingDialog(
     inputURL: URL,
-    overlay: VideoExportOverlayConfiguration,
-    rustSession: RustVideoSession?
+    details: PostRecordingDetails
   ) {
-    let panel = PostRecordingActionPanel(inputURL: inputURL) { [weak self] action in
-      guard let self else { return }
-      self.postRecordingPanel = nil
+    var panelRef: PostRecordingActionPanel?
+    let panel = PostRecordingActionPanel(inputURL: inputURL, details: details) { [self] action in
+      if let panelRef {
+        postRecordingPanels.removeAll(where: { $0 === panelRef })
+      }
       switch action {
       case .saveMP4:
-        self.quickSaveMP4(inputURL: inputURL)
+        quickSaveMP4(inputURL: inputURL)
       case .saveGIF:
-        self.quickSaveGIF(inputURL: inputURL)
-      case .editVideo:
-        self.presentTrimEditor(inputURL: inputURL, overlay: overlay, rustSession: rustSession)
+        quickSaveGIF(inputURL: inputURL)
       }
     }
-    postRecordingPanel = panel
+    panelRef = panel
+    postRecordingPanels.append(panel)
     panel.present()
   }
 
@@ -259,8 +260,7 @@ final class VideoCaptureCoordinator {
       .replacingOccurrences(of: ":", with: "-")
     let outputURL = saveDirectory.appendingPathComponent("VivyShot \(timestamp).mp4")
 
-    Task { [weak self] in
-      guard let self else { return }
+    Task {
       do {
         let asset = AVAsset(url: inputURL)
         let duration = CMTimeGetSeconds(asset.duration)
@@ -268,8 +268,6 @@ final class VideoCaptureCoordinator {
 
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
           TransientToast.show("Export failed: unable to create session.", duration: 2.5)
-          self.cleanupRecordingSession()
-          self.onDone?()
           return
         }
         exportSession.outputURL = outputURL
@@ -281,8 +279,6 @@ final class VideoCaptureCoordinator {
       } catch {
         TransientToast.show("MP4 save failed: \(error.localizedDescription)", duration: 2.5)
       }
-      self.cleanupRecordingSession()
-      self.onDone?()
     }
   }
 
@@ -294,8 +290,7 @@ final class VideoCaptureCoordinator {
       .replacingOccurrences(of: ":", with: "-")
     let outputURL = saveDirectory.appendingPathComponent("VivyShot \(timestamp).gif")
 
-    Task { [weak self] in
-      guard let self else { return }
+    Task {
       do {
         let asset = AVAsset(url: inputURL)
         let duration = CMTimeGetSeconds(asset.duration)
@@ -309,9 +304,14 @@ final class VideoCaptureCoordinator {
       } catch {
         TransientToast.show("GIF save failed: \(error.localizedDescription)", duration: 2.5)
       }
-      self.cleanupRecordingSession()
-      self.onDone?()
     }
+  }
+
+  private func markCaptureFlowFinished() {
+    let done = onDone
+    onDone = nil
+    onError = nil
+    done?()
   }
 
   private func cleanupRecordingSession() {
@@ -322,8 +322,7 @@ final class VideoCaptureCoordinator {
     webcamRecorder = nil
     inputMonitor = nil
     rustVideoSession = nil
-    editorController = nil
-    postRecordingPanel = nil
+    capturedKeystrokesInSession = false
   }
 
   private func makeTemporaryRecordingURL() -> URL {
@@ -431,6 +430,7 @@ struct RecordingInputResult {
 struct VideoExportOverlayConfiguration {
   let webcamURL: URL?
   let keyEvents: [RecordedKeystrokeEvent]
+  let clickEvents: [RecordedMouseClickEvent]
   let webcamOverlayShape: VideoWebcamOverlayShapeOption
   let webcamOverlaySize: VideoWebcamOverlaySizeOption
   let textOverlays: [VideoTextOverlayClip]
