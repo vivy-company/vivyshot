@@ -83,6 +83,13 @@ Apply Liquid Glass to:
 3. Timeline top controls.
 4. Context menus and lightweight overlays.
 
+Implementation rule set:
+
+1. On `macOS 26.0+`, use native Liquid Glass APIs (`GlassEffectContainer`, `.glassEffect(...)`, `.buttonStyle(.glass/.glassProminent)`).
+2. Apply `.glassEffect(...)` after layout/shape/background modifiers so visuals stay consistent.
+3. Use interactive glass only for controls users can click/drag.
+4. Fallback on lower versions must use material-based surfaces (`.ultraThinMaterial` / bordered controls), not custom shader blur.
+
 Do not apply heavy glass blur to timeline content lanes or preview raster itself; keep content readable and performant.
 
 ### 3.3 Core Interaction
@@ -296,8 +303,343 @@ Release requires:
 3. Multi-cam sync editing.
 4. Cloud collaboration/sharing.
 
-## 12. Implementation Notes for Current Repo
+## 12. Current Code Baseline (Audit: 2026-03-04)
 
-1. `VideoEditorWindowController` was removed and must be replaced with a new generic editor surface aligned to this spec.
-2. Existing Rust timeline/session work remains valid foundation and should be reused.
-3. Existing post-record panel remains the handoff point and must keep `Edit Video` as a first-class action.
+### 12.1 Post-Recording Flow (Current)
+
+Current capture/post-record code is in:
+
+1. `macos/Sources/App/Features/Capture/VideoCaptureUI.swift`
+2. `macos/Sources/App/Features/Capture/VideoCaptureComponents.swift`
+
+Current behavior:
+
+1. `PostRecordingAction` only has `.saveMP4` and `.saveGIF` (no `.editVideo`).
+2. Post-record window buttons only expose `Save as MP4` and `Save as GIF`.
+3. Closing the post-record window defaults to `.saveMP4`.
+4. GIF quick-save path currently shows "temporarily unavailable" toast.
+
+Conclusion: editor handoff is currently missing by design and must be reintroduced as first-class flow.
+
+### 12.2 Editor Entry Points (Current)
+
+Current menu bar app entry (`macos/Sources/App/Application/main.swift`) exposes:
+
+1. `Capture Region`
+2. `Settings…`
+3. `Quit VivyShot`
+
+There is no generic `Open Video Editor…` action and no active editor feature module under `macos/Sources/App/Features/`.
+
+### 12.3 Rust Side Already Implemented (Reusable Now)
+
+Reusable timeline/session APIs already exist:
+
+1. Swift bridge:
+   - `macos/Sources/App/Interop/RustCore/RustTimelineSession.swift`
+   - `macos/Sources/App/Interop/RustCore/RustVideoSession.swift`
+2. C ABI:
+   - `ffi/vivyshot_core.h` (`vs_timeline_*`, `vs_video_*`)
+3. Rust implementation:
+   - `vivyshot-rs/crates/vivyshot-ffi/src/lib.rs`
+   - `vivyshot-rs/crates/vivyshot-ffi/src/ffi/timeline.rs`
+   - `vivyshot-rs/crates/vivyshot-core/src/lib.rs`
+
+Capabilities already in place:
+
+1. Track lifecycle: add/remove/reorder/show-hide.
+2. Clip lifecycle: add/remove/move/resize/split.
+3. Clip transform update.
+4. Text clip content/style update.
+5. Shape style update/read.
+6. Zoom scale set/get (`ClipData::Zoom { scale }`).
+7. Undo/redo.
+8. Export context derivation and text clip export queries.
+9. Timeline and FFI contract tests for split/text/export/zoom paths.
+
+### 12.4 Rust Gaps vs Required Editor Scope
+
+Missing for target editor:
+
+1. No transition domain object (cut/dissolve/dip-to-black not modeled).
+2. No easing curve model (`ease-*`, `spring`) persisted in timeline/project.
+3. No image/screenshot clip kind in current track-kind enum.
+4. No track metadata for lock/mute/name/lane height persistence.
+5. No project-level persistence API for full editor document (timeline + assets + UI metadata).
+6. Zoom model is scalar-only; no 2-keyframe envelope with interpolation.
+
+### 12.5 Sandbox Baseline (Current)
+
+1. Entitlements file currently exists at `macos/Config/VivyShot.entitlements` but is empty.
+2. `Info.plist` is minimal and does not yet define media usage description keys.
+3. Project already targets sandbox-capable packaging path, but required editor import/export entitlements are not yet configured.
+
+## 13. Target Implementation Architecture
+
+### 13.1 Ownership Split
+
+1. Rust (`vivyshot-core` + `vivyshot-ffi`) owns project/timeline truth, mutation rules, validation, and deterministic export planning.
+2. Swift (`macOS app`) owns windowing, playback preview, drag/drop/import/export UI, and sandbox/TCC orchestration.
+3. Swift must not keep divergent timeline state copies; UI state derives from Rust snapshots.
+
+### 13.2 Project Domain (Normative)
+
+Editor project model must include:
+
+```text
+EditorProject {
+  id: UUID
+  video_info: { width, height, duration_ms, frame_rate }
+  settings: { background, aspect_ratio, resolution_preset, default_transition }
+  tracks: [Track]
+  transitions: [Transition]
+  assets: [AssetRef]
+}
+
+Track {
+  id: u32
+  kind: video | audio | text | image
+  name: String
+  visible: bool
+  muted: bool            // audio tracks
+  locked: bool
+  lane_height_px: u16
+  clips: [Clip]
+}
+
+Clip {
+  id: u32
+  track_id: u32
+  kind: video | audio | text | image
+  asset_id: u32?
+  timeline_start_ms: u32
+  timeline_end_ms: u32
+  source_in_ms: u32
+  source_out_ms: u32
+  transform: { x, y, width, height, rotation, opacity }
+  zoom: { start_scale, end_scale, curve }
+  text_style: optional
+  audio_style: optional
+}
+
+Transition {
+  id: u32
+  left_clip_id: u32
+  right_clip_id: u32
+  kind: cut | cross_dissolve | dip_to_black
+  duration_ms: u32
+  curve: linear | ease_in | ease_out | ease_in_out | spring_<preset>
+}
+```
+
+Implementation constraints:
+
+1. Keep existing track kind numeric assignments stable; add new `image` kind without re-numbering existing kinds.
+2. Transition and curve values must be persisted as data, not recomputed from UI defaults.
+
+## 14. Rust and FFI Work Plan (Concrete)
+
+### 14.1 Extend Timeline Model in Rust
+
+In `vivyshot-rs/crates/vivyshot-ffi/src/lib.rs`:
+
+1. Extend `TimelineTrack` with `locked`, `muted`, `name`, `lane_height_px`.
+2. Extend `ClipData` with `Image` payload and zoom envelope payload (`start_scale`, `end_scale`, `curve`).
+3. Add `TimelineTransition` collection on timeline session.
+4. Add undo/redo actions for:
+   - transition add/remove/update
+   - lane height update
+   - track lock/mute/name changes
+   - clip curve/zoom envelope updates
+
+In `vivyshot-rs/crates/vivyshot-core/src/lib.rs`:
+
+1. Add pure policy helpers for:
+   - transition duration validation
+   - clip-boundary transition eligibility
+   - easing/spring preset normalization
+   - curve sampling parity helpers for preview/export
+
+### 14.2 FFI Surface Additions
+
+Add new C structs/functions in `vivyshot-rs/crates/vivyshot-ffi/src/lib.rs`, export via `cbindgen.toml`, regenerate `ffi/vivyshot_core.h`:
+
+1. Track metadata APIs:
+   - `vs_timeline_set_track_locked`
+   - `vs_timeline_set_track_muted`
+   - `vs_timeline_set_track_name`
+   - `vs_timeline_set_track_lane_height`
+2. Clip motion/easing APIs:
+   - `vs_timeline_set_clip_zoom_envelope`
+   - `vs_timeline_get_clip_zoom_envelope`
+3. Transition APIs:
+   - `vs_timeline_add_transition`
+   - `vs_timeline_remove_transition`
+   - `vs_timeline_update_transition`
+   - `vs_timeline_get_transitions`
+4. Project persistence APIs:
+   - `vs_timeline_serialize_project_json`
+   - `vs_timeline_deserialize_project_json`
+
+Compatibility requirement:
+
+1. Existing `vs_timeline_*` and `vs_video_*` calls remain valid; new APIs are additive.
+
+### 14.3 Rust Test Expansion
+
+Add/extend tests in:
+
+1. `vivyshot-rs/crates/vivyshot-ffi/tests/timeline_ffi_contract.rs`
+2. `vivyshot-rs/crates/vivyshot-ffi/tests/property_geometry.rs` (for curve sampling determinism if needed)
+
+Required new test cases:
+
+1. transition create/update/remove + undo/redo.
+2. invalid transition rejection (same clip, overlap violations, out-of-range duration).
+3. zoom envelope + curve persistence round-trip.
+4. lane height/lock/mute metadata persistence round-trip.
+5. project JSON serialize/deserialize parity.
+
+### 14.4 Rust File Split (Recommended)
+
+Current timeline logic is concentrated in `vivyshot-rs/crates/vivyshot-ffi/src/lib.rs`.
+For maintainability, split by domain responsibility:
+
+```text
+vivyshot-rs/crates/vivyshot-core/src/
+  lib.rs                         // re-exports only
+  timeline/
+    mod.rs
+    model.rs                     // Track/Clip/Transition data types
+    validation.rs                // trim/split/transition/easing normalization rules
+    easing.rs                    // curve + spring preset sampling
+    export_context.rs            // derive export context helpers
+
+vivyshot-rs/crates/vivyshot-ffi/src/
+  lib.rs                         // extern "C" entrypoints + handle registry only
+  timeline/
+    mod.rs
+    session.rs                   // VsTimeline struct + history stack
+    tracks.rs                    // track ops (add/reorder/lock/mute/lane height)
+    clips.rs                     // clip ops (add/move/resize/split/text/zoom envelope)
+    transitions.rs               // transition CRUD and queries
+    project_io.rs                // serialize/deserialize project JSON
+```
+
+Rule:
+
+1. Keep `lib.rs` thin; move business logic into module files so ABI glue remains auditable.
+
+## 15. macOS App Work Plan and File Split
+
+### 15.1 New Feature Module
+
+Create a new module under current structure:
+
+```text
+macos/Sources/App/Features/VideoEditor/
+  Coordinator/VideoEditorCoordinator.swift
+  Window/VideoEditorWindowController.swift
+  Window/VideoEditorRootView.swift
+  State/VideoEditorStore.swift
+  State/VideoEditorSelection.swift
+  State/VideoEditorCommands.swift
+  Timeline/TimelineView.swift
+  Timeline/TimelineRulerView.swift
+  Timeline/TrackLaneView.swift
+  Timeline/ClipBlockView.swift
+  Timeline/TransitionBadgeView.swift
+  Inspector/InspectorContainerView.swift
+  Inspector/ProjectInspectorView.swift
+  Inspector/ClipInspectorView.swift
+  Preview/PreviewPlayerView.swift
+  Toolbar/EditorToolbarView.swift
+  Import/MediaImportController.swift
+  Export/VideoEditorExportCoordinator.swift
+  Project/VideoEditorProjectStore.swift
+```
+
+### 15.2 Interop Layer Additions
+
+Under `macos/Sources/App/Interop/RustCore/`:
+
+1. Add `RustEditorProjectSession.swift` (or extend `RustTimelineSession.swift`) to wrap new transition/curve/metadata/persistence FFI.
+2. Keep `RustVideoSession.swift` for capture overlay metadata ingestion.
+3. Keep `RustCoreBridge.swift` as creation factory and version/ABI gate.
+
+### 15.3 Capture and Menu Wiring Changes
+
+Update existing files:
+
+1. `macos/Sources/App/Features/Capture/VideoCaptureUI.swift`
+   - add `.editVideo` to `PostRecordingAction`
+   - add `Edit Video` primary action button
+   - remove implicit save-on-close default for editor flow
+2. `macos/Sources/App/Features/Capture/VideoCaptureComponents.swift`
+   - handle `.editVideo` by opening editor with seeded project
+3. `macos/Sources/App/Application/main.swift`
+   - add `Open Video Editor…` menu action for empty project entry
+4. `macos/Sources/App/Application/StatusItemController.swift`
+   - own/route generic editor open action
+
+### 15.4 Liquid Glass Implementation Notes (macOS)
+
+For editor chrome:
+
+1. Group toolbar + inspector cards in `GlassEffectContainer` on macOS 26+.
+2. Use `.glassEffect(... .interactive())` only on interactive controls.
+3. Keep timeline lanes and preview content non-glass for readability and frame stability.
+4. Provide strict fallback branch for < macOS 26 with material/bordered controls.
+
+## 16. Sandbox and Permission Implementation Details
+
+### 16.1 Entitlements
+
+`macos/Config/VivyShot.entitlements` must include:
+
+1. `com.apple.security.app-sandbox = true`
+2. `com.apple.security.files.user-selected.read-write = true`
+3. `com.apple.security.device.camera = true` (if webcam feature shipped)
+4. `com.apple.security.device.microphone = true` (if mic feature shipped)
+
+### 16.2 File Access Strategy
+
+1. Imported assets are copied into app-managed project workspace to avoid stale external permissions during edit session.
+2. External save/export uses explicit user destination via save panel.
+3. For reopen support of external linked assets (future), security-scoped bookmarks are required.
+
+### 16.3 Project Workspace Layout
+
+```text
+~/Library/Containers/<bundle-id>/Data/Library/Application Support/VivyShot/editor/
+  projects/<project-id>/project.json
+  projects/<project-id>/assets/<asset-id>.<ext>
+  projects/<project-id>/cache/
+```
+
+## 17. Delivery Slices (No Stubs)
+
+### Slice A: Wiring + Editor Shell
+
+1. `Edit Video` opens editor from post-record reliably.
+2. Menu opens empty editor project.
+3. Timeline/preview/inspector shell loads real Rust-backed state.
+
+### Slice B: Core Editing
+
+1. Track create/reorder/lock/mute/lane-resize.
+2. Clip add/move/trim/split.
+3. Text/image import/edit basics.
+4. Zoom envelope with easing presets.
+
+### Slice C: Transitions + Export
+
+1. Transition create/edit/remove (cut/dissolve/dip-to-black).
+2. MP4 and GIF export from edited timeline with deterministic curve behavior.
+3. Sandboxed import/export smoke tests green.
+
+### Slice D: Hardening
+
+1. Undo/redo robustness across all editor operations.
+2. 50 open/edit/close memory trend test.
+3. UI integration tests for both editor entry paths and trim/lane-resize persistence.
