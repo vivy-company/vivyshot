@@ -40,6 +40,7 @@ use vivyshot_domain::{
     timeline_clamp_clip_end as domain_timeline_clamp_clip_end,
     timeline_full_duration_end as domain_timeline_full_duration_end,
     timeline_normalize_text_clip_range as domain_timeline_normalize_text_clip_range,
+    timeline_validate_split as domain_timeline_validate_split,
     BgraImageOwned as DomainBgraImageOwned, BgraImageView as DomainBgraImageView,
     STITCH_SIDE_BOTTOM as DOMAIN_STITCH_SIDE_BOTTOM, STITCH_SIDE_TOP as DOMAIN_STITCH_SIDE_TOP,
 };
@@ -4843,6 +4844,12 @@ enum TimelineAction {
         new_border_width: f32,
         new_corner_radius: f32,
     },
+    SplitClip {
+        track_index: usize,
+        original_clip: TimelineClip,
+        left_end_ms: u32,
+        right_clip: TimelineClip,
+    },
 }
 
 struct VsTimeline {
@@ -5003,6 +5010,20 @@ impl VsTimeline {
                     }
                 }
             }
+            TimelineAction::SplitClip {
+                track_index,
+                left_end_ms,
+                right_clip,
+                original_clip,
+                ..
+            } => {
+                if let Some(clip) = self.find_clip_mut(*track_index, original_clip.id) {
+                    clip.end_ms = *left_end_ms;
+                }
+                if let Some(track) = self.tracks.get_mut(*track_index) {
+                    track.clips.push(right_clip.clone());
+                }
+            }
         }
     }
 
@@ -5133,6 +5154,19 @@ impl VsTimeline {
                         *border_width = *old_border_width;
                         *corner_radius = *old_corner_radius;
                     }
+                }
+            }
+            TimelineAction::SplitClip {
+                track_index,
+                original_clip,
+                right_clip,
+                ..
+            } => {
+                if let Some(track) = self.tracks.get_mut(*track_index) {
+                    track.clips.retain(|c| c.id != right_clip.id);
+                }
+                if let Some(clip) = self.find_clip_mut(*track_index, original_clip.id) {
+                    clip.end_ms = original_clip.end_ms;
                 }
             }
         }
@@ -5720,6 +5754,65 @@ pub unsafe extern "C" fn vs_timeline_resize_clip(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn vs_timeline_split_clip(
+    handle: *mut c_void,
+    track_index: u32,
+    clip_id: u32,
+    split_at_ms: u32,
+    out_new_clip_id: *mut u32,
+) -> i32 {
+    if out_new_clip_id.is_null() {
+        return -1;
+    }
+
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
+    let idx = track_index as usize;
+
+    let original_clip = match tl.find_clip(idx, clip_id) {
+        Some(c) => c.clone(),
+        None => return -2,
+    };
+
+    let split = match domain_timeline_validate_split(
+        original_clip.start_ms,
+        original_clip.end_ms,
+        split_at_ms,
+        10,
+    ) {
+        Some(s) => s,
+        None => return -2,
+    };
+
+    let new_id = tl.next_clip_id;
+    tl.next_clip_id = tl.next_clip_id.wrapping_add(1);
+
+    let right_clip = TimelineClip {
+        id: new_id,
+        start_ms: split.2,
+        end_ms: split.3,
+        transform: original_clip.transform,
+        data: original_clip.data.clone(),
+    };
+
+    let action = TimelineAction::SplitClip {
+        track_index: idx,
+        original_clip,
+        left_end_ms: split.1,
+        right_clip,
+    };
+    tl.apply_action(&action);
+    tl.push_action(action);
+
+    unsafe {
+        *out_new_clip_id = new_id;
+    }
+    0
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn vs_timeline_update_clip_transform(
     handle: *mut c_void,
     track_index: u32,
@@ -6067,6 +6160,45 @@ pub unsafe extern "C" fn vs_timeline_get_clip_text(
         *out_written = bytes.len() as u32;
     }
     0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_timeline_get_clip_shape_style(
+    handle: *mut c_void,
+    track_index: u32,
+    clip_id: u32,
+    out_fill: *mut u32,
+    out_border: *mut u32,
+    out_border_width: *mut f32,
+    out_corner_radius: *mut f32,
+) -> i32 {
+    if out_fill.is_null() || out_border.is_null() || out_border_width.is_null() || out_corner_radius.is_null() {
+        return -1;
+    }
+
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
+    let idx = track_index as usize;
+
+    let clip = match tl.find_clip(idx, clip_id) {
+        Some(c) => c,
+        None => return -2,
+    };
+
+    match &clip.data {
+        ClipData::Shape { fill, border, border_width, corner_radius } => {
+            unsafe {
+                *out_fill = *fill;
+                *out_border = *border;
+                *out_border_width = *border_width;
+                *out_corner_radius = *corner_radius;
+            }
+            0
+        }
+        _ => -2,
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -676,6 +676,12 @@ int32_t vs_timeline_resize_clip(void *handle,
                                 uint32_t new_start_ms,
                                 uint32_t new_end_ms);
 
+int32_t vs_timeline_split_clip(void *handle,
+                               uint32_t track_index,
+                               uint32_t clip_id,
+                               uint32_t split_at_ms,
+                               uint32_t *out_new_clip_id);
+
 int32_t vs_timeline_update_clip_transform(void *handle,
                                           uint32_t track_index,
                                           uint32_t clip_id,
@@ -720,6 +726,14 @@ int32_t vs_timeline_get_clip_text(void *handle,
                                   uint8_t *out_ptr,
                                   uint32_t out_cap,
                                   uint32_t *out_written);
+
+int32_t vs_timeline_get_clip_shape_style(void *handle,
+                                         uint32_t track_index,
+                                         uint32_t clip_id,
+                                         uint32_t *out_fill,
+                                         uint32_t *out_border,
+                                         float *out_border_width,
+                                         float *out_corner_radius);
 
 int32_t vs_timeline_undo(void *handle);
 

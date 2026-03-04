@@ -23,7 +23,8 @@
 - No advanced image editing suite (layers, masks, filter catalog).
 - No screen recording workflow.
 
-Note: this section is for screenshot-only v1 scope. Planned recorder scope is defined in `docs/video-gif-recorder-spec.md`.
+Note: this section is for screenshot-only v1 scope. Planned recorder/editor scope is defined in `docs/video-editor-spec.md`.
+Planned screenshot/recording history scope is defined in `docs/capture-history-spec.md`.
 
 ## 4. Platform Baseline
 

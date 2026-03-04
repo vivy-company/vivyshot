@@ -1459,6 +1459,21 @@ pub fn timeline_normalize_text_clip_range(
     (clamped_start, clamped_end)
 }
 
+pub fn timeline_validate_split(
+    clip_start_ms: u32,
+    clip_end_ms: u32,
+    split_at_ms: u32,
+    min_clip_ms: u32,
+) -> Option<(u32, u32, u32, u32)> {
+    if split_at_ms <= clip_start_ms.saturating_add(min_clip_ms) {
+        return None;
+    }
+    if split_at_ms >= clip_end_ms.saturating_sub(min_clip_ms) {
+        return None;
+    }
+    Some((clip_start_ms, split_at_ms, split_at_ms, clip_end_ms))
+}
+
 /// Video export and interaction policy APIs.
 pub mod video {
     pub use super::{
@@ -1479,7 +1494,8 @@ pub mod video {
 pub mod timeline {
     pub use super::{
         timeline_clamp_clip_end, timeline_collect_text_export_clips, timeline_full_duration_end,
-        timeline_normalize_text_clip_range, timeline_webcam_visible_for_export,
+        timeline_normalize_text_clip_range, timeline_validate_split,
+        timeline_webcam_visible_for_export,
         TimelineTextClipExportInput, TimelineTextClipExportRef, TimelineTrackSummary,
     };
 }
@@ -1929,5 +1945,27 @@ mod tests {
             prop_assert!((roundtrip.x - delta_x).abs() <= 0.05);
             prop_assert!((roundtrip.y - delta_y).abs() <= 0.05);
         }
+    }
+
+    #[test]
+    fn split_validation_accepts_valid_midpoint() {
+        let result = timeline_validate_split(0, 10000, 5000, 10);
+        assert_eq!(result, Some((0, 5000, 5000, 10000)));
+    }
+
+    #[test]
+    fn split_validation_rejects_too_close_to_start() {
+        assert_eq!(timeline_validate_split(0, 10000, 5, 10), None);
+    }
+
+    #[test]
+    fn split_validation_rejects_too_close_to_end() {
+        assert_eq!(timeline_validate_split(0, 10000, 9995, 10), None);
+    }
+
+    #[test]
+    fn split_validation_rejects_at_boundary() {
+        assert_eq!(timeline_validate_split(1000, 5000, 1000, 10), None);
+        assert_eq!(timeline_validate_split(1000, 5000, 5000, 10), None);
     }
 }

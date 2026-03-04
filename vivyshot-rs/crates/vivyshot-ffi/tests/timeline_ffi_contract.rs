@@ -9,6 +9,7 @@ use vivyshot_core::{
     vs_timeline_get_visible_clips_at, vs_timeline_move_clip, vs_timeline_redo,
     vs_timeline_remove_clip, vs_timeline_remove_track, vs_timeline_reorder_track,
     vs_timeline_resize_clip, vs_timeline_set_clip_text, vs_timeline_set_clip_text_style,
+    vs_timeline_split_clip,
     vs_timeline_set_clip_zoom_scale, vs_timeline_set_track_visible, vs_timeline_undo,
     vs_video_export_context, VS_STATUS_INVALID_ARGUMENT,
 };
@@ -216,5 +217,66 @@ fn stale_timeline_handle_is_rejected_after_destroy() {
     unsafe {
         vs_timeline_destroy(tl);
         assert_eq!(vs_timeline_add_track(tl, 0), VS_STATUS_INVALID_ARGUMENT);
+    }
+}
+
+#[test]
+fn timeline_split_clip_produces_two_clips_and_undoes() {
+    let tl = vs_timeline_create(10_000, 1920, 1080);
+    assert!(!tl.is_null());
+
+    unsafe {
+        assert_eq!(vs_timeline_add_track(tl, 0), 0);
+
+        let mut clip_id = 0u32;
+        assert_eq!(vs_timeline_add_clip(tl, 0, 0, 10_000, 0, &mut clip_id), 0);
+
+        let mut new_clip_id = 0u32;
+        assert_eq!(
+            vs_timeline_split_clip(tl, 0, clip_id, 5_000, &mut new_clip_id),
+            0
+        );
+        assert!(new_clip_id > 0);
+        assert_ne!(new_clip_id, clip_id);
+
+        // Should now have two clips
+        let mut clips = [zero_clip_info(); 4];
+        let mut clip_written = 0u32;
+        assert_eq!(
+            vs_timeline_get_clips(tl, 0, clips.as_mut_ptr(), clips.len() as u32, &mut clip_written),
+            0
+        );
+        assert_eq!(clip_written, 2);
+
+        // Find original and new clip
+        let orig = clips.iter().find(|c| c.id == clip_id).unwrap();
+        let split = clips.iter().find(|c| c.id == new_clip_id).unwrap();
+        assert_eq!(orig.start_ms, 0);
+        assert_eq!(orig.end_ms, 5_000);
+        assert_eq!(split.start_ms, 5_000);
+        assert_eq!(split.end_ms, 10_000);
+
+        // Undo should restore single clip
+        assert_eq!(vs_timeline_undo(tl), 0);
+        clip_written = 0;
+        assert_eq!(
+            vs_timeline_get_clips(tl, 0, clips.as_mut_ptr(), clips.len() as u32, &mut clip_written),
+            0
+        );
+        assert_eq!(clip_written, 1);
+        assert_eq!(clips[0].id, clip_id);
+        assert_eq!(clips[0].start_ms, 0);
+        assert_eq!(clips[0].end_ms, 10_000);
+
+        // Redo should re-apply split
+        assert_eq!(vs_timeline_redo(tl), 0);
+        clip_written = 0;
+        assert_eq!(
+            vs_timeline_get_clips(tl, 0, clips.as_mut_ptr(), clips.len() as u32, &mut clip_written),
+            0
+        );
+        assert_eq!(clip_written, 2);
+
+        vs_timeline_destroy(tl);
     }
 }

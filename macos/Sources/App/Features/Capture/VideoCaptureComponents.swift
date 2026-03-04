@@ -283,27 +283,9 @@ final class VideoCaptureCoordinator {
   }
 
   private func quickSaveGIF(inputURL: URL) {
-    let saveDirectory = settings.defaultSaveDirectoryURL
-      ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
-      ?? FileManager.default.temporaryDirectory
-    let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-      .replacingOccurrences(of: ":", with: "-")
-    let outputURL = saveDirectory.appendingPathComponent("VivyShot \(timestamp).gif")
-
+    _ = inputURL
     Task {
-      do {
-        let asset = AVAsset(url: inputURL)
-        let duration = CMTimeGetSeconds(asset.duration)
-        try await VideoCompositor.renderGIF(
-          sourceURL: inputURL,
-          outputURL: outputURL,
-          startSeconds: 0,
-          endSeconds: duration.isFinite ? duration : 1
-        )
-        TransientToast.show("Saved GIF to \(outputURL.lastPathComponent)", duration: 2.5)
-      } catch {
-        TransientToast.show("GIF save failed: \(error.localizedDescription)", duration: 2.5)
-      }
+      TransientToast.show("GIF export is temporarily unavailable during editor redesign.", duration: 2.8)
     }
   }
 
@@ -1023,6 +1005,25 @@ private extension SCStream {
           continuation.resume(throwing: error)
         } else {
           continuation.resume(returning: ())
+        }
+      }
+    }
+  }
+}
+
+private extension AVAssetExportSession {
+  func vs_export() async throws {
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      exportAsynchronously {
+        switch self.status {
+        case .completed:
+          continuation.resume(returning: ())
+        case .failed:
+          continuation.resume(throwing: self.error ?? NSError(domain: "VivyShot.Export", code: -1))
+        case .cancelled:
+          continuation.resume(throwing: NSError(domain: "VivyShot.Export", code: -2))
+        default:
+          continuation.resume(throwing: self.error ?? NSError(domain: "VivyShot.Export", code: -3))
         }
       }
     }

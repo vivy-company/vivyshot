@@ -95,4 +95,6 @@ include = [
   "vs_timeline_get_video_info",
   "vs_timeline_set_clip_zoom_scale",
   "vs_timeline_get_clip_zoom_scale",
+  "vs_timeline_split_clip",
+  "vs_timeline_get_clip_shape_style",
 ]
