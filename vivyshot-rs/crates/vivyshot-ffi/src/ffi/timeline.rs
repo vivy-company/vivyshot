@@ -1,7 +1,5 @@
-use crate::{
-    vs_timeline_text_export_clip_info, vs_video_export_context, ClipData,
-    TimelineTextClipExportRef, TimelineTrack,
-};
+use crate::{vs_timeline_text_export_clip_info, vs_video_export_context};
+use crate::timeline::{ClipData, TimelineTextClipExportRef, TimelineTrack};
 use vivyshot_domain::{
     derive_video_export_context as domain_derive_video_export_context,
     timeline_collect_text_export_clips as domain_timeline_collect_text_export_clips,
