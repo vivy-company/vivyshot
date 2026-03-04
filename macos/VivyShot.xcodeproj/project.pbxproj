@@ -25,7 +25,6 @@
 		71B5AC1202344E9202E44C87 /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CF04D44D3DE8238D9505281 /* StatusItemController.swift */; };
 		9F3C9C56A6A11D7ECC1E6AA5 /* AnnotationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B7A128022B20D8F38EBCAC /* AnnotationTool.swift */; };
 		AF35CADFF4D07722F3BAEB41 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F5079EEFFB8B0148129030 /* SettingsWindowController.swift */; };
-		B4193BAA01F88737DA067419 /* VideoEditorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */; };
 		BF1A07D7AF73D1DA674272B0 /* VideoCaptureUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C1C76C7C7456EF9C6DC6FB /* VideoCaptureUI.swift */; };
 		C58CC03E11356E4910F00E73 /* AnnotationCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1F5533C4A2DCB93A4F923D3 /* AnnotationCanvasView.swift */; };
 		CCF52A14B990DA2AD82374E7 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1469BCC6DA4E3C25059E3157 /* LiquidGlassViews.swift */; };
@@ -33,6 +32,7 @@
 		E71FB649CA3E359593215D69 /* RegionSelectionOverlay+Annotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECF14BD6159AC3BF34D166F9 /* RegionSelectionOverlay+Annotation.swift */; };
 		EB3E6477E114CD8A24B71BBC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C95B974185169F4506825172 /* main.swift */; };
 		EC617084194681EA91933639 /* VideoEditorTimelineUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21D6BF24F47C4279EFBE2FC0 /* VideoEditorTimelineUI.swift */; };
+		F1E4A1B2C3D4E5F60718293B /* VideoEditorWorkspaceUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E4A1B2C3D4E5F60718293A /* VideoEditorWorkspaceUI.swift */; };
 		F00B17C0BD106713EB84EF7C /* VideoCaptureComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE4DD184B63DB3EF0CEB6DB /* VideoCaptureComponents.swift */; };
 /* End PBXBuildFile section */
 
@@ -63,7 +63,7 @@
 		98A662320B358391B25F2890 /* RegionSelectionOverlay+Export.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+Export.swift"; sourceTree = "<group>"; };
 		99F5079EEFFB8B0148129030 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		A37E381EEEFC6F431138250D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditorWindowController.swift; sourceTree = "<group>"; };
+		F1E4A1B2C3D4E5F60718293A /* VideoEditorWorkspaceUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditorWorkspaceUI.swift; sourceTree = "<group>"; };
 		B1F5533C4A2DCB93A4F923D3 /* AnnotationCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvasView.swift; sourceTree = "<group>"; };
 		B41D12D461242E09C0229723 /* VivyShotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VivyShotTests.swift; sourceTree = "<group>"; };
 		C95B974185169F4506825172 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -115,8 +115,8 @@
 				E4C1C76C7C7456EF9C6DC6FB /* VideoCaptureUI.swift */,
 				70A3AB49BB015C9C68963BD8 /* VideoCompositor.swift */,
 				21D6BF24F47C4279EFBE2FC0 /* VideoEditorTimelineUI.swift */,
-				B16CED6758312191F3A3E7BD /* VideoEditorWindowController.swift */,
-			);
+				F1E4A1B2C3D4E5F60718293A /* VideoEditorWorkspaceUI.swift */,
+				);
 			path = App;
 			sourceTree = "<group>";
 		};
@@ -275,7 +275,7 @@
 				BF1A07D7AF73D1DA674272B0 /* VideoCaptureUI.swift in Sources */,
 				2C185EA0D0A6B26D2F79AB75 /* VideoCompositor.swift in Sources */,
 				EC617084194681EA91933639 /* VideoEditorTimelineUI.swift in Sources */,
-				B4193BAA01F88737DA067419 /* VideoEditorWindowController.swift in Sources */,
+				F1E4A1B2C3D4E5F60718293B /* VideoEditorWorkspaceUI.swift in Sources */,
 				EB3E6477E114CD8A24B71BBC /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
