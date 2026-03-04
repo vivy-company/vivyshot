@@ -4,3 +4,6 @@ members = [
   "crates/vivyshot-core",
   "crates/vivyshot-ffi",
 ]
+
+[profile.release]
+panic = "abort"

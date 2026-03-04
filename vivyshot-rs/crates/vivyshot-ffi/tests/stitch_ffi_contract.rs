@@ -7,7 +7,7 @@ use vivyshot_core::{
     vs_stitch_autoscroll_state, vs_stitch_autoscroll_update, vs_stitch_delta,
     vs_stitch_estimate_delta_bgra, vs_stitch_merge_bgra, vs_stitch_session_create,
     vs_stitch_session_destroy, vs_stitch_session_push_frame_and_merge_bgra,
-    vs_stitch_session_result, vs_stitch_session_set_base_bgra,
+    vs_stitch_session_result, vs_stitch_session_set_base_bgra, VS_STATUS_INVALID_ARGUMENT,
 };
 
 #[test]
@@ -210,4 +210,22 @@ fn stitch_autoscroll_policy_flips_once() {
     assert_eq!(state.direction_sign, 1);
     assert!(state.did_flip_direction);
     assert_eq!(state.no_motion_ticks, 0);
+}
+
+#[test]
+fn stale_stitch_session_handle_is_rejected_after_destroy() {
+    let session = vs_stitch_session_create();
+    assert!(!session.is_null());
+
+    let pixels = vec![0u8; 16 * 16 * 4];
+    let view = bgra_view(&pixels, 16, 16);
+
+    // SAFETY: handle is valid for destroy; stale-handle call checks rejection.
+    unsafe {
+        vs_stitch_session_destroy(session);
+        assert_eq!(
+            vs_stitch_session_set_base_bgra(session, view, 1),
+            VS_STATUS_INVALID_ARGUMENT
+        );
+    }
 }

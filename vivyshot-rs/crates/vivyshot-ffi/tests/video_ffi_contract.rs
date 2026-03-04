@@ -1,14 +1,18 @@
+use serde_json::Value;
 use vivyshot_core::{
     vs_click_event_is_duplicate, vs_core_abi_version, vs_key_event_is_duplicate,
     vs_normalize_click_point, vs_normalize_key_token, vs_video_click_event,
-    vs_video_compute_export_plan, vs_video_derive_export_decision, vs_video_export_context,
-    vs_video_export_decision, vs_video_export_plan, vs_video_key_event,
-    vs_video_session_add_click_event, vs_video_session_add_key_event, vs_video_session_config,
-    vs_video_session_create, vs_video_session_deserialize_json, vs_video_session_destroy,
-    vs_video_session_get_export_plan, vs_video_session_serialize_json,
-    vs_video_session_set_export_context, vs_video_session_set_trim, VS_CORE_ABI_VERSION_MAJOR,
+    vs_video_compute_export_plan, vs_video_compute_overlay_clip_window,
+    vs_video_derive_export_decision, vs_video_export_context, vs_video_export_decision,
+    vs_video_export_plan, vs_video_key_event, vs_video_key_overlay_label_layout,
+    vs_video_overlay_clip_window, vs_video_overlay_label_layout, vs_video_session_add_click_event,
+    vs_video_session_add_key_event, vs_video_session_config, vs_video_session_create,
+    vs_video_session_deserialize_json, vs_video_session_destroy, vs_video_session_get_export_plan,
+    vs_video_session_serialize_json, vs_video_session_set_export_context,
+    vs_video_session_set_trim, vs_video_text_overlay_label_layout, VS_CORE_ABI_VERSION_MAJOR,
     VS_CORE_ABI_VERSION_MINOR, VS_CORE_ABI_VERSION_PATCH, VS_STATUS_INVALID_ARGUMENT,
     VS_STATUS_NULL_POINTER, VS_VIDEO_EXPORT_TARGET_GIF, VS_VIDEO_EXPORT_TARGET_MP4,
+    VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS,
 };
 
 fn sample_config() -> vs_video_session_config {
@@ -205,6 +209,35 @@ fn video_session_serialization_roundtrip_preserves_plan() {
 }
 
 #[test]
+fn video_session_deserialize_rejects_unknown_snapshot_version() {
+    let session = vs_video_session_create(sample_config());
+    assert!(!session.is_null());
+
+    // SAFETY: valid handle, buffer and pointers are provided for call duration.
+    unsafe {
+        let mut json = vec![0u8; 1024];
+        let mut written = 0u32;
+        assert_eq!(
+            vs_video_session_serialize_json(
+                session,
+                json.as_mut_ptr(),
+                json.len() as u32,
+                &mut written,
+            ),
+            0
+        );
+
+        let mut value: Value = serde_json::from_slice(&json[..written as usize]).unwrap();
+        value["version"] = Value::from(999u32);
+        let encoded = serde_json::to_vec(&value).unwrap();
+        let restored = vs_video_session_deserialize_json(encoded.as_ptr(), encoded.len() as u32);
+        assert!(restored.is_null());
+
+        vs_video_session_destroy(session);
+    }
+}
+
+#[test]
 fn video_compute_export_plan_validates_trim_bounds() {
     let mut plan = blank_plan();
 
@@ -249,6 +282,64 @@ fn video_compute_export_plan_validates_trim_bounds() {
     assert_eq!(plan.key_event_count, 2);
     assert_eq!(plan.click_event_count, 1);
     assert_eq!(plan.plan_mode, 1);
+}
+
+#[test]
+fn stale_video_session_handle_is_rejected_after_destroy() {
+    let session = vs_video_session_create(sample_config());
+    assert!(!session.is_null());
+
+    // SAFETY: handle is valid for destroy; subsequent call verifies stale handle rejection.
+    unsafe {
+        vs_video_session_destroy(session);
+        assert_eq!(
+            vs_video_session_set_trim(session, 10, 100),
+            VS_STATUS_INVALID_ARGUMENT
+        );
+    }
+}
+
+#[test]
+fn overlay_policy_ffi_contracts_are_deterministic() {
+    let mut key = vs_video_overlay_label_layout::default();
+    // SAFETY: output pointer is valid.
+    unsafe {
+        assert_eq!(
+            vs_video_key_overlay_label_layout(1920.0, 1080.0, 6, &mut key),
+            0
+        );
+    }
+    assert!((key.width - 108.0).abs() < 0.001);
+    assert!((key.height - 58.0).abs() < 0.001);
+
+    let mut text = vs_video_overlay_label_layout::default();
+    // SAFETY: output pointer is valid.
+    unsafe {
+        assert_eq!(
+            vs_video_text_overlay_label_layout(1920.0, 1080.0, 20, &mut text),
+            0
+        );
+    }
+    assert!((text.width - 280.0).abs() < 0.001);
+    assert!((text.height - 62.0).abs() < 0.001);
+
+    let mut window = vs_video_overlay_clip_window::default();
+    // SAFETY: output pointer is valid.
+    unsafe {
+        assert_eq!(
+            vs_video_compute_overlay_clip_window(
+                3.0,
+                4.0,
+                1.5,
+                VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS,
+                &mut window
+            ),
+            0
+        );
+    }
+    assert!((window.start_seconds - 1.5).abs() < 0.0001);
+    assert!((window.end_seconds - 2.5).abs() < 0.0001);
+    assert!((window.fade_duration_seconds - 1.0).abs() < 0.0001);
 }
 
 #[test]

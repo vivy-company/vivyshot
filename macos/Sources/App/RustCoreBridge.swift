@@ -54,6 +54,19 @@ struct RustVideoExportDecision {
   let includeWebcam: Bool
 }
 
+struct RustVideoOverlayLabelLayout {
+  let width: CGFloat
+  let height: CGFloat
+  let y: CGFloat
+  let fontSize: CGFloat
+}
+
+struct RustVideoOverlayClipWindow {
+  let startSeconds: Double
+  let endSeconds: Double
+  let fadeDurationSeconds: Double
+}
+
 struct RustVideoExportContext {
   let sourceHasAudio: Bool
   let sourceHasWebcamAsset: Bool
@@ -377,6 +390,102 @@ final class RustCoreBridge {
       requiresIntermediateForGIF: rawDecision.requires_intermediate_for_gif,
       includeAudio: rawDecision.include_audio,
       includeWebcam: rawDecision.include_webcam
+    )
+  }
+
+  nonisolated static func keyOverlayLabelLayoutPortable(
+    renderSize: CGSize,
+    charCount: Int
+  ) -> RustVideoOverlayLabelLayout? {
+    guard charCount >= 0 else {
+      return nil
+    }
+    var raw = vs_video_overlay_label_layout()
+    let status = vs_video_key_overlay_label_layout(
+      Float(max(1, renderSize.width)),
+      Float(max(1, renderSize.height)),
+      UInt32(max(0, charCount)),
+      &raw
+    )
+    guard RustFFIStatus.isSuccess(status) else {
+      return nil
+    }
+    return RustVideoOverlayLabelLayout(
+      width: CGFloat(raw.width),
+      height: CGFloat(raw.height),
+      y: CGFloat(raw.y),
+      fontSize: CGFloat(raw.font_size)
+    )
+  }
+
+  func keyOverlayLabelLayout(renderSize: CGSize, charCount: Int) -> RustVideoOverlayLabelLayout? {
+    Self.keyOverlayLabelLayoutPortable(renderSize: renderSize, charCount: charCount)
+  }
+
+  nonisolated static func textOverlayLabelLayoutPortable(
+    renderSize: CGSize,
+    charCount: Int
+  ) -> RustVideoOverlayLabelLayout? {
+    guard charCount >= 0 else {
+      return nil
+    }
+    var raw = vs_video_overlay_label_layout()
+    let status = vs_video_text_overlay_label_layout(
+      Float(max(1, renderSize.width)),
+      Float(max(1, renderSize.height)),
+      UInt32(max(0, charCount)),
+      &raw
+    )
+    guard RustFFIStatus.isSuccess(status) else {
+      return nil
+    }
+    return RustVideoOverlayLabelLayout(
+      width: CGFloat(raw.width),
+      height: CGFloat(raw.height),
+      y: CGFloat(raw.y),
+      fontSize: CGFloat(raw.font_size)
+    )
+  }
+
+  func textOverlayLabelLayout(renderSize: CGSize, charCount: Int) -> RustVideoOverlayLabelLayout? {
+    Self.textOverlayLabelLayoutPortable(renderSize: renderSize, charCount: charCount)
+  }
+
+  nonisolated static func overlayClipWindowPortable(
+    clipStartSeconds: Double,
+    clipEndSeconds: Double,
+    trimStartSeconds: Double,
+    minVisibleSeconds: Double = Double(VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS)
+  ) -> RustVideoOverlayClipWindow? {
+    var raw = vs_video_overlay_clip_window()
+    let status = vs_video_compute_overlay_clip_window(
+      clipStartSeconds,
+      clipEndSeconds,
+      trimStartSeconds,
+      minVisibleSeconds,
+      &raw
+    )
+    guard RustFFIStatus.isSuccess(status) else {
+      return nil
+    }
+    return RustVideoOverlayClipWindow(
+      startSeconds: raw.start_seconds,
+      endSeconds: raw.end_seconds,
+      fadeDurationSeconds: raw.fade_duration_seconds
+    )
+  }
+
+  func overlayClipWindow(
+    clipStartSeconds: Double,
+    clipEndSeconds: Double,
+    trimStartSeconds: Double,
+    minVisibleSeconds: Double = Double(VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS)
+  ) -> RustVideoOverlayClipWindow? {
+    Self.overlayClipWindowPortable(
+      clipStartSeconds: clipStartSeconds,
+      clipEndSeconds: clipEndSeconds,
+      trimStartSeconds: trimStartSeconds,
+      minVisibleSeconds: minVisibleSeconds
     )
   }
 

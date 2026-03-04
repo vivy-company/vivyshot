@@ -10,7 +10,7 @@ use vivyshot_core::{
     vs_timeline_remove_clip, vs_timeline_remove_track, vs_timeline_reorder_track,
     vs_timeline_resize_clip, vs_timeline_set_clip_text, vs_timeline_set_clip_text_style,
     vs_timeline_set_clip_zoom_scale, vs_timeline_set_track_visible, vs_timeline_undo,
-    vs_video_export_context,
+    vs_video_export_context, VS_STATUS_INVALID_ARGUMENT,
 };
 
 #[test]
@@ -204,5 +204,17 @@ fn timeline_clip_ops_visibility_and_history_behave() {
         assert_eq!(height, 1080);
 
         vs_timeline_destroy(tl);
+    }
+}
+
+#[test]
+fn stale_timeline_handle_is_rejected_after_destroy() {
+    let tl = vs_timeline_create(2_000, 640, 480);
+    assert!(!tl.is_null());
+
+    // SAFETY: handle is valid for destroy; stale-handle call checks rejection.
+    unsafe {
+        vs_timeline_destroy(tl);
+        assert_eq!(vs_timeline_add_track(tl, 0), VS_STATUS_INVALID_ARGUMENT);
     }
 }

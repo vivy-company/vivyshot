@@ -18,6 +18,20 @@
 
 #define VS_CORE_ABI_VERSION_PATCH 0
 
+#define VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS 0.05
+
+#define VS_VIDEO_TEXT_MIN_FADE_DURATION_SECONDS 0.10
+
+#define VS_VIDEO_KEY_FADE_DURATION_SECONDS 0.95
+
+#define VS_VIDEO_KEY_FADE_IN_KEYTIME 0.10
+
+#define VS_VIDEO_KEY_FADE_HOLD_KEYTIME 0.78
+
+#define VS_VIDEO_TEXT_FADE_IN_KEYTIME 0.08
+
+#define VS_VIDEO_TEXT_FADE_HOLD_KEYTIME 0.92
+
 #define VS_STATUS_OK 0
 
 #define VS_STATUS_NO_CHANGE 1
@@ -82,6 +96,19 @@ typedef struct vs_video_export_decision {
   bool include_audio;
   bool include_webcam;
 } vs_video_export_decision;
+
+typedef struct vs_video_overlay_label_layout {
+  float width;
+  float height;
+  float y;
+  float font_size;
+} vs_video_overlay_label_layout;
+
+typedef struct vs_video_overlay_clip_window {
+  double start_seconds;
+  double end_seconds;
+  double fade_duration_seconds;
+} vs_video_overlay_clip_window;
 
 typedef struct vs_f32_rect {
   float x;
@@ -328,6 +355,22 @@ int32_t vs_video_compute_export_plan(uint32_t trim_start_ms,
 int32_t vs_video_derive_export_decision(uint8_t target,
                                         struct vs_video_export_plan plan,
                                         struct vs_video_export_decision *out_decision);
+
+int32_t vs_video_key_overlay_label_layout(float render_width,
+                                          float render_height,
+                                          uint32_t char_count,
+                                          struct vs_video_overlay_label_layout *out_layout);
+
+int32_t vs_video_text_overlay_label_layout(float render_width,
+                                           float render_height,
+                                           uint32_t char_count,
+                                           struct vs_video_overlay_label_layout *out_layout);
+
+int32_t vs_video_compute_overlay_clip_window(double clip_start_seconds,
+                                             double clip_end_seconds,
+                                             double trim_start_seconds,
+                                             double min_visible_seconds,
+                                             struct vs_video_overlay_clip_window *out_window);
 
 int32_t vs_video_session_get_export_plan(void *session, struct vs_video_export_plan *out_plan);
 

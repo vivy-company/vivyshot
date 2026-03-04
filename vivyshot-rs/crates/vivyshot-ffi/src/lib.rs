@@ -20,7 +20,7 @@ use std::ffi::c_void;
 use std::fs;
 use std::os::raw::c_char;
 use std::slice;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use vivyshot_domain::{
     bgra_view_to_owned as domain_bgra_view_to_owned,
     build_gif_export_plan as domain_build_gif_export_plan,
@@ -63,6 +63,10 @@ use ffi::video as ffi_video;
 
 static VERSION: &[u8] = b"0.1.0\0";
 static SYSTEM_FONTS: OnceLock<Vec<fontdue::Font>> = OnceLock::new();
+static DOCUMENT_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
+static VIDEO_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
+static STITCH_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
+static TIMELINE_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -240,6 +244,23 @@ pub struct vs_video_export_decision {
     pub requires_intermediate_for_gif: bool,
     pub include_audio: bool,
     pub include_webcam: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_overlay_label_layout {
+    pub width: f32,
+    pub height: f32,
+    pub y: f32,
+    pub font_size: f32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_overlay_clip_window {
+    pub start_seconds: f64,
+    pub end_seconds: f64,
+    pub fade_duration_seconds: f64,
 }
 
 #[repr(C)]
@@ -448,6 +469,109 @@ struct VsVideoSessionSnapshot {
     text_overlay_count: u32,
 }
 
+fn register_handle(registry: &OnceLock<Mutex<HashSet<usize>>>, handle: *mut c_void) {
+    if handle.is_null() {
+        return;
+    }
+    let lock = registry.get_or_init(|| Mutex::new(HashSet::new()));
+    let mut guard = match lock.lock() {
+        Ok(v) => v,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard.insert(handle as usize);
+}
+
+fn unregister_handle(registry: &OnceLock<Mutex<HashSet<usize>>>, handle: *mut c_void) -> bool {
+    if handle.is_null() {
+        return false;
+    }
+    let Some(lock) = registry.get() else {
+        return false;
+    };
+    let mut guard = match lock.lock() {
+        Ok(v) => v,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard.remove(&(handle as usize))
+}
+
+fn validate_handle(
+    registry: &OnceLock<Mutex<HashSet<usize>>>,
+    handle: *const c_void,
+) -> Result<(), i32> {
+    if handle.is_null() {
+        return Err(VS_STATUS_NULL_POINTER);
+    }
+    let Some(lock) = registry.get() else {
+        return Err(VS_STATUS_INVALID_ARGUMENT);
+    };
+    let guard = match lock.lock() {
+        Ok(v) => v,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if guard.contains(&(handle as usize)) {
+        Ok(())
+    } else {
+        Err(VS_STATUS_INVALID_ARGUMENT)
+    }
+}
+
+unsafe fn document_from_handle_mut<'a>(doc: *mut c_void) -> Result<&'a mut vs_document, i32> {
+    validate_handle(&DOCUMENT_HANDLES, doc)?;
+    // SAFETY: pointer was validated by registry and originates from Box::into_raw.
+    Ok(unsafe { &mut *doc.cast::<vs_document>() })
+}
+
+unsafe fn document_from_handle<'a>(doc: *const c_void) -> Result<&'a vs_document, i32> {
+    validate_handle(&DOCUMENT_HANDLES, doc)?;
+    // SAFETY: pointer was validated by registry and originates from Box::into_raw.
+    Ok(unsafe { &*doc.cast::<vs_document>() })
+}
+
+unsafe fn video_session_from_handle_mut<'a>(
+    session: *mut c_void,
+) -> Result<&'a mut vs_video_session, i32> {
+    validate_handle(&VIDEO_SESSION_HANDLES, session)?;
+    // SAFETY: pointer was validated by registry and originates from Box::into_raw.
+    Ok(unsafe { &mut *session.cast::<vs_video_session>() })
+}
+
+unsafe fn video_session_from_handle<'a>(
+    session: *const c_void,
+) -> Result<&'a vs_video_session, i32> {
+    validate_handle(&VIDEO_SESSION_HANDLES, session)?;
+    // SAFETY: pointer was validated by registry and originates from Box::into_raw.
+    Ok(unsafe { &*session.cast::<vs_video_session>() })
+}
+
+unsafe fn stitch_session_from_handle_mut<'a>(
+    session: *mut c_void,
+) -> Result<&'a mut vs_stitch_session, i32> {
+    validate_handle(&STITCH_SESSION_HANDLES, session)?;
+    // SAFETY: pointer was validated by registry and originates from Box::into_raw.
+    Ok(unsafe { &mut *session.cast::<vs_stitch_session>() })
+}
+
+unsafe fn stitch_session_from_handle<'a>(
+    session: *const c_void,
+) -> Result<&'a vs_stitch_session, i32> {
+    validate_handle(&STITCH_SESSION_HANDLES, session)?;
+    // SAFETY: pointer was validated by registry and originates from Box::into_raw.
+    Ok(unsafe { &*session.cast::<vs_stitch_session>() })
+}
+
+unsafe fn timeline_from_handle_mut<'a>(handle: *mut c_void) -> Result<&'a mut VsTimeline, i32> {
+    validate_handle(&TIMELINE_HANDLES, handle)?;
+    // SAFETY: pointer was validated by registry and originates from Box::into_raw.
+    Ok(unsafe { &mut *handle.cast::<VsTimeline>() })
+}
+
+unsafe fn timeline_from_handle<'a>(handle: *const c_void) -> Result<&'a VsTimeline, i32> {
+    validate_handle(&TIMELINE_HANDLES, handle)?;
+    // SAFETY: pointer was validated by registry and originates from Box::into_raw.
+    Ok(unsafe { &*handle.cast::<VsTimeline>() })
+}
+
 #[derive(Clone, Copy)]
 struct RectI {
     x0: i32,
@@ -649,12 +773,14 @@ pub unsafe extern "C" fn vs_create_document_from_bgra(
         pending_dirty: None,
     };
 
-    Box::into_raw(Box::new(doc)).cast()
+    let handle = Box::into_raw(Box::new(doc)).cast();
+    register_handle(&DOCUMENT_HANDLES, handle);
+    handle
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_destroy_document(doc: *mut c_void) {
-    if doc.is_null() {
+    if !unregister_handle(&DOCUMENT_HANDLES, doc) {
         return;
     }
 
@@ -679,7 +805,9 @@ pub extern "C" fn vs_video_session_create(config: vs_video_session_config) -> *m
         text_overlay_count: 0,
     };
 
-    Box::into_raw(Box::new(session)).cast()
+    let handle = Box::into_raw(Box::new(session)).cast();
+    register_handle(&VIDEO_SESSION_HANDLES, handle);
+    handle
 }
 
 #[no_mangle]
@@ -687,9 +815,10 @@ pub unsafe extern "C" fn vs_video_session_add_key_event(
     session: *mut c_void,
     event: vs_video_key_event,
 ) -> i32 {
-    if session.is_null() {
-        return -1;
-    }
+    let session_ref = match unsafe { video_session_from_handle_mut(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     if event.token_ptr.is_null() || event.token_len == 0 || event.token_len > 128 {
         return -2;
@@ -706,8 +835,6 @@ pub unsafe extern "C" fn vs_video_session_add_key_event(
         return -4;
     }
 
-    // SAFETY: `session` comes from `vs_video_session_create`.
-    let session_ref = unsafe { &mut *session.cast::<vs_video_session>() };
     session_ref.key_events.push(VsVideoKeyEvent {
         timestamp_ns: event.timestamp_ns,
         token: token.to_string(),
@@ -720,16 +847,15 @@ pub unsafe extern "C" fn vs_video_session_add_click_event(
     session: *mut c_void,
     event: vs_video_click_event,
 ) -> i32 {
-    if session.is_null() {
-        return -1;
-    }
+    let session_ref = match unsafe { video_session_from_handle_mut(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     if !event.normalized_x.is_finite() || !event.normalized_y.is_finite() {
         return -2;
     }
 
-    // SAFETY: `session` comes from `vs_video_session_create`.
-    let session_ref = unsafe { &mut *session.cast::<vs_video_session>() };
     session_ref.click_events.push(VsVideoClickEvent {
         timestamp_ns: event.timestamp_ns,
         normalized_x: event.normalized_x.clamp(0.0, 1.0),
@@ -745,16 +871,15 @@ pub unsafe extern "C" fn vs_video_session_set_trim(
     start_ms: u32,
     end_ms: u32,
 ) -> i32 {
-    if session.is_null() {
-        return -1;
-    }
+    let session_ref = match unsafe { video_session_from_handle_mut(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     if end_ms < start_ms {
         return -2;
     }
 
-    // SAFETY: `session` comes from `vs_video_session_create`.
-    let session_ref = unsafe { &mut *session.cast::<vs_video_session>() };
     session_ref.trim_start_ms = start_ms;
     session_ref.trim_end_ms = end_ms;
     0
@@ -765,12 +890,10 @@ pub unsafe extern "C" fn vs_video_session_set_export_context(
     session: *mut c_void,
     context: vs_video_export_context,
 ) -> i32 {
-    if session.is_null() {
-        return -1;
-    }
-
-    // SAFETY: `session` comes from `vs_video_session_create`.
-    let session_ref = unsafe { &mut *session.cast::<vs_video_session>() };
+    let session_ref = match unsafe { video_session_from_handle_mut(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     session_ref.source_has_audio = context.source_has_audio;
     session_ref.source_has_webcam_asset = context.source_has_webcam_asset;
     session_ref.audio_track_visible = context.audio_track_visible;
@@ -853,16 +976,83 @@ pub unsafe extern "C" fn vs_video_derive_export_decision(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn vs_video_key_overlay_label_layout(
+    render_width: f32,
+    render_height: f32,
+    char_count: u32,
+    out_layout: *mut vs_video_overlay_label_layout,
+) -> i32 {
+    if out_layout.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+    let Some(layout) = ffi_video::key_overlay_label_layout(render_width, render_height, char_count)
+    else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+    unsafe {
+        *out_layout = layout;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_text_overlay_label_layout(
+    render_width: f32,
+    render_height: f32,
+    char_count: u32,
+    out_layout: *mut vs_video_overlay_label_layout,
+) -> i32 {
+    if out_layout.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+    let Some(layout) =
+        ffi_video::text_overlay_label_layout(render_width, render_height, char_count)
+    else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+    unsafe {
+        *out_layout = layout;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_compute_overlay_clip_window(
+    clip_start_seconds: f64,
+    clip_end_seconds: f64,
+    trim_start_seconds: f64,
+    min_visible_seconds: f64,
+    out_window: *mut vs_video_overlay_clip_window,
+) -> i32 {
+    if out_window.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+    let Some(window) = ffi_video::overlay_clip_window(
+        clip_start_seconds,
+        clip_end_seconds,
+        trim_start_seconds,
+        min_visible_seconds,
+    ) else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+    unsafe {
+        *out_window = window;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn vs_video_session_get_export_plan(
     session: *mut c_void,
     out_plan: *mut vs_video_export_plan,
 ) -> i32 {
-    if session.is_null() || out_plan.is_null() {
+    if out_plan.is_null() {
         return -1;
     }
-
-    // SAFETY: `session` comes from `vs_video_session_create`.
-    let session_ref = unsafe { &*session.cast::<vs_video_session>() };
+    let session_ref = match unsafe { video_session_from_handle(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let key_count = session_ref.key_events.len().min(u32::MAX as usize) as u32;
     let click_count = session_ref.click_events.len().min(u32::MAX as usize) as u32;
     let _config_snapshot = (
@@ -920,7 +1110,7 @@ pub unsafe extern "C" fn vs_video_session_get_export_plan(
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_video_session_destroy(session: *mut c_void) {
-    if session.is_null() {
+    if !unregister_handle(&VIDEO_SESSION_HANDLES, session) {
         return;
     }
 
@@ -1126,14 +1316,12 @@ pub unsafe extern "C" fn vs_video_session_serialize_json(
     out_cap: u32,
     out_written: *mut u32,
 ) -> i32 {
-    if session.is_null() {
-        return -1;
-    }
-
-    // SAFETY: `session` comes from `vs_video_session_create`.
-    let session_ref = unsafe { &*session.cast::<vs_video_session>() };
+    let session_ref = match unsafe { video_session_from_handle(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let snapshot = VsVideoSessionSnapshot {
-        version: 1,
+        version: VS_VIDEO_SESSION_SNAPSHOT_VERSION,
         config: session_ref.config,
         key_events: session_ref.key_events.clone(),
         click_events: session_ref.click_events.clone(),
@@ -1170,6 +1358,10 @@ pub unsafe extern "C" fn vs_video_session_deserialize_json(
         Err(_) => return std::ptr::null_mut(),
     };
 
+    if snapshot.version != VS_VIDEO_SESSION_SNAPSHOT_VERSION {
+        return std::ptr::null_mut();
+    }
+
     if snapshot.trim_end_ms < snapshot.trim_start_ms {
         return std::ptr::null_mut();
     }
@@ -1187,7 +1379,9 @@ pub unsafe extern "C" fn vs_video_session_deserialize_json(
         text_overlay_count: snapshot.text_overlay_count,
     };
 
-    Box::into_raw(Box::new(session)).cast()
+    let handle = Box::into_raw(Box::new(session)).cast();
+    register_handle(&VIDEO_SESSION_HANDLES, handle);
+    handle
 }
 
 #[cfg(test)]
@@ -1220,6 +1414,14 @@ pub const VS_VIDEO_EXPORT_TARGET_GIF: u8 = 1;
 pub const VS_CORE_ABI_VERSION_MAJOR: u32 = 1;
 pub const VS_CORE_ABI_VERSION_MINOR: u32 = 0;
 pub const VS_CORE_ABI_VERSION_PATCH: u32 = 0;
+const VS_VIDEO_SESSION_SNAPSHOT_VERSION: u32 = 1;
+pub const VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS: f64 = 0.05;
+pub const VS_VIDEO_TEXT_MIN_FADE_DURATION_SECONDS: f64 = 0.10;
+pub const VS_VIDEO_KEY_FADE_DURATION_SECONDS: f32 = 0.95;
+pub const VS_VIDEO_KEY_FADE_IN_KEYTIME: f32 = 0.10;
+pub const VS_VIDEO_KEY_FADE_HOLD_KEYTIME: f32 = 0.78;
+pub const VS_VIDEO_TEXT_FADE_IN_KEYTIME: f32 = 0.08;
+pub const VS_VIDEO_TEXT_FADE_HOLD_KEYTIME: f32 = 0.92;
 
 pub const VS_STATUS_OK: i32 = 0;
 pub const VS_STATUS_NO_CHANGE: i32 = 1;
@@ -1392,12 +1594,14 @@ pub extern "C" fn vs_stitch_session_create() -> *mut c_void {
         expected_rows: None,
         segment_count: 1,
     };
-    Box::into_raw(Box::new(session)).cast()
+    let handle = Box::into_raw(Box::new(session)).cast();
+    register_handle(&STITCH_SESSION_HANDLES, handle);
+    handle
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_stitch_session_destroy(session: *mut c_void) {
-    if session.is_null() {
+    if !unregister_handle(&STITCH_SESSION_HANDLES, session) {
         return;
     }
 
@@ -1412,12 +1616,10 @@ pub unsafe extern "C" fn vs_stitch_session_reset(
     session: *mut c_void,
     base_segment_count: u32,
 ) -> i32 {
-    if session.is_null() {
-        return -1;
-    }
-
-    // SAFETY: `session` was created by `vs_stitch_session_create`.
-    let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
+    let session_ref = match unsafe { stitch_session_from_handle_mut(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     session_ref.working_image = None;
     session_ref.last_frame = None;
     session_ref.direction = None;
@@ -1854,17 +2056,16 @@ pub unsafe extern "C" fn vs_stitch_session_set_base_bgra(
     base: vs_bgra_image_view,
     base_segment_count: u32,
 ) -> i32 {
-    if session.is_null() {
-        return -1;
-    }
+    let session_ref = match unsafe { stitch_session_from_handle_mut(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let base_frame = match copy_bgra_view_to_owned(base) {
         Some(v) => v,
         None => return -2,
     };
 
-    // SAFETY: `session` was created by `vs_stitch_session_create`.
-    let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
     session_ref.working_image = Some(base_frame);
     session_ref.last_frame = None;
     session_ref.direction = None;
@@ -1878,12 +2079,14 @@ pub unsafe extern "C" fn vs_stitch_session_get_merged_image_bgra(
     session: *mut c_void,
     out_image: *mut vs_bgra_owned_image,
 ) -> i32 {
-    if session.is_null() || out_image.is_null() {
+    if out_image.is_null() {
         return -1;
     }
+    let session_ref = match unsafe { stitch_session_from_handle(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
-    // SAFETY: `session` was created by `vs_stitch_session_create`.
-    let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
     // SAFETY: caller passed a valid writable pointer.
     let out_image_ref = unsafe { &mut *out_image };
     zero_bgra_owned_image(out_image_ref);
@@ -1902,17 +2105,19 @@ pub unsafe extern "C" fn vs_stitch_session_push_frame_bgra(
     frame: vs_bgra_image_view,
     out_result: *mut vs_stitch_session_result,
 ) -> i32 {
-    if session.is_null() || out_result.is_null() {
+    if out_result.is_null() {
         return -1;
     }
+    let session_ref = match unsafe { stitch_session_from_handle_mut(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let current_frame = match copy_bgra_view_to_owned(frame) {
         Some(v) => v,
         None => return -2,
     };
 
-    // SAFETY: `session` was created by `vs_stitch_session_create`.
-    let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
     let (result, _) = stitch_session_push_internal(session_ref, current_frame);
     // SAFETY: `out_result` was checked non-null and points to writable memory.
     unsafe {
@@ -1928,17 +2133,20 @@ pub unsafe extern "C" fn vs_stitch_session_push_frame_and_merge_bgra(
     out_result: *mut vs_stitch_session_result,
     out_image: *mut vs_bgra_owned_image,
 ) -> i32 {
-    if session.is_null() || out_result.is_null() || out_image.is_null() {
+    if out_result.is_null() || out_image.is_null() {
         return -1;
     }
+    let session_ref = match unsafe { stitch_session_from_handle_mut(session) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let current_frame = match copy_bgra_view_to_owned(frame) {
         Some(v) => v,
         None => return -2,
     };
 
-    // SAFETY: pointers are non-null and owned by caller/session creator.
-    let session_ref = unsafe { &mut *session.cast::<vs_stitch_session>() };
+    // SAFETY: output pointer is non-null and owned by caller.
     let out_image_ref = unsafe { &mut *out_image };
     zero_bgra_owned_image(out_image_ref);
 
@@ -2250,16 +2458,14 @@ pub unsafe extern "C" fn vs_bgra_owned_image_destroy(image: *mut vs_bgra_owned_i
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_add_rect(doc: *mut c_void, cmd: vs_rect_command) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(bounds) = rect_command_bounds(cmd) else {
         return -2;
     };
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
 
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
@@ -2274,16 +2480,14 @@ pub unsafe extern "C" fn vs_add_rect(doc: *mut c_void, cmd: vs_rect_command) -> 
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_add_filled_rect(doc: *mut c_void, cmd: vs_rect_command) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(bounds) = rect_command_bounds(cmd) else {
         return -2;
     };
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
 
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
@@ -2297,16 +2501,14 @@ pub unsafe extern "C" fn vs_add_filled_rect(doc: *mut c_void, cmd: vs_rect_comma
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_add_ellipse(doc: *mut c_void, cmd: vs_ellipse_command) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(bounds) = ellipse_command_bounds(cmd) else {
         return -2;
     };
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
 
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
@@ -2320,16 +2522,14 @@ pub unsafe extern "C" fn vs_add_ellipse(doc: *mut c_void, cmd: vs_ellipse_comman
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_add_filled_ellipse(doc: *mut c_void, cmd: vs_ellipse_command) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(bounds) = ellipse_command_bounds(cmd) else {
         return -2;
     };
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
 
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
@@ -2343,16 +2543,14 @@ pub unsafe extern "C" fn vs_add_filled_ellipse(doc: *mut c_void, cmd: vs_ellipse
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_add_line(doc: *mut c_void, cmd: vs_line_command) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(bounds) = line_command_bounds(cmd) else {
         return -2;
     };
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
 
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
@@ -2371,9 +2569,10 @@ pub unsafe extern "C" fn vs_add_path(
     points_len: usize,
     style: vs_path_style,
 ) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     if points_ptr.is_null() || points_len == 0 {
         return -2;
     }
@@ -2384,8 +2583,6 @@ pub unsafe extern "C" fn vs_add_path(
         return -3;
     };
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
     }
@@ -2401,16 +2598,14 @@ pub unsafe extern "C" fn vs_add_path(
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_add_arrow(doc: *mut c_void, cmd: vs_arrow_command) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(bounds) = arrow_command_bounds(cmd) else {
         return -2;
     };
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
 
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
@@ -2429,9 +2624,10 @@ pub unsafe extern "C" fn vs_add_text(
     text_len: usize,
     cmd: vs_text_command,
 ) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     if text_ptr.is_null() || text_len == 0 {
         return -2;
     }
@@ -2451,8 +2647,6 @@ pub unsafe extern "C" fn vs_add_text(
         return -5;
     };
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
     }
@@ -2468,16 +2662,15 @@ pub unsafe extern "C" fn vs_add_pixelate_rect(
     doc: *mut c_void,
     cmd: vs_pixelate_rect_command,
 ) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(bounds) = effect_rect_bounds(cmd.x, cmd.y, cmd.width, cmd.height) else {
         return -2;
     };
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
     }
@@ -2490,16 +2683,15 @@ pub unsafe extern "C" fn vs_add_pixelate_rect(
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_add_blur_rect(doc: *mut c_void, cmd: vs_blur_rect_command) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(bounds) = effect_rect_bounds(cmd.x, cmd.y, cmd.width, cmd.height) else {
         return -2;
     };
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
     if doc.cursor < doc.commands.len() {
         doc.commands.truncate(doc.cursor);
     }
@@ -2512,12 +2704,10 @@ pub unsafe extern "C" fn vs_add_blur_rect(doc: *mut c_void, cmd: vs_blur_rect_co
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_undo(doc: *mut c_void) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     if doc.cursor == 0 {
         return 1;
     }
@@ -2537,12 +2727,10 @@ pub unsafe extern "C" fn vs_undo(doc: *mut c_void) -> i32 {
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_redo(doc: *mut c_void) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     if doc.cursor >= doc.commands.len() {
         return 1;
     }
@@ -2567,7 +2755,7 @@ pub unsafe extern "C" fn vs_list_annotations(
     out_cap: usize,
     out_written_ptr: *mut usize,
 ) -> i32 {
-    if doc.is_null() || out_written_ptr.is_null() {
+    if out_written_ptr.is_null() {
         return -1;
     }
 
@@ -2575,8 +2763,10 @@ pub unsafe extern "C" fn vs_list_annotations(
         return -2;
     }
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
+    let doc = match unsafe { document_from_handle(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let image_w = doc.image_width_i32();
     let image_h = doc.image_height_i32();
 
@@ -2617,16 +2807,14 @@ pub unsafe extern "C" fn vs_list_annotations(
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_move_annotation(doc: *mut c_void, index: u32, dx: i32, dy: i32) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
-
     if dx == 0 && dy == 0 {
         return 1;
     }
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
         return -2;
     };
@@ -2661,12 +2849,10 @@ pub unsafe extern "C" fn vs_move_annotation(doc: *mut c_void, index: u32, dx: i3
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_remove_annotation(doc: *mut c_void, index: u32) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
-
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
         return -2;
     };
@@ -2700,9 +2886,6 @@ pub unsafe extern "C" fn vs_resize_annotation(
     width: i32,
     height: i32,
 ) -> i32 {
-    if doc.is_null() {
-        return -1;
-    }
     if width <= 0 || height <= 0 {
         return -2;
     }
@@ -2717,8 +2900,10 @@ pub unsafe extern "C" fn vs_resize_annotation(
         return -2;
     }
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
         return -3;
     };
@@ -2766,10 +2951,6 @@ pub unsafe extern "C" fn vs_copy_annotations_affine(
     translate_x: f32,
     translate_y: f32,
 ) -> i32 {
-    if dst_doc.is_null() || src_doc.is_null() {
-        return -1;
-    }
-
     if !scale_x.is_finite()
         || !scale_y.is_finite()
         || !translate_x.is_finite()
@@ -2784,10 +2965,14 @@ pub unsafe extern "C" fn vs_copy_annotations_affine(
         return -3;
     }
 
-    // SAFETY: pointers are validated above.
-    let src = unsafe { &*src_doc.cast::<vs_document>() };
-    // SAFETY: pointers are validated above.
-    let dst = unsafe { &mut *dst_doc.cast::<vs_document>() };
+    let src = match unsafe { document_from_handle(src_doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
+    let dst = match unsafe { document_from_handle_mut(dst_doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     if dst.cursor < dst.commands.len() {
         dst.commands.truncate(dst.cursor);
@@ -2814,12 +2999,14 @@ pub unsafe extern "C" fn vs_copy_annotations_affine(
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_render_full(doc: *mut c_void, out_ptr: *mut u8, out_len: usize) -> i32 {
-    if doc.is_null() || out_ptr.is_null() {
+    if out_ptr.is_null() {
         return -1;
     }
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     let Some(expected_len) = doc.expected_len() else {
         return -2;
@@ -2857,7 +3044,7 @@ pub unsafe extern "C" fn vs_render_dirty(
     dirty_rects_cap: usize,
     dirty_rects_written_ptr: *mut usize,
 ) -> i32 {
-    if doc.is_null() || out_ptr.is_null() || dirty_rects_written_ptr.is_null() {
+    if out_ptr.is_null() || dirty_rects_written_ptr.is_null() {
         return -1;
     }
 
@@ -2865,8 +3052,10 @@ pub unsafe extern "C" fn vs_render_dirty(
         return -2;
     }
 
-    // SAFETY: `doc` nullability is checked above.
-    let doc = unsafe { &mut *doc.cast::<vs_document>() };
+    let doc = match unsafe { document_from_handle_mut(doc) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     // SAFETY: `dirty_rects_written_ptr` nullability is checked above.
     unsafe {
@@ -5026,12 +5215,14 @@ pub extern "C" fn vs_timeline_create(duration_ms: u32, width: u32, height: u32) 
         history_cursor: 0,
     };
 
-    Box::into_raw(Box::new(tl)).cast()
+    let handle = Box::into_raw(Box::new(tl)).cast();
+    register_handle(&TIMELINE_HANDLES, handle);
+    handle
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_timeline_destroy(handle: *mut c_void) {
-    if handle.is_null() {
+    if !unregister_handle(&TIMELINE_HANDLES, handle) {
         return;
     }
 
@@ -5046,15 +5237,14 @@ pub unsafe extern "C" fn vs_timeline_destroy(handle: *mut c_void) {
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_timeline_add_track(handle: *mut c_void, kind: u8) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
     if kind > 6 {
         return -2;
     }
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let action = TimelineAction::AddTrack { kind };
     tl.apply_action(&action);
     tl.push_action(action);
@@ -5063,11 +5253,10 @@ pub unsafe extern "C" fn vs_timeline_add_track(handle: *mut c_void, kind: u8) ->
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_timeline_remove_track(handle: *mut c_void, track_index: u32) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
     if idx >= tl.tracks.len() {
         return -2;
@@ -5089,11 +5278,10 @@ pub unsafe extern "C" fn vs_timeline_reorder_track(
     from_index: u32,
     to_index: u32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let from = from_index as usize;
     let to = to_index as usize;
     if from >= tl.tracks.len() || to >= tl.tracks.len() {
@@ -5116,11 +5304,10 @@ pub unsafe extern "C" fn vs_timeline_set_track_visible(
     track_index: u32,
     visible: bool,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
     if idx >= tl.tracks.len() {
         return -2;
@@ -5148,7 +5335,7 @@ pub unsafe extern "C" fn vs_timeline_get_tracks(
     out_cap: u32,
     out_written: *mut u32,
 ) -> i32 {
-    if handle.is_null() || out_written.is_null() {
+    if out_written.is_null() {
         return -1;
     }
 
@@ -5156,7 +5343,10 @@ pub unsafe extern "C" fn vs_timeline_get_tracks(
         return -2;
     }
 
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let total = tl.tracks.len().min(u32::MAX as usize) as u32;
     let write_count = (out_cap as usize).min(total as usize);
 
@@ -5184,12 +5374,14 @@ pub unsafe extern "C" fn vs_timeline_derive_export_context(
     source_has_webcam_asset: bool,
     out_context: *mut vs_video_export_context,
 ) -> i32 {
-    if handle.is_null() || out_context.is_null() {
+    if out_context.is_null() {
         return -1;
     }
 
-    // SAFETY: handle was created by `vs_timeline_create`.
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let context =
         ffi_timeline::derive_export_context(source_has_audio, source_has_webcam_asset, &tl.tracks);
 
@@ -5204,12 +5396,14 @@ pub unsafe extern "C" fn vs_timeline_is_webcam_track_visible_for_export(
     handle: *const c_void,
     out_visible: *mut bool,
 ) -> i32 {
-    if handle.is_null() || out_visible.is_null() {
+    if out_visible.is_null() {
         return -1;
     }
 
-    // SAFETY: handle was created by `vs_timeline_create`.
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let visible = ffi_timeline::webcam_visible_for_export(&tl.tracks);
     unsafe {
         *out_visible = visible;
@@ -5224,15 +5418,17 @@ pub unsafe extern "C" fn vs_timeline_get_text_export_clips(
     out_cap: u32,
     out_written: *mut u32,
 ) -> i32 {
-    if handle.is_null() || out_written.is_null() {
+    if out_written.is_null() {
         return -1;
     }
     if out_cap > 0 && out_ptr.is_null() {
         return -2;
     }
 
-    // SAFETY: handle was created by `vs_timeline_create`.
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let refs = ffi_timeline::text_export_clip_refs(&tl.tracks);
     if out_cap > 0 {
         ffi_timeline::write_text_export_clip_refs(&refs, out_ptr, out_cap);
@@ -5249,11 +5445,10 @@ pub unsafe extern "C" fn vs_timeline_bootstrap_capture_tracks(
     source_has_audio: bool,
     source_has_webcam_asset: bool,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let full_end = timeline_full_duration_end(tl);
     let mut tracks: Vec<TimelineTrack> = Vec::new();
 
@@ -5297,7 +5492,7 @@ pub unsafe extern "C" fn vs_timeline_add_text_clip_auto_track(
     text_len: u32,
     out_clip_id: *mut u32,
 ) -> i32 {
-    if handle.is_null() || text_ptr.is_null() || text_len == 0 {
+    if text_ptr.is_null() || text_len == 0 {
         return -1;
     }
 
@@ -5312,7 +5507,10 @@ pub unsafe extern "C" fn vs_timeline_add_text_clip_auto_track(
         return -2;
     }
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let (clamped_start, clamped_end) =
         domain_timeline_normalize_text_clip_range(tl.video_duration_ms, start_ms, end_ms);
 
@@ -5363,10 +5561,6 @@ pub unsafe extern "C" fn vs_timeline_add_clip(
     kind: u8,
     out_clip_id: *mut u32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
     if end_ms <= start_ms {
         return -2;
     }
@@ -5375,7 +5569,10 @@ pub unsafe extern "C" fn vs_timeline_add_clip(
         return -2;
     };
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
     if idx >= tl.tracks.len() {
         return -2;
@@ -5416,11 +5613,10 @@ pub unsafe extern "C" fn vs_timeline_remove_clip(
     track_index: u32,
     clip_id: u32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let clip = match tl.find_clip(idx, clip_id) {
@@ -5444,11 +5640,10 @@ pub unsafe extern "C" fn vs_timeline_move_clip(
     clip_id: u32,
     new_start_ms: u32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let (old_start, duration) = match tl.find_clip(idx, clip_id) {
@@ -5485,15 +5680,14 @@ pub unsafe extern "C" fn vs_timeline_resize_clip(
     new_start_ms: u32,
     new_end_ms: u32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
     if new_end_ms <= new_start_ms {
         return -2;
     }
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let clamped_end = if tl.video_duration_ms > 0 {
@@ -5532,10 +5726,6 @@ pub unsafe extern "C" fn vs_timeline_update_clip_transform(
     clip_id: u32,
     transform: vs_clip_transform,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
     if !transform.x.is_finite()
         || !transform.y.is_finite()
         || !transform.width.is_finite()
@@ -5546,7 +5736,10 @@ pub unsafe extern "C" fn vs_timeline_update_clip_transform(
         return -2;
     }
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let old_transform = match tl.find_clip(idx, clip_id) {
@@ -5579,10 +5772,6 @@ pub unsafe extern "C" fn vs_timeline_set_clip_text(
     text_ptr: *const u8,
     text_len: u32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
     if text_ptr.is_null() || text_len == 0 {
         return -2;
     }
@@ -5593,7 +5782,10 @@ pub unsafe extern "C" fn vs_timeline_set_clip_text(
         Err(_) => return -2,
     };
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let old_text = match tl.find_clip(idx, clip_id) {
@@ -5627,15 +5819,14 @@ pub unsafe extern "C" fn vs_timeline_set_clip_text_style(
     color: u32,
     bg_color: u32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
     if !font_size.is_finite() || font_size <= 0.0 {
         return -2;
     }
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let (old_font_size, old_color, old_bg_color) = match tl.find_clip(idx, clip_id) {
@@ -5680,15 +5871,14 @@ pub unsafe extern "C" fn vs_timeline_set_clip_shape_style(
     border_width: f32,
     corner_radius: f32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
     if !border_width.is_finite() || !corner_radius.is_finite() {
         return -2;
     }
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let (old_fill, old_border, old_border_width, old_corner_radius) =
@@ -5738,7 +5928,7 @@ pub unsafe extern "C" fn vs_timeline_get_clips(
     out_cap: u32,
     out_written: *mut u32,
 ) -> i32 {
-    if handle.is_null() || out_written.is_null() {
+    if out_written.is_null() {
         return -1;
     }
 
@@ -5746,7 +5936,10 @@ pub unsafe extern "C" fn vs_timeline_get_clips(
         return -2;
     }
 
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
     if idx >= tl.tracks.len() {
         return -2;
@@ -5784,7 +5977,7 @@ pub unsafe extern "C" fn vs_timeline_get_visible_clips_at(
     out_cap: u32,
     out_written: *mut u32,
 ) -> i32 {
-    if handle.is_null() || out_written.is_null() {
+    if out_written.is_null() {
         return -1;
     }
 
@@ -5792,7 +5985,10 @@ pub unsafe extern "C" fn vs_timeline_get_visible_clips_at(
         return -2;
     }
 
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let mut written: u32 = 0;
 
     for (track_idx, track) in tl.tracks.iter().enumerate() {
@@ -5834,7 +6030,7 @@ pub unsafe extern "C" fn vs_timeline_get_clip_text(
     out_cap: u32,
     out_written: *mut u32,
 ) -> i32 {
-    if handle.is_null() || out_written.is_null() {
+    if out_written.is_null() {
         return -1;
     }
 
@@ -5842,7 +6038,10 @@ pub unsafe extern "C" fn vs_timeline_get_clip_text(
         return -2;
     }
 
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let clip = match tl.find_clip(idx, clip_id) {
@@ -5876,11 +6075,10 @@ pub unsafe extern "C" fn vs_timeline_get_clip_text(
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_timeline_undo(handle: *mut c_void) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     if tl.history_cursor == 0 {
         return 1;
     }
@@ -5893,11 +6091,10 @@ pub unsafe extern "C" fn vs_timeline_undo(handle: *mut c_void) -> i32 {
 
 #[no_mangle]
 pub unsafe extern "C" fn vs_timeline_redo(handle: *mut c_void) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     if tl.history_cursor >= tl.history.len() {
         return 1;
     }
@@ -5919,11 +6116,10 @@ pub unsafe extern "C" fn vs_timeline_get_video_info(
     out_width: *mut u32,
     out_height: *mut u32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
 
     if !out_duration_ms.is_null() {
         unsafe {
@@ -5951,15 +6147,14 @@ pub unsafe extern "C" fn vs_timeline_set_clip_zoom_scale(
     clip_id: u32,
     scale: f32,
 ) -> i32 {
-    if handle.is_null() {
-        return -1;
-    }
-
     if !scale.is_finite() || scale <= 0.0 {
         return -2;
     }
 
-    let tl = unsafe { &mut *handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle_mut(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let clip = match tl.find_clip(idx, clip_id) {
@@ -5976,9 +6171,17 @@ pub unsafe extern "C" fn vs_timeline_set_clip_zoom_scale(
         return 0;
     }
 
-    let clip = tl.find_clip_mut(idx, clip_id).unwrap();
-    if let ClipData::Zoom { scale: ref mut s } = clip.data {
-        *s = scale;
+    let clip = match tl.find_clip_mut(idx, clip_id) {
+        Some(c) => c,
+        None => return -2,
+    };
+    if let ClipData::Zoom {
+        scale: ref mut value,
+    } = clip.data
+    {
+        *value = scale;
+    } else {
+        return -2;
     }
 
     0
@@ -5991,11 +6194,14 @@ pub unsafe extern "C" fn vs_timeline_get_clip_zoom_scale(
     clip_id: u32,
     out_scale: *mut f32,
 ) -> i32 {
-    if handle.is_null() || out_scale.is_null() {
+    if out_scale.is_null() {
         return -1;
     }
 
-    let tl = unsafe { &*handle.cast::<VsTimeline>() };
+    let tl = match unsafe { timeline_from_handle(handle) } {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
     let idx = track_index as usize;
 
     let clip = match tl.find_clip(idx, clip_id) {

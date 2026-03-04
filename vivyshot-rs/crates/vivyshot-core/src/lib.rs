@@ -14,6 +14,13 @@ pub const VIDEO_PLAN_MODE_PASSTHROUGH: u8 = 0;
 pub const VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = 1;
 pub const VIDEO_EXPORT_TARGET_MP4: u8 = 0;
 pub const VIDEO_EXPORT_TARGET_GIF: u8 = 1;
+pub const VIDEO_KEY_OVERLAY_FADE_DURATION_SECONDS: f32 = 0.95;
+pub const VIDEO_KEY_OVERLAY_FADE_IN_KEYTIME: f32 = 0.10;
+pub const VIDEO_KEY_OVERLAY_FADE_HOLD_KEYTIME: f32 = 0.78;
+pub const VIDEO_TEXT_OVERLAY_FADE_IN_KEYTIME: f32 = 0.08;
+pub const VIDEO_TEXT_OVERLAY_FADE_HOLD_KEYTIME: f32 = 0.92;
+pub const VIDEO_TEXT_OVERLAY_MIN_VISIBLE_SECONDS: f64 = 0.05;
+pub const VIDEO_TEXT_OVERLAY_MIN_FADE_DURATION_SECONDS: f64 = 0.10;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VideoExportContext {
@@ -45,6 +52,20 @@ pub struct VideoExportDecision {
     pub requires_intermediate_for_gif: bool,
     pub include_audio: bool,
     pub include_webcam: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct VideoOverlayLabelLayout {
+    pub width: f32,
+    pub height: f32,
+    pub y: f32,
+    pub font_size: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct VideoOverlayClipWindow {
+    pub start_seconds: f64,
+    pub end_seconds: f64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -277,6 +298,103 @@ pub fn derive_video_export_decision(
         include_audio: plan.include_audio,
         include_webcam: plan.include_webcam,
     })
+}
+
+pub fn derive_key_overlay_label_layout(
+    render_width: f32,
+    render_height: f32,
+    char_count: u32,
+) -> Option<VideoOverlayLabelLayout> {
+    if !render_width.is_finite()
+        || !render_height.is_finite()
+        || render_width <= 0.0
+        || render_height <= 0.0
+    {
+        return None;
+    }
+
+    let height = (render_height * 0.085).clamp(34.0, 58.0);
+    let max_width = render_width * 0.72;
+    let width = (char_count.saturating_mul(18).max(84) as f32).min(max_width);
+    let y = (render_height * 0.07).max(18.0);
+    let font_size = (height * 0.46).max(16.0);
+    Some(VideoOverlayLabelLayout {
+        width: width.max(1.0),
+        height,
+        y,
+        font_size,
+    })
+}
+
+pub fn derive_text_overlay_label_layout(
+    render_width: f32,
+    render_height: f32,
+    char_count: u32,
+) -> Option<VideoOverlayLabelLayout> {
+    if !render_width.is_finite()
+        || !render_height.is_finite()
+        || render_width <= 0.0
+        || render_height <= 0.0
+    {
+        return None;
+    }
+
+    let height = (render_height * 0.09).clamp(34.0, 62.0);
+    let max_width = render_width * 0.78;
+    let width = (char_count.saturating_mul(14).max(90) as f32).min(max_width);
+    let y = (render_height * 0.12).max(20.0);
+    let font_size = (height * 0.42).max(15.0);
+    Some(VideoOverlayLabelLayout {
+        width: width.max(1.0),
+        height,
+        y,
+        font_size,
+    })
+}
+
+pub fn derive_overlay_clip_window(
+    clip_start_seconds: f64,
+    clip_end_seconds: f64,
+    trim_start_seconds: f64,
+    min_visible_seconds: f64,
+) -> Option<VideoOverlayClipWindow> {
+    if !clip_start_seconds.is_finite()
+        || !clip_end_seconds.is_finite()
+        || !trim_start_seconds.is_finite()
+        || !min_visible_seconds.is_finite()
+    {
+        return None;
+    }
+
+    let start = clip_start_seconds - trim_start_seconds;
+    let end = clip_end_seconds - trim_start_seconds;
+    let display_start = start.max(0.0);
+    let display_end = end.max(display_start);
+    if display_end - display_start < min_visible_seconds.max(0.0) {
+        return None;
+    }
+
+    Some(VideoOverlayClipWindow {
+        start_seconds: display_start,
+        end_seconds: display_end,
+    })
+}
+
+pub fn overlay_fade_duration_seconds(
+    window: VideoOverlayClipWindow,
+    min_duration_seconds: f64,
+) -> Option<f64> {
+    if !window.start_seconds.is_finite()
+        || !window.end_seconds.is_finite()
+        || !min_duration_seconds.is_finite()
+    {
+        return None;
+    }
+    if window.end_seconds < window.start_seconds {
+        return None;
+    }
+
+    Some((window.end_seconds - window.start_seconds).max(min_duration_seconds.max(0.0)))
 }
 
 pub fn normalize_click_point(normalized_x: f32, normalized_y: f32) -> Option<(f32, f32)> {
@@ -1344,10 +1462,16 @@ pub fn timeline_normalize_text_clip_range(
 /// Video export and interaction policy APIs.
 pub mod video {
     pub use super::{
-        click_event_is_duplicate, compute_video_export_plan, derive_video_export_context,
-        derive_video_export_decision, normalize_click_point, VideoExportContext,
-        VideoExportDecision, VideoExportPlan, VIDEO_EXPORT_TARGET_GIF, VIDEO_EXPORT_TARGET_MP4,
-        VIDEO_PLAN_MODE_COMPOSITE_MP4, VIDEO_PLAN_MODE_PASSTHROUGH,
+        click_event_is_duplicate, compute_video_export_plan, derive_key_overlay_label_layout,
+        derive_overlay_clip_window, derive_text_overlay_label_layout, derive_video_export_context,
+        derive_video_export_decision, normalize_click_point, overlay_fade_duration_seconds,
+        VideoExportContext, VideoExportDecision, VideoExportPlan, VideoOverlayClipWindow,
+        VideoOverlayLabelLayout, VIDEO_EXPORT_TARGET_GIF, VIDEO_EXPORT_TARGET_MP4,
+        VIDEO_KEY_OVERLAY_FADE_DURATION_SECONDS, VIDEO_KEY_OVERLAY_FADE_HOLD_KEYTIME,
+        VIDEO_KEY_OVERLAY_FADE_IN_KEYTIME, VIDEO_PLAN_MODE_COMPOSITE_MP4,
+        VIDEO_PLAN_MODE_PASSTHROUGH, VIDEO_TEXT_OVERLAY_FADE_HOLD_KEYTIME,
+        VIDEO_TEXT_OVERLAY_FADE_IN_KEYTIME, VIDEO_TEXT_OVERLAY_MIN_FADE_DURATION_SECONDS,
+        VIDEO_TEXT_OVERLAY_MIN_VISIBLE_SECONDS,
     };
 }
 
@@ -1446,6 +1570,40 @@ mod tests {
         let gif = derive_video_export_decision(VIDEO_EXPORT_TARGET_GIF, plan).unwrap();
         assert!(gif.use_custom_compositor);
         assert!(gif.requires_intermediate_for_gif);
+    }
+
+    #[test]
+    fn key_and_text_overlay_layouts_match_policy() {
+        let key = derive_key_overlay_label_layout(1920.0, 1080.0, 6).unwrap();
+        assert!((key.width - 108.0).abs() < 0.001);
+        assert!((key.height - 58.0).abs() < 0.001);
+        assert!((key.y - 75.6).abs() < 0.001);
+        assert!((key.font_size - 26.68).abs() < 0.001);
+
+        let text = derive_text_overlay_label_layout(1920.0, 1080.0, 20).unwrap();
+        assert!((text.width - 280.0).abs() < 0.001);
+        assert!((text.height - 62.0).abs() < 0.001);
+        assert!((text.y - 129.6).abs() < 0.001);
+        assert!((text.font_size - 26.04).abs() < 0.001);
+    }
+
+    #[test]
+    fn overlay_clip_window_and_fade_duration_enforce_thresholds() {
+        let window =
+            derive_overlay_clip_window(3.0, 4.0, 1.5, VIDEO_TEXT_OVERLAY_MIN_VISIBLE_SECONDS)
+                .unwrap();
+        assert!((window.start_seconds - 1.5).abs() < 0.0001);
+        assert!((window.end_seconds - 2.5).abs() < 0.0001);
+
+        let duration =
+            overlay_fade_duration_seconds(window, VIDEO_TEXT_OVERLAY_MIN_FADE_DURATION_SECONDS)
+                .unwrap();
+        assert!((duration - 1.0).abs() < 0.0001);
+
+        assert!(
+            derive_overlay_clip_window(1.0, 1.02, 0.0, VIDEO_TEXT_OVERLAY_MIN_VISIBLE_SECONDS)
+                .is_none()
+        );
     }
 
     #[test]

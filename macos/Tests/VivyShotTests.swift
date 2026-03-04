@@ -221,4 +221,45 @@ final class VivyShotTests: XCTestCase {
       VS_STATUS_NULL_POINTER
     )
   }
+
+  func testVideoOverlayPolicyContracts() {
+    var keyLayout = vs_video_overlay_label_layout()
+    XCTAssertEqual(
+      vs_video_key_overlay_label_layout(1920, 1080, 6, &keyLayout),
+      VS_STATUS_OK
+    )
+    XCTAssertEqual(keyLayout.width, 108, accuracy: 0.01)
+    XCTAssertEqual(keyLayout.height, 58, accuracy: 0.01)
+    XCTAssertEqual(keyLayout.y, 75.6, accuracy: 0.1)
+    XCTAssertEqual(keyLayout.font_size, 26.68, accuracy: 0.1)
+
+    var textLayout = vs_video_overlay_label_layout()
+    XCTAssertEqual(
+      vs_video_text_overlay_label_layout(1920, 1080, 20, &textLayout),
+      VS_STATUS_OK
+    )
+    XCTAssertEqual(textLayout.width, 280, accuracy: 0.01)
+    XCTAssertEqual(textLayout.height, 62, accuracy: 0.01)
+    XCTAssertEqual(textLayout.y, 129.6, accuracy: 0.1)
+    XCTAssertEqual(textLayout.font_size, 26.04, accuracy: 0.1)
+
+    var window = vs_video_overlay_clip_window()
+    XCTAssertEqual(
+      vs_video_compute_overlay_clip_window(
+        3.0,
+        4.0,
+        1.5,
+        Double(VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS),
+        &window
+      ),
+      VS_STATUS_OK
+    )
+    XCTAssertEqual(window.start_seconds, 1.5, accuracy: 0.0001)
+    XCTAssertEqual(window.end_seconds, 2.5, accuracy: 0.0001)
+    XCTAssertEqual(
+      window.fade_duration_seconds,
+      1.0,
+      accuracy: 0.0001
+    )
+  }
 }

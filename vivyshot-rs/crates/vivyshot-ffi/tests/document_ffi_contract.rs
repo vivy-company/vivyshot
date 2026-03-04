@@ -7,6 +7,7 @@ use vivyshot_core::{
     vs_core_version, vs_create_document_from_bgra, vs_dirty_rect, vs_ellipse_command,
     vs_list_annotations, vs_move_annotation, vs_path_style, vs_point_i32, vs_rect_command,
     vs_remove_annotation, vs_render_dirty, vs_render_full, vs_resize_annotation,
+    VS_STATUS_INVALID_ARGUMENT,
 };
 
 #[test]
@@ -213,5 +214,31 @@ fn copy_annotations_affine_transfers_commands() {
 
         destroy_doc(src);
         destroy_doc(dst);
+    }
+}
+
+#[test]
+fn stale_document_handle_is_rejected_after_destroy() {
+    // SAFETY: handle created in this scope; stale handle call checks rejection path.
+    unsafe {
+        let doc = make_doc(24, 16);
+        assert!(!doc.is_null());
+        destroy_doc(doc);
+
+        let code = vs_add_rect(
+            doc,
+            vs_rect_command {
+                x: 1,
+                y: 1,
+                width: 8,
+                height: 8,
+                stroke_width: 1,
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+        );
+        assert_eq!(code, VS_STATUS_INVALID_ARGUMENT);
     }
 }

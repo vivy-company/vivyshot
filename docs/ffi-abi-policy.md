@@ -28,6 +28,13 @@ This project treats the C ABI (`ffi/vivyshot_core.h`) as a stable contract for t
   - new structs
 - If a struct must evolve, prefer adding a new struct + function instead of mutating an existing one.
 
+## Crash-Safety Rules
+
+- Release builds use `panic = "abort"` in `vivyshot-rs/Cargo.toml`.
+- Opaque handles (`document`, `video session`, `stitch session`, `timeline`) are registry-validated before dereference.
+- Destroy functions unregister handles so stale pointers are rejected with `VS_STATUS_INVALID_ARGUMENT`.
+- Runtime FFI paths must not use `unwrap()`/`expect()` on externally influenced data.
+
 ## Deprecation
 
 - Keep deprecated entry points for at least one minor release cycle after replacement lands.

@@ -214,10 +214,6 @@ enum VideoCompositor {
       parentLayer.addSublayer(borderLayer)
     }
 
-    let tokenHeight = max(34, min(58, renderSize.height * 0.085))
-    let maxTokenWidth = renderSize.width * 0.72
-    let tokenY = max(18, renderSize.height * 0.07)
-
     for event in keyEvents {
       let eventSeconds = Double(event.timestampNS) / 1_000_000_000 - trimStartSeconds
       if eventSeconds < 0 {
@@ -229,19 +225,24 @@ enum VideoCompositor {
         continue
       }
 
-      let estimatedWidth = min(maxTokenWidth, CGFloat(max(84, text.count * 18)))
+      guard let layout = RustCoreBridge.keyOverlayLabelLayoutPortable(
+        renderSize: renderSize,
+        charCount: text.count
+      ) else {
+        continue
+      }
       let layer = CATextLayer()
       layer.string = text
-      layer.fontSize = max(16, tokenHeight * 0.46)
+      layer.fontSize = layout.fontSize
       layer.alignmentMode = .center
       layer.foregroundColor = NSColor.white.cgColor
       layer.backgroundColor = NSColor(calibratedWhite: 0.06, alpha: 0.82).cgColor
-      layer.cornerRadius = tokenHeight * 0.26
+      layer.cornerRadius = layout.height * 0.26
       layer.frame = CGRect(
-        x: (renderSize.width - estimatedWidth) * 0.5,
-        y: tokenY,
-        width: estimatedWidth,
-        height: tokenHeight
+        x: (renderSize.width - layout.width) * 0.5,
+        y: layout.y,
+        width: layout.width,
+        height: layout.height
       )
       layer.opacity = 0
       layer.contentsScale = 2
@@ -249,23 +250,25 @@ enum VideoCompositor {
 
       let fade = CAKeyframeAnimation(keyPath: "opacity")
       fade.values = [0, 1, 1, 0]
-      fade.keyTimes = [0, 0.1, 0.78, 1]
-      fade.duration = 0.95
+      fade.keyTimes = [
+        NSNumber(value: 0),
+        NSNumber(value: Double(VS_VIDEO_KEY_FADE_IN_KEYTIME)),
+        NSNumber(value: Double(VS_VIDEO_KEY_FADE_HOLD_KEYTIME)),
+        NSNumber(value: 1)
+      ]
+      fade.duration = Double(VS_VIDEO_KEY_FADE_DURATION_SECONDS)
       fade.beginTime = AVCoreAnimationBeginTimeAtZero + eventSeconds
       fade.fillMode = .forwards
       fade.isRemovedOnCompletion = false
       layer.add(fade, forKey: "fade")
     }
 
-    let textMaxWidth = renderSize.width * 0.78
-    let textHeight = max(34, min(62, renderSize.height * 0.09))
-    let textY = max(20, renderSize.height * 0.12)
     for clip in textOverlays {
-      let start = clip.startSeconds - trimStartSeconds
-      let end = clip.endSeconds - trimStartSeconds
-      let displayStart = max(0, start)
-      let displayEnd = max(displayStart, end)
-      guard displayEnd - displayStart >= 0.05 else {
+      guard let window = RustCoreBridge.overlayClipWindowPortable(
+        clipStartSeconds: clip.startSeconds,
+        clipEndSeconds: clip.endSeconds,
+        trimStartSeconds: trimStartSeconds
+      ) else {
         continue
       }
 
@@ -274,19 +277,24 @@ enum VideoCompositor {
         continue
       }
 
-      let estimatedWidth = min(textMaxWidth, CGFloat(max(90, text.count * 14)))
+      guard let layout = RustCoreBridge.textOverlayLabelLayoutPortable(
+        renderSize: renderSize,
+        charCount: text.count
+      ) else {
+        continue
+      }
       let layer = CATextLayer()
       layer.string = text
-      layer.fontSize = max(15, textHeight * 0.42)
+      layer.fontSize = layout.fontSize
       layer.alignmentMode = .center
       layer.foregroundColor = NSColor.white.cgColor
       layer.backgroundColor = NSColor.black.withAlphaComponent(0.58).cgColor
-      layer.cornerRadius = textHeight * 0.22
+      layer.cornerRadius = layout.height * 0.22
       layer.frame = CGRect(
-        x: (renderSize.width - estimatedWidth) * 0.5,
-        y: textY,
-        width: estimatedWidth,
-        height: textHeight
+        x: (renderSize.width - layout.width) * 0.5,
+        y: layout.y,
+        width: layout.width,
+        height: layout.height
       )
       layer.contentsScale = 2
       layer.opacity = 0
@@ -294,9 +302,14 @@ enum VideoCompositor {
 
       let fade = CAKeyframeAnimation(keyPath: "opacity")
       fade.values = [0, 1, 1, 0]
-      fade.keyTimes = [0, 0.08, 0.92, 1]
-      fade.duration = max(0.1, displayEnd - displayStart)
-      fade.beginTime = AVCoreAnimationBeginTimeAtZero + displayStart
+      fade.keyTimes = [
+        NSNumber(value: 0),
+        NSNumber(value: Double(VS_VIDEO_TEXT_FADE_IN_KEYTIME)),
+        NSNumber(value: Double(VS_VIDEO_TEXT_FADE_HOLD_KEYTIME)),
+        NSNumber(value: 1)
+      ]
+      fade.duration = window.fadeDurationSeconds
+      fade.beginTime = AVCoreAnimationBeginTimeAtZero + window.startSeconds
       fade.fillMode = .forwards
       fade.isRemovedOnCompletion = false
       layer.add(fade, forKey: "text-fade-\(clip.id.uuidString)")
