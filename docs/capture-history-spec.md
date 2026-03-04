@@ -628,13 +628,59 @@ Immediate-effect rules:
 5. Startup impact:
    - cleanup task must not delay initial menu display
 
-## 16. Privacy and Security
+## 16. Privacy, Sandbox, and Security
 
 1. History data is local-only.
 2. No remote upload or analytics payload dependency for core function.
 3. `Clear` actions remove metadata and app-managed caches.
 4. Saved user files are never deleted by cleanup or clear operations.
 5. Paths shown in UI must be sanitized for display where needed.
+
+### 16.1 App Sandbox Requirements (Mandatory)
+
+This feature must work in App Store sandbox builds.
+
+Required sandbox access model:
+
+1. App Sandbox enabled.
+2. User-selected read/write file access used for explicit save/export/import flows.
+3. No broad filesystem entitlements for history (no unrestricted home/folder crawling).
+4. No dependency on Full Disk Access for core History behavior.
+
+### 16.2 External Saved File Access Strategy
+
+For saved artifacts outside app container:
+
+1. Persist a security-scoped bookmark per saved artifact reference.
+2. Resolve bookmark before external file operations (`Open`, `Reveal`, `Copy Again` for file URL).
+3. Call scoped access start/stop around each external operation.
+4. If bookmark is stale or resolution fails:
+   - mark artifact unavailable (`missing`)
+   - keep history entry
+   - allow `Delete from History`
+   - allow `Save As…` when cached artifact exists
+
+### 16.3 TCC and Permission Behavior
+
+1. History browsing/opening existing artifacts must not trigger screen/camera/microphone prompts.
+2. Screen recording permission remains capture-flow only.
+3. If capture permissions are denied, History still loads and supports existing items.
+4. Permission denial messaging must be shown only on capture actions, not passive history viewing.
+
+### 16.4 Container Write Rules
+
+1. Copied/temporary artifacts and thumbnails are written only under app container cache paths.
+2. `Clear` actions may only delete:
+   - history metadata store
+   - app-managed cached artifacts
+   - app-managed thumbnails
+3. External user-saved files are never deleted by cleanup, clear, or retention jobs.
+
+### 16.5 App Store Compliance Constraints
+
+1. Use public AppKit/Foundation APIs only for file reveal/open behavior.
+2. No private APIs, Finder scripting automation, or elevated privilege assumptions.
+3. Behavior must degrade gracefully when bookmark access, path existence checks, or scoped resource access fails.
 
 ## 17. Migration and Compatibility
 
