@@ -1,27 +1,31 @@
 import XCTest
 
 final class VivyShotUITests: XCTestCase {
+  private var app: XCUIApplication!
+
   override func setUpWithError() throws {
     continueAfterFailure = false
-  }
-
-  private func launchInUITestMode() -> XCUIApplication {
-    let app = XCUIApplication()
+    app = XCUIApplication()
     app.launchArguments.append("--uitest-mode")
     app.launch()
-    return app
+    app.activate()
   }
 
-  private func openHarnessWindow(_ app: XCUIApplication) {
-    app.activate()
-    app.typeKey(",", modifierFlags: .command)
+  override func tearDownWithError() throws {
+    app.terminate()
+    app = nil
   }
 
   @discardableResult
   private func waitForLabel(_ element: XCUIElement, value: String, timeout: TimeInterval) -> Bool {
-    let predicate = NSPredicate(format: "label == %@ OR value == %@", value, value)
-    let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
-    return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    let deadline = Date().addingTimeInterval(timeout)
+    repeat {
+      if currentLabelValue(element) == value {
+        return true
+      }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+    } while Date() < deadline
+    return false
   }
 
   private func currentLabelValue(_ element: XCUIElement) -> String {
@@ -35,20 +39,14 @@ final class VivyShotUITests: XCTestCase {
   }
 
   func testHarnessShowsIdleOnLaunch() {
-    let app = launchInUITestMode()
-    openHarnessWindow(app)
-
     let stateLabel = app.staticTexts.matching(identifier: "recordingStateLabel").firstMatch
     XCTAssertTrue(stateLabel.waitForExistence(timeout: 5))
     XCTAssertEqual(currentLabelValue(stateLabel), "idle")
   }
 
   func testCaptureButtonTogglesRecordingState() {
-    let app = launchInUITestMode()
-    openHarnessWindow(app)
-
     let stateLabel = app.staticTexts.matching(identifier: "recordingStateLabel").firstMatch
-    let captureButton = app.buttons["captureStopButton"]
+    let captureButton = app.buttons.matching(identifier: "captureStopButton").firstMatch
 
     XCTAssertTrue(stateLabel.waitForExistence(timeout: 5))
     XCTAssertTrue(captureButton.waitForExistence(timeout: 5))

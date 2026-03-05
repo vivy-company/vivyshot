@@ -219,3 +219,44 @@ fn percentile_ms(samples: &[f64], percentile: f64) -> f64 {
     let rank = ((percentile / 100.0) * (sorted.len().saturating_sub(1) as f64)).round() as usize;
     sorted[rank.min(sorted.len() - 1)]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checksum_bytes_handles_empty_and_non_empty_inputs() {
+        assert_eq!(checksum_bytes(&[]), 0);
+        let data = vec![1u8, 2, 3, 4, 5, 6, 7, 8];
+        assert_ne!(checksum_bytes(&data), 0);
+    }
+
+    #[test]
+    fn make_base_returns_expected_shape_and_alpha() {
+        let width = 5usize;
+        let height = 4usize;
+        let pixels = make_base(width, height, 7);
+        assert_eq!(pixels.len(), width * height * 4);
+        for idx in (3..pixels.len()).step_by(4) {
+            assert_eq!(pixels[idx], 255);
+        }
+    }
+
+    #[test]
+    fn pick_dimensions_cycles_through_presets() {
+        assert_eq!(pick_dimensions(0), (1280, 720));
+        assert_eq!(pick_dimensions(1), (1920, 1080));
+        assert_eq!(pick_dimensions(2), (2048, 1152));
+        assert_eq!(pick_dimensions(3), (2560, 1440));
+        assert_eq!(pick_dimensions(4), (1280, 720));
+    }
+
+    #[test]
+    fn percentile_ms_handles_bounds_and_empty_samples() {
+        assert_eq!(percentile_ms(&[], 50.0), 0.0);
+        let samples = [1.0, 5.0, 9.0, 20.0, 30.0];
+        assert_eq!(percentile_ms(&samples, 0.0), 1.0);
+        assert_eq!(percentile_ms(&samples, 50.0), 9.0);
+        assert_eq!(percentile_ms(&samples, 100.0), 30.0);
+    }
+}

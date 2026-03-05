@@ -959,6 +959,155 @@ fn stitch_session_locked_direction_rejects_relaxed_only_match() {
 }
 
 #[test]
+fn stitch_session_rejects_reverse_scroll_after_direction_lock() {
+    let width = 104usize;
+    let height = 78usize;
+    let down_shift = 8usize;
+    let up_shift = 6usize;
+    let stride = width * 4;
+
+    let mut frame_a = vec![0u8; stride * height];
+    for y in 0..height {
+        for x in 0..width {
+            let idx = y * stride + x * 4;
+            frame_a[idx] = ((x * 7 + y * 5) % 251) as u8;
+            frame_a[idx + 1] = ((x * 11 + y * 3 + 17) % 251) as u8;
+            frame_a[idx + 2] = ((x * 13 + y * 9 + 29) % 251) as u8;
+            frame_a[idx + 3] = 255;
+        }
+    }
+
+    let mut frame_b = vec![0u8; stride * height];
+    for y in 0..(height - down_shift) {
+        let src = (y + down_shift) * stride;
+        let dst = y * stride;
+        frame_b[dst..dst + stride].copy_from_slice(&frame_a[src..src + stride]);
+    }
+    for y in (height - down_shift)..height {
+        for x in 0..width {
+            let idx = y * stride + x * 4;
+            frame_b[idx] = ((x * 19 + y * 23 + 31) % 251) as u8;
+            frame_b[idx + 1] = ((x * 5 + y * 29 + 41) % 251) as u8;
+            frame_b[idx + 2] = ((x * 3 + y * 7 + 53) % 251) as u8;
+            frame_b[idx + 3] = 255;
+        }
+    }
+
+    let mut frame_c = vec![0u8; stride * height];
+    for y in 0..(height - up_shift) {
+        let src = y * stride;
+        let dst = (y + up_shift) * stride;
+        frame_c[dst..dst + stride].copy_from_slice(&frame_b[src..src + stride]);
+    }
+    for y in 0..up_shift {
+        for x in 0..width {
+            let idx = y * stride + x * 4;
+            frame_c[idx] = ((x * 2 + y * 17 + 67) % 251) as u8;
+            frame_c[idx + 1] = ((x * 23 + y * 13 + 71) % 251) as u8;
+            frame_c[idx + 2] = ((x * 31 + y * 11 + 79) % 251) as u8;
+            frame_c[idx + 3] = 255;
+        }
+    }
+
+    let base_view = vs_bgra_image_view {
+        width: width as u32,
+        height: height as u32,
+        stride: stride as u32,
+        ptr: frame_a.as_ptr(),
+        len: frame_a.len(),
+    };
+    let first_view = base_view;
+    let second_view = vs_bgra_image_view {
+        width: width as u32,
+        height: height as u32,
+        stride: stride as u32,
+        ptr: frame_b.as_ptr(),
+        len: frame_b.len(),
+    };
+    let third_view = vs_bgra_image_view {
+        width: width as u32,
+        height: height as u32,
+        stride: stride as u32,
+        ptr: frame_c.as_ptr(),
+        len: frame_c.len(),
+    };
+
+    let session = vs_stitch_session_create();
+    assert!(!session.is_null());
+
+    let mut first_result = vs_stitch_session_result::default();
+    let mut second_result = vs_stitch_session_result::default();
+    let mut third_result = vs_stitch_session_result::default();
+    let mut first_merged = vs_bgra_owned_image {
+        width: 0,
+        height: 0,
+        stride: 0,
+        ptr: std::ptr::null_mut(),
+        len: 0,
+    };
+    let mut second_merged = first_merged;
+    let mut third_merged = first_merged;
+    let mut merged_snapshot = first_merged;
+
+    // SAFETY: pointers and handle are valid for call duration; owned outputs are destroyed below.
+    unsafe {
+        assert_eq!(vs_stitch_session_set_base_bgra(session, base_view, 1), 0);
+        assert_eq!(
+            vs_stitch_session_push_frame_and_merge_bgra(
+                session,
+                first_view,
+                &mut first_result,
+                &mut first_merged
+            ),
+            0
+        );
+        assert!(!first_result.accepted);
+        assert!(first_merged.ptr.is_null());
+
+        assert_eq!(
+            vs_stitch_session_push_frame_and_merge_bgra(
+                session,
+                second_view,
+                &mut second_result,
+                &mut second_merged
+            ),
+            0
+        );
+        assert!(second_result.accepted);
+        assert_eq!(second_result.side, VS_STITCH_SIDE_BOTTOM);
+        assert!(second_result.direction_locked);
+        assert_eq!(second_result.segment_count, 2);
+        assert_eq!(second_merged.height as usize, height + down_shift);
+
+        assert_eq!(
+            vs_stitch_session_push_frame_and_merge_bgra(
+                session,
+                third_view,
+                &mut third_result,
+                &mut third_merged
+            ),
+            0
+        );
+        assert!(!third_result.accepted);
+        assert!(third_result.direction_locked);
+        assert_eq!(third_result.segment_count, 2);
+        assert!(third_merged.ptr.is_null());
+
+        assert_eq!(vs_stitch_session_get_merged_image_bgra(session, &mut merged_snapshot), 0);
+        assert_eq!(merged_snapshot.width as usize, width);
+        assert_eq!(merged_snapshot.height as usize, height + down_shift);
+
+        if !second_merged.ptr.is_null() {
+            vs_bgra_owned_image_destroy(&mut second_merged);
+        }
+        if !merged_snapshot.ptr.is_null() {
+            vs_bgra_owned_image_destroy(&mut merged_snapshot);
+        }
+        vs_stitch_session_destroy(session);
+    }
+}
+
+#[test]
 fn timeline_visible_clips_reports_total_when_output_capacity_is_small() {
     let tl = vs_timeline_create(10_000, 1920, 1080);
     assert!(!tl.is_null());
