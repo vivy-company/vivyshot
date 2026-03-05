@@ -9,13 +9,19 @@ use vivyshot_core::{
 
 fn main() {
     let sessions = parse_sessions();
+    let warmup_sessions = parse_warmup_sessions();
     let started = Instant::now();
     let mut checksum = 0u64;
     let mut latencies_ms = Vec::with_capacity(sessions);
 
-    for i in 0..sessions {
-        let session_started = Instant::now();
+    for i in 0..warmup_sessions {
         checksum = checksum.wrapping_add(run_session(i));
+    }
+
+    for i in 0..sessions {
+        let session_index = warmup_sessions + i;
+        let session_started = Instant::now();
+        checksum = checksum.wrapping_add(run_session(session_index));
         latencies_ms.push(session_started.elapsed().as_secs_f64() * 1000.0);
         if (i + 1) % 10 == 0 || i + 1 == sessions {
             println!("completed {}/{}", i + 1, sessions);
@@ -23,11 +29,12 @@ fn main() {
     }
 
     let elapsed = started.elapsed();
-    let avg_ms = elapsed.as_secs_f64() * 1000.0 / sessions as f64;
+    let avg_ms = average_ms(&latencies_ms);
     let median_ms = percentile_ms(&latencies_ms, 50.0);
     let p95_ms = percentile_ms(&latencies_ms, 95.0);
     let p99_ms = percentile_ms(&latencies_ms, 99.0);
     println!("sessions={}", sessions);
+    println!("warmup_sessions={}", warmup_sessions);
     println!("elapsed_ms={:.2}", elapsed.as_secs_f64() * 1000.0);
     println!("avg_ms_per_session={:.2}", avg_ms);
     println!("median_ms_per_session={:.2}", median_ms);
@@ -42,6 +49,13 @@ fn parse_sessions() -> usize {
         .and_then(|v| v.parse::<usize>().ok())
         .filter(|v| *v > 0)
         .unwrap_or(100)
+}
+
+fn parse_warmup_sessions() -> usize {
+    std::env::var("VIVYSHOT_BENCH_WARMUP_SESSIONS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(3)
 }
 
 fn run_session(index: usize) -> u64 {
@@ -218,6 +232,13 @@ fn percentile_ms(samples: &[f64], percentile: f64) -> f64 {
 
     let rank = ((percentile / 100.0) * (sorted.len().saturating_sub(1) as f64)).round() as usize;
     sorted[rank.min(sorted.len() - 1)]
+}
+
+fn average_ms(samples: &[f64]) -> f64 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    samples.iter().sum::<f64>() / samples.len() as f64
 }
 
 #[cfg(test)]

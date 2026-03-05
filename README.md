@@ -81,6 +81,7 @@ cargo test --workspace
 # FFI and perf gate (from repo root)
 ./scripts/gen-ffi.sh
 ./scripts/ci-bench-gate.sh 20
+./scripts/ci-perf-gate.sh 20
 ```
 
 ## Repository Layout

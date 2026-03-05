@@ -123,9 +123,6 @@ final class RustCoreBridge {
     }
 
     var rawBytes = vs_encoded_bytes(ptr: nil, len: 0)
-    defer {
-      vs_encoded_bytes_destroy(&rawBytes)
-    }
 
     let clampedQuality = UInt8(max(1, min(100, jpegQuality)))
     let status = raster.pixels.withUnsafeBytes { raw in
@@ -141,10 +138,11 @@ final class RustCoreBridge {
       )
       return vs_encode_bgra_image(view, format.rawValue, clampedQuality, &rawBytes)
     }
-    guard status == 0, let ptr = rawBytes.ptr, rawBytes.len > 0 else {
+    guard status == 0, let data = Self.takeEncodedBytesAsData(&rawBytes) else {
+      vs_encoded_bytes_destroy(&rawBytes)
       return nil
     }
-    return Data(bytes: ptr, count: Int(rawBytes.len))
+    return data
   }
 
   func encodeImage(
@@ -170,9 +168,6 @@ final class RustCoreBridge {
     }
 
     var rawBytes = vs_encoded_bytes(ptr: nil, len: 0)
-    defer {
-      vs_encoded_bytes_destroy(&rawBytes)
-    }
 
     let clampedQuality = UInt8(max(1, min(100, jpegQuality)))
     let status = raster.pixels.withUnsafeBytes { raw in
@@ -210,10 +205,34 @@ final class RustCoreBridge {
       return vs_encode_bgra_image(croppedView, format.rawValue, clampedQuality, &rawBytes)
     }
 
-    guard status == 0, let ptr = rawBytes.ptr, rawBytes.len > 0 else {
+    guard status == 0, let data = Self.takeEncodedBytesAsData(&rawBytes) else {
+      vs_encoded_bytes_destroy(&rawBytes)
       return nil
     }
-    return Data(bytes: ptr, count: Int(rawBytes.len))
+    return data
+  }
+
+  private static func takeEncodedBytesAsData(_ bytes: inout vs_encoded_bytes) -> Data? {
+    guard let ptr = bytes.ptr, bytes.len > 0 else {
+      return nil
+    }
+
+    let rawPtr = UnsafeMutableRawPointer(ptr)
+    let count = Int(bytes.len)
+    bytes.ptr = nil
+    bytes.len = 0
+
+    return Data(
+      bytesNoCopy: rawPtr,
+      count: count,
+      deallocator: .custom { raw, length in
+        var owned = vs_encoded_bytes(
+          ptr: raw.assumingMemoryBound(to: UInt8.self),
+          len: UInt(length)
+        )
+        vs_encoded_bytes_destroy(&owned)
+      }
+    )
   }
 
   private static func normalizedCropRect(
@@ -866,4 +885,3 @@ final class RustCoreBridge {
     }
   }
 }
-

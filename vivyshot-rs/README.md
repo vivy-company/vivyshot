@@ -23,6 +23,7 @@ cargo test -p vivyshot-ffi --test stitch_ffi_contract
 cargo test -p vivyshot-ffi --test timeline_ffi_contract
 cargo test -p vivyshot-ffi --test property_geometry
 ../scripts/ci-bench-gate.sh 20
+../scripts/ci-perf-gate.sh 20
 ```
 
 ## Rustdocs

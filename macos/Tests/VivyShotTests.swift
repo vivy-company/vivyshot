@@ -327,6 +327,41 @@ final class VivyShotTests: XCTestCase {
   }
 
   @MainActor
+  func testScreenshotPipelineLatencyBoundedAfterBurst() {
+    let source = makeSyntheticScreenshotRaster(width: 2560, height: 1440)
+    var samplesMS: [Double] = []
+    samplesMS.reserveCapacity(24)
+
+    for iteration in 0..<24 {
+      let startNS = DispatchTime.now().uptimeNanoseconds
+      autoreleasepool {
+        runScreenshotCopyPipelineIteration(sourceRaster: source, iteration: iteration)
+      }
+      let elapsedNS = DispatchTime.now().uptimeNanoseconds - startNS
+      samplesMS.append(Double(elapsedNS) / 1_000_000.0)
+    }
+
+    let medianMS = percentile(samplesMS, percentile: 50)
+    let p95MS = percentile(samplesMS, percentile: 95)
+
+    let medianLimit = ProcessInfo.processInfo.environment["VIVYSHOT_PIPELINE_MEDIAN_MS"]
+      .flatMap(Double.init) ?? 75
+    let p95Limit = ProcessInfo.processInfo.environment["VIVYSHOT_PIPELINE_P95_MS"]
+      .flatMap(Double.init) ?? 110
+
+    XCTAssertLessThanOrEqual(
+      medianMS,
+      medianLimit,
+      "Median pipeline latency too high. median=\(medianMS)ms limit=\(medianLimit)ms samples=\(samplesMS)"
+    )
+    XCTAssertLessThanOrEqual(
+      p95MS,
+      p95Limit,
+      "P95 pipeline latency too high. p95=\(p95MS)ms limit=\(p95Limit)ms samples=\(samplesMS)"
+    )
+  }
+
+  @MainActor
   private func runScreenshotCopyPipelineIteration(sourceRaster: SyntheticRaster, iteration: Int) {
     let cropRect = CGRect(
       x: 40 + (iteration % 9) * 18,
@@ -467,5 +502,14 @@ final class VivyShotTests: XCTestCase {
       shouldInterpolate: false,
       intent: .defaultIntent
     )
+  }
+
+  private func percentile(_ samples: [Double], percentile: Double) -> Double {
+    guard !samples.isEmpty else {
+      return 0
+    }
+    let sorted = samples.sorted()
+    let rank = Int(((percentile / 100.0) * Double(sorted.count - 1)).rounded())
+    return sorted[min(max(rank, 0), sorted.count - 1)]
   }
 }

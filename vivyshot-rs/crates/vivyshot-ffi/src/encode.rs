@@ -26,14 +26,26 @@ fn bgra_to_rgba(bytes: &[u8], width: usize, height: usize, stride: usize) -> Opt
     Some(rgba)
 }
 
-fn rgba_to_rgb(rgba: &[u8]) -> Vec<u8> {
-    let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
-    for chunk in rgba.chunks_exact(4) {
-        rgb.push(chunk[0]);
-        rgb.push(chunk[1]);
-        rgb.push(chunk[2]);
+fn bgra_to_rgb(bytes: &[u8], width: usize, height: usize, stride: usize) -> Option<Vec<u8>> {
+    let row_bytes = width.checked_mul(4)?;
+    if stride < row_bytes {
+        return None;
     }
-    rgb
+
+    let rgb_row_bytes = width.checked_mul(3)?;
+    let mut rgb = vec![0u8; rgb_row_bytes.checked_mul(height)?];
+    for y in 0..height {
+        let src_row = &bytes[y * stride..y * stride + row_bytes];
+        let dst_row = &mut rgb[y * rgb_row_bytes..(y + 1) * rgb_row_bytes];
+        for x in 0..width {
+            let si = x * 4;
+            let di = x * 3;
+            dst_row[di] = src_row[si + 2];
+            dst_row[di + 1] = src_row[si + 1];
+            dst_row[di + 2] = src_row[si];
+        }
+    }
+    Some(rgb)
 }
 
 #[no_mangle]
@@ -56,16 +68,16 @@ pub unsafe extern "C" fn vs_encode_bgra_image(
         Some(v) => v,
         None => return -2,
     };
-    let rgba = match bgra_to_rgba(bytes, width, height, stride) {
-        Some(v) => v,
-        None => return -2,
-    };
     if !ffi_encode::supports_image_format(format, VS_IMAGE_ENCODE_PNG, VS_IMAGE_ENCODE_JPEG) {
         return -2;
     }
 
     let encoded = match format {
         VS_IMAGE_ENCODE_PNG => {
+            let rgba = match bgra_to_rgba(bytes, width, height, stride) {
+                Some(v) => v,
+                None => return -2,
+            };
             let mut out = Vec::<u8>::new();
             let encoder = PngEncoder::new(&mut out);
             if encoder
@@ -78,7 +90,10 @@ pub unsafe extern "C" fn vs_encode_bgra_image(
         }
         VS_IMAGE_ENCODE_JPEG => {
             let quality = ffi_encode::normalized_jpeg_quality(jpeg_quality);
-            let rgb = rgba_to_rgb(&rgba);
+            let rgb = match bgra_to_rgb(bytes, width, height, stride) {
+                Some(v) => v,
+                None => return -2,
+            };
             let mut out = Vec::<u8>::new();
             let encoder = JpegEncoder::new_with_quality(&mut out, quality);
             if encoder
