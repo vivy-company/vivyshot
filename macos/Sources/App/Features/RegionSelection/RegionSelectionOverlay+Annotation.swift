@@ -56,11 +56,29 @@ extension RegionSelectionView {
     return max(1, (scaleX + scaleY) * 0.5)
   }
 
-  func commitRect(_ imageRect: CGRect) {
-    guard let session else {
-      NSSound.beep()
-      return
+  func ensureEditingSession() -> RustDocumentSession? {
+    if let session {
+      return session
     }
+    guard let image = canvasView.image,
+          let createdSession = RustCoreBridge.shared.makeSession(image: image)
+    else {
+      return nil
+    }
+    session = createdSession
+    return createdSession
+  }
+
+  func editingSessionOrBeep() -> RustDocumentSession? {
+    guard let session = ensureEditingSession() else {
+      NSSound.beep()
+      return nil
+    }
+    return session
+  }
+
+  func commitRect(_ imageRect: CGRect) {
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addRect(
       imageRect: imageRect,
@@ -77,10 +95,7 @@ extension RegionSelectionView {
   }
 
   func commitFilledRect(_ imageRect: CGRect) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addFilledRect(
       imageRect: imageRect,
@@ -96,10 +111,7 @@ extension RegionSelectionView {
   }
 
   func commitCircle(_ imageRect: CGRect) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addCircle(
       imageRect: imageRect,
@@ -116,10 +128,7 @@ extension RegionSelectionView {
   }
 
   func commitFilledCircle(_ imageRect: CGRect) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addFilledCircle(
       imageRect: imageRect,
@@ -135,10 +144,7 @@ extension RegionSelectionView {
   }
 
   func commitLine(from start: CGPoint, to end: CGPoint) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addLine(
       from: start,
@@ -156,10 +162,7 @@ extension RegionSelectionView {
   }
 
   func commitArrow(from start: CGPoint, to end: CGPoint) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addArrow(
       from: start,
@@ -177,10 +180,7 @@ extension RegionSelectionView {
   }
 
   func commitPaintPath(_ points: [CGPoint]) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addPath(
       points,
@@ -197,10 +197,7 @@ extension RegionSelectionView {
   }
 
   func commitText(_ text: String, at point: CGPoint) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addText(text, at: point, style: scaledTextAnnotationStyle()) else {
       NSSound.beep()
@@ -215,10 +212,7 @@ extension RegionSelectionView {
   }
 
   func commitPixelate(_ imageRect: CGRect) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addPixelate(imageRect: imageRect) else {
       NSSound.beep()
@@ -231,10 +225,7 @@ extension RegionSelectionView {
   }
 
   func commitBlur(_ imageRect: CGRect) {
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.addBlur(imageRect: imageRect) else {
       NSSound.beep()
@@ -249,10 +240,7 @@ extension RegionSelectionView {
   func performUndo() {
     canvasView.finishInlineTextEditing(commit: true)
 
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.undo() else {
       NSSound.beep()
@@ -266,10 +254,7 @@ extension RegionSelectionView {
   func performRedo() {
     canvasView.finishInlineTextEditing(commit: true)
 
-    guard let session else {
-      NSSound.beep()
-      return
-    }
+    guard let session = editingSessionOrBeep() else { return }
 
     guard let image = session.redo() else {
       NSSound.beep()

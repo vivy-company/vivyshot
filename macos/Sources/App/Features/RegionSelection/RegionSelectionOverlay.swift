@@ -48,7 +48,7 @@ final class RegionSelectionView: NSView {
     case editing
   }
 
-  let frozenImage: CGImage
+  var frozenImage: CGImage?
 
   var mode: OverlayMode = .selecting {
     didSet {
@@ -385,7 +385,7 @@ final class RegionSelectionView: NSView {
 
     let liveTargetPickActive = mode == .editing && (windowCapturePickPending || screenCapturePickPending)
 
-    if !liveTargetPickActive {
+    if !liveTargetPickActive, let frozenImage {
       context.interpolationQuality = .high
       context.draw(frozenImage, in: bounds)
     }
@@ -462,7 +462,7 @@ final class RegionSelectionView: NSView {
   }
 
   func enterEditing(
-    session: RustDocumentSession,
+    session: RustDocumentSession?,
     selectionRect: CGRect,
     initialCaptureType: CaptureContentType,
     onDone: @escaping (Bool) -> Void
@@ -473,11 +473,23 @@ final class RegionSelectionView: NSView {
       return
     }
 
-    guard let image = session.currentImage() else {
+    let image: CGImage
+    if let session {
+      guard let sessionImage = session.currentImage() else {
+        onDone(true)
+        return
+      }
+      image = sessionImage
+    } else if let frozenImage {
+      image = frozenImage
+    } else {
       onDone(true)
       return
     }
 
+    onSelectionResult = nil
+    onCancelRequested = nil
+    onCancelRequestedImmediately = nil
     self.session = session
     onEditingDone = onDone
     selectedCaptureType = initialCaptureType
@@ -515,6 +527,8 @@ final class RegionSelectionView: NSView {
     hideStitchControlPanel()
 
     mode = .editing
+    // Editing uses the session-backed canvas image; release the initial frozen frame early.
+    frozenImage = nil
     canvasView.image = image
     canvasView.tool = currentTool
     canvasView.accentColor = annotationColor
@@ -534,10 +548,15 @@ final class RegionSelectionView: NSView {
 
   func prepareForClose() {
     canvasView.finishInlineTextEditing(commit: true)
+    canvasView.image = nil
+    frozenImage = nil
     canvasView.isHidden = false
     editingMaskView.isHidden = true
     editingMaskView.selectionRect = .zero
     setResizeHandlesHidden(true)
+    onSelectionResult = nil
+    onCancelRequested = nil
+    onCancelRequestedImmediately = nil
     session = nil
     onEditingDone = nil
     onStartVideoRequested = nil
@@ -823,6 +842,11 @@ final class RegionSelectionView: NSView {
   }
 
   func quickCopyFullScreenFromSelectingOverlay() {
+    guard let frozenImage else {
+      NSSound.beep()
+      return
+    }
+
     let copied = autoreleasepool { () -> Bool in
       let pasteboard = NSPasteboard.general
       pasteboard.clearContents()
@@ -851,11 +875,20 @@ final class RegionSelectionView: NSView {
       return
     }
 
-    onCancelRequested?()
+    if let onCancelRequestedImmediately {
+      onCancelRequestedImmediately()
+    } else {
+      onCancelRequested?()
+    }
     TransientToast.show("Copied to Clipboard")
   }
 
   func quickSaveFullScreenFromSelectingOverlay() {
+    guard let frozenImage else {
+      NSSound.beep()
+      return
+    }
+
     if settings.alwaysSaveToDefaultDirectory,
        let directory = settings.defaultSaveDirectoryURL
     {

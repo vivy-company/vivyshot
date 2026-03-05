@@ -58,7 +58,8 @@ final class CaptureCoordinator: CaptureCoordinating {
       }
 
       do {
-        let frozenImage = try await self.captureFrozenImage(in: screenFrame)
+        let capturedImage = try await self.captureFrozenImage(in: screenFrame)
+        let frozenImage = self.detachedImageCopy(capturedImage) ?? capturedImage
         self.selectionOverlay.beginSelection(onScreenFrame: screenFrame, frozenImage: frozenImage) { [weak self] result in
           guard let self else {
             return
@@ -69,15 +70,8 @@ final class CaptureCoordinator: CaptureCoordinating {
             return
           }
 
-          guard let session = RustCoreBridge.shared.makeSession(image: frozenImage) else {
-            self.captureInProgress = false
-            self.selectionOverlay.closeFlow()
-            self.showCaptureError("Failed to initialize Rust editor session.")
-            return
-          }
-
           self.selectionOverlay.enterEditing(
-            session: session,
+            session: nil,
             selectionRectInScreen: result.selectionRectInScreen,
             initialCaptureType: result.captureType,
             onStartVideo: { [weak self] rect, completion in
@@ -171,6 +165,71 @@ final class CaptureCoordinator: CaptureCoordinating {
         continuation.resume(returning: image)
       }
     }
+  }
+
+  // Build a plain BGRA-backed copy so we can drop ScreenCaptureKit surface-backed storage promptly.
+  private func detachedImageCopy(_ image: CGImage) -> CGImage? {
+    let width = image.width
+    let height = image.height
+    guard width > 0, height > 0 else {
+      return nil
+    }
+
+    let stride = width * 4
+    let byteCount = stride * height
+    guard let pixelBuffer = malloc(byteCount) else {
+      return nil
+    }
+
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+
+    let didDraw: Bool = {
+      guard let context = CGContext(
+        data: pixelBuffer,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: stride,
+        space: colorSpace,
+        bitmapInfo: bitmapInfo
+      ) else {
+        return false
+      }
+      context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+      return true
+    }()
+
+    guard didDraw else {
+      free(pixelBuffer)
+      return nil
+    }
+
+    guard let provider = CGDataProvider(
+      dataInfo: nil,
+      data: pixelBuffer,
+      size: byteCount,
+      releaseData: { _, data, _ in
+        free(UnsafeMutableRawPointer(mutating: data))
+      }
+    ) else {
+      free(pixelBuffer)
+      return nil
+    }
+
+    return CGImage(
+      width: width,
+      height: height,
+      bitsPerComponent: 8,
+      bitsPerPixel: 32,
+      bytesPerRow: stride,
+      space: colorSpace,
+      bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
+      provider: provider,
+      decode: nil,
+      shouldInterpolate: false,
+      intent: .defaultIntent
+    )
   }
 
   private func ensureScreenCapturePermission() -> Bool {

@@ -34,7 +34,7 @@ extension RegionSelectionView {
       return
     }
 
-    finishEditing()
+    finishEditing(animatedClose: false)
     TransientToast.show("Copied to Clipboard")
   }
 

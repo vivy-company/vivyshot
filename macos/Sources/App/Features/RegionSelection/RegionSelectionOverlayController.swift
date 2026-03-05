@@ -64,8 +64,9 @@ final class RegionSelectionOverlayController {
       }
 
       guard let localRect else {
-        self.closeWindow()
-        onComplete(nil)
+        self.closeWindow {
+          onComplete(nil)
+        }
         return
       }
 
@@ -77,12 +78,22 @@ final class RegionSelectionOverlayController {
     }
 
     selectionView.onCancelRequested = { [weak self] in
-      self?.closeWindow()
-      onComplete(nil)
+      guard let self else {
+        onComplete(nil)
+        return
+      }
+      self.closeWindow {
+        onComplete(nil)
+      }
     }
     selectionView.onCancelRequestedImmediately = { [weak self] in
-      self?.closeWindow(animated: false)
-      onComplete(nil)
+      guard let self else {
+        onComplete(nil)
+        return
+      }
+      self.closeWindow(animated: false) {
+        onComplete(nil)
+      }
     }
 
     window.onCancel = { [weak selectionView] in
@@ -165,7 +176,7 @@ final class RegionSelectionOverlayController {
   }
 
   func enterEditing(
-    session: RustDocumentSession,
+    session: RustDocumentSession?,
     selectionRectInScreen: CGRect,
     initialCaptureType: CaptureContentType,
     onStartVideo: @escaping (CGRect, @escaping (Bool) -> Void) -> Void,
@@ -187,8 +198,13 @@ final class RegionSelectionOverlayController {
       selectionRect: localRect,
       initialCaptureType: initialCaptureType
     ) { [weak self] animateClose in
-      self?.closeWindow(animated: animateClose)
-      onDone()
+      guard let self else {
+        onDone()
+        return
+      }
+      self.closeWindow(animated: animateClose) {
+        onDone()
+      }
     }
 
     selectionView.onStartVideoRequested = { [weak window] localRect, completion in
@@ -210,13 +226,14 @@ final class RegionSelectionOverlayController {
     window.makeFirstResponder(selectionView)
   }
 
-  func closeFlow() {
-    closeWindow()
+  func closeFlow(animated: Bool = true, completion: (() -> Void)? = nil) {
+    closeWindow(animated: animated, completion: completion)
   }
 
-  private func closeWindow(animated: Bool = true) {
+  private func closeWindow(animated: Bool = true, completion: (() -> Void)? = nil) {
     guard let closingWindow = window else {
       selectionView = nil
+      completion?()
       return
     }
 
@@ -226,10 +243,15 @@ final class RegionSelectionOverlayController {
 
     guard animated else {
       disposeWindow(closingWindow, selectionView: closingSelectionView)
+      completion?()
       return
     }
 
-    animateCaptureOverlayOut(closingWindow, selectionView: closingSelectionView)
+    animateCaptureOverlayOut(
+      closingWindow,
+      selectionView: closingSelectionView,
+      completion: completion
+    )
   }
 
   private func animateCaptureOverlayIn(_ window: NSWindow) {
@@ -260,13 +282,18 @@ final class RegionSelectionOverlayController {
     }
   }
 
-  private func animateCaptureOverlayOut(_ window: NSWindow, selectionView: RegionSelectionView?) {
+  private func animateCaptureOverlayOut(
+    _ window: NSWindow,
+    selectionView: RegionSelectionView?,
+    completion: (() -> Void)? = nil
+  ) {
     let style = settings.captureTransitionStyle
     let duration = transitionDuration(entering: false, style: style)
 
     switch style {
     case .none:
       disposeWindow(window, selectionView: selectionView)
+      completion?()
     case .fade:
       window.alphaValue = 1
       NSAnimationContext.runAnimationGroup { context in
@@ -276,6 +303,7 @@ final class RegionSelectionOverlayController {
       } completionHandler: { [weak self] in
         MainActor.assumeIsolated {
           self?.disposeWindow(window, selectionView: selectionView)
+          completion?()
         }
       }
     case .ripple:
@@ -285,8 +313,9 @@ final class RegionSelectionOverlayController {
         context.timingFunction = CAMediaTimingFunction(name: .easeIn)
         window.animator().alphaValue = 0
       }
-      applyCenterRippleTransition(to: window, entering: false, duration: duration) {
-        self.disposeWindow(window, selectionView: selectionView)
+      applyCenterRippleTransition(to: window, entering: false, duration: duration) { [weak self] in
+        self?.disposeWindow(window, selectionView: selectionView)
+        completion?()
       }
     case .liquidDrop, .zoomBlur, .waterWave:
       window.alphaValue = 1
@@ -295,8 +324,9 @@ final class RegionSelectionOverlayController {
         context.timingFunction = CAMediaTimingFunction(name: .easeIn)
         window.animator().alphaValue = 0
       }
-      applyShaderTransition(to: window, style: style, entering: false, duration: duration) {
-        self.disposeWindow(window, selectionView: selectionView)
+      applyShaderTransition(to: window, style: style, entering: false, duration: duration) { [weak self] in
+        self?.disposeWindow(window, selectionView: selectionView)
+        completion?()
       }
     }
   }

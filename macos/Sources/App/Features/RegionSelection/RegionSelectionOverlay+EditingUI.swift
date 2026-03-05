@@ -80,16 +80,28 @@ extension RegionSelectionView {
       self?.commitBlur(rect)
     }
     canvasView.onHitTestAnnotation = { [weak self] point in
-      self?.session?.hitTestAnnotation(at: point)
+      guard let self, let session = self.ensureEditingSession() else {
+        return nil
+      }
+      return session.hitTestAnnotation(at: point)
     }
     canvasView.onMoveAnnotation = { [weak self] index, delta in
-      self?.session?.moveAnnotation(index: index, delta: delta)
+      guard let self, let session = self.ensureEditingSession() else {
+        return nil
+      }
+      return session.moveAnnotation(index: index, delta: delta)
     }
     canvasView.onResizeAnnotation = { [weak self] index, imageRect in
-      self?.session?.resizeAnnotation(index: index, imageRect: imageRect)
+      guard let self, let session = self.ensureEditingSession() else {
+        return nil
+      }
+      return session.resizeAnnotation(index: index, imageRect: imageRect)
     }
     canvasView.onDeleteAnnotation = { [weak self] index in
-      self?.session?.removeAnnotation(index: index)
+      guard let self, let session = self.ensureEditingSession() else {
+        return nil
+      }
+      return session.removeAnnotation(index: index)
     }
     canvasView.onBeginMovingCaptureArea = { [weak self] in
       self?.beginMovingCapturedSelectionPreview()
