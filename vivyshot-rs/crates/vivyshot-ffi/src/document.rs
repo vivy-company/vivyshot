@@ -1464,6 +1464,20 @@ fn system_fonts() -> Option<&'static Vec<fontdue::Font>> {
 }
 
 fn load_system_fonts() -> Vec<fontdue::Font> {
+    const DEFAULT_MAX_FONT_BYTES: u64 = 8 * 1024 * 1024;
+    const DEFAULT_MAX_FONTS: usize = 1;
+
+    let max_font_bytes = std::env::var("VIVYSHOT_MAX_SYSTEM_FONT_BYTES")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_FONT_BYTES);
+    let max_fonts = std::env::var("VIVYSHOT_MAX_SYSTEM_FONTS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_FONTS);
+
     let candidates: [(&str, u32); 15] = [
         // macOS
         ("/System/Library/Fonts/Supplemental/Arial.ttf", 0),
@@ -1489,6 +1503,18 @@ fn load_system_fonts() -> Vec<fontdue::Font> {
     let mut seen_hashes: HashSet<usize> = HashSet::new();
 
     for (path, collection_index) in candidates {
+        if fonts.len() >= max_fonts {
+            break;
+        }
+
+        // Avoid loading large TTC collections that can dominate RSS for the process.
+        let Ok(metadata) = fs::metadata(path) else {
+            continue;
+        };
+        if metadata.len() == 0 || metadata.len() > max_font_bytes {
+            continue;
+        }
+
         let Ok(bytes) = fs::read(path) else {
             continue;
         };

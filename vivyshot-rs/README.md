@@ -6,7 +6,8 @@ Rust workspace for VivyShot portable core + FFI adapter.
 
 - `crates/vivyshot-core`: portable domain logic (no C ABI)
 - `crates/vivyshot-ffi`: `extern "C"` adapter + staticlib (`libvivyshot_core.a`)
-- `crates/vivyshot-ffi/src/bin/memory_bench.rs`: memory/perf smoke benchmark
+- `crates/vivyshot-ffi/src/bin/memory_bench.rs`: annotation/document memory+perf benchmark
+- `crates/vivyshot-ffi/src/bin/screenshot_bench.rs`: screenshot pipeline memory+perf benchmark
 - `crates/vivyshot-ffi/tests/*`: FFI contract and property tests
 - ABI policy/versioning: [`../docs/ffi-abi-policy.md`](../docs/ffi-abi-policy.md)
 
@@ -27,10 +28,14 @@ cargo test -p vivyshot-ffi --test property_geometry
 ```
 
 Benchmark gate defaults:
-- `avg_ms_per_session <= 180`
-- `p95_ms_per_session <= 280`
-- `baseline_rss_mb <= 100`
-- `peak_rss_mb <= 200`
+- `memory_bench`: `avg_ms_per_session <= 180`, `p95_ms_per_session <= 280`,
+  `baseline_rss_mb <= 100`, `peak_rss_mb <= 200`
+- `screenshot_bench`: `avg_ms_per_session <= 100`, `p95_ms_per_session <= 140`,
+  `baseline_rss_mb <= 100`, `peak_rss_mb <= 200`
+
+Text rendering uses a bounded system-font loader by default to keep repeated-session RSS stable:
+- `VIVYSHOT_MAX_SYSTEM_FONTS` (default `1`)
+- `VIVYSHOT_MAX_SYSTEM_FONT_BYTES` (default `8388608`)
 
 ## Rustdocs
 

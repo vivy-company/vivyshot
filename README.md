@@ -85,12 +85,18 @@ cargo test --workspace
 ```
 
 `ci-bench-gate.sh` enforces by default:
-- Rust latency: `avg_ms_per_session <= 180`, `p95_ms_per_session <= 280`
-- Rust memory: `baseline_rss_mb <= 100`, `peak_rss_mb <= 200`
+- Document benchmark (`memory_bench`):
+  `avg_ms_per_session <= 180`, `p95_ms_per_session <= 280`,
+  `baseline_rss_mb <= 100`, `peak_rss_mb <= 200`
+- Screenshot benchmark (`screenshot_bench`):
+  `avg_ms_per_session <= 100`, `p95_ms_per_session <= 140`,
+  `baseline_rss_mb <= 100`, `peak_rss_mb <= 200`
 
 Override with environment variables:
-`VIVYSHOT_BENCH_MAX_AVG_MS`, `VIVYSHOT_BENCH_MAX_P95_MS`,
-`VIVYSHOT_BENCH_MAX_BASELINE_RSS_MB`, `VIVYSHOT_BENCH_MAX_PEAK_RSS_MB`.
+`VIVYSHOT_DOC_BENCH_MAX_AVG_MS`, `VIVYSHOT_DOC_BENCH_MAX_P95_MS`,
+`VIVYSHOT_DOC_BENCH_MAX_BASELINE_RSS_MB`, `VIVYSHOT_DOC_BENCH_MAX_PEAK_RSS_MB`,
+`VIVYSHOT_SHOT_BENCH_MAX_AVG_MS`, `VIVYSHOT_SHOT_BENCH_MAX_P95_MS`,
+`VIVYSHOT_SHOT_BENCH_MAX_BASELINE_RSS_MB`, `VIVYSHOT_SHOT_BENCH_MAX_PEAK_RSS_MB`.
 
 ## Repository Layout
 
