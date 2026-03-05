@@ -30,7 +30,9 @@ struct CaptureAnnotationToolbar: View {
   let onResetStitch: (() -> Void)?
   let isStitchRecordingActive: Bool
   let isStitchCaptureInProgress: Bool
-  let onDone: () -> Void
+  let mainAction: ScreenshotMainAction
+  let onMainAction: () -> Void
+  let accentColor: Color
   let onToolbarDrag: ((CGSize) -> Void)?
   let onToolbarDragEnd: (() -> Void)?
 
@@ -91,7 +93,7 @@ struct CaptureAnnotationToolbar: View {
 
             separator
 
-            doneButton
+            mainActionButton
           }
           .padding(.horizontal, 8)
           .padding(.vertical, 8)
@@ -138,7 +140,7 @@ struct CaptureAnnotationToolbar: View {
             }
           }
           separator
-          doneButton
+          mainActionButton
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
@@ -216,9 +218,9 @@ struct CaptureAnnotationToolbar: View {
     .help("Annotation color")
   }
 
-  private var doneButton: some View {
-    Button(action: onDone) {
-      Image(systemName: "checkmark")
+  private var mainActionButton: some View {
+    Button(action: onMainAction) {
+      Image(systemName: mainAction.symbolName)
         .font(.system(size: 13, weight: .semibold))
         .frame(width: 30, height: 30)
         .contentShape(Circle())
@@ -227,14 +229,14 @@ struct CaptureAnnotationToolbar: View {
     .buttonStyle(.plain)
     .background(
       Circle()
-        .fill(Color(red: 1, green: 0.31, blue: 0.34))
+        .fill(accentColor)
     )
     .overlay(
       Circle()
         .stroke(Color.white.opacity(0.24), lineWidth: 1)
     )
     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 1)
-    .help("Done")
+    .help(mainAction == .copy ? "Copy (⌘C)" : "Save (⌘S)")
     .padding(.leading, 6)
     .padding(.trailing, 4)
   }
@@ -323,6 +325,7 @@ struct CaptureVideoToolbar: View {
   let highlightMouseClicks: Bool
   let highlightKeystrokes: Bool
   let toolOrder: [VideoToolbarTool]
+  let accentColor: Color
   let isRecordingActive: Bool
   let isRecordingPending: Bool
   let countdown: VideoCountdownOption
@@ -357,8 +360,8 @@ struct CaptureVideoToolbar: View {
             separator
             recordButton
           }
-          .padding(.horizontal, 10)
-          .padding(.vertical, 10)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 8)
           .glassEffect(.regular.interactive(), in: .capsule)
         }
       } else {
@@ -375,8 +378,8 @@ struct CaptureVideoToolbar: View {
           separator
           recordButton
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
         .background(.ultraThinMaterial, in: Capsule(style: .continuous))
       }
     }
@@ -424,21 +427,21 @@ struct CaptureVideoToolbar: View {
   private var separator: some View {
     Rectangle()
       .fill(Color.white.opacity(0.18))
-      .frame(width: 1, height: 22)
+      .frame(width: 1, height: 20)
   }
 
   private var recordButton: some View {
     Button(action: onToggleRecording) {
       Image(systemName: isRecordingActive ? "stop.circle.fill" : "record.circle.fill")
-        .font(.system(size: 16, weight: .semibold))
-        .frame(width: 34, height: 34)
+        .font(.system(size: 13.5, weight: .semibold))
+        .frame(width: 30, height: 30)
         .contentShape(Circle())
     }
     .foregroundStyle(.white)
     .buttonStyle(.plain)
     .background(
       Circle()
-        .fill(Color.red.opacity(0.9))
+        .fill(accentColor)
     )
     .overlay(
       Circle()
@@ -477,7 +480,7 @@ struct CaptureVideoToolbar: View {
           .font(.system(size: 9, weight: .bold))
           .foregroundStyle(Color.white.opacity(0.72))
       }
-      .frame(height: 30)
+      .frame(height: 26)
       .padding(.horizontal, 10)
       .contentShape(Rectangle())
     }
@@ -603,7 +606,7 @@ struct CaptureVideoToolbar: View {
       isSelected: isSelected,
       isDisabled: isDisabled,
       symbolFontSize: 15,
-      size: CGSize(width: 30, height: 28),
+      size: CGSize(width: 26, height: 24),
       cornerRadius: 7,
       selectedFillOpacity: 0.18,
       selectedStrokeOpacity: 0.34,
@@ -624,7 +627,7 @@ struct CaptureVideoToolbar: View {
       isSelected: isSelected,
       isDisabled: isDisabled,
       symbolFontSize: 15,
-      size: CGSize(width: 29, height: 27),
+      size: CGSize(width: 25, height: 23),
       cornerRadius: 7,
       selectedFillOpacity: 0.2,
       selectedStrokeOpacity: 0,
@@ -651,7 +654,7 @@ struct CaptureVideoToolbar: View {
       help: captureModeHelpText(mode),
       isSelected: isSelected,
       isDisabled: disabled,
-      diameter: 32
+      diameter: 30
     ) {
       onSelectCaptureMode(mode)
     }

@@ -48,9 +48,17 @@ extension RegionSelectionView {
       } : nil,
       isStitchRecordingActive: stitchRecordingActive,
       isStitchCaptureInProgress: stitchCaptureInProgress,
-      onDone: { [weak self] in
-        self?.finishEditing()
+      mainAction: settings.screenshotMainAction,
+      onMainAction: { [weak self] in
+        guard let self else { return }
+        switch self.settings.screenshotMainAction {
+        case .copy:
+          self.performCopy()
+        case .save:
+          self.performSave()
+        }
       },
+      accentColor: Color(settings.toolbarAccentColor),
       onToolbarDrag: { [weak self] translation in
         self?.updateToolbarDrag(translation)
       },
@@ -77,6 +85,7 @@ extension RegionSelectionView {
       highlightMouseClicks: settings.videoHighlightMouseClicks,
       highlightKeystrokes: settings.videoHighlightKeystrokes,
       toolOrder: settings.visibleVideoTools,
+      accentColor: Color(settings.toolbarAccentColor),
       isRecordingActive: videoRecordingActive,
       isRecordingPending: videoRecordingStartPending,
       countdown: settings.videoCountdown,

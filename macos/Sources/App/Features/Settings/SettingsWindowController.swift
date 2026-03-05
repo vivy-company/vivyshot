@@ -7,6 +7,7 @@ import SwiftUI
 struct VivyShotSettingsView: View {
   private enum SettingsTab: String, CaseIterable, Identifiable {
     case general
+    case appearance
     case screenshot
     case video
 
@@ -16,6 +17,8 @@ struct VivyShotSettingsView: View {
       switch self {
       case .general:
         return "General"
+      case .appearance:
+        return "Appearance"
       case .screenshot:
         return "Screenshot"
       case .video:
@@ -40,6 +43,12 @@ struct VivyShotSettingsView: View {
       }
       .tabItem { Label(SettingsTab.general.title, systemImage: "gearshape") }
       .tag(SettingsTab.general)
+
+      settingsContainer {
+        appearanceSection
+      }
+      .tabItem { Label(SettingsTab.appearance.title, systemImage: "paintpalette") }
+      .tag(SettingsTab.appearance)
 
       settingsContainer {
         screenshotToolbarSection
@@ -162,6 +171,37 @@ struct VivyShotSettingsView: View {
       Toggle("Always save to this folder (skip Save dialog)", isOn: alwaysSaveToDefaultDirectoryBinding)
         .toggleStyle(.switch)
         .disabled(settings.defaultSaveDirectoryURL == nil)
+    }
+  }
+
+  private var appearanceSection: some View {
+    Section("Appearance") {
+      HStack(spacing: 10) {
+        Text("Accent")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        ColorPicker("Toolbar Accent", selection: toolbarAccentColorBinding, supportsOpacity: false)
+          .labelsHidden()
+          .frame(width: 190, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
+        Text("Main Action")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Main Action Button", selection: screenshotMainActionBinding) {
+          ForEach(ScreenshotMainAction.allCases) { action in
+            Text(action.title).tag(action)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      Text("Applied to screenshot main action and video record button.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
   }
 
@@ -577,6 +617,20 @@ struct VivyShotSettingsView: View {
     Binding(
       get: { settings.alwaysSaveToDefaultDirectory },
       set: { settings.setAlwaysSaveToDefaultDirectory($0) }
+    )
+  }
+
+  private var toolbarAccentColorBinding: Binding<Color> {
+    Binding(
+      get: { Color(settings.toolbarAccentColor) },
+      set: { settings.setToolbarAccentColor(NSColor($0)) }
+    )
+  }
+
+  private var screenshotMainActionBinding: Binding<ScreenshotMainAction> {
+    Binding(
+      get: { settings.screenshotMainAction },
+      set: { settings.setScreenshotMainAction($0) }
     )
   }
 

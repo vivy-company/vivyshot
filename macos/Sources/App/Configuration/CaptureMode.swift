@@ -90,6 +90,31 @@ enum VideoToolbarTool: Int, CaseIterable, Identifiable {
   }
 }
 
+enum ScreenshotMainAction: Int, CaseIterable, Identifiable {
+  case copy = 0
+  case save = 1
+
+  var id: Int { rawValue }
+
+  var title: String {
+    switch self {
+    case .copy:
+      return "Copy"
+    case .save:
+      return "Save"
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .copy:
+      return "doc.on.doc"
+    case .save:
+      return "square.and.arrow.down"
+    }
+  }
+}
+
 enum VideoCodecOption: Int, CaseIterable, Identifiable {
   case h264 = 0
   case hevc = 1

@@ -62,6 +62,11 @@ final class AppSettings: ObservableObject {
   @Published private(set) var captureTransitionStyle: CaptureTransitionStyle
   @Published private(set) var captureTransitionSpeed: Double
   @Published private(set) var captureTransitionIntensity: Double
+  @Published private(set) var toolbarAccentRed: Double
+  @Published private(set) var toolbarAccentGreen: Double
+  @Published private(set) var toolbarAccentBlue: Double
+  @Published private(set) var toolbarAccentAlpha: Double
+  @Published private(set) var screenshotMainAction: ScreenshotMainAction
 
   @Published private(set) var videoCodec: VideoCodecOption
   @Published private(set) var videoFrameRate: VideoFrameRateOption
@@ -75,6 +80,15 @@ final class AppSettings: ObservableObject {
   @Published private(set) var videoHighlightMouseClicks: Bool
   @Published private(set) var videoHighlightKeystrokes: Bool
   @Published private(set) var videoHideNotificationsBestEffort: Bool
+
+  var toolbarAccentColor: NSColor {
+    NSColor(
+      calibratedRed: CGFloat(Self.clampedUnit(toolbarAccentRed)),
+      green: CGFloat(Self.clampedUnit(toolbarAccentGreen)),
+      blue: CGFloat(Self.clampedUnit(toolbarAccentBlue)),
+      alpha: CGFloat(Self.clampedUnit(toolbarAccentAlpha))
+    )
+  }
 
   var defaultSaveDirectoryURL: URL? {
     guard !defaultSaveDirectoryPath.isEmpty else {
@@ -141,6 +155,11 @@ final class AppSettings: ObservableObject {
     static let captureTransitionStyle = "settings.capture.transition.style"
     static let captureTransitionSpeed = "settings.capture.transition.speed"
     static let captureTransitionIntensity = "settings.capture.transition.intensity"
+    static let toolbarAccentRed = "settings.appearance.toolbarAccent.red"
+    static let toolbarAccentGreen = "settings.appearance.toolbarAccent.green"
+    static let toolbarAccentBlue = "settings.appearance.toolbarAccent.blue"
+    static let toolbarAccentAlpha = "settings.appearance.toolbarAccent.alpha"
+    static let screenshotMainAction = "settings.appearance.screenshotMainAction"
 
     static let videoCodec = "settings.video.codec"
     static let videoFrameRate = "settings.video.frameRate"
@@ -215,6 +234,21 @@ final class AppSettings: ObservableObject {
 
     let storedTransitionIntensity = defaults.object(forKey: Keys.captureTransitionIntensity) as? Double
     captureTransitionIntensity = Self.clampedCaptureTransitionIntensity(storedTransitionIntensity ?? 0.72)
+
+    let systemAccent = Self.normalizedAccentComponents(from: NSColor.controlAccentColor)
+    let storedAccentRed = defaults.object(forKey: Keys.toolbarAccentRed) as? Double
+    let storedAccentGreen = defaults.object(forKey: Keys.toolbarAccentGreen) as? Double
+    let storedAccentBlue = defaults.object(forKey: Keys.toolbarAccentBlue) as? Double
+    let storedAccentAlpha = defaults.object(forKey: Keys.toolbarAccentAlpha) as? Double
+    toolbarAccentRed = Self.clampedUnit(storedAccentRed ?? systemAccent.red)
+    toolbarAccentGreen = Self.clampedUnit(storedAccentGreen ?? systemAccent.green)
+    toolbarAccentBlue = Self.clampedUnit(storedAccentBlue ?? systemAccent.blue)
+    toolbarAccentAlpha = Self.clampedUnit(storedAccentAlpha ?? systemAccent.alpha)
+
+    let storedScreenshotMainAction = defaults.object(forKey: Keys.screenshotMainAction) as? Int
+    screenshotMainAction = ScreenshotMainAction(
+      rawValue: storedScreenshotMainAction ?? ScreenshotMainAction.copy.rawValue
+    ) ?? .copy
 
     let storedVideoCodec = defaults.object(forKey: Keys.videoCodec) as? Int
     videoCodec = VideoCodecOption(rawValue: storedVideoCodec ?? VideoCodecOption.h264.rawValue) ?? .h264
@@ -652,6 +686,34 @@ final class AppSettings: ObservableObject {
     persistSaveSettings()
   }
 
+  func setToolbarAccentColor(_ color: NSColor) {
+    let normalized = Self.normalizedAccentComponents(from: color)
+    let nextRed = Self.clampedUnit(normalized.red)
+    let nextGreen = Self.clampedUnit(normalized.green)
+    let nextBlue = Self.clampedUnit(normalized.blue)
+    let nextAlpha = Self.clampedUnit(normalized.alpha)
+    let changed = abs(toolbarAccentRed - nextRed) > .ulpOfOne
+      || abs(toolbarAccentGreen - nextGreen) > .ulpOfOne
+      || abs(toolbarAccentBlue - nextBlue) > .ulpOfOne
+      || abs(toolbarAccentAlpha - nextAlpha) > .ulpOfOne
+    guard changed else {
+      return
+    }
+    toolbarAccentRed = nextRed
+    toolbarAccentGreen = nextGreen
+    toolbarAccentBlue = nextBlue
+    toolbarAccentAlpha = nextAlpha
+    persistAppearanceSettings()
+  }
+
+  func setScreenshotMainAction(_ action: ScreenshotMainAction) {
+    guard screenshotMainAction != action else {
+      return
+    }
+    screenshotMainAction = action
+    persistAppearanceSettings()
+  }
+
   func setCaptureTransitionStyle(_ style: CaptureTransitionStyle) {
     guard captureTransitionStyle != style else {
       return
@@ -854,6 +916,24 @@ final class AppSettings: ObservableObject {
     max(0.2, min(1, value))
   }
 
+  private static func clampedUnit(_ value: Double) -> Double {
+    max(0, min(1, value))
+  }
+
+  private static func normalizedAccentComponents(from color: NSColor) -> (red: Double, green: Double, blue: Double, alpha: Double) {
+    let fallback = NSColor.systemBlue
+    let rgb = color.usingColorSpace(.deviceRGB)
+      ?? NSColor.controlAccentColor.usingColorSpace(.deviceRGB)
+      ?? fallback.usingColorSpace(.deviceRGB)
+      ?? fallback
+    return (
+      red: Double(rgb.redComponent),
+      green: Double(rgb.greenComponent),
+      blue: Double(rgb.blueComponent),
+      alpha: Double(rgb.alphaComponent)
+    )
+  }
+
   private static func normalizeToolOrder(rawValues: [Int]?) -> [AnnotationTool] {
     var seen = Set<AnnotationTool>()
     var ordered: [AnnotationTool] = []
@@ -956,6 +1036,15 @@ final class AppSettings: ObservableObject {
     notifySettingsChanged()
   }
 
+  private func persistAppearanceSettings() {
+    defaults.set(toolbarAccentRed, forKey: Keys.toolbarAccentRed)
+    defaults.set(toolbarAccentGreen, forKey: Keys.toolbarAccentGreen)
+    defaults.set(toolbarAccentBlue, forKey: Keys.toolbarAccentBlue)
+    defaults.set(toolbarAccentAlpha, forKey: Keys.toolbarAccentAlpha)
+    defaults.set(screenshotMainAction.rawValue, forKey: Keys.screenshotMainAction)
+    notifySettingsChanged()
+  }
+
   private func persistCaptureTransitionSettings() {
     defaults.set(captureTransitionStyle.rawValue, forKey: Keys.captureTransitionStyle)
     defaults.set(captureTransitionSpeed, forKey: Keys.captureTransitionSpeed)
@@ -996,6 +1085,11 @@ final class AppSettings: ObservableObject {
     defaults.set(textFontName, forKey: Keys.textFontName)
     defaults.set(defaultSaveDirectoryPath, forKey: Keys.defaultSaveDirectoryPath)
     defaults.set(alwaysSaveToDefaultDirectory, forKey: Keys.alwaysSaveToDefaultDirectory)
+    defaults.set(toolbarAccentRed, forKey: Keys.toolbarAccentRed)
+    defaults.set(toolbarAccentGreen, forKey: Keys.toolbarAccentGreen)
+    defaults.set(toolbarAccentBlue, forKey: Keys.toolbarAccentBlue)
+    defaults.set(toolbarAccentAlpha, forKey: Keys.toolbarAccentAlpha)
+    defaults.set(screenshotMainAction.rawValue, forKey: Keys.screenshotMainAction)
     defaults.set(captureTransitionStyle.rawValue, forKey: Keys.captureTransitionStyle)
     defaults.set(captureTransitionSpeed, forKey: Keys.captureTransitionSpeed)
     defaults.set(captureTransitionIntensity, forKey: Keys.captureTransitionIntensity)
