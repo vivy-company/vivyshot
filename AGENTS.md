@@ -29,3 +29,11 @@ Build VivyShot as a Rust-first capture and editing core that can power multiple 
 - Prioritize Rust-core changes for behavior that should be shared across surfaces.
 - If ABI changes are needed, regenerate header via `./scripts/gen-ffi.sh` and keep contract tests passing.
 - Keep CI and governance files (`.github/workflows`, legal docs, CLA config) consistent with this strategy.
+
+## Greenfield Policy
+
+- VivyShot is currently a greenfield, pre-1.0 project.
+- Breaking changes are acceptable across data fields, APIs, ABI shapes, and internal architecture when they improve the product.
+- Do not preserve backward compatibility by default.
+- Do not add compatibility shims, migration layers, or deprecation overhead unless explicitly requested.
+- Optimize for the best long-term design and multi-surface evolution rather than legacy constraints.
