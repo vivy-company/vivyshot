@@ -72,6 +72,190 @@ fn approx_eq(lhs: f32, rhs: f32, epsilon: f32) -> bool {
     (lhs - rhs).abs() <= epsilon
 }
 
+fn patterned_bgra(width: usize, height: usize, seed: u32) -> Vec<u8> {
+    let mut pixels = vec![0u8; width * height * 4];
+    for y in 0..height {
+        for x in 0..width {
+            let idx = y * width * 4 + x * 4;
+            pixels[idx] = ((x as u32 * 11 + y as u32 * 7 + seed * 3) % 251) as u8;
+            pixels[idx + 1] = ((x as u32 * 5 + y as u32 * 13 + seed * 17) % 251) as u8;
+            pixels[idx + 2] = ((x as u32 * 19 + y as u32 * 2 + seed * 29) % 251) as u8;
+            pixels[idx + 3] = 255;
+        }
+    }
+    pixels
+}
+
+fn process_rss_kb() -> Option<u64> {
+    let pid = std::process::id().to_string();
+    let output = std::process::Command::new("ps")
+        .args(["-o", "rss=", "-p", &pid])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    stdout.split_whitespace().next()?.parse::<u64>().ok()
+}
+
+#[test]
+fn handle_registries_return_to_baseline_after_stress() {
+    let baseline = live_handle_counts();
+
+    for iter in 0..48u32 {
+        let width = 64usize + ((iter % 4) as usize) * 16;
+        let height = 48usize + ((iter % 3) as usize) * 16;
+        let stride = width * 4;
+        let pixels = patterned_bgra(width, height, iter);
+        let view = vs_bgra_image_view {
+            width: width as u32,
+            height: height as u32,
+            stride: stride as u32,
+            ptr: pixels.as_ptr(),
+            len: pixels.len(),
+        };
+
+        // SAFETY: handles and pointers are valid for each call duration.
+        unsafe {
+            let doc = vs_create_document_from_bgra(
+                width as u32,
+                height as u32,
+                stride as u32,
+                pixels.as_ptr(),
+                pixels.len(),
+            );
+            assert!(!doc.is_null());
+            let mut out = vec![0u8; pixels.len()];
+            assert_eq!(vs_render_full(doc, out.as_mut_ptr(), out.len()), 0);
+            vs_destroy_document(doc);
+
+            let stitch = vs_stitch_session_create();
+            assert!(!stitch.is_null());
+            assert_eq!(vs_stitch_session_set_base_bgra(stitch, view, 1), 0);
+            vs_stitch_session_destroy(stitch);
+
+            let video = vs_video_session_create(vs_video_session_config {
+                frame_rate: 30,
+                capture_system_audio: false,
+                capture_microphone: false,
+                show_webcam: false,
+                highlight_mouse_clicks: false,
+                highlight_keystrokes: false,
+            });
+            assert!(!video.is_null());
+            vs_video_session_destroy(video);
+
+            let timeline = vs_timeline_create(3_000, width as u32, height as u32);
+            assert!(!timeline.is_null());
+            vs_timeline_destroy(timeline);
+        }
+    }
+
+    assert_eq!(live_handle_counts(), baseline);
+}
+
+#[test]
+fn screenshot_pipeline_resident_memory_stays_bounded() {
+    let Some(baseline_rss) = process_rss_kb() else {
+        eprintln!("skipping RSS bound assertion: unable to read process RSS");
+        return;
+    };
+
+    let peak_limit_kb = std::env::var("VIVYSHOT_RSS_PEAK_LIMIT_KB")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(650_000);
+    let settled_limit_kb = std::env::var("VIVYSHOT_RSS_SETTLED_LIMIT_KB")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(300_000);
+
+    let width = 1920usize;
+    let height = 1080usize;
+    let stride = width * 4;
+    let pixels = patterned_bgra(width, height, 123);
+    let view = vs_bgra_image_view {
+        width: width as u32,
+        height: height as u32,
+        stride: stride as u32,
+        ptr: pixels.as_ptr(),
+        len: pixels.len(),
+    };
+
+    let mut peak_rss = baseline_rss;
+    for iter in 0..20u32 {
+        // SAFETY: pointers are valid for call duration and owned outputs are destroyed.
+        unsafe {
+            let mut encoded = vs_encoded_bytes {
+                ptr: std::ptr::null_mut(),
+                len: 0,
+            };
+            assert_eq!(
+                vs_encode_bgra_image(view, VS_IMAGE_ENCODE_PNG, 92, &mut encoded),
+                0
+            );
+            vs_encoded_bytes_destroy(&mut encoded);
+
+            let mut cropped = vs_bgra_owned_image {
+                width: 0,
+                height: 0,
+                stride: 0,
+                ptr: std::ptr::null_mut(),
+                len: 0,
+            };
+            let x = ((iter as usize) % 8) * 9;
+            let y = ((iter as usize) % 6) * 11;
+            assert_eq!(
+                vs_bgra_crop(view, x as u32, y as u32, 1280, 720, &mut cropped),
+                0
+            );
+            vs_bgra_owned_image_destroy(&mut cropped);
+
+            let doc = vs_create_document_from_bgra(
+                width as u32,
+                height as u32,
+                stride as u32,
+                pixels.as_ptr(),
+                pixels.len(),
+            );
+            assert!(!doc.is_null());
+            let mut out = vec![0u8; pixels.len()];
+            assert_eq!(vs_render_full(doc, out.as_mut_ptr(), out.len()), 0);
+            vs_destroy_document(doc);
+        }
+
+        if let Some(rss) = process_rss_kb() {
+            peak_rss = peak_rss.max(rss);
+        }
+    }
+
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    let Some(final_rss) = process_rss_kb() else {
+        eprintln!("skipping final RSS assertion: unable to read process RSS");
+        return;
+    };
+
+    let peak_growth_kb = peak_rss.saturating_sub(baseline_rss);
+    let settled_growth_kb = final_rss.saturating_sub(baseline_rss);
+    assert!(
+        peak_growth_kb <= peak_limit_kb,
+        "peak RSS growth exceeded bound: baseline={}KB peak={}KB delta={}KB limit={}KB",
+        baseline_rss,
+        peak_rss,
+        peak_growth_kb,
+        peak_limit_kb
+    );
+    assert!(
+        settled_growth_kb <= settled_limit_kb,
+        "settled RSS growth exceeded bound: baseline={}KB final={}KB delta={}KB limit={}KB",
+        baseline_rss,
+        final_rss,
+        settled_growth_kb,
+        settled_limit_kb
+    );
+}
+
 #[test]
 fn undo_and_redo_affect_rendered_pixels() {
     // SAFETY: FFI pointers are managed and freed in this test.

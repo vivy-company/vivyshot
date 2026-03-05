@@ -47,6 +47,18 @@ pub(crate) fn validate_handle(
     }
 }
 
+#[cfg(test)]
+pub(crate) fn handle_count(registry: &OnceLock<Mutex<HashSet<usize>>>) -> usize {
+    let Some(lock) = registry.get() else {
+        return 0;
+    };
+    let guard = match lock.lock() {
+        Ok(v) => v,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard.len()
+}
+
 
 #[no_mangle]
 pub extern "C" fn vs_core_version() -> *const c_char {

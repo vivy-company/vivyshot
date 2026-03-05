@@ -10,15 +10,27 @@ extension RegionSelectionView {
       return
     }
 
-    guard let image = exportImageForCurrentSelection() else {
-      NSSound.beep()
-      return
+    let copied = autoreleasepool { () -> Bool in
+      guard let image = exportImageForCurrentSelection() else {
+        return false
+      }
+
+      let pasteboard = NSPasteboard.general
+      pasteboard.clearContents()
+
+      if let encodedPNG = RustCoreBridge.shared.encodeImage(image, format: .png, jpegQuality: 100) {
+        let item = NSPasteboardItem()
+        item.setData(encodedPNG, forType: .png)
+        if pasteboard.writeObjects([item]) {
+          return true
+        }
+      }
+
+      let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+      return pasteboard.writeObjects([nsImage])
     }
 
-    let pasteboard = NSPasteboard.general
-    pasteboard.clearContents()
-    let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-    guard pasteboard.writeObjects([nsImage]) else {
+    guard copied else {
       NSSound.beep()
       return
     }

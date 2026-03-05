@@ -93,6 +93,16 @@ static STITCH_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new()
 static TIMELINE_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 
 #[cfg(test)]
+pub(crate) fn live_handle_counts() -> (usize, usize, usize, usize) {
+    (
+        common::handle_count(&DOCUMENT_HANDLES),
+        common::handle_count(&VIDEO_SESSION_HANDLES),
+        common::handle_count(&STITCH_SESSION_HANDLES),
+        common::handle_count(&TIMELINE_HANDLES),
+    )
+}
+
+#[cfg(test)]
 const VS_VIDEO_PLAN_MODE_COMPOSITE_MP4: u8 = DOMAIN_VIDEO_PLAN_MODE_COMPOSITE_MP4;
 const VS_IMAGE_ENCODE_PNG: u8 = 0;
 const VS_IMAGE_ENCODE_JPEG: u8 = 1;

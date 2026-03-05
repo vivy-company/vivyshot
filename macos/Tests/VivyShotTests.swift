@@ -1,6 +1,15 @@
+import AppKit
+import Darwin
 import XCTest
 
 final class VivyShotTests: XCTestCase {
+  private struct SyntheticRaster {
+    let width: Int
+    let height: Int
+    let stride: Int
+    let pixels: [UInt8]
+  }
+
   func testSmoke() {
     XCTAssertTrue(true)
   }
@@ -260,6 +269,203 @@ final class VivyShotTests: XCTestCase {
       window.fade_duration_seconds,
       1.0,
       accuracy: 0.0001
+    )
+  }
+
+  @MainActor
+  func testScreenshotPipelineMemoryMetric() {
+    let source = makeSyntheticScreenshotRaster(width: 2560, height: 1440)
+    let options = XCTMeasureOptions()
+    options.iterationCount = 5
+    measure(metrics: [XCTMemoryMetric()], options: options) {
+      autoreleasepool {
+        for iteration in 0..<4 {
+          runScreenshotCopyPipelineIteration(sourceRaster: source, iteration: iteration)
+        }
+      }
+    }
+  }
+
+  @MainActor
+  func testScreenshotPipelineResidentMemoryBoundedAfterBurst() throws {
+    let source = makeSyntheticScreenshotRaster(width: 2560, height: 1440)
+    let baseline = currentResidentMemoryBytes()
+    if baseline == 0 {
+      throw XCTSkip("Unable to read resident memory from task_info")
+    }
+
+    var peak = baseline
+    for iteration in 0..<24 {
+      autoreleasepool {
+        runScreenshotCopyPipelineIteration(sourceRaster: source, iteration: iteration)
+      }
+      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+      peak = max(peak, currentResidentMemoryBytes())
+    }
+
+    RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+    let settled = currentResidentMemoryBytes()
+    if settled == 0 {
+      throw XCTSkip("Unable to read settled resident memory from task_info")
+    }
+
+    let peakGrowth = peak >= baseline ? (peak - baseline) : 0
+    let settledGrowth = settled >= baseline ? (settled - baseline) : 0
+    let peakLimit: UInt64 = 700 * 1024 * 1024
+    let settledLimit: UInt64 = 320 * 1024 * 1024
+
+    XCTAssertLessThanOrEqual(
+      peakGrowth,
+      peakLimit,
+      "Peak resident memory grew too much. baseline=\(baseline) peak=\(peak) delta=\(peakGrowth)"
+    )
+    XCTAssertLessThanOrEqual(
+      settledGrowth,
+      settledLimit,
+      "Settled resident memory grew too much. baseline=\(baseline) settled=\(settled) delta=\(settledGrowth)"
+    )
+  }
+
+  @MainActor
+  private func runScreenshotCopyPipelineIteration(sourceRaster: SyntheticRaster, iteration: Int) {
+    let cropRect = CGRect(
+      x: 40 + (iteration % 9) * 18,
+      y: 30 + (iteration % 7) * 14,
+      width: 1920,
+      height: 1080
+    )
+
+    var cropped = vs_bgra_owned_image(width: 0, height: 0, stride: 0, ptr: nil, len: 0)
+    defer {
+      vs_bgra_owned_image_destroy(&cropped)
+    }
+
+    let cropStatus = sourceRaster.pixels.withUnsafeBytes { raw -> Int32 in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return VS_STATUS_NULL_POINTER
+      }
+      let sourceView = vs_bgra_image_view(
+        width: UInt32(sourceRaster.width),
+        height: UInt32(sourceRaster.height),
+        stride: UInt32(sourceRaster.stride),
+        ptr: base,
+        len: UInt(raw.count)
+      )
+      return vs_bgra_crop(
+        sourceView,
+        UInt32(cropRect.minX),
+        UInt32(cropRect.minY),
+        UInt32(cropRect.width),
+        UInt32(cropRect.height),
+        &cropped
+      )
+    }
+    XCTAssertEqual(cropStatus, VS_STATUS_OK)
+    guard cropStatus == VS_STATUS_OK, let croppedPtr = cropped.ptr, cropped.len > 0 else {
+      return
+    }
+
+    let croppedView = vs_bgra_image_view(
+      width: cropped.width,
+      height: cropped.height,
+      stride: cropped.stride,
+      ptr: UnsafePointer(croppedPtr),
+      len: cropped.len
+    )
+
+    var png = vs_encoded_bytes(ptr: nil, len: 0)
+    var jpeg = vs_encoded_bytes(ptr: nil, len: 0)
+    defer {
+      vs_encoded_bytes_destroy(&png)
+      vs_encoded_bytes_destroy(&jpeg)
+    }
+
+    XCTAssertEqual(vs_encode_bgra_image(croppedView, 0, 100, &png), VS_STATUS_OK)
+    XCTAssertEqual(vs_encode_bgra_image(croppedView, 1, 88, &jpeg), VS_STATUS_OK)
+
+    let croppedData = Data(bytes: croppedPtr, count: Int(cropped.len))
+    guard let croppedImage = makeCGImageFromBGRA(
+      width: Int(cropped.width),
+      height: Int(cropped.height),
+      stride: Int(cropped.stride),
+      data: croppedData
+    ) else {
+      XCTFail("Failed to rebuild CGImage from cropped BGRA bytes")
+      return
+    }
+
+    let image = NSImage(
+      cgImage: croppedImage,
+      size: NSSize(width: Int(cropped.width), height: Int(cropped.height))
+    )
+    XCTAssertGreaterThan(Int(png.len), 1024)
+    XCTAssertGreaterThan(Int(jpeg.len), 1024)
+    XCTAssertGreaterThan(image.size.width, 0)
+  }
+
+  private func currentResidentMemoryBytes() -> UInt64 {
+    var info = mach_task_basic_info_data_t()
+    var count = mach_msg_type_number_t(
+      MemoryLayout<mach_task_basic_info_data_t>.size / MemoryLayout<natural_t>.size
+    )
+    let status: kern_return_t = withUnsafeMutablePointer(to: &info) { pointer in
+      pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { integerPointer in
+        task_info(
+          mach_task_self_,
+          task_flavor_t(MACH_TASK_BASIC_INFO),
+          integerPointer,
+          &count
+        )
+      }
+    }
+    guard status == KERN_SUCCESS else {
+      return 0
+    }
+    return UInt64(info.resident_size)
+  }
+
+  @MainActor
+  private func makeSyntheticScreenshotRaster(width: Int, height: Int) -> SyntheticRaster {
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    for y in 0..<height {
+      for x in 0..<width {
+        let idx = (y * width + x) * 4
+        pixels[idx] = UInt8((x * 3 + y * 7) % 251)
+        pixels[idx + 1] = UInt8((x * 11 + y * 5 + 31) % 251)
+        pixels[idx + 2] = UInt8((x * 2 + y * 13 + 17) % 251)
+        pixels[idx + 3] = 255
+      }
+    }
+
+    return SyntheticRaster(
+      width: width,
+      height: height,
+      stride: width * 4,
+      pixels: pixels
+    )
+  }
+
+  private func makeCGImageFromBGRA(width: Int, height: Int, stride: Int, data: Data) -> CGImage? {
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue
+      | CGImageAlphaInfo.premultipliedFirst.rawValue
+    let provider = CGDataProvider(data: data as CFData)
+    guard let provider else {
+      return nil
+    }
+
+    return CGImage(
+      width: width,
+      height: height,
+      bitsPerComponent: 8,
+      bitsPerPixel: 32,
+      bytesPerRow: stride,
+      space: colorSpace,
+      bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
+      provider: provider,
+      decode: nil,
+      shouldInterpolate: false,
+      intent: .defaultIntent
     )
   }
 }

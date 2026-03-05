@@ -99,18 +99,22 @@ struct VivyShotSettingsView: View {
         .frame(minWidth: 180, maxWidth: .infinity, minHeight: 28)
         .layoutPriority(1)
 
-        Button(isRecordingShortcut ? "Stop" : "Record") {
-          isRecordingShortcut.toggle()
-        }
-        .buttonStyle(.bordered)
-        .frame(width: 92)
+        HStack(spacing: 8) {
+          Button(isRecordingShortcut ? "Stop" : "Record") {
+            isRecordingShortcut.toggle()
+          }
+          .buttonStyle(.borderedProminent)
+          .tint(isRecordingShortcut ? .red : .accentColor)
+          .frame(width: 92)
 
-        Button("Reset") {
-          settings.resetCaptureShortcut()
-          isRecordingShortcut = false
+          Button("Reset") {
+            settings.resetCaptureShortcut()
+            isRecordingShortcut = false
+          }
+          .buttonStyle(.bordered)
+          .frame(width: 92)
         }
-        .buttonStyle(.bordered)
-        .frame(width: 86)
+        .frame(width: 200, alignment: .trailing)
       }
 
       Text(isRecordingShortcut
