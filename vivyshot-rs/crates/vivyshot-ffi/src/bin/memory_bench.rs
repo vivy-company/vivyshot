@@ -1,4 +1,5 @@
 use std::time::Instant;
+use std::{process::Command, str};
 
 use vivyshot_core::{
     vs_add_arrow, vs_add_blur_rect, vs_add_line, vs_add_pixelate_rect, vs_add_rect, vs_add_text,
@@ -10,6 +11,7 @@ use vivyshot_core::{
 fn main() {
     let sessions = parse_sessions();
     let warmup_sessions = parse_warmup_sessions();
+    let baseline_rss_kb = current_rss_kb().unwrap_or(0);
     let started = Instant::now();
     let mut checksum = 0u64;
     let mut latencies_ms = Vec::with_capacity(sessions);
@@ -40,6 +42,11 @@ fn main() {
     println!("median_ms_per_session={:.2}", median_ms);
     println!("p95_ms_per_session={:.2}", p95_ms);
     println!("p99_ms_per_session={:.2}", p99_ms);
+    let peak_rss_kb = peak_rss_kb();
+    println!("baseline_rss_kb={}", baseline_rss_kb);
+    println!("peak_rss_kb={}", peak_rss_kb);
+    println!("baseline_rss_mb={:.2}", baseline_rss_kb as f64 / 1024.0);
+    println!("peak_rss_mb={:.2}", peak_rss_kb as f64 / 1024.0);
     println!("checksum={}", checksum);
 }
 
@@ -239,6 +246,38 @@ fn average_ms(samples: &[f64]) -> f64 {
         return 0.0;
     }
     samples.iter().sum::<f64>() / samples.len() as f64
+}
+
+fn current_rss_kb() -> Option<u64> {
+    let pid = std::process::id().to_string();
+    let output = Command::new("ps")
+        .args(["-o", "rss=", "-p", &pid])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = str::from_utf8(&output.stdout).ok()?;
+    text.trim().parse::<u64>().ok()
+}
+
+fn peak_rss_kb() -> u64 {
+    let mut usage = std::mem::MaybeUninit::<libc::rusage>::uninit();
+    // SAFETY: rusage pointer is valid for initialization.
+    let status = unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) };
+    if status != 0 {
+        return 0;
+    }
+    // SAFETY: `getrusage` initialized `usage` on success.
+    let usage = unsafe { usage.assume_init() };
+    #[cfg(target_os = "macos")]
+    {
+        (usage.ru_maxrss as u64) / 1024
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        usage.ru_maxrss as u64
+    }
 }
 
 #[cfg(test)]

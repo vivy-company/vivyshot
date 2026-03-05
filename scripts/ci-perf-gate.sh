@@ -21,6 +21,7 @@ xcodebuild \
   -destination "$DESTINATION" \
   -only-testing:VivyShotTests/VivyShotTests/testScreenshotPipelineMemoryMetric \
   -only-testing:VivyShotTests/VivyShotTests/testScreenshotPipelineResidentMemoryBoundedAfterBurst \
+  -only-testing:VivyShotTests/VivyShotTests/testFullFrameEncodeResidentMemoryBoundedAfterBurst \
   -only-testing:VivyShotTests/VivyShotTests/testScreenshotPipelineLatencyBoundedAfterBurst \
   test
 

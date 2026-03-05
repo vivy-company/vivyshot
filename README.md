@@ -84,6 +84,14 @@ cargo test --workspace
 ./scripts/ci-perf-gate.sh 20
 ```
 
+`ci-bench-gate.sh` enforces by default:
+- Rust latency: `avg_ms_per_session <= 180`, `p95_ms_per_session <= 280`
+- Rust memory: `baseline_rss_mb <= 100`, `peak_rss_mb <= 200`
+
+Override with environment variables:
+`VIVYSHOT_BENCH_MAX_AVG_MS`, `VIVYSHOT_BENCH_MAX_P95_MS`,
+`VIVYSHOT_BENCH_MAX_BASELINE_RSS_MB`, `VIVYSHOT_BENCH_MAX_PEAK_RSS_MB`.
+
 ## Repository Layout
 
 ```text

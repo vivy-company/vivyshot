@@ -313,6 +313,22 @@ final class VivyShotTests: XCTestCase {
     let settledGrowth = settled >= baseline ? (settled - baseline) : 0
     let peakLimit: UInt64 = 700 * 1024 * 1024
     let settledLimit: UInt64 = 320 * 1024 * 1024
+    if let baselineAbsoluteLimitMB = ProcessInfo.processInfo.environment["VIVYSHOT_PIPELINE_BASELINE_MB"].flatMap(UInt64.init) {
+      let baselineAbsoluteLimit = baselineAbsoluteLimitMB * 1024 * 1024
+      XCTAssertLessThanOrEqual(
+        baseline,
+        baselineAbsoluteLimit,
+        "Baseline resident memory exceeded absolute budget. baseline=\(baseline)"
+      )
+    }
+    if let peakAbsoluteLimitMB = ProcessInfo.processInfo.environment["VIVYSHOT_PIPELINE_PEAK_MB"].flatMap(UInt64.init) {
+      let peakAbsoluteLimit = peakAbsoluteLimitMB * 1024 * 1024
+      XCTAssertLessThanOrEqual(
+        peak,
+        peakAbsoluteLimit,
+        "Peak resident memory exceeded absolute budget. peak=\(peak)"
+      )
+    }
 
     XCTAssertLessThanOrEqual(
       peakGrowth,
@@ -359,6 +375,66 @@ final class VivyShotTests: XCTestCase {
       p95Limit,
       "P95 pipeline latency too high. p95=\(p95MS)ms limit=\(p95Limit)ms samples=\(samplesMS)"
     )
+  }
+
+  @MainActor
+  func testFullFrameEncodeResidentMemoryBoundedAfterBurst() throws {
+    let source = makeSyntheticScreenshotRaster(width: 2560, height: 1440)
+    let baseline = currentResidentMemoryBytes()
+    if baseline == 0 {
+      throw XCTSkip("Unable to read resident memory from task_info")
+    }
+
+    var peak = baseline
+    for _ in 0..<24 {
+      autoreleasepool {
+        source.pixels.withUnsafeBytes { raw in
+          guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+            XCTFail("Missing source pixels")
+            return
+          }
+
+          let sourceView = vs_bgra_image_view(
+            width: UInt32(source.width),
+            height: UInt32(source.height),
+            stride: UInt32(source.stride),
+            ptr: base,
+            len: UInt(raw.count)
+          )
+
+          var png = vs_encoded_bytes(ptr: nil, len: 0)
+          var jpeg = vs_encoded_bytes(ptr: nil, len: 0)
+          defer {
+            vs_encoded_bytes_destroy(&png)
+            vs_encoded_bytes_destroy(&jpeg)
+          }
+
+          XCTAssertEqual(vs_encode_bgra_image(sourceView, 0, 100, &png), VS_STATUS_OK)
+          XCTAssertEqual(vs_encode_bgra_image(sourceView, 1, 88, &jpeg), VS_STATUS_OK)
+          XCTAssertGreaterThan(Int(png.len), 1024)
+          XCTAssertGreaterThan(Int(jpeg.len), 1024)
+        }
+      }
+      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+      peak = max(peak, currentResidentMemoryBytes())
+    }
+
+    if let baselineAbsoluteLimitMB = ProcessInfo.processInfo.environment["VIVYSHOT_PIPELINE_BASELINE_MB"].flatMap(UInt64.init) {
+      let baselineAbsoluteLimit = baselineAbsoluteLimitMB * 1024 * 1024
+      XCTAssertLessThanOrEqual(
+        baseline,
+        baselineAbsoluteLimit,
+        "Baseline resident memory exceeded absolute budget. baseline=\(baseline)"
+      )
+    }
+    if let peakAbsoluteLimitMB = ProcessInfo.processInfo.environment["VIVYSHOT_PIPELINE_PEAK_MB"].flatMap(UInt64.init) {
+      let peakAbsoluteLimit = peakAbsoluteLimitMB * 1024 * 1024
+      XCTAssertLessThanOrEqual(
+        peak,
+        peakAbsoluteLimit,
+        "Peak resident memory exceeded absolute budget. peak=\(peak)"
+      )
+    }
   }
 
   @MainActor

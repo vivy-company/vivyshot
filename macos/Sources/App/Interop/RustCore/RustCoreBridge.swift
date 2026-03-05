@@ -25,35 +25,17 @@ final class RustCoreBridge {
   }
 
   func cropImage(_ image: CGImage, imageRect: CGRect) -> CGImage? {
-    guard let raster = RasterImage.from(cgImage: image) else {
-      return nil
-    }
-
     guard let cropRect = Self.normalizedCropRect(
       imageRect,
-      maxWidth: raster.width,
-      maxHeight: raster.height
+      maxWidth: image.width,
+      maxHeight: image.height
     ) else {
       return nil
     }
 
     var rawCropped = vs_bgra_owned_image(width: 0, height: 0, stride: 0, ptr: nil, len: 0)
-    defer {
-      vs_bgra_owned_image_destroy(&rawCropped)
-    }
-
-    let status = raster.pixels.withUnsafeBytes { raw in
-      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
-        return Int32(-1)
-      }
-      let view = vs_bgra_image_view(
-        width: UInt32(raster.width),
-        height: UInt32(raster.height),
-        stride: UInt32(raster.stride),
-        ptr: base,
-        len: UInt(raw.count)
-      )
-      return vs_bgra_crop(
+    let status = withBGRAImageView(from: image) { view in
+      vs_bgra_crop(
         view,
         UInt32(cropRect.x),
         UInt32(cropRect.y),
@@ -61,20 +43,13 @@ final class RustCoreBridge {
         UInt32(cropRect.height),
         &rawCropped
       )
-    }
+    } ?? Int32(-2)
 
-    guard status == 0, let ptr = rawCropped.ptr, rawCropped.len > 0 else {
+    guard status == 0 else {
+      vs_bgra_owned_image_destroy(&rawCropped)
       return nil
     }
-
-    let pixels = Array(UnsafeBufferPointer(start: ptr, count: Int(rawCropped.len)))
-    let cropped = RasterImage(
-      width: Int(rawCropped.width),
-      height: Int(rawCropped.height),
-      stride: Int(rawCropped.stride),
-      pixels: pixels
-    )
-    return cropped.toCGImage()
+    return Self.takeOwnedBGRAImageAsCGImage(&rawCropped)
   }
 
   func moveSelectionRect(current: CGRect, bounds: CGRect, delta: CGPoint) -> CGRect? {
@@ -118,26 +93,12 @@ final class RustCoreBridge {
   }
 
   func encodeImage(_ image: CGImage, format: RustImageEncodeFormat, jpegQuality: Int = 90) -> Data? {
-    guard let raster = RasterImage.from(cgImage: image) else {
-      return nil
-    }
-
     var rawBytes = vs_encoded_bytes(ptr: nil, len: 0)
 
     let clampedQuality = UInt8(max(1, min(100, jpegQuality)))
-    let status = raster.pixels.withUnsafeBytes { raw in
-      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
-        return Int32(-1)
-      }
-      let view = vs_bgra_image_view(
-        width: UInt32(raster.width),
-        height: UInt32(raster.height),
-        stride: UInt32(raster.stride),
-        ptr: base,
-        len: UInt(raw.count)
-      )
+    let status = withBGRAImageView(from: image) { view in
       return vs_encode_bgra_image(view, format.rawValue, clampedQuality, &rawBytes)
-    }
+    } ?? Int32(-2)
     guard status == 0, let data = Self.takeEncodedBytesAsData(&rawBytes) else {
       vs_encoded_bytes_destroy(&rawBytes)
       return nil
@@ -151,13 +112,10 @@ final class RustCoreBridge {
     format: RustImageEncodeFormat,
     jpegQuality: Int = 90
   ) -> Data? {
-    guard let raster = RasterImage.from(cgImage: image) else {
-      return nil
-    }
     guard let cropRect = Self.normalizedCropRect(
       imageRect,
-      maxWidth: raster.width,
-      maxHeight: raster.height
+      maxWidth: image.width,
+      maxHeight: image.height
     ) else {
       return nil
     }
@@ -170,19 +128,7 @@ final class RustCoreBridge {
     var rawBytes = vs_encoded_bytes(ptr: nil, len: 0)
 
     let clampedQuality = UInt8(max(1, min(100, jpegQuality)))
-    let status = raster.pixels.withUnsafeBytes { raw in
-      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
-        return Int32(-1)
-      }
-
-      let sourceView = vs_bgra_image_view(
-        width: UInt32(raster.width),
-        height: UInt32(raster.height),
-        stride: UInt32(raster.stride),
-        ptr: base,
-        len: UInt(raw.count)
-      )
-
+    let status = withBGRAImageView(from: image) { sourceView in
       let cropStatus = vs_bgra_crop(
         sourceView,
         UInt32(cropRect.x),
@@ -203,7 +149,7 @@ final class RustCoreBridge {
         len: rawCropped.len
       )
       return vs_encode_bgra_image(croppedView, format.rawValue, clampedQuality, &rawBytes)
-    }
+    } ?? Int32(-2)
 
     guard status == 0, let data = Self.takeEncodedBytesAsData(&rawBytes) else {
       vs_encoded_bytes_destroy(&rawBytes)
@@ -232,6 +178,127 @@ final class RustCoreBridge {
         )
         vs_encoded_bytes_destroy(&owned)
       }
+    )
+  }
+
+  private func withBGRAImageView<T>(from image: CGImage, _ body: (vs_bgra_image_view) -> T) -> T? {
+    if let direct = Self.makeDirectBGRAView(from: image) {
+      return body(direct.view)
+    }
+
+    guard let raster = RasterImage.from(cgImage: image) else {
+      return nil
+    }
+    return raster.pixels.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return nil
+      }
+      let view = vs_bgra_image_view(
+        width: UInt32(raster.width),
+        height: UInt32(raster.height),
+        stride: UInt32(raster.stride),
+        ptr: base,
+        len: UInt(raw.count)
+      )
+      return body(view)
+    }
+  }
+
+  private static func makeDirectBGRAView(
+    from image: CGImage
+  ) -> (view: vs_bgra_image_view, holder: CFData)? {
+    guard image.bitsPerComponent == 8, image.bitsPerPixel == 32 else {
+      return nil
+    }
+    guard image.bytesPerRow >= image.width * 4 else {
+      return nil
+    }
+
+    let alpha = image.alphaInfo
+    let alphaSupported =
+      alpha == .premultipliedFirst
+      || alpha == .first
+      || alpha == .noneSkipFirst
+    guard alphaSupported else {
+      return nil
+    }
+
+    let info = image.bitmapInfo
+    let orderMask = CGBitmapInfo.byteOrderMask.rawValue
+    let byteOrder = CGBitmapInfo(rawValue: info.rawValue & orderMask)
+    guard byteOrder == .byteOrder32Little else {
+      return nil
+    }
+
+    guard let provider = image.dataProvider, let data = provider.data else {
+      return nil
+    }
+    let length = CFDataGetLength(data)
+    let requiredLength = image.bytesPerRow * image.height
+    guard length >= requiredLength, let ptr = CFDataGetBytePtr(data) else {
+      return nil
+    }
+
+    return (
+      vs_bgra_image_view(
+        width: UInt32(image.width),
+        height: UInt32(image.height),
+        stride: UInt32(image.bytesPerRow),
+        ptr: ptr,
+        len: UInt(length)
+      ),
+      data
+    )
+  }
+
+  private static func takeOwnedBGRAImageAsCGImage(_ image: inout vs_bgra_owned_image) -> CGImage? {
+    guard let ptr = image.ptr, image.len > 0, image.width > 0, image.height > 0, image.stride > 0 else {
+      return nil
+    }
+
+    let width = Int(image.width)
+    let height = Int(image.height)
+    let stride = Int(image.stride)
+    let rawPtr = UnsafeMutableRawPointer(ptr)
+    let byteCount = Int(image.len)
+
+    image.ptr = nil
+    image.len = 0
+
+    let data = Data(
+      bytesNoCopy: rawPtr,
+      count: byteCount,
+      deallocator: .custom { raw, length in
+        var owned = vs_bgra_owned_image(
+          width: UInt32(width),
+          height: UInt32(height),
+          stride: UInt32(stride),
+          ptr: raw.assumingMemoryBound(to: UInt8.self),
+          len: UInt(length)
+        )
+        vs_bgra_owned_image_destroy(&owned)
+      }
+    )
+
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue
+      | CGImageAlphaInfo.premultipliedFirst.rawValue
+    guard let provider = CGDataProvider(data: data as CFData) else {
+      return nil
+    }
+
+    return CGImage(
+      width: width,
+      height: height,
+      bitsPerComponent: 8,
+      bitsPerPixel: 32,
+      bytesPerRow: stride,
+      space: colorSpace,
+      bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
+      provider: provider,
+      decode: nil,
+      shouldInterpolate: false,
+      intent: .defaultIntent
     )
   }
 

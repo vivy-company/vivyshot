@@ -26,6 +26,12 @@ cargo test -p vivyshot-ffi --test property_geometry
 ../scripts/ci-perf-gate.sh 20
 ```
 
+Benchmark gate defaults:
+- `avg_ms_per_session <= 180`
+- `p95_ms_per_session <= 280`
+- `baseline_rss_mb <= 100`
+- `peak_rss_mb <= 200`
+
 ## Rustdocs
 
 Build workspace docs:

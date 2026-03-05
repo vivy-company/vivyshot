@@ -96,27 +96,26 @@ struct VivyShotSettingsView: View {
             settings.setCaptureShortcut(keyCode: keyCode, modifierFlags: flags)
           }
         )
-        .frame(width: 260, height: 28)
+        .frame(minWidth: 200, maxWidth: 320, minHeight: 28)
 
         Spacer(minLength: 0)
 
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
           Button(isRecordingShortcut ? "Stop" : "Record") {
             isRecordingShortcut.toggle()
           }
           .buttonStyle(.borderedProminent)
           .tint(isRecordingShortcut ? .red : .accentColor)
-          .frame(width: 92)
 
           Button("Reset") {
             settings.resetCaptureShortcut()
             isRecordingShortcut = false
           }
           .buttonStyle(.bordered)
-          .frame(width: 92)
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .fixedSize(horizontal: true, vertical: false)
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
 
       Text(isRecordingShortcut
            ? "Press a key combination now. Esc cancels."
