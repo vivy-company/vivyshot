@@ -11,14 +11,10 @@ extension RegionSelectionView {
     }
 
     let copied = autoreleasepool { () -> Bool in
-      guard let image = exportImageForCurrentSelection() else {
-        return false
-      }
-
       let pasteboard = NSPasteboard.general
       pasteboard.clearContents()
 
-      if let encodedPNG = RustCoreBridge.shared.encodeImage(image, format: .png, jpegQuality: 100) {
+      if let encodedPNG = encodedImageForCurrentSelection(format: .png, jpegQuality: 100) {
         let item = NSPasteboardItem()
         item.setData(encodedPNG, forType: .png)
         if pasteboard.writeObjects([item]) {
@@ -26,6 +22,9 @@ extension RegionSelectionView {
         }
       }
 
+      guard let image = exportImageForCurrentSelection() else {
+        return false
+      }
       let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
       return pasteboard.writeObjects([nsImage])
     }
@@ -103,26 +102,59 @@ extension RegionSelectionView {
       return nil
     }
 
-    if stitchModeEnabled {
+    guard let cropRect = exportCropRectForCurrentSelection(in: image) else {
       return image
     }
 
+    return RustCoreBridge.shared.cropImage(image, imageRect: cropRect) ?? image.cropping(to: cropRect) ?? image
+  }
+
+  func encodedImageForCurrentSelection(format: RustImageEncodeFormat, jpegQuality: Int) -> Data? {
+    guard let image = canvasView.image else {
+      return nil
+    }
+
+    if let cropRect = exportCropRectForCurrentSelection(in: image) {
+      if let encoded = RustCoreBridge.shared.encodeImage(
+        image,
+        imageRect: cropRect,
+        format: format,
+        jpegQuality: jpegQuality
+      ) {
+        return encoded
+      }
+
+      guard let cropped = RustCoreBridge.shared.cropImage(image, imageRect: cropRect) ?? image.cropping(to: cropRect) else {
+        return nil
+      }
+      return RustCoreBridge.shared.encodeImage(cropped, format: format, jpegQuality: jpegQuality)
+    }
+
+    return RustCoreBridge.shared.encodeImage(image, format: format, jpegQuality: jpegQuality)
+  }
+
+  func exportCropRectForCurrentSelection(in image: CGImage) -> CGRect? {
+    guard !stitchModeEnabled else {
+      return nil
+    }
     guard let selection = committedSelectionRect?.standardized else {
-      return image
+      return nil
     }
 
     let selectionInCanvas = convert(selection, to: canvasView)
     guard let imageRect = canvasView.exportImageRect(fromViewRect: selectionInCanvas) else {
-      return image
+      return nil
     }
 
     let imageBounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
     let cropRect = imageRect.standardized.integral.intersection(imageBounds)
     guard !cropRect.isNull, cropRect.width >= 1, cropRect.height >= 1 else {
-      return image
+      return nil
     }
-
-    return RustCoreBridge.shared.cropImage(image, imageRect: cropRect) ?? image.cropping(to: cropRect) ?? image
+    if cropRect.equalTo(imageBounds) {
+      return nil
+    }
+    return cropRect
   }
 
   func ensureCaptureTargetIsResolved(forRecording: Bool) -> Bool {

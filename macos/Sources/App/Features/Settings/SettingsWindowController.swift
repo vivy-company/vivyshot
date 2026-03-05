@@ -96,8 +96,10 @@ struct VivyShotSettingsView: View {
             settings.setCaptureShortcut(keyCode: keyCode, modifierFlags: flags)
           }
         )
-        .frame(minWidth: 180, maxWidth: .infinity, minHeight: 28)
+        .frame(minWidth: 180, maxWidth: 320, minHeight: 28)
         .layoutPriority(1)
+
+        Spacer(minLength: 0)
 
         HStack(spacing: 8) {
           Button(isRecordingShortcut ? "Stop" : "Record") {

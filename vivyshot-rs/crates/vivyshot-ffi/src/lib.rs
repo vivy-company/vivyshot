@@ -33,7 +33,6 @@ use vivyshot_domain::{
     quantize_image_rect as domain_quantize_image_rect, quantize_rgba as domain_quantize_rgba,
     stitch_autoscroll_reset as domain_stitch_autoscroll_reset,
     stitch_autoscroll_update as domain_stitch_autoscroll_update,
-    stitch_crop_frame as domain_stitch_crop_frame,
     stitch_extract_strip as domain_stitch_extract_strip,
     stitch_merge_frames as domain_stitch_merge_frames,
     stitch_resize_width_nearest as domain_stitch_resize_width_nearest,

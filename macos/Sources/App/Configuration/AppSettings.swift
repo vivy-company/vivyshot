@@ -179,7 +179,7 @@ final class AppSettings: ObservableObject {
     self.defaults = defaults
 
     let storedKeyCode = defaults.object(forKey: Keys.captureKeyCode) as? Int
-    captureKeyCode = UInt32(storedKeyCode ?? Int(kVK_ANSI_2))
+    captureKeyCode = UInt32(storedKeyCode ?? Int(kVK_ANSI_C))
 
     if defaults.object(forKey: Keys.captureUseCommand) == nil {
       captureUseCommand = true
@@ -384,7 +384,7 @@ final class AppSettings: ObservableObject {
 
   func resetCaptureShortcut() {
     setCaptureShortcut(
-      keyCode: UInt32(kVK_ANSI_2),
+      keyCode: UInt32(kVK_ANSI_C),
       command: true,
       shift: true,
       option: false,

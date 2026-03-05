@@ -158,6 +158,18 @@ final class RegionSelectionView: NSView {
     updateSelectingHintVisibility(animated: false)
   }
 
+  deinit {
+    MainActor.assumeIsolated {
+      stitchCaptureTask?.cancel()
+      teardownGlobalTargetPickMonitors()
+      if let settingsObserver {
+        NotificationCenter.default.removeObserver(settingsObserver)
+        self.settingsObserver = nil
+      }
+      hideStitchControlPanel()
+    }
+  }
+
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     nil
@@ -811,10 +823,30 @@ final class RegionSelectionView: NSView {
   }
 
   func quickCopyFullScreenFromSelectingOverlay() {
-    let pasteboard = NSPasteboard.general
-    pasteboard.clearContents()
-    let nsImage = NSImage(cgImage: frozenImage, size: NSSize(width: frozenImage.width, height: frozenImage.height))
-    guard pasteboard.writeObjects([nsImage]) else {
+    let copied = autoreleasepool { () -> Bool in
+      let pasteboard = NSPasteboard.general
+      pasteboard.clearContents()
+
+      if let encodedPNG = RustCoreBridge.shared.encodeImage(
+        frozenImage,
+        format: .png,
+        jpegQuality: 100
+      ) {
+        let item = NSPasteboardItem()
+        item.setData(encodedPNG, forType: .png)
+        if pasteboard.writeObjects([item]) {
+          return true
+        }
+      }
+
+      let nsImage = NSImage(
+        cgImage: frozenImage,
+        size: NSSize(width: frozenImage.width, height: frozenImage.height)
+      )
+      return pasteboard.writeObjects([nsImage])
+    }
+
+    guard copied else {
       NSSound.beep()
       return
     }

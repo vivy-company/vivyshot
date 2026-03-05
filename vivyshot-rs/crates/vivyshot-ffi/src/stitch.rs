@@ -113,6 +113,52 @@ fn copy_bgra_view_to_owned(view: vs_bgra_image_view) -> Option<OwnedBgraFrame> {
     Some(OwnedBgraFrame::from_domain_owned(domain))
 }
 
+fn crop_bgra_view_to_owned(
+    source: vs_bgra_image_view,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> Option<OwnedBgraFrame> {
+    if width == 0 || height == 0 {
+        return None;
+    }
+
+    // SAFETY: `bgra_view_slice` validates all pointer/length invariants.
+    let (bytes, src_width, src_height, src_stride) = unsafe { bgra_view_slice(source) }?;
+    let x_end = x.checked_add(width)?;
+    let y_end = y.checked_add(height)?;
+    if x_end as usize > src_width || y_end as usize > src_height {
+        return None;
+    }
+
+    let x_usize = x as usize;
+    let y_usize = y as usize;
+    let out_width = width as usize;
+    let out_height = height as usize;
+    let out_stride = out_width.checked_mul(4)?;
+    let out_stride_u32 = u32::try_from(out_stride).ok()?;
+    let out_len = out_stride.checked_mul(out_height)?;
+    let x_offset = x_usize.checked_mul(4)?;
+
+    let mut pixels = vec![0u8; out_len];
+    for row in 0..out_height {
+        let src_start = (y_usize + row)
+            .checked_mul(src_stride)?
+            .checked_add(x_offset)?;
+        let dst_start = row.checked_mul(out_stride)?;
+        pixels[dst_start..dst_start + out_stride]
+            .copy_from_slice(&bytes[src_start..src_start + out_stride]);
+    }
+
+    Some(OwnedBgraFrame {
+        width,
+        height,
+        stride: out_stride_u32,
+        pixels,
+    })
+}
+
 fn extract_strip(frame: &OwnedBgraFrame, rows: u32, side: u8) -> Option<OwnedBgraFrame> {
     domain_stitch_extract_strip(&frame.to_domain_owned(), rows, side)
         .map(OwnedBgraFrame::from_domain_owned)
@@ -129,17 +175,6 @@ fn merge_bgra_frames(
     side: u8,
 ) -> Option<OwnedBgraFrame> {
     domain_stitch_merge_frames(&base.to_domain_owned(), &segment.to_domain_owned(), side)
-        .map(OwnedBgraFrame::from_domain_owned)
-}
-
-fn crop_bgra_frame(
-    frame: &OwnedBgraFrame,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-) -> Option<OwnedBgraFrame> {
-    domain_stitch_crop_frame(&frame.to_domain_owned(), x, y, width, height)
         .map(OwnedBgraFrame::from_domain_owned)
 }
 
@@ -644,11 +679,7 @@ pub unsafe extern "C" fn vs_bgra_crop(
         return -1;
     }
 
-    let source_owned = match copy_bgra_view_to_owned(source) {
-        Some(v) => v,
-        None => return -2,
-    };
-    let cropped = match crop_bgra_frame(&source_owned, x, y, width, height) {
+    let cropped = match crop_bgra_view_to_owned(source, x, y, width, height) {
         Some(v) => v,
         None => return -2,
     };

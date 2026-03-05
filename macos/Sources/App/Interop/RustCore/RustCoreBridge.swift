@@ -29,26 +29,11 @@ final class RustCoreBridge {
       return nil
     }
 
-    let standardized = imageRect.standardized.integral
-    let maxWidth = raster.width
-    let maxHeight = raster.height
-    guard maxWidth > 0, maxHeight > 0 else {
-      return nil
-    }
-
-    var x = Int(floor(standardized.minX))
-    var y = Int(floor(standardized.minY))
-    var width = Int(ceil(standardized.width))
-    var height = Int(ceil(standardized.height))
-    guard width > 0, height > 0 else {
-      return nil
-    }
-
-    x = min(max(0, x), maxWidth - 1)
-    y = min(max(0, y), maxHeight - 1)
-    width = min(width, maxWidth - x)
-    height = min(height, maxHeight - y)
-    guard width > 0, height > 0 else {
+    guard let cropRect = Self.normalizedCropRect(
+      imageRect,
+      maxWidth: raster.width,
+      maxHeight: raster.height
+    ) else {
       return nil
     }
 
@@ -70,10 +55,10 @@ final class RustCoreBridge {
       )
       return vs_bgra_crop(
         view,
-        UInt32(x),
-        UInt32(y),
-        UInt32(width),
-        UInt32(height),
+        UInt32(cropRect.x),
+        UInt32(cropRect.y),
+        UInt32(cropRect.width),
+        UInt32(cropRect.height),
         &rawCropped
       )
     }
@@ -160,6 +145,104 @@ final class RustCoreBridge {
       return nil
     }
     return Data(bytes: ptr, count: Int(rawBytes.len))
+  }
+
+  func encodeImage(
+    _ image: CGImage,
+    imageRect: CGRect,
+    format: RustImageEncodeFormat,
+    jpegQuality: Int = 90
+  ) -> Data? {
+    guard let raster = RasterImage.from(cgImage: image) else {
+      return nil
+    }
+    guard let cropRect = Self.normalizedCropRect(
+      imageRect,
+      maxWidth: raster.width,
+      maxHeight: raster.height
+    ) else {
+      return nil
+    }
+
+    var rawCropped = vs_bgra_owned_image(width: 0, height: 0, stride: 0, ptr: nil, len: 0)
+    defer {
+      vs_bgra_owned_image_destroy(&rawCropped)
+    }
+
+    var rawBytes = vs_encoded_bytes(ptr: nil, len: 0)
+    defer {
+      vs_encoded_bytes_destroy(&rawBytes)
+    }
+
+    let clampedQuality = UInt8(max(1, min(100, jpegQuality)))
+    let status = raster.pixels.withUnsafeBytes { raw in
+      guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+        return Int32(-1)
+      }
+
+      let sourceView = vs_bgra_image_view(
+        width: UInt32(raster.width),
+        height: UInt32(raster.height),
+        stride: UInt32(raster.stride),
+        ptr: base,
+        len: UInt(raw.count)
+      )
+
+      let cropStatus = vs_bgra_crop(
+        sourceView,
+        UInt32(cropRect.x),
+        UInt32(cropRect.y),
+        UInt32(cropRect.width),
+        UInt32(cropRect.height),
+        &rawCropped
+      )
+      guard cropStatus == 0, let croppedPtr = rawCropped.ptr, rawCropped.len > 0 else {
+        return cropStatus
+      }
+
+      let croppedView = vs_bgra_image_view(
+        width: rawCropped.width,
+        height: rawCropped.height,
+        stride: rawCropped.stride,
+        ptr: UnsafePointer(croppedPtr),
+        len: rawCropped.len
+      )
+      return vs_encode_bgra_image(croppedView, format.rawValue, clampedQuality, &rawBytes)
+    }
+
+    guard status == 0, let ptr = rawBytes.ptr, rawBytes.len > 0 else {
+      return nil
+    }
+    return Data(bytes: ptr, count: Int(rawBytes.len))
+  }
+
+  private static func normalizedCropRect(
+    _ imageRect: CGRect,
+    maxWidth: Int,
+    maxHeight: Int
+  ) -> (x: Int, y: Int, width: Int, height: Int)? {
+    guard maxWidth > 0, maxHeight > 0 else {
+      return nil
+    }
+
+    let standardized = imageRect.standardized.integral
+    var x = Int(floor(standardized.minX))
+    var y = Int(floor(standardized.minY))
+    var width = Int(ceil(standardized.width))
+    var height = Int(ceil(standardized.height))
+    guard width > 0, height > 0 else {
+      return nil
+    }
+
+    x = min(max(0, x), maxWidth - 1)
+    y = min(max(0, y), maxHeight - 1)
+    width = min(width, maxWidth - x)
+    height = min(height, maxHeight - y)
+    guard width > 0, height > 0 else {
+      return nil
+    }
+
+    return (x, y, width, height)
   }
 
   func computeVideoExportPlan(
@@ -783,5 +866,4 @@ final class RustCoreBridge {
     }
   }
 }
-
 
