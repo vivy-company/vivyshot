@@ -8,11 +8,11 @@
 [![Binary License](https://img.shields.io/badge/Binary-App%20Store%20EULA-6e7681?style=flat-square)](LICENSE-APPSTORE.md)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ff69b4?style=flat-square&logo=github)](https://github.com/sponsors/vivy-company)
 
-Capture, annotate, and compose polished screenshots and recordings on macOS.
+Rust-first capture and editing core for multiple desktop surfaces, with an official macOS app today.
 
 ## What Is VivyShot?
 
-VivyShot is a macOS capture workflow app with a Rust core for deterministic geometry, timeline, and export logic. It is designed for fast region capture, editing, and export with a native SwiftUI shell.
+VivyShot is a screenshot and recording workflow project built around a Rust core for deterministic geometry, timeline, and export logic. That core is designed to support multiple platform surfaces; the official supported surface today is the native macOS SwiftUI app.
 
 ## Features
 
@@ -30,6 +30,19 @@ VivyShot is a macOS capture workflow app with a Rust core for deterministic geom
 - SwiftUI macOS host app (`macos/`)
 - Rust portable core + C ABI (`vivyshot-rs/` + `ffi/vivyshot_core.h`)
 - ABI contract tests and property tests for FFI stability
+
+## Surface Strategy
+
+- Core engine in Rust (`vivyshot-rs`) is intentionally surface-agnostic.
+- Stable C ABI (`ffi/vivyshot_core.h`) is used to integrate with app surfaces.
+- Official supported surface today: macOS (`macos/`).
+- Planned future official surfaces: Windows and Linux.
+
+## Distribution And Pricing
+
+- Official macOS distribution is expected through the App Store.
+- App Store pricing/commercial model is not finalized yet and will be detailed later.
+- App Store binary license terms are documented in `LICENSE-APPSTORE.md`.
 
 ## Requirements
 
