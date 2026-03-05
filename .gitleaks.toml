@@ -1,0 +1,4 @@
+title = "VivyShot Gitleaks Config"
+
+[extend]
+useDefault = true
