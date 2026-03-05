@@ -34,6 +34,8 @@ struct VivyShotSettingsView: View {
   @State private var webcamDevices: [WebcamDeviceOption] = []
   @State private var draggingScreenshotTool: AnnotationTool?
   @State private var draggingVideoTool: VideoToolbarTool?
+  // TODO(vivyshot): Re-enable capture transition settings once enter/exit effects are stable.
+  private let captureTransitionEffectsVisible = false
 
   var body: some View {
     TabView(selection: $selectedTab) {
@@ -53,7 +55,9 @@ struct VivyShotSettingsView: View {
       settingsContainer {
         screenshotToolbarSection
         textToolSection
-        effectsSection
+        if captureTransitionEffectsVisible {
+          effectsSection
+        }
       }
       .tabItem { Label(SettingsTab.screenshot.title, systemImage: "camera") }
       .tag(SettingsTab.screenshot)

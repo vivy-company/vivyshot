@@ -15,6 +15,8 @@ struct RegionSelectionResult {
 
 @MainActor
 final class RegionSelectionOverlayController {
+  // TODO(vivyshot): Re-enable capture enter/exit transition effects once stable.
+  private let captureTransitionEffectsEnabled = false
   private let settings: AppSettings
   private var window: RegionSelectionWindow?
   private weak var selectionView: RegionSelectionView?
@@ -257,7 +259,7 @@ final class RegionSelectionOverlayController {
   }
 
   private func animateCaptureOverlayIn(_ window: NSWindow) {
-    let style = settings.captureTransitionStyle
+    let style = effectiveCaptureTransitionStyle
     let duration = transitionDuration(entering: true, style: style)
 
     switch style {
@@ -289,7 +291,7 @@ final class RegionSelectionOverlayController {
     selectionView: RegionSelectionView?,
     completion: (() -> Void)? = nil
   ) {
-    let style = settings.captureTransitionStyle
+    let style = effectiveCaptureTransitionStyle
     let duration = transitionDuration(entering: false, style: style)
 
     switch style {
@@ -359,6 +361,13 @@ final class RegionSelectionOverlayController {
       base = entering ? 0.33 : 0.28
     }
     return max(0.06, base / effectiveSpeed)
+  }
+
+  private var effectiveCaptureTransitionStyle: CaptureTransitionStyle {
+    guard captureTransitionEffectsEnabled else {
+      return .none
+    }
+    return settings.captureTransitionStyle
   }
 
   private func applyShaderTransition(
