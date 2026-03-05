@@ -50,17 +50,6 @@
                ReferencedContainer = "container:VivyShot.xcodeproj">
             </BuildableReference>
          </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "412A71EA04957CDDC2A9537A"
-               BuildableName = "VivyShotUITests.xctest"
-               BlueprintName = "VivyShotUITests"
-               ReferencedContainer = "container:VivyShot.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>
