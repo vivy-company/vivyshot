@@ -2,6 +2,7 @@ import SwiftUI
 
 enum UITestRuntime {
   static let launchFlag = "--uitest-mode"
+  @MainActor static var statusController: StatusItemController?
 
   static var isEnabled: Bool {
     ProcessInfo.processInfo.arguments.contains(launchFlag)
@@ -14,15 +15,18 @@ struct VivyShotApp: App {
 
   init() {
     let settings = AppSettings.shared
+    let controller: StatusItemController
     if UITestRuntime.isEnabled {
-      _statusController = StateObject(
-        wrappedValue: StatusItemController(
-          settings: settings,
-          captureCoordinatorFactory: { _ in UITestCaptureCoordinator() }
-        )
+      controller = StatusItemController(
+        settings: settings,
+        captureCoordinatorFactory: { _ in UITestCaptureCoordinator() }
       )
     } else {
-      _statusController = StateObject(wrappedValue: StatusItemController(settings: settings))
+      controller = StatusItemController(settings: settings)
+    }
+    _statusController = StateObject(wrappedValue: controller)
+    if UITestRuntime.isEnabled {
+      UITestRuntime.statusController = controller
     }
   }
 
@@ -38,11 +42,7 @@ struct VivyShotApp: App {
     .menuBarExtraStyle(.menu)
 
     Settings {
-      if UITestRuntime.isEnabled {
-        UITestHarnessView(statusController: statusController)
-      } else {
-        VivyShotSettingsView(settings: .shared)
-      }
+      VivyShotSettingsView(settings: .shared)
     }
   }
 }
@@ -89,31 +89,6 @@ private struct MenuBarMenuContent: View {
         visibleWindow.makeKeyAndOrderFront(nil)
       }
     }
-  }
-}
-
-private struct UITestHarnessView: View {
-  @ObservedObject var statusController: StatusItemController
-
-  private var recordingStateText: String {
-    statusController.isRecordingActive ? "recording" : "idle"
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      Text("VivyShot UI Test Harness")
-        .font(.headline)
-
-      Text(recordingStateText)
-        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-        .accessibilityIdentifier("recordingStateLabel")
-
-      Button(statusController.isRecordingActive ? "Stop Recording" : "Capture Region") {
-        statusController.captureOrStopPressed()
-      }
-      .accessibilityIdentifier("captureStopButton")
-    }
-    .padding(20)
   }
 }
 

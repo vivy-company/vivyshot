@@ -179,46 +179,44 @@ struct VivyShotSettingsView: View {
       HStack(spacing: 10) {
         Text("Accent")
           .frame(width: 78, alignment: .leading)
-        VStack(alignment: .leading, spacing: 8) {
-          HStack(spacing: 8) {
-            ForEach(ToolbarAccentPreset.allCases) { preset in
-              let selected = toolbarAccentMatchesPreset(preset)
-              Button {
-                settings.setToolbarAccentColor(preset.nsColor)
-              } label: {
-                Circle()
-                  .fill(Color(preset.nsColor))
-                  .frame(width: 16, height: 16)
-                  .overlay(
-                    Circle()
-                      .stroke(Color.primary.opacity(0.3), lineWidth: 1)
-                  )
-                  .overlay(
-                    Circle()
-                      .stroke(Color.white.opacity(0.95), lineWidth: selected ? 2 : 0)
-                  )
-              }
-              .buttonStyle(.plain)
-              .help(preset.title)
+        HStack(spacing: 8) {
+          ForEach(ToolbarAccentPreset.allCases) { preset in
+            let selected = toolbarAccentMatchesPreset(preset)
+            Button {
+              settings.setToolbarAccentColor(preset.nsColor)
+            } label: {
+              Circle()
+                .fill(Color(preset.nsColor))
+                .frame(width: 16, height: 16)
+                .overlay(
+                  Circle()
+                    .stroke(Color.primary.opacity(0.3), lineWidth: 1)
+                )
+                .overlay(
+                  Circle()
+                    .stroke(Color.white.opacity(0.95), lineWidth: selected ? 2 : 0)
+                )
             }
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
+            .help(preset.title)
           }
-
-          HStack(spacing: 10) {
-            Text("Custom")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            ColorPicker("Toolbar Accent", selection: toolbarAccentColorBinding, supportsOpacity: false)
-              .labelsHidden()
-              .frame(width: 120, alignment: .leading)
-          }
+          Rectangle()
+            .fill(Color.primary.opacity(0.16))
+            .frame(width: 1, height: 16)
+            .padding(.horizontal, 4)
+          Text("Custom")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          NativeColorWell(color: toolbarAccentNSColorBinding)
+            .frame(width: 28, height: 20)
         }
+        .frame(width: 320, alignment: .leading)
+        Spacer(minLength: 0)
       }
 
       HStack(spacing: 10) {
         Text("Main Action")
           .frame(width: 78, alignment: .leading)
-        Spacer(minLength: 0)
         Picker("Main Action Button", selection: screenshotMainActionBinding) {
           ForEach(ScreenshotMainAction.allCases) { action in
             Text(action.title).tag(action)
@@ -226,7 +224,8 @@ struct VivyShotSettingsView: View {
         }
         .labelsHidden()
         .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
+        .frame(width: 190, alignment: .leading)
+        Spacer(minLength: 0)
       }
 
       Text("Applied to screenshot main action and video record button.")
@@ -658,6 +657,13 @@ struct VivyShotSettingsView: View {
     Binding(
       get: { Color(settings.toolbarAccentColor) },
       set: { settings.setToolbarAccentColor(NSColor($0)) }
+    )
+  }
+
+  private var toolbarAccentNSColorBinding: Binding<NSColor> {
+    Binding(
+      get: { settings.toolbarAccentColor },
+      set: { settings.setToolbarAccentColor($0) }
     )
   }
 
