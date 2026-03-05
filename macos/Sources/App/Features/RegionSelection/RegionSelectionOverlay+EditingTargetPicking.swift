@@ -175,9 +175,7 @@ extension RegionSelectionView {
       } else {
         updateWindowCaptureHover(at: nil)
       }
-      if selectedCaptureMode == .screen || selectedCaptureMode == .window {
-        Self.captureCameraCursor.set()
-      }
+      applyEditingHoverCursor(at: localPoint(fromScreenPoint: NSEvent.mouseLocation))
       needsLayout = true
       needsDisplay = true
     } else {
@@ -235,9 +233,7 @@ extension RegionSelectionView {
       updateWindowCaptureHover(atScreenPoint: screenPoint)
     }
 
-    if selectedCaptureMode == .screen || selectedCaptureMode == .window {
-      Self.captureCameraCursor.set()
-    }
+    applyEditingHoverCursor(at: localPoint(fromScreenPoint: screenPoint))
   }
 
   func handleGlobalTargetPickClick(screenPoint: CGPoint) {

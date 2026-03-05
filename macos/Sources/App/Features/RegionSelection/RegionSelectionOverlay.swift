@@ -226,6 +226,25 @@ final class RegionSelectionView: NSView {
     }
   }
 
+  func applyEditingHoverCursor(at point: CGPoint?) {
+    guard mode == .editing else {
+      return
+    }
+
+    if let point,
+       (toolbarHost.frame.contains(point) || captureTypeHost.frame.contains(point))
+    {
+      NSCursor.arrow.set()
+      return
+    }
+
+    if selectedCaptureMode == .screen || selectedCaptureMode == .window {
+      Self.captureCameraCursor.set()
+    } else {
+      NSCursor.arrow.set()
+    }
+  }
+
   override func mouseDown(with event: NSEvent) {
     let point = convert(event.locationInWindow, from: nil)
 
@@ -283,6 +302,7 @@ final class RegionSelectionView: NSView {
   override func mouseMoved(with event: NSEvent) {
     let point = convert(event.locationInWindow, from: nil)
     updateWindowCaptureHover(at: point)
+    applyEditingHoverCursor(at: point)
   }
 
   override func mouseExited(with _: NSEvent) {
