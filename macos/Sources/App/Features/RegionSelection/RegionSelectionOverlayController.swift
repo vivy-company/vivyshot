@@ -111,11 +111,13 @@ final class RegionSelectionOverlayController {
     window.onSave = { [weak selectionView] in
       selectionView?.performSaveShortcut()
     }
-    window.onAddStitchSegment = { [weak selectionView] in
-      selectionView?.performAddStitchSegmentShortcut()
-    }
-    window.onResetStitch = { [weak selectionView] in
-      selectionView?.performResetStitchShortcut()
+    if selectionView.stitchCaptureFeatureVisible {
+      window.onAddStitchSegment = { [weak selectionView] in
+        selectionView?.performAddStitchSegmentShortcut()
+      }
+      window.onResetStitch = { [weak selectionView] in
+        selectionView?.performResetStitchShortcut()
+      }
     }
     window.onZoomIn = { [weak selectionView] in
       selectionView?.performZoomInShortcut()
@@ -670,13 +672,17 @@ final class RegionSelectionWindow: NSWindow {
         return true
       }
     case "n":
-      if flags == .command {
-        onAddStitchSegment?()
+      if flags == .command,
+         let onAddStitchSegment
+      {
+        onAddStitchSegment()
         return true
       }
     case "r":
-      if flags == .command {
-        onResetStitch?()
+      if flags == .command,
+         let onResetStitch
+      {
+        onResetStitch()
         return true
       }
     case "+", "=":

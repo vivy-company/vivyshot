@@ -106,6 +106,8 @@ final class RegionSelectionView: NSView {
   var postStitchEditorMode = false
   // Keep frame cadence high enough for reliable overlap without overspeeding.
   let stitchCaptureInterval: TimeInterval = 0.12
+  // TODO(vivyshot): Re-enable scrolling capture once auto-scroll is production-ready.
+  let stitchCaptureFeatureVisible = false
   var stitchAutoScrollEnabled = true
   var stitchAutoScrollDirectionSign: Int32 = -1
   var stitchAutoScrollNoMotionTicks = 0

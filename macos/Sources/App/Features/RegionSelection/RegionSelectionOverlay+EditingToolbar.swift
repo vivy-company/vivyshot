@@ -40,14 +40,14 @@ extension RegionSelectionView {
       onSave: { [weak self] in
         self?.performSave()
       },
-      onAddStitchSegment: { [weak self] in
+      onAddStitchSegment: stitchCaptureFeatureVisible ? { [weak self] in
         self?.addStitchSegment()
-      },
-      onResetStitch: stitchModeEnabled ? { [weak self] in
+      } : nil,
+      onResetStitch: stitchCaptureFeatureVisible && stitchModeEnabled ? { [weak self] in
         self?.resetStitch()
       } : nil,
-      isStitchRecordingActive: stitchRecordingActive,
-      isStitchCaptureInProgress: stitchCaptureInProgress,
+      isStitchRecordingActive: stitchCaptureFeatureVisible && stitchRecordingActive,
+      isStitchCaptureInProgress: stitchCaptureFeatureVisible && stitchCaptureInProgress,
       mainAction: settings.screenshotMainAction,
       onMainAction: { [weak self] in
         guard let self else { return }
