@@ -11,6 +11,14 @@ import ScreenCaptureKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private func releaseDetachedPixelBuffer(
+  _ info: UnsafeMutableRawPointer?,
+  _ data: UnsafeRawPointer,
+  _ size: Int
+) {
+  free(UnsafeMutableRawPointer(mutating: data))
+}
+
 @MainActor
 final class CaptureCoordinator: CaptureCoordinating {
   private let settings: AppSettings
@@ -209,9 +217,7 @@ final class CaptureCoordinator: CaptureCoordinating {
       dataInfo: nil,
       data: pixelBuffer,
       size: byteCount,
-      releaseData: { _, data, _ in
-        free(UnsafeMutableRawPointer(mutating: data))
-      }
+      releaseData: releaseDetachedPixelBuffer
     ) else {
       free(pixelBuffer)
       return nil

@@ -13,7 +13,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       }
     } else {
       NSApp.setActivationPolicy(.accessory)
+      DispatchQueue.main.async {
+        CrashReporter.shared.presentRecoveredCrashNoticeIfNeeded()
+      }
     }
+  }
+
+  func applicationWillTerminate(_ notification: Notification) {
+    CrashReporter.shared.markCleanShutdown()
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

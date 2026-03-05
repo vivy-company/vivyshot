@@ -14,6 +14,10 @@ struct VivyShotApp: App {
   @StateObject private var statusController: StatusItemController
 
   init() {
+    if !UITestRuntime.isEnabled {
+      CrashReporter.shared.install()
+    }
+
     let settings = AppSettings.shared
     let controller: StatusItemController
     if UITestRuntime.isEnabled {

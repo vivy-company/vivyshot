@@ -24,6 +24,7 @@
 		43D993EA20092F40EA0D3CB9 /* EditorTextStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECAAB5FA3ACCCC7F511ED16F /* EditorTextStyle.swift */; };
 		4619D08016382187A7381A38 /* VivyShotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B41D12D461242E09C0229723 /* VivyShotTests.swift */; };
 		479B2BACE55FE843C36C3F41 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922EEDDAB5DDA68657086F6B /* main.swift */; };
+		48E5F1B2D7D64E9AA35AAB10 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E5F1B1D7D64E9AA35AAB10 /* CrashReporter.swift */; };
 		53B136B76F4024389FDCB678 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C89348136A4D786A65F23AB /* LiquidGlassViews.swift */; };
 		54F62A84A4DC6DEF2D2638E2 /* UITestHarnessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9691E54D1A8568CA2DBD761 /* UITestHarnessView.swift */; };
 		5CC7C99A84FE04E9964F47B0 /* RegionSelectionOverlay+EditingLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EEA120B0840BC71D568CE6 /* RegionSelectionOverlay+EditingLayout.swift */; };
@@ -85,6 +86,7 @@
 		8AF6AFA34F28C17CC7B6AFDA /* VivyShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VivyShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8C89348136A4D786A65F23AB /* LiquidGlassViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassViews.swift; sourceTree = "<group>"; };
 		922EEDDAB5DDA68657086F6B /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		48E5F1B1D7D64E9AA35AAB10 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
 		92E875AD1F0A17527B95AE31 /* RustCoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustCoreBridge.swift; sourceTree = "<group>"; };
 		9AFF4B492AFB282FA2BACB4D /* RustDocumentSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustDocumentSession.swift; sourceTree = "<group>"; };
 		A9C96141627350F4D18ECD88 /* TransientToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransientToast.swift; sourceTree = "<group>"; };
@@ -244,6 +246,7 @@
 			isa = PBXGroup;
 			children = (
 				8187D1FE4C35E2B75201299B /* AppDelegate.swift */,
+				48E5F1B1D7D64E9AA35AAB10 /* CrashReporter.swift */,
 				2F432870534B2F4FE175B3C2 /* GlobalHotKeyManager.swift */,
 				922EEDDAB5DDA68657086F6B /* main.swift */,
 				CE5399CE50A9B2FDAFF8CA9F /* StatusItemController.swift */,
@@ -392,6 +395,7 @@
 				334BCD9713252C7120CE9A27 /* AnnotationTool.swift in Sources */,
 				F86BB23A4BB8E2E542234B49 /* AppDelegate.swift in Sources */,
 				3AECEA6788A23BB1D307B14F /* AppSettings.swift in Sources */,
+				48E5F1B2D7D64E9AA35AAB10 /* CrashReporter.swift in Sources */,
 				EE2BEDED29E40981A97CFFD6 /* CaptureCoordinator.swift in Sources */,
 				65BC0A5A8C4D59D139B0245C /* CaptureCoordinatorProtocol.swift in Sources */,
 				2F98E5FBA54732922C0F3ED1 /* CaptureGlassViews.swift in Sources */,
