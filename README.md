@@ -1,6 +1,7 @@
 # VivyShot
 
 [![macOS](https://img.shields.io/badge/macOS-15.2+-black?style=flat-square&logo=apple)](#requirements)
+[![Website](https://img.shields.io/badge/Website-vivyshot.com-0a66c2?style=flat-square)](https://vivyshot.com)
 [![Swift](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift&logoColor=white)](https://swift.org)
 [![Rust](https://img.shields.io/badge/Rust-stable-000000?style=flat-square&logo=rust)](https://www.rust-lang.org)
 [![Rust Core License](https://img.shields.io/badge/Rust%20Core-MIT-green?style=flat-square)](LICENSE)
