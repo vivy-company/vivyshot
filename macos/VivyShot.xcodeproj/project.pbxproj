@@ -27,8 +27,10 @@
 		53B136B76F4024389FDCB678 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C89348136A4D786A65F23AB /* LiquidGlassViews.swift */; };
 		5CC7C99A84FE04E9964F47B0 /* RegionSelectionOverlay+EditingLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EEA120B0840BC71D568CE6 /* RegionSelectionOverlay+EditingLayout.swift */; };
 		614A4376D4B7E27F5A8D87C5 /* RegionSelectionOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5EAF3C29324BC59291E1A59 /* RegionSelectionOverlayController.swift */; };
+		65BC0A5A8C4D59D139B0245C /* CaptureCoordinatorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB28816CC8084D1B183EAB1 /* CaptureCoordinatorProtocol.swift */; };
 		698F95F7CDB17D4732AAF974 /* RegionSelectionOverlay+Export.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28A6F43ACDC1F439F3576B3E /* RegionSelectionOverlay+Export.swift */; };
 		70A83E1153A8C3548B3D59DD /* RegionSelectionOverlay+Stitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A7C0AF3811B144640A1EC5E /* RegionSelectionOverlay+Stitch.swift */; };
+		737BC74C3DCE65BCF86FD5E9 /* VivyShotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D5B586DBC4AFD2443A0FF8B /* VivyShotUITests.swift */; };
 		767A786D8BDA2122D1C1C8A7 /* VideoCaptureUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4220C2A3DBFDB5039B1381 /* VideoCaptureUI.swift */; };
 		7B2C71F0BC07D1D676B5DABC /* CaptureShaderTransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE20CCE59EE20FE605CFA6FD /* CaptureShaderTransitionView.swift */; };
 		8704CA1314A3BED7679C8A27 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FE5DA67C786B683E58A2B1A /* SettingsWindowController.swift */; };
@@ -50,6 +52,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		95FCB3A116605C40C9F44A1E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6B930F60F68F822EA982EBAB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 32E80109356F554283C3D146;
+			remoteInfo = VivyShot;
+		};
 		AC110FFFAF7B173A05C984FF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 6B930F60F68F822EA982EBAB /* Project object */;
@@ -61,6 +70,7 @@
 
 /* Begin PBXFileReference section */
 		03F33B526AE66F6F7197D725 /* RegionSelectionOverlay+EditingSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingSelection.swift"; sourceTree = "<group>"; };
+		0D5B586DBC4AFD2443A0FF8B /* VivyShotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VivyShotUITests.swift; sourceTree = "<group>"; };
 		10E44C1A62C88CBB945A7AF4 /* AnnotationCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvasView.swift; sourceTree = "<group>"; };
 		11E4EA737BCAD29F3EE51FFA /* RegionSelectionOverlay+EditingToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingToolbar.swift"; sourceTree = "<group>"; };
 		19A1AFDC17A789D30DA0B5D0 /* RegionSelectionOverlay+EditingUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingUI.swift"; sourceTree = "<group>"; };
@@ -95,6 +105,7 @@
 		C54A0E7205A0D030FE93C949 /* AnnotationCanvasView+Geometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AnnotationCanvasView+Geometry.swift"; sourceTree = "<group>"; };
 		C7CB3680D67A271DD95942D6 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		CA41A2A953FDED58C9587FF3 /* RustCoreTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustCoreTypes.swift; sourceTree = "<group>"; };
+		CAFBD165B875D46D12A2F68E /* VivyShotUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VivyShotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE5399CE50A9B2FDAFF8CA9F /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
 		DE20CCE59EE20FE605CFA6FD /* CaptureShaderTransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureShaderTransitionView.swift; sourceTree = "<group>"; };
 		E2EEA120B0840BC71D568CE6 /* RegionSelectionOverlay+EditingLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingLayout.swift"; sourceTree = "<group>"; };
@@ -102,6 +113,7 @@
 		EA17DB09C430A0ED8B3F7FDB /* VivyShotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VivyShotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ECAAB5FA3ACCCC7F511ED16F /* EditorTextStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTextStyle.swift; sourceTree = "<group>"; };
 		ED06405596D45D6EDA73C8E9 /* RustVideoSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustVideoSession.swift; sourceTree = "<group>"; };
+		FAB28816CC8084D1B183EAB1 /* CaptureCoordinatorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinatorProtocol.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -160,6 +172,7 @@
 			children = (
 				8AF6AFA34F28C17CC7B6AFDA /* VivyShot.app */,
 				EA17DB09C430A0ED8B3F7FDB /* VivyShotTests.xctest */,
+				CAFBD165B875D46D12A2F68E /* VivyShotUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -220,6 +233,7 @@
 			isa = PBXGroup;
 			children = (
 				2A4E7B7345BA36B009097C83 /* CaptureCoordinator.swift */,
+				FAB28816CC8084D1B183EAB1 /* CaptureCoordinatorProtocol.swift */,
 				DE20CCE59EE20FE605CFA6FD /* CaptureShaderTransitionView.swift */,
 				2A63F21778CC5E87650878CA /* VideoCaptureComponents.swift */,
 				5B4220C2A3DBFDB5039B1381 /* VideoCaptureUI.swift */,
@@ -269,8 +283,17 @@
 			children = (
 				8B422C4740AC8426F45C3B6C /* Sources */,
 				0BDB740333D2E24128A5448D /* Tests */,
+				F098DB1D440FD0721A0A2C91 /* UITests */,
 				7A5D82ED2F4E224575DF5A1A /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		F098DB1D440FD0721A0A2C91 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				0D5B586DBC4AFD2443A0FF8B /* VivyShotUITests.swift */,
+			);
+			path = UITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -293,6 +316,24 @@
 			productName = VivyShot;
 			productReference = 8AF6AFA34F28C17CC7B6AFDA /* VivyShot.app */;
 			productType = "com.apple.product-type.application";
+		};
+		412A71EA04957CDDC2A9537A /* VivyShotUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B394B7E1592A110A316E103 /* Build configuration list for PBXNativeTarget "VivyShotUITests" */;
+			buildPhases = (
+				AD9EA0957D6B4C8FC43667B6 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9091AC759FBD51509A05F54E /* PBXTargetDependency */,
+			);
+			name = VivyShotUITests;
+			packageProductDependencies = (
+			);
+			productName = VivyShotUITests;
+			productReference = CAFBD165B875D46D12A2F68E /* VivyShotUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		E7025B48E218D8F68C3D47D7 /* VivyShotTests */ = {
 			isa = PBXNativeTarget;
@@ -325,6 +366,11 @@
 						DevelopmentTeam = QW4U57CXJX;
 						ProvisioningStyle = Automatic;
 					};
+					412A71EA04957CDDC2A9537A = {
+						DevelopmentTeam = QW4U57CXJX;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 32E80109356F554283C3D146;
+					};
 					E7025B48E218D8F68C3D47D7 = {
 						DevelopmentTeam = QW4U57CXJX;
 						ProvisioningStyle = Automatic;
@@ -347,6 +393,7 @@
 			targets = (
 				32E80109356F554283C3D146 /* VivyShot */,
 				E7025B48E218D8F68C3D47D7 /* VivyShotTests */,
+				412A71EA04957CDDC2A9537A /* VivyShotUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -387,6 +434,7 @@
 				F86BB23A4BB8E2E542234B49 /* AppDelegate.swift in Sources */,
 				3AECEA6788A23BB1D307B14F /* AppSettings.swift in Sources */,
 				EE2BEDED29E40981A97CFFD6 /* CaptureCoordinator.swift in Sources */,
+				65BC0A5A8C4D59D139B0245C /* CaptureCoordinatorProtocol.swift in Sources */,
 				2F98E5FBA54732922C0F3ED1 /* CaptureGlassViews.swift in Sources */,
 				3EAA37C88CD88FE24C7522BC /* CaptureMode.swift in Sources */,
 				128ED047EFB46402DF86FBCE /* CaptureOverlayToolbars.swift in Sources */,
@@ -420,6 +468,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AD9EA0957D6B4C8FC43667B6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				737BC74C3DCE65BCF86FD5E9 /* VivyShotUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F8800440F04F79B323ADB802 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -436,9 +492,32 @@
 			target = 32E80109356F554283C3D146 /* VivyShot */;
 			targetProxy = AC110FFFAF7B173A05C984FF /* PBXContainerItemProxy */;
 		};
+		9091AC759FBD51509A05F54E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 32E80109356F554283C3D146 /* VivyShot */;
+			targetProxy = 95FCB3A116605C40C9F44A1E /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		0493684F3FC9396AD3E27449 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.uitests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = VivyShot;
+			};
+			name = Debug;
+		};
 		1A29B54E95C48214A91C17A0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -465,6 +544,24 @@
 				PRODUCT_NAME = VivyShot;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "Config/VivyShot-Bridging-Header.h";
+			};
+			name = Release;
+		};
+		517F113219EEC51881CDDA43 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.uitests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = VivyShot;
 			};
 			name = Release;
 		};
@@ -681,6 +778,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		5B394B7E1592A110A316E103 /* Build configuration list for PBXNativeTarget "VivyShotUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0493684F3FC9396AD3E27449 /* Debug */,
+				517F113219EEC51881CDDA43 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		5ED20F0FE49FA24678DB2CE4 /* Build configuration list for PBXNativeTarget "VivyShotTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

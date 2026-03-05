@@ -26,6 +26,7 @@ schemes:
     test:
       targets:
         - name: VivyShotTests
+        - name: VivyShotUITests
 
 targets:
   VivyShot:
@@ -89,3 +90,16 @@ targets:
         OTHER_LDFLAGS:
           - "$(inherited)"
           - "$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a"
+
+  VivyShotUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "15.2"
+    sources:
+      - path: UITests
+    dependencies:
+      - target: VivyShot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.uitests
+        GENERATE_INFOPLIST_FILE: YES

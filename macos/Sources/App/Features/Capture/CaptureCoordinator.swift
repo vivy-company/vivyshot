@@ -12,7 +12,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 @MainActor
-final class CaptureCoordinator {
+final class CaptureCoordinator: CaptureCoordinating {
   private let settings: AppSettings
   private let selectionOverlay: RegionSelectionOverlayController
   private let videoCaptureCoordinator: VideoCaptureCoordinator

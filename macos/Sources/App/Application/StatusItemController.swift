@@ -5,13 +5,17 @@ import AppKit
 @MainActor
 final class StatusItemController: ObservableObject {
   private let settings: AppSettings
-  private lazy var captureCoordinator = CaptureCoordinator(settings: settings)
+  private let captureCoordinator: CaptureCoordinating
   private let hotKeyManager = GlobalHotKeyManager()
   private var settingsObserver: NSObjectProtocol?
   @Published private(set) var isRecordingActive = false
 
-  init(settings: AppSettings = .shared) {
+  init(
+    settings: AppSettings = .shared,
+    captureCoordinatorFactory: ((AppSettings) -> CaptureCoordinating)? = nil
+  ) {
     self.settings = settings
+    self.captureCoordinator = captureCoordinatorFactory?(settings) ?? CaptureCoordinator(settings: settings)
     configureHotKey()
     observeSettingsChanges()
     observeRecordingState()

@@ -179,10 +179,40 @@ struct VivyShotSettingsView: View {
       HStack(spacing: 10) {
         Text("Accent")
           .frame(width: 78, alignment: .leading)
-        Spacer(minLength: 0)
-        ColorPicker("Toolbar Accent", selection: toolbarAccentColorBinding, supportsOpacity: false)
-          .labelsHidden()
-          .frame(width: 190, alignment: .trailing)
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(spacing: 8) {
+            ForEach(ToolbarAccentPreset.allCases) { preset in
+              let selected = toolbarAccentMatchesPreset(preset)
+              Button {
+                settings.setToolbarAccentColor(preset.nsColor)
+              } label: {
+                Circle()
+                  .fill(Color(preset.nsColor))
+                  .frame(width: 16, height: 16)
+                  .overlay(
+                    Circle()
+                      .stroke(Color.primary.opacity(0.3), lineWidth: 1)
+                  )
+                  .overlay(
+                    Circle()
+                      .stroke(Color.white.opacity(0.95), lineWidth: selected ? 2 : 0)
+                  )
+              }
+              .buttonStyle(.plain)
+              .help(preset.title)
+            }
+            Spacer(minLength: 0)
+          }
+
+          HStack(spacing: 10) {
+            Text("Custom")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            ColorPicker("Toolbar Accent", selection: toolbarAccentColorBinding, supportsOpacity: false)
+              .labelsHidden()
+              .frame(width: 120, alignment: .leading)
+          }
+        }
       }
 
       HStack(spacing: 10) {
@@ -203,6 +233,10 @@ struct VivyShotSettingsView: View {
         .font(.caption)
         .foregroundStyle(.secondary)
     }
+  }
+
+  private func toolbarAccentMatchesPreset(_ preset: ToolbarAccentPreset) -> Bool {
+    ToolbarAccentPreset.matches(settings.toolbarAccentColor, preset: preset)
   }
 
   private var screenshotToolbarSection: some View {
@@ -770,6 +804,66 @@ struct VivyShotSettingsView: View {
 private struct WebcamDeviceOption: Identifiable, Hashable {
   let id: String
   let name: String
+}
+
+private enum ToolbarAccentPreset: String, CaseIterable, Identifiable {
+  case blue
+  case green
+  case orange
+  case red
+  case pink
+  case purple
+  case gray
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .blue:
+      return "Blue"
+    case .green:
+      return "Green"
+    case .orange:
+      return "Orange"
+    case .red:
+      return "Red"
+    case .pink:
+      return "Pink"
+    case .purple:
+      return "Purple"
+    case .gray:
+      return "Gray"
+    }
+  }
+
+  var nsColor: NSColor {
+    switch self {
+    case .blue:
+      return .systemBlue
+    case .green:
+      return .systemGreen
+    case .orange:
+      return .systemOrange
+    case .red:
+      return .systemRed
+    case .pink:
+      return .systemPink
+    case .purple:
+      return .systemPurple
+    case .gray:
+      return .systemGray
+    }
+  }
+
+  static func matches(_ color: NSColor, preset: ToolbarAccentPreset) -> Bool {
+    let lhs = color.usingColorSpace(.deviceRGB) ?? color
+    let rhs = preset.nsColor.usingColorSpace(.deviceRGB) ?? preset.nsColor
+    let epsilon: CGFloat = 0.005
+    return abs(lhs.redComponent - rhs.redComponent) <= epsilon
+      && abs(lhs.greenComponent - rhs.greenComponent) <= epsilon
+      && abs(lhs.blueComponent - rhs.blueComponent) <= epsilon
+      && abs(lhs.alphaComponent - rhs.alphaComponent) <= epsilon
+  }
 }
 
 private struct ReorderHandleGlyph: View {
