@@ -36,6 +36,12 @@ struct VivyShotSettingsView: View {
   @State private var draggingVideoTool: VideoToolbarTool?
   // TODO(vivyshot): Re-enable capture transition settings once enter/exit effects are stable.
   private let captureTransitionEffectsVisible = false
+  // TODO(vivyshot): Re-enable microphone capture settings once video recording support is production-ready.
+  private let videoMicrophoneFeatureVisible = false
+  // TODO(vivyshot): Re-enable webcam settings once video recording support is production-ready.
+  private let videoWebcamFeatureVisible = false
+  // TODO(vivyshot): Re-enable keystroke highlight settings once video recording support is production-ready.
+  private let videoKeystrokesFeatureVisible = false
 
   var body: some View {
     TabView(selection: $selectedTab) {
@@ -72,7 +78,9 @@ struct VivyShotSettingsView: View {
     .frame(minWidth: 500, minHeight: 620)
     .onAppear {
       availableFamilies = AppSettings.availableTextFontFamilyNames()
-      refreshWebcamDevices()
+      if videoWebcamFeatureVisible {
+        refreshWebcamDevices()
+      }
     }
   }
 
@@ -323,11 +331,15 @@ struct VivyShotSettingsView: View {
 
       Toggle("Record system audio", isOn: videoRecordSystemAudioBinding)
         .toggleStyle(.switch)
-      Toggle("Record microphone", isOn: videoRecordMicrophoneBinding)
-        .toggleStyle(.switch)
-      Toggle("Show webcam", isOn: videoShowWebcamBinding)
-        .toggleStyle(.switch)
-      if settings.videoShowWebcam {
+      if videoMicrophoneFeatureVisible {
+        Toggle("Record microphone", isOn: videoRecordMicrophoneBinding)
+          .toggleStyle(.switch)
+      }
+      if videoWebcamFeatureVisible {
+        Toggle("Show webcam", isOn: videoShowWebcamBinding)
+          .toggleStyle(.switch)
+      }
+      if videoWebcamFeatureVisible, settings.videoShowWebcam {
         HStack(spacing: 10) {
           Text("Camera")
             .frame(width: 78, alignment: .leading)
@@ -378,15 +390,19 @@ struct VivyShotSettingsView: View {
       }
       Toggle("Highlight mouse clicks", isOn: videoHighlightMouseClicksBinding)
         .toggleStyle(.switch)
-      Toggle("Highlight keystrokes", isOn: videoHighlightKeystrokesBinding)
-        .toggleStyle(.switch)
+      if videoKeystrokesFeatureVisible {
+        Toggle("Highlight keystrokes", isOn: videoHighlightKeystrokesBinding)
+          .toggleStyle(.switch)
+      }
       Toggle("Hide notifications (best effort)", isOn: videoHideNotificationsBestEffortBinding)
         .toggleStyle(.switch)
 
       HStack {
-        Text("Webcam and keystroke overlays require additional permissions.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        if videoWebcamFeatureVisible || videoKeystrokesFeatureVisible {
+          Text(permissionOverlaySummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
         Spacer()
         Button("Reset Video") {
           settings.resetVideoCaptureSettings()
@@ -403,44 +419,46 @@ struct VivyShotSettingsView: View {
 
       VStack(spacing: 0) {
         ForEach(settings.videoToolOrder) { tool in
-          HStack(spacing: 10) {
-            Image(systemName: tool.symbolName)
-              .frame(width: 18)
-              .foregroundStyle(.secondary)
+          if shouldShowVideoToolbarTool(tool) {
+            HStack(spacing: 10) {
+              Image(systemName: tool.symbolName)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
 
-            Text(tool.title)
-              .frame(maxWidth: .infinity, alignment: .leading)
+              Text(tool.title)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Toggle("", isOn: videoToolVisibilityBinding(for: tool))
-              .toggleStyle(.checkbox)
-              .labelsHidden()
+              Toggle("", isOn: videoToolVisibilityBinding(for: tool))
+                .toggleStyle(.checkbox)
+                .labelsHidden()
 
-            ReorderHandleGlyph(active: draggingVideoTool == tool)
-              .onDrag {
-                draggingVideoTool = tool
-                return NSItemProvider(object: NSString(string: "\(tool.rawValue)"))
-              }
-              .help("Drag to reorder")
-          }
-          .padding(.horizontal, 4)
-          .padding(.vertical, 5)
-          .contentShape(Rectangle())
-          .background(
-            RoundedRectangle(cornerRadius: 7)
-              .fill(draggingVideoTool == tool ? Color.primary.opacity(0.08) : .clear)
-          )
-          .onDrop(
-            of: ["public.text"],
-            delegate: VideoToolbarToolDropDelegate(
-              target: tool,
-              currentOrder: settings.videoToolOrder,
-              draggingTool: $draggingVideoTool,
-              onMove: settings.moveVideoTools
+              ReorderHandleGlyph(active: draggingVideoTool == tool)
+                .onDrag {
+                  draggingVideoTool = tool
+                  return NSItemProvider(object: NSString(string: "\(tool.rawValue)"))
+                }
+                .help("Drag to reorder")
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+            .background(
+              RoundedRectangle(cornerRadius: 7)
+                .fill(draggingVideoTool == tool ? Color.primary.opacity(0.08) : .clear)
             )
-          )
+            .onDrop(
+              of: ["public.text"],
+              delegate: VideoToolbarToolDropDelegate(
+                target: tool,
+                currentOrder: settings.videoToolOrder,
+                draggingTool: $draggingVideoTool,
+                onMove: settings.moveVideoTools
+              )
+            )
 
-          if tool != settings.videoToolOrder.last {
-            Divider().opacity(0.35)
+            if tool != lastVisibleVideoToolbarTool {
+              Divider().opacity(0.35)
+            }
           }
         }
       }
@@ -566,6 +584,36 @@ struct VivyShotSettingsView: View {
       get: { settings.isVideoToolVisible(tool) },
       set: { settings.setVideoToolVisible(tool, isVisible: $0) }
     )
+  }
+
+  private var lastVisibleVideoToolbarTool: VideoToolbarTool? {
+    settings.videoToolOrder.last(where: shouldShowVideoToolbarTool)
+  }
+
+  private func shouldShowVideoToolbarTool(_ tool: VideoToolbarTool) -> Bool {
+    switch tool {
+    case .microphone:
+      return videoMicrophoneFeatureVisible
+    case .webcam:
+      return videoWebcamFeatureVisible
+    case .keystrokes:
+      return videoKeystrokesFeatureVisible
+    default:
+      return true
+    }
+  }
+
+  private var permissionOverlaySummary: String {
+    if videoWebcamFeatureVisible && videoKeystrokesFeatureVisible {
+      return "Webcam and keystroke overlays require additional permissions."
+    }
+    if videoWebcamFeatureVisible {
+      return "Webcam overlays require additional permissions."
+    }
+    if videoKeystrokesFeatureVisible {
+      return "Keystroke overlays require additional permissions."
+    }
+    return ""
   }
 
   @ViewBuilder

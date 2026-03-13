@@ -12,6 +12,12 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class VideoCaptureCoordinator {
+  // TODO(vivyshot): Re-enable microphone capture once video recording support is production-ready.
+  private let videoMicrophoneFeatureEnabled = false
+  // TODO(vivyshot): Re-enable webcam overlay once video recording support is production-ready.
+  private let videoWebcamFeatureEnabled = false
+  // TODO(vivyshot): Re-enable keystroke highlighting once video recording support is production-ready.
+  private let videoKeystrokesFeatureEnabled = false
   private let settings: AppSettings
   private var recorder: ScreenRegionRecorder?
   private var webcamRecorder: WebcamRecorder?
@@ -60,12 +66,15 @@ final class VideoCaptureCoordinator {
         try await ensureRuntimePermissions()
 
         let outputURL = makeTemporaryRecordingURL()
+        let microphoneEnabled = effectiveCaptureMicrophoneEnabled
+        let webcamEnabled = effectiveShowWebcamEnabled
+        let keystrokesEnabled = effectiveHighlightKeystrokesEnabled
         let recordingConfig = VideoRecordingConfig(
           codec: settings.videoCodec,
           frameRate: settings.videoFrameRate.rawValue,
           highlightMouseClicks: settings.videoHighlightMouseClicks,
           captureSystemAudio: settings.videoRecordSystemAudio,
-          captureMicrophone: settings.videoRecordMicrophone
+          captureMicrophone: microphoneEnabled
         )
         let recorder = ScreenRegionRecorder(
           selectionRectInScreen: recordingRect,
@@ -76,19 +85,19 @@ final class VideoCaptureCoordinator {
           config: RustVideoSessionConfig(
             frameRate: settings.videoFrameRate.rawValue,
             captureSystemAudio: settings.videoRecordSystemAudio,
-            captureMicrophone: settings.videoRecordMicrophone,
-            showWebcam: settings.videoShowWebcam,
+            captureMicrophone: microphoneEnabled,
+            showWebcam: webcamEnabled,
             highlightMouseClicks: settings.videoHighlightMouseClicks,
-            highlightKeystrokes: settings.videoHighlightKeystrokes
+            highlightKeystrokes: keystrokesEnabled
           )
         )
 
-        let capturesKeystrokes = settings.videoHighlightKeystrokes && isAccessibilityTrusted(promptIfNeeded: false)
-        if settings.videoHighlightKeystrokes && !capturesKeystrokes {
+        let capturesKeystrokes = keystrokesEnabled && isAccessibilityTrusted(promptIfNeeded: false)
+        if keystrokesEnabled && !capturesKeystrokes {
           TransientToast.show("Accessibility permission required for keystroke overlays.", duration: 1.8)
         }
 
-        if settings.videoShowWebcam {
+        if webcamEnabled {
           let webcamOutputURL = makeTemporaryWebcamURL()
           let webcamRecorder = try WebcamRecorder(
             outputURL: webcamOutputURL,
@@ -147,7 +156,7 @@ final class VideoCaptureCoordinator {
   private func showHUD() {
     let hud = VideoRecordingHUDController(
       recordSystemAudio: settings.videoRecordSystemAudio,
-      recordMicrophone: settings.videoRecordMicrophone
+      recordMicrophone: effectiveCaptureMicrophoneEnabled
     ) { [weak self] in
       self?.stopRecordingAndOpenEditor()
     }
@@ -205,8 +214,8 @@ final class VideoCaptureCoordinator {
         let recordingDetails = PostRecordingDetails(
           frameRate: settings.videoFrameRate.rawValue,
           systemAudioEnabled: settings.videoRecordSystemAudio,
-          microphoneEnabled: settings.videoRecordMicrophone,
-          webcamEnabled: webcamURL != nil,
+          microphoneEnabled: effectiveCaptureMicrophoneEnabled,
+          webcamEnabled: effectiveShowWebcamEnabled && webcamURL != nil,
           mouseClicksEnabled: settings.videoHighlightMouseClicks,
           keystrokesEnabled: capturedKeystrokesInSession,
           keyEventCount: monitorResult.keyEvents.count,
@@ -322,21 +331,21 @@ final class VideoCaptureCoordinator {
   }
 
   private func ensureRuntimePermissions() async throws {
-    if settings.videoRecordMicrophone {
+    if effectiveCaptureMicrophoneEnabled {
       try await ensureMediaAccess(
         for: .audio,
         errorTitle: "Microphone permission is required when microphone recording is enabled."
       )
     }
 
-    if settings.videoShowWebcam {
+    if effectiveShowWebcamEnabled {
       try await ensureMediaAccess(
         for: .video,
         errorTitle: "Camera permission is required when webcam recording is enabled."
       )
     }
 
-    if settings.videoHighlightKeystrokes, !isAccessibilityTrusted(promptIfNeeded: true) {
+    if effectiveHighlightKeystrokesEnabled, !isAccessibilityTrusted(promptIfNeeded: true) {
       throw NSError(
         domain: "com.vivyshot.video",
         code: -56,
@@ -381,6 +390,18 @@ final class VideoCaptureCoordinator {
       return AXIsProcessTrustedWithOptions(options)
     }
     return AXIsProcessTrusted()
+  }
+
+  private var effectiveCaptureMicrophoneEnabled: Bool {
+    videoMicrophoneFeatureEnabled && settings.videoRecordMicrophone
+  }
+
+  private var effectiveShowWebcamEnabled: Bool {
+    videoWebcamFeatureEnabled && settings.videoShowWebcam
+  }
+
+  private var effectiveHighlightKeystrokesEnabled: Bool {
+    videoKeystrokesFeatureEnabled && settings.videoHighlightKeystrokes
   }
 }
 

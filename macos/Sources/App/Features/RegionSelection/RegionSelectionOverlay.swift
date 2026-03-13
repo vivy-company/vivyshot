@@ -108,6 +108,12 @@ final class RegionSelectionView: NSView {
   let stitchCaptureInterval: TimeInterval = 0.12
   // TODO(vivyshot): Re-enable scrolling capture once auto-scroll is production-ready.
   let stitchCaptureFeatureVisible = false
+  // TODO(vivyshot): Re-enable microphone capture once video recording support is production-ready.
+  let videoMicrophoneFeatureVisible = false
+  // TODO(vivyshot): Re-enable webcam overlay once video recording support is production-ready.
+  let videoWebcamFeatureVisible = false
+  // TODO(vivyshot): Re-enable keystroke highlighting once video recording support is production-ready.
+  let videoKeystrokesFeatureVisible = false
   var stitchAutoScrollEnabled = true
   var stitchAutoScrollDirectionSign: Int32 = -1
   var stitchAutoScrollNoMotionTicks = 0
@@ -786,6 +792,9 @@ final class RegionSelectionView: NSView {
     guard canUseVideoToolbarSettingsShortcut else {
       return false
     }
+    guard videoMicrophoneFeatureVisible else {
+      return false
+    }
     settings.setVideoRecordMicrophone(!settings.videoRecordMicrophone)
     refreshToolbar()
     return true
@@ -793,6 +802,9 @@ final class RegionSelectionView: NSView {
 
   func performToggleVideoWebcamShortcut() -> Bool {
     guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+    guard videoWebcamFeatureVisible else {
       return false
     }
     settings.setVideoShowWebcam(!settings.videoShowWebcam)
@@ -811,6 +823,9 @@ final class RegionSelectionView: NSView {
 
   func performToggleVideoKeystrokesShortcut() -> Bool {
     guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+    guard videoKeystrokesFeatureVisible else {
       return false
     }
     settings.setVideoHighlightKeystrokes(!settings.videoHighlightKeystrokes)

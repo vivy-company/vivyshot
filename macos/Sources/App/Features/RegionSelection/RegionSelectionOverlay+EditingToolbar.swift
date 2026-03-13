@@ -80,11 +80,11 @@ extension RegionSelectionView {
         self.finishEditing()
       },
       recordSystemAudio: settings.videoRecordSystemAudio,
-      recordMicrophone: settings.videoRecordMicrophone,
-      showWebcam: settings.videoShowWebcam,
+      recordMicrophone: videoMicrophoneFeatureVisible && settings.videoRecordMicrophone,
+      showWebcam: videoWebcamFeatureVisible && settings.videoShowWebcam,
       highlightMouseClicks: settings.videoHighlightMouseClicks,
-      highlightKeystrokes: settings.videoHighlightKeystrokes,
-      toolOrder: settings.visibleVideoTools,
+      highlightKeystrokes: videoKeystrokesFeatureVisible && settings.videoHighlightKeystrokes,
+      toolOrder: availableVideoToolbarTools,
       accentColor: Color(settings.toolbarAccentColor),
       isRecordingActive: videoRecordingActive,
       isRecordingPending: videoRecordingStartPending,
@@ -93,16 +93,19 @@ extension RegionSelectionView {
         _ = self?.performToggleVideoSystemAudioShortcut()
       },
       onToggleMicrophone: { [weak self] in
-        _ = self?.performToggleVideoMicrophoneShortcut()
+        guard let self, self.videoMicrophoneFeatureVisible else { return }
+        _ = self.performToggleVideoMicrophoneShortcut()
       },
       onToggleWebcam: { [weak self] in
-        _ = self?.performToggleVideoWebcamShortcut()
+        guard let self, self.videoWebcamFeatureVisible else { return }
+        _ = self.performToggleVideoWebcamShortcut()
       },
       onToggleMouseClicks: { [weak self] in
         _ = self?.performToggleVideoMouseClicksShortcut()
       },
       onToggleKeystrokes: { [weak self] in
-        _ = self?.performToggleVideoKeystrokesShortcut()
+        guard let self, self.videoKeystrokesFeatureVisible else { return }
+        _ = self.performToggleVideoKeystrokesShortcut()
       },
       onSelectCountdown: { [weak self] countdown in
         guard let self else { return }
@@ -120,6 +123,21 @@ extension RegionSelectionView {
         self?.finishToolbarDrag()
       }
     )
+  }
+
+  var availableVideoToolbarTools: [VideoToolbarTool] {
+    settings.visibleVideoTools.filter { tool in
+      switch tool {
+      case .microphone:
+        return videoMicrophoneFeatureVisible
+      case .webcam:
+        return videoWebcamFeatureVisible
+      case .keystrokes:
+        return videoKeystrokesFeatureVisible
+      default:
+        return true
+      }
+    }
   }
 
   func setSelectedCaptureType(_ type: CaptureContentType) {
