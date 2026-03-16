@@ -46,6 +46,7 @@ struct VivyShotSettingsView: View {
   var body: some View {
     TabView(selection: $selectedTab) {
       settingsContainer {
+        brandSection
         captureSection
         savingSection
       }
@@ -92,6 +93,34 @@ struct VivyShotSettingsView: View {
       .formStyle(.grouped)
       .frame(maxWidth: 560)
       .padding(14)
+    }
+  }
+
+  private var brandSection: some View {
+    Section {
+      HStack(spacing: 16) {
+        Image(nsImage: NSApp.applicationIconImage)
+          .resizable()
+          .interpolation(.high)
+          .frame(width: 64, height: 64)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text("VivyShot")
+            .font(.system(size: 28, weight: .semibold, design: .rounded))
+
+          Text("Capture with intent. Edit with precision.")
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
+
+          Text("Selection-first screen capture for screenshots, recordings, and timeline-driven polish.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer(minLength: 0)
+      }
+      .padding(.vertical, 6)
     }
   }
 

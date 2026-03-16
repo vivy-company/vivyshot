@@ -158,7 +158,7 @@ final class RustCoreBridge {
     return data
   }
 
-  private static func takeEncodedBytesAsData(_ bytes: inout vs_encoded_bytes) -> Data? {
+  private nonisolated static func takeEncodedBytesAsData(_ bytes: inout vs_encoded_bytes) -> Data? {
     guard let ptr = bytes.ptr, bytes.len > 0 else {
       return nil
     }
@@ -251,7 +251,7 @@ final class RustCoreBridge {
     )
   }
 
-  private static func takeOwnedBGRAImageAsCGImage(_ image: inout vs_bgra_owned_image) -> CGImage? {
+  private nonisolated static func takeOwnedBGRAImageAsCGImage(_ image: inout vs_bgra_owned_image) -> CGImage? {
     guard let ptr = image.ptr, image.len > 0, image.width > 0, image.height > 0, image.stride > 0 else {
       return nil
     }

@@ -97,22 +97,23 @@ final class CrashReporter {
 
     let recoveredAt = isoFormatter.string(from: Date())
     let crashReportPath = latestSystemCrashReportPath(executable: marker.executable)
-    let crashReportPathText = crashReportPath ?? "Not found"
-    let summary = """
-    Previous run ended unexpectedly.
-    Started: \(marker.startedAtISO8601)
-    PID: \(marker.pid)
-    Version: \(marker.appVersion)
-    System crash report: \(crashReportPathText)
-    """
+    let details = makeAnonymousCrashDetails(marker: marker, crashReportPath: crashReportPath)
 
     let fileName = "recovered-crash-\(safeTimestamp()).log"
     let logURL = diagnosticsDirectoryURL.appendingPathComponent(fileName)
     let body = """
-    VivyShot recovered crash report
+    VivyShot recovered crash report (anonymous)
     Recovered at: \(recoveredAt)
+    Report ID: \(details.reportID)
+    App version: \(marker.appVersion)
+    Session started: \(marker.startedAtISO8601)
+    OS version: \(details.osVersion)
+    Crash type: \(details.exceptionType) / \(details.signal)
+    Termination: \(details.termination)
+    Faulting thread: \(details.faultingThread)
+    Top frame: \(details.topFrame)
 
-    \(summary)
+    Note: local paths, file names, usernames, and process IDs are intentionally omitted.
     """
     try? body.data(using: .utf8)?.write(to: logURL, options: .atomic)
 
@@ -196,7 +197,7 @@ final class CrashReporter {
 
   @MainActor
   private func openPrefilledIssue(recovery: PendingRecovery) {
-    let details = makeAnonymousCrashDetails(recovery: recovery)
+    let details = makeAnonymousCrashDetails(marker: recovery.marker, crashReportPath: recovery.crashReportPath)
 
     let body = """
     ### Anonymous Crash Report
@@ -237,7 +238,7 @@ final class CrashReporter {
     alert.runModal()
   }
 
-  private func makeAnonymousCrashDetails(recovery: PendingRecovery) -> AnonymousCrashDetails {
+  private func makeAnonymousCrashDetails(marker: SessionMarker, crashReportPath: String?) -> AnonymousCrashDetails {
     let unknown = "unknown"
     var osVersion = unknown
     var exceptionType = unknown
@@ -246,7 +247,7 @@ final class CrashReporter {
     var faultingThread = unknown
     var topFrame = unknown
 
-    if let path = recovery.crashReportPath,
+    if let path = crashReportPath,
        let parsed = parseIPSCrashMetadata(path: path)
     {
       osVersion = parsed.osVersion
@@ -258,7 +259,7 @@ final class CrashReporter {
     }
 
     let fingerprintSeed = [
-      recovery.marker.appVersion,
+      marker.appVersion,
       osVersion,
       exceptionType,
       signal,

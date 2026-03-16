@@ -315,7 +315,6 @@ private struct PostRecordingActionView: View {
   let subtitleText: String
   let toolsSummaryText: String
   let onAction: (PostRecordingAction) -> Void
-  @State private var player: AVPlayer
 
   private var formattedDuration: String {
     let minutes = Int(durationSeconds) / 60
@@ -338,7 +337,6 @@ private struct PostRecordingActionView: View {
     self.subtitleText = subtitleText
     self.toolsSummaryText = toolsSummaryText
     self.onAction = onAction
-    _player = State(initialValue: AVPlayer(url: inputURL))
   }
 
   var body: some View {
@@ -376,16 +374,13 @@ private struct PostRecordingActionView: View {
   @ViewBuilder
   private var previewCard: some View {
     if FileManager.default.fileExists(atPath: inputURL.path) {
-      VideoPlayer(player: player)
+      PostRecordingPlayerPreview(url: inputURL)
         .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 182)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
           RoundedRectangle(cornerRadius: 14, style: .continuous)
             .stroke(Color.white.opacity(0.16), lineWidth: 1)
         )
-        .onDisappear {
-          player.pause()
-        }
     } else if let thumbnail {
       Image(nsImage: thumbnail)
         .resizable()
@@ -469,5 +464,56 @@ private struct PostRecordingActionView: View {
       .buttonStyle(.bordered)
       .controlSize(.large)
     }
+  }
+}
+
+private struct PostRecordingPlayerPreview: NSViewRepresentable {
+  let url: URL
+
+  final class Coordinator {
+    var player: AVPlayer?
+  }
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator()
+  }
+
+  func makeNSView(context: Context) -> AVPlayerView {
+    let view = AVPlayerView()
+    view.controlsStyle = .floating
+    view.videoGravity = .resizeAspect
+    view.showsFullScreenToggleButton = false
+
+    let player = AVPlayer(url: url)
+    player.actionAtItemEnd = .pause
+    view.player = player
+    context.coordinator.player = player
+    return view
+  }
+
+  func updateNSView(_ nsView: AVPlayerView, context: Context) {
+    guard let currentURL = (nsView.player?.currentItem?.asset as? AVURLAsset)?.url else {
+      let player = AVPlayer(url: url)
+      player.actionAtItemEnd = .pause
+      nsView.player = player
+      context.coordinator.player = player
+      return
+    }
+
+    guard currentURL != url else {
+      return
+    }
+
+    nsView.player?.pause()
+    let player = AVPlayer(url: url)
+    player.actionAtItemEnd = .pause
+    nsView.player = player
+    context.coordinator.player = player
+  }
+
+  static func dismantleNSView(_ nsView: AVPlayerView, coordinator: Coordinator) {
+    nsView.player?.pause()
+    nsView.player = nil
+    coordinator.player = nil
   }
 }
