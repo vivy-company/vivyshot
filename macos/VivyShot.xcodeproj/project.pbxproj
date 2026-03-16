@@ -18,6 +18,7 @@
 		2F98E5FBA54732922C0F3ED1 /* CaptureGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A5E4B83AB085731FA1CDA2 /* CaptureGlassViews.swift */; };
 		3293C133DF1A4B31736B5148 /* VideoCaptureComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A63F21778CC5E87650878CA /* VideoCaptureComponents.swift */; };
 		334BCD9713252C7120CE9A27 /* AnnotationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D91B677D960DFB0D26E9C44 /* AnnotationTool.swift */; };
+		394091DB2A9921A6A322899F /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 101FF5863A4053D45DAED3C3 /* AppIcon.icns */; };
 		3AECEA6788A23BB1D307B14F /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CB3680D67A271DD95942D6 /* AppSettings.swift */; };
 		3DC7D7055455F7D3EFA549DF /* RustTimelineSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 816DD48AE89ABD30828BF4E0 /* RustTimelineSession.swift */; };
 		3EAA37C88CD88FE24C7522BC /* CaptureMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B26EFAF92AF34AAD2E24534 /* CaptureMode.swift */; };
@@ -25,6 +26,7 @@
 		43D993EA20092F40EA0D3CB9 /* EditorTextStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECAAB5FA3ACCCC7F511ED16F /* EditorTextStyle.swift */; };
 		4619D08016382187A7381A38 /* VivyShotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B41D12D461242E09C0229723 /* VivyShotTests.swift */; };
 		479B2BACE55FE843C36C3F41 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922EEDDAB5DDA68657086F6B /* main.swift */; };
+		4EF7321858709E0AA0FA30CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E09D563D2FE97127B7A1E0DB /* Assets.xcassets */; };
 		53B136B76F4024389FDCB678 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C89348136A4D786A65F23AB /* LiquidGlassViews.swift */; };
 		54F62A84A4DC6DEF2D2638E2 /* UITestHarnessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9691E54D1A8568CA2DBD761 /* UITestHarnessView.swift */; };
 		5CC7C99A84FE04E9964F47B0 /* RegionSelectionOverlay+EditingLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EEA120B0840BC71D568CE6 /* RegionSelectionOverlay+EditingLayout.swift */; };
@@ -40,6 +42,7 @@
 		AD78622235775470AE526D12 /* RustVideoSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED06405596D45D6EDA73C8E9 /* RustVideoSession.swift */; };
 		B28514244922F18049B63FBC /* RegionSelectionOverlay+EditingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E4EA737BCAD29F3EE51FFA /* RegionSelectionOverlay+EditingToolbar.swift */; };
 		BC23BDFB3C7EB7B99002B696 /* RegionSelectionOverlay+EditingTargetPicking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 641321862D64BC5E2FF0A90C /* RegionSelectionOverlay+EditingTargetPicking.swift */; };
+		C1C1D5589A6113A8A1F16D65 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2E3FA09634A5C59A860D6444 /* PrivacyInfo.xcprivacy */; };
 		C635AB4660A298B2F6073092 /* RustStitchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C038AE6E32EFCE1AADEDD4BB /* RustStitchSession.swift */; };
 		C9FCDE3F7041A4486FC33FFF /* VivyShotKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D8ED664863BE7F322C9F88 /* VivyShotKit.xcframework */; };
 		CD16DB22FB35D744AED9F9ED /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5399CE50A9B2FDAFF8CA9F /* StatusItemController.swift */; };
@@ -67,6 +70,7 @@
 /* Begin PBXFileReference section */
 		03F33B526AE66F6F7197D725 /* RegionSelectionOverlay+EditingSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingSelection.swift"; sourceTree = "<group>"; };
 		05BDFA700DB8EFFBFBD4E286 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
+		101FF5863A4053D45DAED3C3 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		10E44C1A62C88CBB945A7AF4 /* AnnotationCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvasView.swift; sourceTree = "<group>"; };
 		11E4EA737BCAD29F3EE51FFA /* RegionSelectionOverlay+EditingToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingToolbar.swift"; sourceTree = "<group>"; };
 		19A1AFDC17A789D30DA0B5D0 /* RegionSelectionOverlay+EditingUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingUI.swift"; sourceTree = "<group>"; };
@@ -76,6 +80,7 @@
 		2A4E7B7345BA36B009097C83 /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
 		2A63F21778CC5E87650878CA /* VideoCaptureComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCaptureComponents.swift; sourceTree = "<group>"; };
 		2B53E3EC8A1BB18B9CC52D23 /* RecordingFloatingBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingFloatingBars.swift; sourceTree = "<group>"; };
+		2E3FA09634A5C59A860D6444 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2F432870534B2F4FE175B3C2 /* GlobalHotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKeyManager.swift; sourceTree = "<group>"; };
 		2FE5DA67C786B683E58A2B1A /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		3D91B677D960DFB0D26E9C44 /* AnnotationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTool.swift; sourceTree = "<group>"; };
@@ -104,6 +109,7 @@
 		CA41A2A953FDED58C9587FF3 /* RustCoreTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustCoreTypes.swift; sourceTree = "<group>"; };
 		CE5399CE50A9B2FDAFF8CA9F /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
 		DE20CCE59EE20FE605CFA6FD /* CaptureShaderTransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureShaderTransitionView.swift; sourceTree = "<group>"; };
+		E09D563D2FE97127B7A1E0DB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E2EEA120B0840BC71D568CE6 /* RegionSelectionOverlay+EditingLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingLayout.swift"; sourceTree = "<group>"; };
 		E5EAF3C29324BC59291E1A59 /* RegionSelectionOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlayController.swift; sourceTree = "<group>"; };
 		E9691E54D1A8568CA2DBD761 /* UITestHarnessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHarnessView.swift; sourceTree = "<group>"; };
@@ -139,6 +145,16 @@
 				B41D12D461242E09C0229723 /* VivyShotTests.swift */,
 			);
 			path = Tests;
+			sourceTree = "<group>";
+		};
+		37962B2036218BB847ED2E17 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				101FF5863A4053D45DAED3C3 /* AppIcon.icns */,
+				E09D563D2FE97127B7A1E0DB /* Assets.xcassets */,
+				2E3FA09634A5C59A860D6444 /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		38844B451623DA54BD0916D4 /* Configuration */ = {
@@ -306,6 +322,7 @@
 		EB928638FD2FE5672BD6FB81 = {
 			isa = PBXGroup;
 			children = (
+				37962B2036218BB847ED2E17 /* Resources */,
 				8B422C4740AC8426F45C3B6C /* Sources */,
 				0BDB740333D2E24128A5448D /* Tests */,
 				5A817043E47423CA7B6BC1F3 /* Frameworks */,
@@ -321,6 +338,7 @@
 			buildConfigurationList = A7BB4DFF11C08A9F4C169CC6 /* Build configuration list for PBXNativeTarget "VivyShot" */;
 			buildPhases = (
 				15F19DEEDD5BE0CD066D150B /* Sources */,
+				FE934DCA12E649BDD77EB46B /* Resources */,
 				E0DE212BEB0A8788071C68E6 /* Frameworks */,
 			);
 			buildRules = (
@@ -391,6 +409,19 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		FE934DCA12E649BDD77EB46B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				394091DB2A9921A6A322899F /* AppIcon.icns in Resources */,
+				4EF7321858709E0AA0FA30CB /* Assets.xcassets in Resources */,
+				C1C1D5589A6113A8A1F16D65 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		15F19DEEDD5BE0CD066D150B /* Sources */ = {
@@ -464,7 +495,7 @@
 		1A29B54E95C48214A91C17A0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
 				CODE_SIGN_ENTITLEMENTS = Config/VivyShot.entitlements;
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -640,7 +671,7 @@
 		E18503C4C2642B3C5347D2D0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
 				CODE_SIGN_ENTITLEMENTS = Config/VivyShot.entitlements;
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
