@@ -263,12 +263,17 @@ final class VideoCaptureCoordinator {
   }
 
   private func quickSaveMP4(inputURL: URL) {
-    let saveDirectory = settings.defaultSaveDirectoryURL
-      ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
-      ?? FileManager.default.temporaryDirectory
     let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
       .replacingOccurrences(of: ":", with: "-")
-    let outputURL = saveDirectory.appendingPathComponent("VivyShot \(timestamp).mp4")
+    let defaultName = "VivyShot \(timestamp).mp4"
+
+    let panel = NSSavePanel()
+    panel.allowedContentTypes = [.mpeg4Movie]
+    panel.nameFieldStringValue = defaultName
+    panel.canCreateDirectories = true
+    panel.isExtensionHidden = false
+
+    guard panel.runModal() == .OK, let outputURL = panel.url else { return }
 
     Task {
       do {
