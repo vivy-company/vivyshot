@@ -34,6 +34,9 @@ targets:
     deploymentTarget: "15.2"
     info:
       path: Config/Info.plist
+      properties:
+        ITSAppUsesNonExemptEncryption: false
+        LSApplicationCategoryType: public.app-category.photography
     entitlements:
       path: Config/VivyShot.entitlements
       properties:
