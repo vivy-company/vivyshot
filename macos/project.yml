@@ -36,38 +36,28 @@ targets:
       path: Config/Info.plist
     entitlements:
       path: Config/VivyShot.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
     sources:
       - path: Sources
     resources:
       - path: Resources
+    dependencies:
+      - framework: ../VivyShotKit.xcframework
+        embed: false
     settings:
       base:
         PRODUCT_NAME: VivyShot
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_DEBUG_DYLIB: NO
         CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
-        SWIFT_OBJC_BRIDGING_HEADER: Config/VivyShot-Bridging-Header.h
-        HEADER_SEARCH_PATHS:
-          - "$(SRCROOT)/../ffi"
-        OTHER_LDFLAGS:
-          - "$(inherited)"
-          - "$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a"
       configs:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.dev
           PRODUCT_NAME: VivyShotDev
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot
-    preBuildScripts:
-      - name: Build Rust Core
-        shell: /bin/zsh
-        basedOnDependencyAnalysis: false
-        script: |
-          if [ -x "${SRCROOT}/../scripts/build-rust-universal.sh" ]; then
-            "${SRCROOT}/../scripts/build-rust-universal.sh"
-          else
-            echo "Rust build script not found yet. Skipping."
-          fi
 
   VivyShotTests:
     type: bundle.unit-test
@@ -77,15 +67,11 @@ targets:
       - path: Tests
     dependencies:
       - target: VivyShot
+      - framework: ../VivyShotKit.xcframework
+        embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: ""
         BUNDLE_LOADER: ""
-        SWIFT_OBJC_BRIDGING_HEADER: Config/VivyShot-Bridging-Header.h
-        HEADER_SEARCH_PATHS:
-          - "$(SRCROOT)/../ffi"
-        OTHER_LDFLAGS:
-          - "$(inherited)"
-          - "$(SRCROOT)/../vivyshot-rs/target/universal-apple-darwin/release/libvivyshot_core.a"

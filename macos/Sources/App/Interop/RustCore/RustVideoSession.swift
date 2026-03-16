@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import VivyShotKit
 
 final class RustVideoSession {
   private static let maxSerializedBytes = 8_388_608

@@ -9,6 +9,7 @@ import QuartzCore
 import ScreenCaptureKit
 import SwiftUI
 import UniformTypeIdentifiers
+import VivyShotKit
 
 @MainActor
 final class VideoCaptureCoordinator {

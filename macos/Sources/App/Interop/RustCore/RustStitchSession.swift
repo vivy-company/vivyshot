@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import VivyShotKit
 
 final class RustStitchSession {
   private let handle: UnsafeMutableRawPointer

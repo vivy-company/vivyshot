@@ -11,6 +11,7 @@ vivyshot-rs/target/
 # Xcode build artifacts
 macos/build/
 DerivedData/
+VivyShotKit.xcframework/
 
 # Xcode user-specific files
 *.xcuserstate
