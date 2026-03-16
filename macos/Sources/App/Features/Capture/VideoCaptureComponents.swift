@@ -204,14 +204,6 @@ final class VideoCaptureCoordinator {
           )
         }
 
-        let overlay = VideoExportOverlayConfiguration(
-          webcamURL: webcamURL,
-          keyEvents: monitorResult.keyEvents,
-          clickEvents: monitorResult.clickEvents,
-          webcamOverlayShape: settings.videoWebcamOverlayShape,
-          webcamOverlaySize: settings.videoWebcamOverlaySize,
-          textOverlays: []
-        )
         let recordingDetails = PostRecordingDetails(
           frameRate: settings.videoFrameRate.rawValue,
           systemAudioEnabled: settings.videoRecordSystemAudio,
@@ -227,12 +219,10 @@ final class VideoCaptureCoordinator {
         markCaptureFlowFinished()
         rustVideoSession = nil
 
-        await MainActor.run {
-          self.presentPostRecordingDialog(
-            inputURL: outputURL,
-            details: recordingDetails
-          )
-        }
+        await self.presentPostRecordingDialog(
+          inputURL: outputURL,
+          details: recordingDetails
+        )
       } catch {
         self.isRecordingActive = false
         cleanupRecordingSession()
@@ -244,9 +234,16 @@ final class VideoCaptureCoordinator {
   private func presentPostRecordingDialog(
     inputURL: URL,
     details: PostRecordingDetails
-  ) {
+  ) async {
+    let assetInfo = await PostRecordingActionPanel.loadAssetInfo(url: inputURL)
     var panelRef: PostRecordingActionPanel?
-    let panel = PostRecordingActionPanel(inputURL: inputURL, details: details) { [self] action in
+    let panel = PostRecordingActionPanel(
+      inputURL: inputURL,
+      details: details,
+      durationSeconds: assetInfo.durationSeconds,
+      thumbnail: assetInfo.thumbnail,
+      videoSize: assetInfo.videoSize
+    ) { [self] action in
       if let panelRef {
         postRecordingPanels.removeAll(where: { $0 === panelRef })
       }
@@ -277,8 +274,8 @@ final class VideoCaptureCoordinator {
 
     Task {
       do {
-        let asset = AVAsset(url: inputURL)
-        let duration = CMTimeGetSeconds(asset.duration)
+        let asset = AVURLAsset(url: inputURL)
+        let duration = try await CMTimeGetSeconds(asset.load(.duration))
         let trimRange = CMTimeRange(start: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
 
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
@@ -809,7 +806,12 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
     session.beginConfiguration()
     session.sessionPreset = .high
 
-    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera, .externalUnknown]
+    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+    if #available(macOS 14.0, *) {
+      deviceTypes.append(.external)
+    } else {
+      deviceTypes.append(.externalUnknown)
+    }
     if #available(macOS 15.0, *) {
       deviceTypes.append(.continuityCamera)
     }
@@ -856,7 +858,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
   }
 }
 
-final class ScreenRegionRecorder: NSObject, @preconcurrency SCStreamDelegate, @preconcurrency SCRecordingOutputDelegate {
+final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputDelegate {
   private let selectionRectInScreen: CGRect
   private let config: VideoRecordingConfig
   private(set) var outputURL: URL
@@ -1040,17 +1042,25 @@ private extension SCStream {
 
 private extension AVAssetExportSession {
   func vs_export() async throws {
-    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-      exportAsynchronously {
-        switch self.status {
-        case .completed:
-          continuation.resume(returning: ())
-        case .failed:
-          continuation.resume(throwing: self.error ?? NSError(domain: "VivyShot.Export", code: -1))
-        case .cancelled:
-          continuation.resume(throwing: NSError(domain: "VivyShot.Export", code: -2))
-        default:
-          continuation.resume(throwing: self.error ?? NSError(domain: "VivyShot.Export", code: -3))
+    guard let url = outputURL, let fileType = outputFileType else {
+      throw NSError(domain: "VivyShot.Export", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing output URL or file type."])
+    }
+    if #available(macOS 15.0, *) {
+      try await export(to: url, as: fileType)
+    } else {
+      nonisolated(unsafe) let session = self
+      try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        session.exportAsynchronously {
+          switch session.status {
+          case .completed:
+            continuation.resume(returning: ())
+          case .failed:
+            continuation.resume(throwing: session.error ?? NSError(domain: "VivyShot.Export", code: -1))
+          case .cancelled:
+            continuation.resume(throwing: NSError(domain: "VivyShot.Export", code: -2))
+          default:
+            continuation.resume(throwing: session.error ?? NSError(domain: "VivyShot.Export", code: -3))
+          }
         }
       }
     }

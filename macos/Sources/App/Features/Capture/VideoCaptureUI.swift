@@ -211,6 +211,9 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
   init(
     inputURL: URL,
     details: PostRecordingDetails,
+    durationSeconds: Double,
+    thumbnail: NSImage?,
+    videoSize: CGSize?,
     onAction: @escaping (PostRecordingAction) -> Void
   ) {
     self.inputURL = inputURL
@@ -226,7 +229,6 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
     panel.level = .floating
     panel.title = "Recording Ready"
     panel.toolbar = NSToolbar(identifier: "PostRecordingToolbar")
-    panel.toolbar?.showsBaselineSeparator = false
     panel.toolbarStyle = .unified
     panel.titlebarAppearsTransparent = true
     panel.titleVisibility = .visible
@@ -238,12 +240,9 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
     super.init(window: panel)
     panel.delegate = self
 
-    let asset = AVAsset(url: inputURL)
-    let durationSeconds = max(0, CMTimeGetSeconds(asset.duration))
-    let thumbnail = generateThumbnail(asset: asset)
-    let videoSize = videoDisplaySize(asset: asset)
+    let safeDuration = durationSeconds.isFinite ? durationSeconds : 0
     let subtitle = details.subtitleText(
-      durationSeconds: durationSeconds.isFinite ? durationSeconds : 0,
+      durationSeconds: safeDuration,
       videoSize: videoSize
     )
     panel.subtitle = subtitle
@@ -251,7 +250,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
     let actionView = PostRecordingActionView(
       inputURL: inputURL,
       thumbnail: thumbnail,
-      durationSeconds: durationSeconds.isFinite ? durationSeconds : 0,
+      durationSeconds: safeDuration,
       subtitleText: subtitle,
       toolsSummaryText: details.toolsSummaryText
     ) { [weak self] action in
@@ -287,24 +286,45 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
     }
   }
 
-  private func generateThumbnail(asset: AVAsset) -> NSImage? {
-    let generator = AVAssetImageGenerator(asset: asset)
-    generator.appliesPreferredTrackTransform = true
-    generator.maximumSize = CGSize(width: 320, height: 320)
-    generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
-    generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
-    guard let cgImage = try? generator.copyCGImage(at: CMTime(seconds: 0.5, preferredTimescale: 600), actualTime: nil) else {
-      return nil
-    }
-    return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-  }
+  static func loadAssetInfo(url: URL) async -> (durationSeconds: Double, thumbnail: NSImage?, videoSize: CGSize?) {
+    let asset = AVURLAsset(url: url)
 
-  private func videoDisplaySize(asset: AVAsset) -> CGSize? {
-    guard let track = asset.tracks(withMediaType: .video).first else {
-      return nil
+    let durationSeconds: Double
+    if let duration = try? await asset.load(.duration) {
+      durationSeconds = max(0, CMTimeGetSeconds(duration))
+    } else {
+      durationSeconds = 0
     }
-    let transformed = track.naturalSize.applying(track.preferredTransform)
-    return CGSize(width: abs(transformed.width), height: abs(transformed.height))
+
+    let thumbnail: NSImage?
+    do {
+      let generator = AVAssetImageGenerator(asset: asset)
+      generator.appliesPreferredTrackTransform = true
+      generator.maximumSize = CGSize(width: 320, height: 320)
+      generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
+      generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
+      let (cgImage, _) = try await generator.image(at: CMTime(seconds: 0.5, preferredTimescale: 600))
+      thumbnail = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+    } catch {
+      thumbnail = nil
+    }
+
+    let videoSize: CGSize?
+    do {
+      let tracks = try await asset.loadTracks(withMediaType: .video)
+      if let track = tracks.first {
+        let naturalSize = try await track.load(.naturalSize)
+        let preferredTransform = try await track.load(.preferredTransform)
+        let transformed = naturalSize.applying(preferredTransform)
+        videoSize = CGSize(width: abs(transformed.width), height: abs(transformed.height))
+      } else {
+        videoSize = nil
+      }
+    } catch {
+      videoSize = nil
+    }
+
+    return (durationSeconds, thumbnail, videoSize)
   }
 }
 

@@ -291,6 +291,7 @@ final class RegionSelectionOverlayController {
     selectionView: RegionSelectionView?,
     completion: (() -> Void)? = nil
   ) {
+    nonisolated(unsafe) let completion = completion
     let style = effectiveCaptureTransitionStyle
     let duration = transitionDuration(entering: false, style: style)
 

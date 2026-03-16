@@ -168,7 +168,7 @@ struct NativeColorWell: NSViewRepresentable {
     }
   }
 
-  final class Coordinator: NSObject {
+  @MainActor final class Coordinator: NSObject {
     private var color: Binding<NSColor>
 
     init(color: Binding<NSColor>) {

@@ -841,8 +841,14 @@ struct VivyShotSettingsView: View {
   }
 
   private func refreshWebcamDevices() {
+    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+    if #available(macOS 14.0, *) {
+      deviceTypes.append(.external)
+    } else {
+      deviceTypes.append(.externalUnknown)
+    }
     let discovery = AVCaptureDevice.DiscoverySession(
-      deviceTypes: [.builtInWideAngleCamera, .externalUnknown],
+      deviceTypes: deviceTypes,
       mediaType: .video,
       position: .unspecified
     )
