@@ -518,27 +518,26 @@ private struct PlanOptionRow: View {
 
   var body: some View {
     Button(action: onSelect) {
-      VStack(alignment: .leading, spacing: 14) {
-        HStack(alignment: .top) {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
           Image(systemName: selectionSymbolName)
-            .font(.title3)
+            .font(.title3.weight(.semibold))
             .foregroundStyle(selectionColor)
 
-          Spacer(minLength: 10)
+          VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Text(title)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
 
-          Text(isOwned ? "Owned" : product.displayPrice)
-            .font(.headline)
-            .fontWeight(.semibold)
-            .foregroundStyle(isOwned ? .secondary : .primary)
-        }
+              Spacer(minLength: 0)
 
-        VStack(alignment: .leading, spacing: 6) {
-          Text(title)
-            .font(.title3)
-            .fontWeight(.semibold)
-            .foregroundStyle(.primary)
+              Text(isOwned ? "Owned" : product.displayPrice)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(isOwned ? .secondary : .primary)
+            }
 
-          HStack(spacing: 8) {
+            HStack(spacing: 8) {
             if let badge {
               Text(badge.title)
                 .font(.caption2)
@@ -564,22 +563,25 @@ private struct PlanOptionRow: View {
                     .fill(Color.secondary.opacity(0.12))
                 )
             }
-          }
 
-          Text(subtitle)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            }
+
+            Text(subtitle)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
       }
-      .frame(maxWidth: .infinity, minHeight: 154, alignment: .leading)
-      .padding(16)
+      .frame(maxWidth: .infinity, minHeight: 116, alignment: .leading)
+      .padding(14)
       .background(
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
           .fill(backgroundFillColor)
       )
       .overlay(
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
           .stroke(borderStrokeColor, lineWidth: isSelected ? 2 : 1)
       )
     }
