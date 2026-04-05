@@ -10,7 +10,7 @@
       "internalID" : "VIVYSHOT_LIFETIME_001",
       "localizations" : [
         {
-          "description" : "Unlock paid access for VivyShot with a one-time purchase.",
+          "description" : "A one-time unlock for the full VivyShot tool.",
           "displayName" : "Lifetime",
           "locale" : "en_US"
         }
@@ -25,7 +25,7 @@
       "internalID" : "VIVYSHOT_SUPPORTER_001",
       "localizations" : [
         {
-          "description" : "Same paid access as Lifetime, plus an in-app supporter badge.",
+          "description" : "Same full app as Lifetime, plus an in-app supporter badge.",
           "displayName" : "Supporter",
           "locale" : "en_US"
         }

@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
   static let shared = PaywallWindowController()
+  private static let titleItemIdentifier = NSToolbarItem.Identifier("VivyShotPaywallTitleItem")
 
   private init() {
     let window = NSWindow(
@@ -14,7 +15,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
     )
     window.title = "Upgrade VivyShot"
     window.subtitle = "Lifetime access or support the project"
-    window.titleVisibility = .visible
+    window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
     window.toolbarStyle = .unified
     window.backgroundColor = .windowBackgroundColor
@@ -26,8 +27,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
     super.init(window: window)
     let toolbar = NSToolbar(identifier: "VivyShotPaywallToolbar")
     toolbar.delegate = self
-    toolbar.displayMode = .iconOnly
-    toolbar.showsBaselineSeparator = false
+    toolbar.displayMode = .default
     window.toolbar = toolbar
     window.delegate = self
   }
@@ -55,15 +55,61 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    []
+    [Self.titleItemIdentifier, .flexibleSpace]
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    []
+    [Self.titleItemIdentifier, .flexibleSpace]
   }
 
   func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
     []
+  }
+
+  func toolbar(
+    _ toolbar: NSToolbar,
+    itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+    willBeInsertedIntoToolbar flag: Bool
+  ) -> NSToolbarItem? {
+    guard itemIdentifier == Self.titleItemIdentifier else {
+      return nil
+    }
+
+    let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+    item.isBordered = false
+    item.view = titleToolbarView()
+    return item
+  }
+
+  private func titleToolbarView() -> NSView {
+    let titleLabel = NSTextField(labelWithString: "Upgrade VivyShot")
+    titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+    titleLabel.alignment = .left
+    titleLabel.textColor = .labelColor
+
+    let subtitleLabel = NSTextField(labelWithString: "Lifetime access or support the project")
+    subtitleLabel.font = .systemFont(ofSize: 11)
+    subtitleLabel.alignment = .left
+    subtitleLabel.textColor = .secondaryLabelColor
+    subtitleLabel.lineBreakMode = .byTruncatingTail
+
+    let stack = NSStackView(views: [titleLabel, subtitleLabel])
+    stack.orientation = .vertical
+    stack.alignment = .leading
+    stack.spacing = 0
+    stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 32))
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(stack)
+
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+      stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor)
+    ])
+
+    return container
   }
 }
 

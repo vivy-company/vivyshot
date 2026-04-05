@@ -120,7 +120,7 @@ struct VivyShotStoreSettingsView: View {
     if storeManager.hasLifetimeUnlock {
       return "Lifetime access is unlocked."
     }
-    return "Free today, ready for paid features later."
+    return "Free forever for the core workflow."
   }
 
   private var headerGradient: LinearGradient {
@@ -151,8 +151,8 @@ struct VivyShotPaywallView: View {
 
   private var features: [(icon: String, title: String, description: String, color: Color)] {
     [
-      ("wand.and.stars", "Lifetime unlock", "A one-time purchase for paid access as premium features arrive.", .accentColor),
-      ("heart.circle", "Supporter tier", "Same access as Lifetime, plus a small supporter badge in the app.", .orange),
+      ("wand.and.stars", "Lifetime unlock", "A one-time unlock for the full tool.", .accentColor),
+      ("heart.circle", "Supporter tier", "Same full app as Lifetime, plus a small supporter badge.", .orange),
       ("arrow.clockwise.circle", "Restorable purchases", "Everything is handled with standard StoreKit restore and entitlement updates.", .green),
       ("shippingbox", "No subscription", "This store setup is intentionally simple: one-time purchases only.", .secondary)
     ]
@@ -291,8 +291,8 @@ struct VivyShotPaywallView: View {
         PlanOptionRow(
           product: lifetime,
           title: "Lifetime",
-          subtitle: "One-time unlock for paid access",
-          badge: PlanBadge(title: "FOREVER", style: .forever),
+          subtitle: "One-time unlock for the full tool",
+          badge: nil,
           isSelected: selectedProduct?.id == lifetime.id,
           isOwned: storeManager.hasLifetimeUnlock
         ) {
@@ -305,8 +305,8 @@ struct VivyShotPaywallView: View {
         PlanOptionRow(
           product: supporter,
           title: "Supporter",
-          subtitle: "Same unlock, plus supporter badge",
-          badge: PlanBadge(title: "SUPPORT", style: .support),
+          subtitle: "Same full app, plus supporter badge",
+          badge: nil,
           isSelected: selectedProduct?.id == supporter.id,
           isOwned: storeManager.hasSupporterBadge
         ) {
@@ -492,7 +492,7 @@ struct VivyShotPaywallView: View {
     if storeManager.hasLifetimeUnlock {
       return "Lifetime is already unlocked. Supporter adds the badge and helps support the project."
     }
-    return "Both purchases are one-time. Supporter includes the same unlock plus a badge."
+    return "Both purchases are one-time. Supporter includes the same full unlock plus a badge."
   }
 
   private var isSelectedProductAlreadyOwned: Bool {
@@ -518,13 +518,14 @@ private struct PlanOptionRow: View {
 
   var body: some View {
     Button(action: onSelect) {
-      VStack(alignment: .leading, spacing: 10) {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+      VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .top, spacing: 10) {
           Image(systemName: selectionSymbolName)
             .font(.title3.weight(.semibold))
             .foregroundStyle(selectionColor)
+            .padding(.top, 1)
 
-          VStack(alignment: .leading, spacing: 6) {
+          VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
               Text(title)
                 .font(.title3.weight(.semibold))
@@ -544,7 +545,7 @@ private struct PlanOptionRow: View {
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 8)
-                .padding(.vertical, 3)
+                .padding(.vertical, 2)
                 .background(
                   Capsule()
                     .fill(badgeBackground(for: badge.style))
@@ -557,7 +558,7 @@ private struct PlanOptionRow: View {
                 .fontWeight(.bold)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
-                .padding(.vertical, 3)
+                .padding(.vertical, 2)
                 .background(
                   Capsule()
                     .fill(Color.secondary.opacity(0.12))
@@ -574,8 +575,8 @@ private struct PlanOptionRow: View {
           }
         }
       }
-      .frame(maxWidth: .infinity, minHeight: 116, alignment: .leading)
-      .padding(14)
+      .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
+      .padding(10)
       .background(
         RoundedRectangle(cornerRadius: 16, style: .continuous)
           .fill(backgroundFillColor)
@@ -584,6 +585,7 @@ private struct PlanOptionRow: View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
           .stroke(borderStrokeColor, lineWidth: isSelected ? 2 : 1)
       )
+      .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
     .buttonStyle(.plain)
     .disabled(isOwned)
