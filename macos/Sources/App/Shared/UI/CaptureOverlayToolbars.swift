@@ -139,7 +139,6 @@ struct CaptureAnnotationToolbar: View {
               }
             }
           }
-          separator
           mainActionButton
         }
         .padding(.horizontal, 8)
@@ -375,7 +374,6 @@ struct CaptureVideoToolbar: View {
               videoToolButton(tool, fallback: true)
             }
           }
-          separator
           recordButton
         }
         .padding(.horizontal, 8)
@@ -659,5 +657,4 @@ struct CaptureVideoToolbar: View {
       onSelectCaptureMode(mode)
     }
   }
-
 }

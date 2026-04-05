@@ -12,6 +12,7 @@ enum UITestRuntime {
 struct VivyShotApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @StateObject private var statusController: StatusItemController
+  @StateObject private var storeManager = StoreManager.shared
 
   init() {
     if !UITestRuntime.isEnabled {
@@ -53,34 +54,58 @@ struct VivyShotApp: App {
 
 private struct MenuBarMenuContent: View {
   @ObservedObject var statusController: StatusItemController
+  @ObservedObject private var storeManager = StoreManager.shared
   @Environment(\.openSettings) private var openSettings
 
   var body: some View {
-    if statusController.isRecordingActive {
-      Button("Stop Recording") {
-        statusController.captureOrStopPressed()
+    Group {
+      if statusController.isRecordingActive {
+        Button("Stop Recording") {
+          statusController.captureOrStopPressed()
+        }
+        .keyboardShortcut("s", modifiers: .command)
+      } else {
+        Button("Capture Region") {
+          statusController.captureOrStopPressed()
+        }
+        .keyboardShortcut("c", modifiers: .command)
       }
-      .keyboardShortcut("s", modifiers: .command)
-    } else {
-      Button("Capture Region") {
-        statusController.captureOrStopPressed()
+
+      Divider()
+
+      if storeManager.hasPaidAccess {
+        HStack {
+          Text("Plan")
+          Spacer()
+          if let badgeTitle = storeManager.badgeTitle {
+            StoreBadgeChip(
+              title: badgeTitle,
+              prominence: badgeTitle == "Supporter" ? .supporter : .lifetime
+            )
+          } else {
+            Text(storeManager.tierTitle)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .padding(.vertical, 2)
+      } else {
+        Button("Upgrade") {
+          presentPaywallWindow()
+        }
       }
-      .keyboardShortcut("c", modifiers: .command)
+
+      Button("Settings…") {
+        openSettingsOnTop()
+      }
+      .keyboardShortcut(",", modifiers: .command)
+
+      Divider()
+
+      Button("Quit VivyShot") {
+        statusController.quitPressed()
+      }
+      .keyboardShortcut("q", modifiers: .command)
     }
-
-    Divider()
-
-    Button("Settings…") {
-      openSettingsOnTop()
-    }
-    .keyboardShortcut(",", modifiers: .command)
-
-    Divider()
-
-    Button("Quit VivyShot") {
-      statusController.quitPressed()
-    }
-    .keyboardShortcut("q", modifiers: .command)
   }
 
   private func openSettingsOnTop() {

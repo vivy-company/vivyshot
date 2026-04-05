@@ -6,15 +6,19 @@ import SwiftUI
 @MainActor
 struct VivyShotSettingsView: View {
   private enum SettingsTab: String, CaseIterable, Identifiable {
+    case store
     case general
     case appearance
     case screenshot
     case video
+    case about
 
     var id: String { rawValue }
 
     var title: String {
       switch self {
+      case .store:
+        return "Upgrade"
       case .general:
         return "General"
       case .appearance:
@@ -23,6 +27,8 @@ struct VivyShotSettingsView: View {
         return "Screenshot"
       case .video:
         return "Video"
+      case .about:
+        return "About"
       }
     }
   }
@@ -43,10 +49,21 @@ struct VivyShotSettingsView: View {
   // TODO(vivyshot): Re-enable keystroke highlight settings once video recording support is production-ready.
   private let videoKeystrokesFeatureVisible = false
 
+  private var appVersion: String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1"
+  }
+
+  private var buildNumber: String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+  }
+
   var body: some View {
     TabView(selection: $selectedTab) {
+      VivyShotStoreSettingsView()
+      .tabItem { Label(SettingsTab.store.title, systemImage: "sparkles") }
+      .tag(SettingsTab.store)
+
       settingsContainer {
-        brandSection
         captureSection
         savingSection
       }
@@ -75,6 +92,13 @@ struct VivyShotSettingsView: View {
       }
       .tabItem { Label(SettingsTab.video.title, systemImage: "record.circle") }
       .tag(SettingsTab.video)
+
+      settingsContainer {
+        aboutHeroSection
+        aboutLinksSection
+      }
+      .tabItem { Label(SettingsTab.about.title, systemImage: "info.circle") }
+      .tag(SettingsTab.about)
     }
     .frame(minWidth: 500, minHeight: 620)
     .onAppear {
@@ -96,31 +120,53 @@ struct VivyShotSettingsView: View {
     }
   }
 
-  private var brandSection: some View {
+  private var aboutHeroSection: some View {
     Section {
-      HStack(spacing: 16) {
+      VStack(spacing: 16) {
         Image(nsImage: NSApp.applicationIconImage)
           .resizable()
           .interpolation(.high)
-          .frame(width: 64, height: 64)
+          .frame(width: 80, height: 80)
+          .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+          .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
 
-        VStack(alignment: .leading, spacing: 4) {
-          Text("VivyShot")
-            .font(.system(size: 28, weight: .semibold, design: .rounded))
+        Text("VivyShot")
+          .font(.title)
+          .fontWeight(.bold)
 
-          Text("Capture with intent. Edit with precision.")
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(.secondary)
+        Text("Capture with intent. Edit with precision.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
 
-          Text("Selection-first screen capture for screenshots, recordings, and timeline-driven polish.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
+        Text("Selection-first screen capture for screenshots, recordings, and timeline-driven polish.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .fixedSize(horizontal: false, vertical: true)
 
-        Spacer(minLength: 0)
+        Text("Version \(appVersion) (\(buildNumber))")
+          .font(.callout.monospacedDigit())
+          .foregroundStyle(.secondary)
       }
-      .padding(.vertical, 6)
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, 20)
+    }
+  }
+
+  private var aboutLinksSection: some View {
+    Section("Links") {
+      Link(destination: URL(string: "https://vivyshot.com")!) {
+        Label("Website", systemImage: "globe")
+      }
+
+      Link(destination: URL(string: "https://github.com/vivy-company/vivyshot")!) {
+        Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+      }
+
+      Link(destination: URL(string: "https://github.com/vivy-company/vivyshot/issues")!) {
+        Label("Report an Issue", systemImage: "exclamationmark.bubble")
+      }
     }
   }
 

@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import XCTest
+@testable import VivyShotDev
 
 final class VivyShotTests: XCTestCase {
   private struct SyntheticRaster {
@@ -12,6 +13,28 @@ final class VivyShotTests: XCTestCase {
 
   func testSmoke() {
     XCTAssertTrue(true)
+  }
+
+  func testStoreEntitlementResolution() {
+    XCTAssertEqual(StoreEntitlement.resolve(productIDs: []), .free)
+
+    XCTAssertEqual(
+      StoreEntitlement.resolve(productIDs: [VivyShotProducts.lifetime]),
+      StoreEntitlement(hasLifetimeUnlock: true, hasSupporterBadge: false)
+    )
+
+    XCTAssertEqual(
+      StoreEntitlement.resolve(productIDs: [VivyShotProducts.supporter]),
+      StoreEntitlement(hasLifetimeUnlock: false, hasSupporterBadge: true)
+    )
+  }
+
+  func testStoreEntitlementBadgePriorityPrefersSupporter() {
+    let entitlement = StoreEntitlement.resolve(productIDs: [VivyShotProducts.lifetime, VivyShotProducts.supporter])
+
+    XCTAssertTrue(entitlement.hasPaidAccess)
+    XCTAssertEqual(entitlement.badgeTitle, "Supporter")
+    XCTAssertEqual(entitlement.tierTitle, "Supporter")
   }
 
   func testPortableVideoExportPlanContract() {

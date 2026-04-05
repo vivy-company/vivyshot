@@ -17,6 +17,7 @@
 		27FC97DCB4F293F1621F9318 /* AnnotationCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10E44C1A62C88CBB945A7AF4 /* AnnotationCanvasView.swift */; };
 		2F98E5FBA54732922C0F3ED1 /* CaptureGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A5E4B83AB085731FA1CDA2 /* CaptureGlassViews.swift */; };
 		3293C133DF1A4B31736B5148 /* VideoCaptureComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A63F21778CC5E87650878CA /* VideoCaptureComponents.swift */; };
+		32D056FDA37CE29668BAD784 /* StoreViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBDF458763F94FAA4919012E /* StoreViews.swift */; };
 		334BCD9713252C7120CE9A27 /* AnnotationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D91B677D960DFB0D26E9C44 /* AnnotationTool.swift */; };
 		394091DB2A9921A6A322899F /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 101FF5863A4053D45DAED3C3 /* AppIcon.icns */; };
 		3AECEA6788A23BB1D307B14F /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CB3680D67A271DD95942D6 /* AppSettings.swift */; };
@@ -28,6 +29,7 @@
 		479B2BACE55FE843C36C3F41 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922EEDDAB5DDA68657086F6B /* main.swift */; };
 		4EF7321858709E0AA0FA30CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E09D563D2FE97127B7A1E0DB /* Assets.xcassets */; };
 		53B136B76F4024389FDCB678 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C89348136A4D786A65F23AB /* LiquidGlassViews.swift */; };
+		5445B074158660DC0C10E372 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E290099AAC2C60C55241F23 /* StoreManager.swift */; };
 		54F62A84A4DC6DEF2D2638E2 /* UITestHarnessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9691E54D1A8568CA2DBD761 /* UITestHarnessView.swift */; };
 		5CC7C99A84FE04E9964F47B0 /* RegionSelectionOverlay+EditingLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EEA120B0840BC71D568CE6 /* RegionSelectionOverlay+EditingLayout.swift */; };
 		614A4376D4B7E27F5A8D87C5 /* RegionSelectionOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5EAF3C29324BC59291E1A59 /* RegionSelectionOverlayController.swift */; };
@@ -37,6 +39,7 @@
 		767A786D8BDA2122D1C1C8A7 /* VideoCaptureUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4220C2A3DBFDB5039B1381 /* VideoCaptureUI.swift */; };
 		7B2C71F0BC07D1D676B5DABC /* CaptureShaderTransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE20CCE59EE20FE605CFA6FD /* CaptureShaderTransitionView.swift */; };
 		8704CA1314A3BED7679C8A27 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FE5DA67C786B683E58A2B1A /* SettingsWindowController.swift */; };
+		95C802CDE1235950D550CE21 /* StorePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDDF49B517B0002B6F60D508 /* StorePresentation.swift */; };
 		98B5325E2FDAB4B8A2E443B8 /* RecordingFloatingBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B53E3EC8A1BB18B9CC52D23 /* RecordingFloatingBars.swift */; };
 		A923E7D83C4835F94A398D18 /* AnnotationCanvasView+Input.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69CF860107CA75A6D80F692 /* AnnotationCanvasView+Input.swift */; };
 		AD78622235775470AE526D12 /* RustVideoSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED06405596D45D6EDA73C8E9 /* RustVideoSession.swift */; };
@@ -54,7 +57,9 @@
 		F504DE7E6240853F79D75343 /* AnnotationCanvasView+Geometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54A0E7205A0D030FE93C949 /* AnnotationCanvasView+Geometry.swift */; };
 		F86BB23A4BB8E2E542234B49 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8187D1FE4C35E2B75201299B /* AppDelegate.swift */; };
 		F8C1DE33D147028DA3ED3FD4 /* TransientToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9C96141627350F4D18ECD88 /* TransientToast.swift */; };
+		FADC619375516BCD8A1DE67C /* StoreDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13BAB57E589A24305CDF2F8 /* StoreDomain.swift */; };
 		FFB3828F0A0BC198135CF110 /* RegionSelectionOverlay+Annotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86CE71AB4F11CEF9E9BD6105 /* RegionSelectionOverlay+Annotation.swift */; };
+		FFD9F14FE75D24719E06EAFC /* VivyShot.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 6C302A5AB0ABDEEFC2A13FE3 /* VivyShot.storekit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -89,6 +94,8 @@
 		4F6372C4CA3D0FA0704513EC /* RegionSelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlay.swift; sourceTree = "<group>"; };
 		5B4220C2A3DBFDB5039B1381 /* VideoCaptureUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCaptureUI.swift; sourceTree = "<group>"; };
 		641321862D64BC5E2FF0A90C /* RegionSelectionOverlay+EditingTargetPicking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingTargetPicking.swift"; sourceTree = "<group>"; };
+		6C302A5AB0ABDEEFC2A13FE3 /* VivyShot.storekit */ = {isa = PBXFileReference; path = VivyShot.storekit; sourceTree = "<group>"; };
+		6E290099AAC2C60C55241F23 /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		816DD48AE89ABD30828BF4E0 /* RustTimelineSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustTimelineSession.swift; sourceTree = "<group>"; };
 		8187D1FE4C35E2B75201299B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		86CE71AB4F11CEF9E9BD6105 /* RegionSelectionOverlay+Annotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+Annotation.swift"; sourceTree = "<group>"; };
@@ -102,14 +109,17 @@
 		B5A5E4B83AB085731FA1CDA2 /* CaptureGlassViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGlassViews.swift; sourceTree = "<group>"; };
 		B5FD724B09B6515ABE6CA7FA /* AnnotationCanvasView+Drawing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AnnotationCanvasView+Drawing.swift"; sourceTree = "<group>"; };
 		B69CF860107CA75A6D80F692 /* AnnotationCanvasView+Input.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AnnotationCanvasView+Input.swift"; sourceTree = "<group>"; };
+		BBDF458763F94FAA4919012E /* StoreViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreViews.swift; sourceTree = "<group>"; };
 		C038AE6E32EFCE1AADEDD4BB /* RustStitchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustStitchSession.swift; sourceTree = "<group>"; };
 		C4D4D6AE07A4A9CDFCAD0AA7 /* AnnotationCanvasView+InlineText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AnnotationCanvasView+InlineText.swift"; sourceTree = "<group>"; };
 		C54A0E7205A0D030FE93C949 /* AnnotationCanvasView+Geometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AnnotationCanvasView+Geometry.swift"; sourceTree = "<group>"; };
 		C7CB3680D67A271DD95942D6 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		CA41A2A953FDED58C9587FF3 /* RustCoreTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustCoreTypes.swift; sourceTree = "<group>"; };
 		CE5399CE50A9B2FDAFF8CA9F /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		DDDF49B517B0002B6F60D508 /* StorePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorePresentation.swift; sourceTree = "<group>"; };
 		DE20CCE59EE20FE605CFA6FD /* CaptureShaderTransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureShaderTransitionView.swift; sourceTree = "<group>"; };
 		E09D563D2FE97127B7A1E0DB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E13BAB57E589A24305CDF2F8 /* StoreDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreDomain.swift; sourceTree = "<group>"; };
 		E2EEA120B0840BC71D568CE6 /* RegionSelectionOverlay+EditingLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingLayout.swift"; sourceTree = "<group>"; };
 		E5EAF3C29324BC59291E1A59 /* RegionSelectionOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlayController.swift; sourceTree = "<group>"; };
 		E9691E54D1A8568CA2DBD761 /* UITestHarnessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHarnessView.swift; sourceTree = "<group>"; };
@@ -153,6 +163,7 @@
 				101FF5863A4053D45DAED3C3 /* AppIcon.icns */,
 				E09D563D2FE97127B7A1E0DB /* Assets.xcassets */,
 				2E3FA09634A5C59A860D6444 /* PrivacyInfo.xcprivacy */,
+				6C302A5AB0ABDEEFC2A13FE3 /* VivyShot.storekit */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -175,6 +186,7 @@
 				CCD45DC190176AAAD172F915 /* Capture */,
 				E4E8C0BE712901C6F3429D28 /* RegionSelection */,
 				D96DDF49FB448DA1EAC3806B /* Settings */,
+				7082315740B9D187CBA531ED /* Store */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -205,6 +217,17 @@
 				61B6A271B1ACF63953F55366 /* Shared */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		7082315740B9D187CBA531ED /* Store */ = {
+			isa = PBXGroup;
+			children = (
+				E13BAB57E589A24305CDF2F8 /* StoreDomain.swift */,
+				6E290099AAC2C60C55241F23 /* StoreManager.swift */,
+				DDDF49B517B0002B6F60D508 /* StorePresentation.swift */,
+				BBDF458763F94FAA4919012E /* StoreViews.swift */,
+			);
+			path = Store;
 			sourceTree = "<group>";
 		};
 		7A5D82ED2F4E224575DF5A1A /* Products */ = {
@@ -418,6 +441,7 @@
 				394091DB2A9921A6A322899F /* AppIcon.icns in Resources */,
 				4EF7321858709E0AA0FA30CB /* Assets.xcassets in Resources */,
 				C1C1D5589A6113A8A1F16D65 /* PrivacyInfo.xcprivacy in Resources */,
+				FFD9F14FE75D24719E06EAFC /* VivyShot.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -465,6 +489,10 @@
 				AD78622235775470AE526D12 /* RustVideoSession.swift in Sources */,
 				8704CA1314A3BED7679C8A27 /* SettingsWindowController.swift in Sources */,
 				CD16DB22FB35D744AED9F9ED /* StatusItemController.swift in Sources */,
+				FADC619375516BCD8A1DE67C /* StoreDomain.swift in Sources */,
+				5445B074158660DC0C10E372 /* StoreManager.swift in Sources */,
+				95C802CDE1235950D550CE21 /* StorePresentation.swift in Sources */,
+				32D056FDA37CE29668BAD784 /* StoreViews.swift in Sources */,
 				F8C1DE33D147028DA3ED3FD4 /* TransientToast.swift in Sources */,
 				54F62A84A4DC6DEF2D2638E2 /* UITestHarnessView.swift in Sources */,
 				3293C133DF1A4B31736B5148 /* VideoCaptureComponents.swift in Sources */,

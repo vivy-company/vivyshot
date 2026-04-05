@@ -1,6 +1,7 @@
 {
   "header": {
-    "download": "项目"
+    "download": "项目",
+    "githubCta": "查看 GitHub"
   },
   "hero": {
     "eyebrow": "简单，原生，高效。",
@@ -21,7 +22,7 @@
     "meta": "当前已可用于 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>。Windows 和 HarmonyOS 已列入后续计划。"
   },
   "why": {
-    "title": "为什么是 VivyShot",
+    "title": "它有什么不同",
     "subtitle": "易用、原生、可移植，而且从一开始就是开源的。",
     "native": {
       "title": "简单",
@@ -101,7 +102,7 @@
     "subtitle": "免费版、终身版、支持者。没有订阅。",
     "free": {
       "name": "免费版",
-      "description": "真正可以试用这款应用的版本",
+      "description": "核心工作流永久免费",
       "price": "$0",
       "period": "",
       "features": [
@@ -109,7 +110,7 @@
         "基础标注工具",
         "干净导出",
         "快速日常流程",
-        "真正可试用",
+        "永久免费",
         "足够判断是否适合"
       ],
       "cta": "下载免费版"
@@ -136,7 +137,8 @@
         "没有订阅"
       ],
       "ctaMonthly": "获取终身版",
-      "ctaYearly": "获取终身版"
+      "ctaYearly": "获取终身版",
+      "note": "退款由 App Store 处理。"
     },
     "lifetime": {
       "name": "支持者",
@@ -153,23 +155,23 @@
       "guarantee": "终身版 $9.99。支持者 $24.99。"
     }
   },
-  "faq": {
-    "title": "为什么做它",
+  "whyBuilt": {
+    "title": "为什么我要做它",
     "q1": {
-      "question": "为真实截图工作而做",
-      "answer": "VivyShot 的目标，是让捕获、标注、录制和导出足够快，适合日常工作，而不是把一张简单截图变成一个小项目。"
+      "question": "太多臃肿",
+      "answer": "很多截图工具想做的事情太多了。我想要的是更小、更快、更专注的东西。"
     },
     "q2": {
-      "question": "为了保持原生体验",
-      "answer": "目标是在每个平台上都使用原生 UI，让应用在不同系统里都自然顺手，而不是 everywhere 都塞进同一套界面。"
+      "question": "太多摩擦",
+      "answer": "截图应该是很快的事情。截下来，标一下，复制，然后继续工作。"
     },
     "q3": {
-      "question": "在公开环境里构建",
-      "answer": "VivyShot 选择开源，因为每天都会用到的工具，应该是可检查、可修改、也足够透明的。"
+      "question": "原生体验很重要",
+      "answer": "我不想把一套笨重界面硬塞到所有平台上。它应该在所在的平台里感觉自然。"
     },
     "q4": {
-      "question": "面向现代工作流",
-      "answer": "它适合 bug 报告、文档、产品反馈，以及 AI agent 工作流，在这些场景里，更好的视觉上下文可以省下很多来回沟通。"
+      "question": "保持有用",
+      "answer": "目标是让它持续把捕获、标注、录制和分享做好，而不是不断长出很多噪音功能。"
     }
   },
   "closing": {
@@ -178,14 +180,14 @@
     "cta": "下载"
   },
   "footer": {
-    "tagline": "面向 macOS 的截图、标注与录制工具",
+    "tagline": "截图、标注与录制工具",
     "description": "开源，并围绕可移植引擎构建，让 VivyShot 在不同平台上依然保持原生界面。",
     "productTitle": "产品",
     "resourcesTitle": "资源",
-    "navWhy": "为什么是 VivyShot",
+    "navWhy": "它有什么不同",
     "navFeatures": "功能",
     "navPricing": "定价",
-    "navFaq": "为什么做它",
+    "navWhyBuilt": "为什么我要做它",
     "copyright": "Vivy Technologies Co., Limited",
     "github": "GitHub",
     "privacy": "隐私",
