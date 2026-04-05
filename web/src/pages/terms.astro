@@ -1,81 +1,100 @@
 ---
 import LegalPage from "../components/LegalPage.astro";
-import { site } from "../data/site";
-
-const sections = [
-  {
-    title: "1. Acceptance of Terms",
-    paragraphs: [
-      'By downloading, installing, or using VivyShot ("the App"), you agree to these Terms of Use. If you do not agree, do not use the App.'
-    ]
-  },
-  {
-    title: "2. License Scope",
-    paragraphs: [
-      "These Terms apply to official VivyShot binaries distributed through Apple's App Store or other official channels operated by Vivy Technologies Co., Limited.",
-      "Source code published in the repository is licensed separately under the licenses described in the repository and related legal files."
-    ]
-  },
-  {
-    title: "3. Permitted Use",
-    paragraphs: [
-      "You may use VivyShot for personal or commercial work, subject to these Terms and any platform-specific store terms that apply to your copy of the App."
-    ]
-  },
-  {
-    title: "4. Restrictions",
-    list: [
-      "Do not use the App for unlawful activity",
-      "Do not remove proprietary notices included with official binary distributions",
-      "Do not misrepresent unofficial builds as official VivyShot releases",
-      "Do not attempt to interfere with the App, its distribution, or related services in a way that harms users or infrastructure"
-    ]
-  },
-  {
-    title: "5. Captured Content",
-    paragraphs: [
-      "You are responsible for the content you capture, edit, export, and share through VivyShot.",
-      "That includes ensuring you have the right to capture screens, recordings, windows, documents, or communications and the right to distribute any resulting output."
-    ]
-  },
-  {
-    title: "6. App Store and Platform Terms",
-    paragraphs: [
-      "If you obtain VivyShot through Apple's App Store, Apple may apply additional terms, billing rules, and usage conditions to that distribution.",
-      "App Store purchases, refunds, and account management are handled through Apple's systems unless explicitly stated otherwise."
-    ]
-  },
-  {
-    title: "7. Disclaimer",
-    paragraphs: [
-      'THE APP IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.'
-    ]
-  },
-  {
-    title: "8. Limitation of Liability",
-    paragraphs: [
-      "TO THE MAXIMUM EXTENT PERMITTED BY LAW, VIVY TECHNOLOGIES CO., LIMITED WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM YOUR USE OF THE APP."
-    ]
-  },
-  {
-    title: "9. Governing Law",
-    paragraphs: [
-      "These Terms are governed by the laws of Hong Kong SAR, without regard to conflict of law principles."
-    ]
-  },
-  {
-    title: "10. Contact",
-    paragraphs: [
-      `Questions about these Terms can be sent to ${site.email}.`
-    ]
-  }
-];
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { SITE } from "../lib/site";
 ---
 
-<LegalPage
-  title="Terms of Use"
-  description="Terms of use for VivyShot."
-  updatedLabel="Last updated: March 20, 2026"
-  intro="This version is intentionally simple and aligned with the repo's current licensing and distribution model. It avoids inventing pricing, tiers, or cloud features that are not finalized."
-  sections={sections}
-/>
+<BaseLayout
+  title="Terms of Use - VivyShot"
+  description="Terms of Use for VivyShot, a macOS screenshot capture and editing app by Vivy Technologies Co., Limited."
+  canonicalPath="/terms"
+  ogType="article"
+>
+  <LegalPage title="Terms of Use" lastUpdated="April 5, 2026">
+    <section>
+      <h2>1. Acceptance of Terms</h2>
+      <p>
+        By downloading, installing, or using VivyShot ("the App"), you agree to these Terms of Use. If
+        you do not agree, do not use the App.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Product Scope</h2>
+      <p>
+        VivyShot is being developed as a screenshot capture and editing product with a Rust-first core.
+        The currently supported official app surface is macOS.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Licensing</h2>
+      <p>
+        Source code published at <a href={SITE.githubUrl} target="_blank" rel="noopener noreferrer">{SITE.githubUrl}</a>
+        {" "}uses a split licensing model.
+      </p>
+      <ul>
+        <li>The Rust core and generated FFI header are licensed under MIT.</li>
+        <li>The macOS app sources are licensed under GPL-3.0-only.</li>
+        <li>Official App Store binaries use Apple’s App Store terms together with VivyShot binary terms.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Restrictions</h2>
+      <ul>
+        <li>You may not use the App for unlawful purposes.</li>
+        <li>You may not remove or alter proprietary notices in official binaries.</li>
+        <li>You may not misrepresent modified builds as official VivyShot releases.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Captured Content</h2>
+      <p>
+        You are responsible for the content you capture, annotate, export, and share through VivyShot,
+        including ensuring you have permission to capture or distribute that material.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. App Store Distribution</h2>
+      <p>
+        Official macOS distribution is expected through Apple’s App Store. Pricing and tiers may change
+        over time and are not finalized today. If the App is purchased through Apple, billing and
+        account management are handled by Apple.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Disclaimer of Warranties</h2>
+      <p>
+        THE APP IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. WE DO NOT WARRANT
+        THAT THE APP WILL BE UNINTERRUPTED, ERROR-FREE, OR SUITABLE FOR EVERY WORKFLOW.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Limitation of Liability</h2>
+      <p>
+        IN NO EVENT SHALL VIVY TECHNOLOGIES CO., LIMITED BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
+        SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF YOUR USE OF THE APP OR WEBSITE.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. Governing Law</h2>
+      <p>
+        These terms shall be governed by the laws of Hong Kong SAR, without regard to its conflict of
+        law provisions.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Contact</h2>
+      <p>
+        For questions about these Terms, contact <a href="mailto:vivyshot@vivy.company">vivyshot@vivy.company</a>.
+      </p>
+    </section>
+  </LegalPage>
+</BaseLayout>

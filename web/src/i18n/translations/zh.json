@@ -1,0 +1,196 @@
+{
+  "header": {
+    "download": "项目"
+  },
+  "hero": {
+    "eyebrow": "简单，原生，高效。",
+    "eyebrowSequence": [
+      "开源截图工作流",
+      "捕获、标注与导出",
+      "快速录制清晰视觉内容",
+      "从设计上就考虑可移植性",
+      "每个平台都使用原生界面",
+      "适合文档、反馈和 bug 报告",
+      "适合高频日常使用",
+      "快速、清爽、高效"
+    ],
+    "title": "VivyShot: Screen Studio",
+    "subtitle": "为了让工作、文档、bug 报告和 AI agent 工作流里的截图与录屏更快而做，把捕获、标注和导出放进同一条流程里。",
+    "primaryCta": "下载",
+    "secondaryCta": "",
+    "meta": "当前已可用于 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>。Windows 和 HarmonyOS 已列入后续计划。"
+  },
+  "why": {
+    "title": "为什么是 VivyShot",
+    "subtitle": "易用、原生、可移植，而且从一开始就是开源的。",
+    "native": {
+      "title": "简单",
+      "desc": "为直接流程而做：按下 <kbd>⌘ ⇧ C</kbd>，选中区域，再按 <kbd>⌘ C</kbd>，然后就能直接分享。"
+    },
+    "modern": {
+      "title": "原生",
+      "desc": "每个平台都使用自己的原生 UI，让 VivyShot 在不同平台上都更自然。"
+    },
+    "sync": {
+      "title": "可移植",
+      "desc": "共享引擎让不同平台上的行为保持一致，也让 VivyShot 更容易扩展到更多设备。"
+    },
+    "pricing": {
+      "title": "开源",
+      "desc": "代码是公开的、可检查的，并且持续在公开环境里开发。"
+    }
+  },
+  "roadmap": {
+    "title": "路线图",
+    "subtitle": "三步，保持简单。",
+    "now": {
+      "title": "macOS 首发",
+      "desc": "先把核心捕获应用做好。"
+    },
+    "next": {
+      "title": "编辑器阶段",
+      "desc": "加入简单的后期编辑。"
+    },
+    "later": {
+      "title": "更多平台",
+      "desc": "带到更多原生桌面平台。"
+    }
+  },
+  "features": {
+    "title": "它能做什么",
+    "subtitle": "捕获、标注、录制、导出。",
+    "rendering": {
+      "title": "按你自己的方式截图",
+      "desc": "从 <kbd>⌘ ⇧ C</kbd> 开始，然后截取区域、窗口或整屏。"
+    },
+    "connect": {
+      "title": "把重点直接标出来",
+      "desc": "支持形状、箭头、文字、模糊和像素化。"
+    },
+    "pickup": {
+      "title": "把短流程录清楚",
+      "desc": "支持录屏，以及音频和输入叠层。"
+    },
+    "organize": {
+      "title": "导出也不拖泥带水",
+      "desc": "可以直接用 <kbd>⌘ C</kbd> 快速复制，或导出干净的 PNG 和 JPEG。"
+    }
+  },
+  "useCases": {
+    "title": "它适合什么场景",
+    "subtitle": "适合 bug、文档、反馈，以及原始截图不够表达问题的 AI agent 工作流。",
+    "solo": {
+      "title": "Bug 报告",
+      "desc": "直接展示问题、受影响区域和真正重要的视觉细节，而不是靠长篇描述补充。"
+    },
+    "homelab": {
+      "title": "产品反馈",
+      "desc": "更清楚地指出回归、布局问题和细节缺陷，减少来回解释。"
+    },
+    "apple": {
+      "title": "文档制作",
+      "desc": "为设置指南、发布说明、内部文档和 onboarding 流程产出更易读的截图。"
+    },
+    "ai": {
+      "title": "AI agent 工作流",
+      "desc": "为 Codex、Claude Code、OpenCode 等 agent 提供截图，让它们在需要视觉上下文时判断得更准确。"
+    }
+  },
+  "pricing": {
+    "title": "简单定价",
+    "subtitle": "免费版、终身版、支持者。没有订阅。",
+    "free": {
+      "name": "免费版",
+      "description": "真正可以试用这款应用的版本",
+      "price": "$0",
+      "period": "",
+      "features": [
+        "核心截图能力",
+        "基础标注工具",
+        "干净导出",
+        "快速日常流程",
+        "真正可试用",
+        "足够判断是否适合"
+      ],
+      "cta": "下载免费版"
+    },
+    "pro": {
+      "name": "终身版",
+      "description": "一次性解锁完整工具",
+      "monthly": {
+        "price": "$9.99",
+        "period": "一次性"
+      },
+      "yearly": {
+        "price": "规划中",
+        "period": "",
+        "save": ""
+      },
+      "features": [
+        "包含免费版全部内容",
+        "完整截图与标注",
+        "录制工作流",
+        "更完整的日常工具",
+        "更好的导出选项",
+        "未来重要改进包含在内",
+        "没有订阅"
+      ],
+      "ctaMonthly": "获取终身版",
+      "ctaYearly": "获取终身版"
+    },
+    "lifetime": {
+      "name": "支持者",
+      "description": "同样的完整应用，加上一个应用内支持者标记",
+      "price": "$24.99",
+      "badge": "锦上添花",
+      "features": [
+        "同样包含终身版完整解锁",
+        "可选的应用内购买",
+        "设置页支持者标记",
+        "额外支持这个项目"
+      ],
+      "cta": "成为支持者",
+      "guarantee": "终身版 $9.99。支持者 $24.99。"
+    }
+  },
+  "faq": {
+    "title": "为什么做它",
+    "q1": {
+      "question": "为真实截图工作而做",
+      "answer": "VivyShot 的目标，是让捕获、标注、录制和导出足够快，适合日常工作，而不是把一张简单截图变成一个小项目。"
+    },
+    "q2": {
+      "question": "为了保持原生体验",
+      "answer": "目标是在每个平台上都使用原生 UI，让应用在不同系统里都自然顺手，而不是 everywhere 都塞进同一套界面。"
+    },
+    "q3": {
+      "question": "在公开环境里构建",
+      "answer": "VivyShot 选择开源，因为每天都会用到的工具，应该是可检查、可修改、也足够透明的。"
+    },
+    "q4": {
+      "question": "面向现代工作流",
+      "answer": "它适合 bug 报告、文档、产品反馈，以及 AI agent 工作流，在这些场景里，更好的视觉上下文可以省下很多来回沟通。"
+    }
+  },
+  "closing": {
+    "title": "当前已可用于 macOS。",
+    "subtitle": "Windows 和 HarmonyOS 已列入后续计划，并且每个平台都会保留原生界面。",
+    "cta": "下载"
+  },
+  "footer": {
+    "tagline": "面向 macOS 的截图、标注与录制工具",
+    "description": "开源，并围绕可移植引擎构建，让 VivyShot 在不同平台上依然保持原生界面。",
+    "productTitle": "产品",
+    "resourcesTitle": "资源",
+    "navWhy": "为什么是 VivyShot",
+    "navFeatures": "功能",
+    "navPricing": "定价",
+    "navFaq": "为什么做它",
+    "copyright": "Vivy Technologies Co., Limited",
+    "github": "GitHub",
+    "privacy": "隐私",
+    "terms": "使用条款",
+    "refunds": "退款",
+    "support": ""
+  }
+}

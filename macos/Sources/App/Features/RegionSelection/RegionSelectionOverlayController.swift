@@ -39,7 +39,7 @@ final class RegionSelectionOverlayController {
 
     let window = RegionSelectionWindow(
       contentRect: frame,
-      styleMask: .borderless,
+      styleMask: [.nonactivatingPanel, .borderless],
       backing: .buffered,
       defer: false
     )
@@ -171,7 +171,6 @@ final class RegionSelectionOverlayController {
     self.window = window
     self.selectionView = selectionView
 
-    NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
     window.makeFirstResponder(selectionView)
     window.invalidateCursorRects(for: selectionView)
@@ -550,7 +549,7 @@ final class RegionSelectionOverlayController {
     return CGPath(ellipseIn: rect, transform: nil)
   }
 }
-final class RegionSelectionWindow: NSWindow {
+final class RegionSelectionWindow: NSPanel {
   var onUndo: (() -> Void)?
   var onRedo: (() -> Void)?
   var onCopy: (() -> Void)?

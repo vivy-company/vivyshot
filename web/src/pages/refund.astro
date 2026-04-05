@@ -1,0 +1,41 @@
+---
+import LegalPage from "../components/LegalPage.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Refund Policy - VivyShot"
+  description="Refund guidance for official VivyShot purchases through Apple's App Store."
+  canonicalPath="/refund"
+  ogType="article"
+>
+  <LegalPage title="Refund Policy" lastUpdated="April 5, 2026">
+    <section>
+      <h2>Refunds for App Store Purchases</h2>
+      <p>
+        If official VivyShot binaries are sold through Apple’s App Store, Apple handles billing and
+        refunds, and eligibility is determined by Apple’s policies.
+      </p>
+    </section>
+
+    <section>
+      <h2>How to Request a Refund</h2>
+      <p>To request a refund, use Apple’s official process:</p>
+      <ol>
+        <li>Go to <a href="https://reportaproblem.apple.com">reportaproblem.apple.com</a></li>
+        <li>Sign in with your Apple ID</li>
+        <li>Find your VivyShot purchase</li>
+        <li>Select "Request a refund" and follow the prompts</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Current Product Status</h2>
+      <p>
+        VivyShot is priced as a free base app plus a $9.99 one-time lifetime unlock, with an
+        optional $24.99 supporter purchase. This page exists so the policy surface is already in
+        place for launch.
+      </p>
+    </section>
+  </LegalPage>
+</BaseLayout>

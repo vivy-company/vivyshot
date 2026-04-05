@@ -145,6 +145,7 @@ final class VideoRecordingHUDController: NSWindowController {
 enum PostRecordingAction {
   case saveMP4
   case saveGIF
+  case discard
 }
 
 struct PostRecordingDetails {
@@ -202,9 +203,8 @@ struct PostRecordingDetails {
 }
 
 @MainActor
-final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
+final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
   private let inputURL: URL
-  private let details: PostRecordingDetails
   private let onAction: (PostRecordingAction) -> Void
   private var didPickAction = false
 
@@ -217,28 +217,30 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
     onAction: @escaping (PostRecordingAction) -> Void
   ) {
     self.inputURL = inputURL
-    self.details = details
     self.onAction = onAction
 
-    let panel = NSPanel(
-      contentRect: CGRect(x: 0, y: 0, width: 420, height: 360),
-      styleMask: [.titled, .closable, .fullSizeContentView],
+    let panel = NSWindow(
+      contentRect: CGRect(x: 0, y: 0, width: 920, height: 720),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
       defer: false
     )
-    panel.level = .floating
-    panel.title = "Recording Ready"
-    panel.toolbar = NSToolbar(identifier: "PostRecordingToolbar")
+    panel.title = "Review Recording"
+    let toolbar = NSToolbar(identifier: "PostRecordingToolbar")
+    toolbar.displayMode = .iconOnly
+    toolbar.allowsUserCustomization = false
+    toolbar.autosavesConfiguration = false
     panel.toolbarStyle = .unified
-    panel.titlebarAppearsTransparent = true
+    panel.titlebarAppearsTransparent = false
     panel.titleVisibility = .visible
-    panel.isMovableByWindowBackground = true
+    panel.isMovableByWindowBackground = false
     panel.isReleasedWhenClosed = false
-    panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-    panel.standardWindowButton(.zoomButton)?.isHidden = true
+    panel.minSize = NSSize(width: 820, height: 620)
 
     super.init(window: panel)
     panel.delegate = self
+    toolbar.delegate = self
+    panel.toolbar = toolbar
 
     let safeDuration = durationSeconds.isFinite ? durationSeconds : 0
     let subtitle = details.subtitleText(
@@ -249,21 +251,8 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
 
     let actionView = PostRecordingActionView(
       inputURL: inputURL,
-      thumbnail: thumbnail,
-      durationSeconds: safeDuration,
-      subtitleText: subtitle,
-      toolsSummaryText: details.toolsSummaryText
-    ) { [weak self] action in
-      guard let self, !self.didPickAction else {
-        return
-      }
-      self.didPickAction = true
-      self.window?.close()
-      let actionHandler = self.onAction
-      DispatchQueue.main.async {
-        actionHandler(action)
-      }
-    }
+      thumbnail: thumbnail
+    )
     panel.contentView = NSHostingView(rootView: actionView)
   }
 
@@ -276,14 +265,110 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
     NSApp.activate(ignoringOtherApps: true)
   }
 
-  func windowWillClose(_ notification: Notification) {
-    if !didPickAction {
-      didPickAction = true
-      let actionHandler = onAction
-      DispatchQueue.main.async {
-        actionHandler(.saveMP4)
-      }
+  func windowShouldClose(_ sender: NSWindow) -> Bool {
+    guard !didPickAction else {
+      return true
     }
+
+    let alert = NSAlert()
+    alert.messageText = "Discard this recording?"
+    alert.informativeText = "Closing this window without saving will discard the temporary recording."
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: "Discard Recording")
+    alert.addButton(withTitle: "Keep Reviewing")
+
+    let response = alert.runModal()
+    guard response == .alertFirstButtonReturn else {
+      return false
+    }
+
+    performAction(.discard)
+    return true
+  }
+
+  func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    [.discardRecording, .flexibleSpace, .saveGIFRecording, .saveMP4Recording]
+  }
+
+  func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    toolbarAllowedItemIdentifiers(toolbar)
+  }
+
+  func toolbar(
+    _ toolbar: NSToolbar,
+    itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+    willBeInsertedIntoToolbar flag: Bool
+  ) -> NSToolbarItem? {
+    switch itemIdentifier {
+    case .discardRecording:
+      return toolbarButtonItem(
+        identifier: itemIdentifier,
+        label: "Discard",
+        symbolName: "trash",
+        action: #selector(discardRecording)
+      )
+    case .saveGIFRecording:
+      return toolbarButtonItem(
+        identifier: itemIdentifier,
+        label: "Save GIF",
+        symbolName: "square.and.arrow.down.on.square",
+        action: #selector(saveGIFRecording)
+      )
+    case .saveMP4Recording:
+      return toolbarButtonItem(
+        identifier: itemIdentifier,
+        label: "Save MP4",
+        symbolName: "square.and.arrow.down",
+        action: #selector(saveMP4Recording)
+      )
+    default:
+      return nil
+    }
+  }
+
+  private func toolbarButtonItem(
+    identifier: NSToolbarItem.Identifier,
+    label: String,
+    symbolName: String,
+    action: Selector
+  ) -> NSToolbarItem {
+    let item = NSToolbarItem(itemIdentifier: identifier)
+    item.label = label
+    item.paletteLabel = label
+    item.toolTip = label
+    item.target = self
+    item.action = action
+    item.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: label)
+    item.isBordered = true
+    return item
+  }
+
+  private func performAction(_ action: PostRecordingAction) {
+    guard !didPickAction else {
+      return
+    }
+
+    didPickAction = true
+    window?.close()
+    let actionHandler = onAction
+    DispatchQueue.main.async {
+      actionHandler(action)
+    }
+  }
+
+  @objc
+  private func discardRecording() {
+    performAction(.discard)
+  }
+
+  @objc
+  private func saveGIFRecording() {
+    performAction(.saveGIF)
+  }
+
+  @objc
+  private func saveMP4Recording() {
+    performAction(.saveMP4)
   }
 
   static func loadAssetInfo(url: URL) async -> (durationSeconds: Double, thumbnail: NSImage?, videoSize: CGSize?) {
@@ -331,160 +416,42 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate {
 private struct PostRecordingActionView: View {
   let inputURL: URL
   let thumbnail: NSImage?
-  let durationSeconds: Double
-  let subtitleText: String
-  let toolsSummaryText: String
-  let onAction: (PostRecordingAction) -> Void
-
-  private var formattedDuration: String {
-    let minutes = Int(durationSeconds) / 60
-    let seconds = Int(durationSeconds) % 60
-    let centiseconds = Int((durationSeconds.truncatingRemainder(dividingBy: 1)) * 100)
-    return String(format: "%02d:%02d.%02d", minutes, seconds, centiseconds)
-  }
 
   init(
     inputURL: URL,
-    thumbnail: NSImage?,
-    durationSeconds: Double,
-    subtitleText: String,
-    toolsSummaryText: String,
-    onAction: @escaping (PostRecordingAction) -> Void
+    thumbnail: NSImage?
   ) {
     self.inputURL = inputURL
     self.thumbnail = thumbnail
-    self.durationSeconds = durationSeconds
-    self.subtitleText = subtitleText
-    self.toolsSummaryText = toolsSummaryText
-    self.onAction = onAction
   }
 
   var body: some View {
-    content
-      .padding(16)
+    ZStack {
+      Color.black
+
+      if FileManager.default.fileExists(atPath: inputURL.path) {
+        PostRecordingPlayerPreview(url: inputURL)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if let thumbnail {
+        Image(nsImage: thumbnail)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        Image(systemName: "film")
+          .font(.system(size: 34, weight: .semibold))
+          .foregroundStyle(.white.opacity(0.7))
+      }
+    }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color.black)
   }
+}
 
-  private var content: some View {
-    VStack(spacing: 12) {
-      VStack(alignment: .leading, spacing: 4) {
-        Text(subtitleText)
-          .font(.system(size: 12.5, weight: .semibold))
-          .foregroundStyle(.secondary)
-        Text(toolsSummaryText)
-          .font(.system(size: 11.5, weight: .regular))
-          .foregroundStyle(.secondary.opacity(0.95))
-          .lineLimit(2)
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-
-      previewCard
-
-      durationChip
-
-      VStack(spacing: 9) {
-        primaryButton(title: "Save as MP4", action: { onAction(.saveMP4) })
-          .keyboardShortcut(.return, modifiers: [])
-
-        secondaryButton(title: "Save as GIF", action: { onAction(.saveGIF) })
-      }
-    }
-  }
-
-  @ViewBuilder
-  private var previewCard: some View {
-    if FileManager.default.fileExists(atPath: inputURL.path) {
-      PostRecordingPlayerPreview(url: inputURL)
-        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 182)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-          RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .stroke(Color.white.opacity(0.16), lineWidth: 1)
-        )
-    } else if let thumbnail {
-      Image(nsImage: thumbnail)
-        .resizable()
-        .aspectRatio(contentMode: .fit)
-        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 182)
-        .background(Color.black.opacity(0.82))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-          RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .stroke(Color.white.opacity(0.16), lineWidth: 1)
-        )
-    } else {
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .fill(Color.black.opacity(0.82))
-        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: 182)
-        .overlay(
-          Image(systemName: "film")
-            .font(.system(size: 34, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.7))
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .stroke(Color.white.opacity(0.16), lineWidth: 1)
-        )
-    }
-  }
-
-  private var durationChip: some View {
-    HStack(spacing: 6) {
-      Image(systemName: "clock.fill")
-        .font(.system(size: 11, weight: .semibold))
-      Text(formattedDuration)
-        .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-    }
-    .foregroundStyle(.white.opacity(0.88))
-    .padding(.horizontal, 10)
-    .padding(.vertical, 6)
-    .background(
-      Capsule(style: .continuous)
-        .fill(Color.white.opacity(0.12))
-        .overlay(
-          Capsule(style: .continuous)
-            .stroke(Color.white.opacity(0.2), lineWidth: 1)
-        )
-    )
-  }
-
-  @ViewBuilder
-  private func primaryButton(title: String, action: @escaping () -> Void) -> some View {
-    if #available(macOS 26.0, *) {
-      Button(action: action) {
-        Text(title)
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.glassProminent)
-      .controlSize(.large)
-    } else {
-      Button(action: action) {
-        Text(title)
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.borderedProminent)
-      .controlSize(.large)
-    }
-  }
-
-  @ViewBuilder
-  private func secondaryButton(title: String, action: @escaping () -> Void) -> some View {
-    if #available(macOS 26.0, *) {
-      Button(action: action) {
-        Text(title)
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.glass)
-      .controlSize(.large)
-    } else {
-      Button(action: action) {
-        Text(title)
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.bordered)
-      .controlSize(.large)
-    }
-  }
+private extension NSToolbarItem.Identifier {
+  static let discardRecording = NSToolbarItem.Identifier("com.vivyshot.post-recording.discard")
+  static let saveGIFRecording = NSToolbarItem.Identifier("com.vivyshot.post-recording.save-gif")
+  static let saveMP4Recording = NSToolbarItem.Identifier("com.vivyshot.post-recording.save-mp4")
 }
 
 private struct PostRecordingPlayerPreview: NSViewRepresentable {

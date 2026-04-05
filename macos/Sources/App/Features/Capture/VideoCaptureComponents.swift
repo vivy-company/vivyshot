@@ -252,6 +252,8 @@ final class VideoCaptureCoordinator {
         quickSaveMP4(inputURL: inputURL)
       case .saveGIF:
         quickSaveGIF(inputURL: inputURL)
+      case .discard:
+        discardTemporaryRecording(inputURL: inputURL)
       }
     }
     panelRef = panel
@@ -298,6 +300,19 @@ final class VideoCaptureCoordinator {
     _ = inputURL
     Task {
       TransientToast.show("GIF export is temporarily unavailable during editor redesign.", duration: 2.8)
+    }
+  }
+
+  private func discardTemporaryRecording(inputURL: URL) {
+    Task {
+      do {
+        if FileManager.default.fileExists(atPath: inputURL.path) {
+          try FileManager.default.removeItem(at: inputURL)
+        }
+        TransientToast.show("Recording discarded.", duration: 2.0)
+      } catch {
+        TransientToast.show("Unable to discard recording: \(error.localizedDescription)", duration: 2.5)
+      }
     }
   }
 
@@ -858,6 +873,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
   }
 }
 
+@MainActor
 final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputDelegate {
   private let selectionRectInScreen: CGRect
   private let config: VideoRecordingConfig
@@ -866,7 +882,7 @@ final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputD
   private var stream: SCStream?
   private var recordingOutput: SCRecordingOutput?
   private let recordingErrorLock = NSLock()
-  private var latestRecordingError: Error?
+  nonisolated(unsafe) private var latestRecordingError: Error?
 
   init(selectionRectInScreen: CGRect, config: VideoRecordingConfig, outputURL: URL) {
     self.selectionRectInScreen = selectionRectInScreen.standardized
@@ -979,21 +995,21 @@ final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputD
       ?? NSScreen.screens.first
   }
 
-  func stream(_ stream: SCStream, didStopWithError error: Error) {
+  nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
     setRecordingError(error)
   }
 
-  func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
+  nonisolated func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
     setRecordingError(error)
   }
 
-  private func currentRecordingError() -> Error? {
+  nonisolated private func currentRecordingError() -> Error? {
     recordingErrorLock.lock()
     defer { recordingErrorLock.unlock() }
     return latestRecordingError
   }
 
-  private func setRecordingError(_ error: Error?) {
+  nonisolated private func setRecordingError(_ error: Error?) {
     recordingErrorLock.lock()
     latestRecordingError = error
     recordingErrorLock.unlock()
@@ -1014,6 +1030,7 @@ private extension NSScreen {
   }
 }
 
+@MainActor
 private extension SCStream {
   func vs_startCapture() async throws {
     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in

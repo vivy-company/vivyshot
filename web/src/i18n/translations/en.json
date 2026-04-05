@@ -1,0 +1,196 @@
+{
+  "header": {
+    "download": "Project"
+  },
+  "hero": {
+    "eyebrow": "Simple. Native. Fast.",
+    "eyebrowSequence": [
+      "Open source screenshot workflow",
+      "Capture, annotate, and export",
+      "Record clean visuals fast",
+      "Portable by design",
+      "Native UI on each platform",
+      "Made for docs, feedback, and bug reports",
+      "Built for focused daily use",
+      "Fast, clean, and efficient"
+    ],
+    "title": "VivyShot: Screen Studio",
+    "subtitle": "Built to make screenshots and screen recordings faster for work, docs, bug reports, and AI-agent workflows, with capture, annotation, and export in one place.",
+    "primaryCta": "Download",
+    "secondaryCta": "",
+    "meta": "Available now on <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>. Windows and HarmonyOS are planned next."
+  },
+  "why": {
+    "title": "Why VivyShot",
+    "subtitle": "Simple to use, native on every platform, portable by design, and open source from the start.",
+    "native": {
+      "title": "Simple",
+      "desc": "Built for a direct flow: hit <kbd>⌘ ⇧ C</kbd>, select the area, press <kbd>⌘ C</kbd>, and share it."
+    },
+    "modern": {
+      "title": "Native",
+      "desc": "Each platform gets its own native UI, so VivyShot can feel at home wherever it runs."
+    },
+    "sync": {
+      "title": "Portable",
+      "desc": "A shared engine keeps behavior consistent across platforms and makes it easier to bring VivyShot to more devices."
+    },
+    "pricing": {
+      "title": "Open source",
+      "desc": "The code is public, inspectable, and developed in the open."
+    }
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "subtitle": "Three steps, kept simple.",
+    "now": {
+      "title": "macOS launch",
+      "desc": "Ship the core capture app first."
+    },
+    "next": {
+      "title": "Editor pass",
+      "desc": "Add simple post-capture editing."
+    },
+    "later": {
+      "title": "More platforms",
+      "desc": "Bring it to more native desktops."
+    }
+  },
+  "features": {
+    "title": "What you can do with it",
+    "subtitle": "Capture, annotate, record, and export.",
+    "rendering": {
+      "title": "Capture screenshots your way",
+      "desc": "Start with <kbd>⌘ ⇧ C</kbd>, then capture an area, a window, or the full screen."
+    },
+    "connect": {
+      "title": "Mark up the important detail",
+      "desc": "Use shapes, arrows, text, blur, and pixelate."
+    },
+    "pickup": {
+      "title": "Record short flows clearly",
+      "desc": "Record screen video with audio and input overlays."
+    },
+    "organize": {
+      "title": "Export without extra steps",
+      "desc": "Use the keyboard to copy fast with <kbd>⌘ C</kbd>, or save clean PNG and JPEG output."
+    }
+  },
+  "useCases": {
+    "title": "Where it is useful",
+    "subtitle": "Useful for bugs, docs, feedback, and AI-agent workflows where a raw screenshot is not enough.",
+    "solo": {
+      "title": "Bug reports",
+      "desc": "Show the bug, the affected region, and the exact visual detail that matters instead of writing around it."
+    },
+    "homelab": {
+      "title": "Product feedback",
+      "desc": "More clearly call out regressions, layout problems, and polish issues with less back-and-forth."
+    },
+    "apple": {
+      "title": "Documentation",
+      "desc": "Produce screenshots that are easier to read in setup guides, release notes, internal docs, and onboarding flows."
+    },
+    "ai": {
+      "title": "AI-agent workflows",
+      "desc": "Take screenshots for Codex, Claude Code, OpenCode, and similar agents when visual context helps them reason better."
+    }
+  },
+  "pricing": {
+    "title": "Simple pricing",
+    "subtitle": "Free, Lifetime, and Supporter. No subscription.",
+    "free": {
+      "name": "Free",
+      "description": "A real way to try the app before paying",
+      "price": "$0",
+      "period": "",
+      "features": [
+        "Core screenshot capture",
+        "Basic annotation tools",
+        "Clean export",
+        "Fast everyday workflow",
+        "A real way to try it",
+        "Enough to evaluate fit"
+      ],
+      "cta": "Download free"
+    },
+    "pro": {
+      "name": "Lifetime",
+      "description": "A one-time unlock for the full tool",
+      "monthly": {
+        "price": "$9.99",
+        "period": "one-time"
+      },
+      "yearly": {
+        "price": "Planned",
+        "period": "",
+        "save": ""
+      },
+      "features": [
+        "Everything in Free",
+        "Full capture and annotation",
+        "Recording workflow",
+        "More polished daily tools",
+        "Better export options",
+        "Future major improvements",
+        "No subscription"
+      ],
+      "ctaMonthly": "Get lifetime",
+      "ctaYearly": "Get lifetime"
+    },
+    "lifetime": {
+      "name": "Supporter",
+      "description": "Same full app, plus a small in-app supporter badge",
+      "price": "$24.99",
+      "badge": "Nice to have",
+      "features": [
+        "Same full unlock as Lifetime",
+        "Optional in-app purchase",
+        "Supporter badge in Settings",
+        "Extra support for the project"
+      ],
+      "cta": "Become a supporter",
+      "guarantee": "Lifetime is $9.99. Supporter is $24.99."
+    }
+  },
+  "faq": {
+    "title": "Why it exists",
+    "q1": {
+      "question": "Built for real screenshot work",
+      "answer": "VivyShot is built to make capture, markup, recording, and export feel fast enough for daily work instead of turning a simple screenshot into a small project."
+    },
+    "q2": {
+      "question": "Built to stay native",
+      "answer": "The goal is native UI on each platform, so the app feels right where it runs instead of forcing one same interface everywhere."
+    },
+    "q3": {
+      "question": "Built in the open",
+      "answer": "VivyShot is open source because tools you use every day should be inspectable, adaptable, and honest about how they work."
+    },
+    "q4": {
+      "question": "Built for modern workflows",
+      "answer": "Use it for bug reports, docs, product feedback, and AI-agent workflows where better visual context saves time and back-and-forth."
+    }
+  },
+  "closing": {
+    "title": "Available now on macOS.",
+    "subtitle": "Windows and HarmonyOS are planned next, with native UI on each platform.",
+    "cta": "Download"
+  },
+  "footer": {
+    "tagline": "Screen capture, annotation, and recording for macOS",
+    "description": "Open source and built around a portable engine, with native UI on each platform VivyShot ships on.",
+    "productTitle": "Product",
+    "resourcesTitle": "Resources",
+    "navWhy": "Why VivyShot",
+    "navFeatures": "Features",
+    "navPricing": "Pricing",
+    "navFaq": "Why it exists",
+    "copyright": "Vivy Technologies Co., Limited",
+    "github": "GitHub",
+    "privacy": "Privacy",
+    "terms": "Terms of Use",
+    "refunds": "Refunds",
+    "support": ""
+  }
+}
