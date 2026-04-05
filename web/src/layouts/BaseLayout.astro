@@ -49,6 +49,7 @@ const canonical = new URL(canonicalPath, SITE.siteUrl).toString();
     <meta property="twitter:title" content={title} />
     <meta property="twitter:description" content={description} />
     <meta property="twitter:image" content={`${SITE.siteUrl}/og.png`} />
+    <script defer src="https://analytics.vivy.app/script.js" data-website-id="3185ded0-0177-4989-b811-d93f70692a4c"></script>
     <script is:inline define:vars={{ themeStorageKey: SITE.themeStorageKey }}>
       const savedTheme = localStorage.getItem(themeStorageKey);
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
