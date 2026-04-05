@@ -1,0 +1,66 @@
+---
+import LegalPage from "../components/LegalPage.astro";
+import { site } from "../data/site";
+
+const sections = [
+  {
+    title: "1. Introduction",
+    paragraphs: [
+      `Vivy Technologies Co., Limited ("we", "our", or "us") operates VivyShot, a screen capture and editing application for macOS.`,
+      "This Privacy Policy explains what information VivyShot may process, how that information is used, and how we try to keep data handling narrow and predictable."
+    ]
+  },
+  {
+    title: "2. Information We Process",
+    paragraphs: [
+      "Captured screenshots, recordings, annotations, and related project data are created and handled on your device as part of the app's normal operation.",
+      "If you contact support by email, we receive the information you include in that message, such as your email address, app version, logs, screenshots, or reproduction details.",
+      "Website analytics, crash reporting, or additional telemetry are not described here unless and until they are actually enabled for the website or app."
+    ]
+  },
+  {
+    title: "3. How We Use Information",
+    list: [
+      "To provide capture, editing, export, and sharing functionality inside the app",
+      "To respond to support requests and diagnose product issues",
+      "To improve stability, usability, and product quality when you voluntarily provide feedback or debug details"
+    ]
+  },
+  {
+    title: "4. Storage and Security",
+    paragraphs: [
+      "We aim to keep user content local to your device unless you explicitly export it, share it, or send it to us for support.",
+      "We do not claim zero risk. Device security, OS behavior, your chosen storage locations, and any third-party services you use all affect how protected your data is."
+    ]
+  },
+  {
+    title: "5. Third-Party Services",
+    paragraphs: [
+      "Purchases handled through Apple's App Store are subject to Apple's billing, account, and privacy practices.",
+      "If future versions of the website or app add analytics, crash reporting, cloud sync, or hosted collaboration, this policy should be updated before those features are represented as active."
+    ]
+  },
+  {
+    title: "6. Your Choices",
+    list: [
+      "Delete local captures, recordings, or projects from your device",
+      "Choose what files to export and where to store them",
+      "Contact us to ask privacy questions or request clarification about our data handling"
+    ]
+  },
+  {
+    title: "7. Contact",
+    paragraphs: [
+      `If you have questions about this Privacy Policy, contact ${site.email}.`
+    ]
+  }
+];
+---
+
+<LegalPage
+  title="Privacy Policy"
+  description="Privacy information for VivyShot."
+  updatedLabel="Last updated: March 20, 2026"
+  intro="VivyShot is designed around local capture and editing workflows. This page should stay aligned with what the product actually does, not with generic SaaS privacy boilerplate."
+  sections={sections}
+/>

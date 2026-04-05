@@ -4,5 +4,6 @@ Official logo and icon source files live in `docs/branding/`.
 
 ## Active Sources
 
-- `logo.png`: source used directly by the macOS app icon set
-- `icons/`: additional platform/export variants kept as source assets
+- `logo.png`: canonical logo source for website and app icon generation
+
+Regenerate derived app icon assets with `./scripts/gen-icons.sh`.

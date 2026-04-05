@@ -1,0 +1,29 @@
+---
+import { site } from "../data/site";
+
+const links = [
+  { href: "/", label: "Home" },
+  { href: "/support", label: "Support" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" }
+];
+---
+
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/">
+      <img src="/logo.png" alt="VivyShot logo" width="40" height="40" />
+      <div>
+        <strong>{site.name}</strong>
+      </div>
+    </a>
+
+    <nav class="nav">
+      {links.map((link) => (
+        <a href={link.href} class={Astro.url.pathname === link.href ? "is-active" : undefined}>
+          {link.label}
+        </a>
+      ))}
+    </nav>
+  </div>
+</header>

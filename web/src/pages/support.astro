@@ -1,0 +1,58 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import { site } from "../data/site";
+
+const cards = [
+  {
+    title: "Contact",
+    text: `Email ${site.email}. Include your device model, macOS version, and VivyShot app version when relevant.`
+  },
+  {
+    title: "Bug reports",
+    text: "Share the exact steps, what you expected, what happened instead, and any screenshots or logs that make the issue obvious."
+  },
+  {
+    title: "Billing",
+    text: "If your copy comes from the App Store, purchase management and refund handling typically run through Apple."
+  }
+];
+---
+
+<BaseLayout title="Support" description="Support information for VivyShot.">
+  <Header />
+
+  <main class="page">
+    <section class="container legal-hero">
+      <p class="eyebrow">Support</p>
+      <h1>Help without the maze.</h1>
+      <p class="legal-intro">
+        VivyShot support should be straightforward: send the facts, include context, and we can usually get to the root cause faster.
+      </p>
+    </section>
+
+    <section class="container">
+      <div class="support-grid">
+        {cards.map((card) => (
+          <article class="support-card">
+            <h2>{card.title}</h2>
+            <p>{card.text}</p>
+          </article>
+        ))}
+      </div>
+
+      <div class="cta">
+        <div>
+          <h2>What to include</h2>
+          <p>
+            macOS version, app version, repro steps, whether the issue affects screenshot capture or editing, and any logs or sample output that narrow it down.
+          </p>
+        </div>
+        <a class="button" href={`mailto:${site.email}`}>Email support</a>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
+</BaseLayout>

@@ -1,0 +1,21 @@
+---
+import { site } from "../data/site";
+---
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div>
+      <p class="footer-title">{site.name}</p>
+      <p class="footer-copy">
+        Capture, edit, and share clean screenshots on macOS.
+      </p>
+    </div>
+
+    <div class="footer-links">
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/support">Support</a>
+      <a href={site.github} target="_blank" rel="noreferrer">GitHub</a>
+    </div>
+  </div>
+</footer>

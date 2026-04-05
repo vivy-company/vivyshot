@@ -1,0 +1,56 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Header from "./Header.astro";
+import Footer from "./Footer.astro";
+
+interface Section {
+  title: string;
+  paragraphs?: string[];
+  list?: string[];
+}
+
+interface Props {
+  title: string;
+  description: string;
+  updatedLabel?: string;
+  intro?: string;
+  sections: Section[];
+}
+
+const {
+  title,
+  description,
+  updatedLabel,
+  intro,
+  sections
+} = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <Header />
+
+  <main class="page">
+    <section class="container legal-hero">
+      <p class="eyebrow">VivyShot</p>
+      <h1>{title}</h1>
+      {updatedLabel && <p class="muted">{updatedLabel}</p>}
+      {intro && <p class="legal-intro">{intro}</p>}
+    </section>
+
+    <section class="container legal-body">
+      {sections.map((section) => (
+        <article class="legal-section">
+          <h2>{section.title}</h2>
+          {section.paragraphs?.map((paragraph) => <p>{paragraph}</p>)}
+          {section.list && (
+            <ul>
+              {section.list.map((item) => <li>{item}</li>)}
+            </ul>
+          )}
+        </article>
+      ))}
+    </section>
+  </main>
+
+  <Footer />
+</BaseLayout>
