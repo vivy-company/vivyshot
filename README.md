@@ -11,6 +11,8 @@
 
 Open source screen capture, annotation, and recording software with a portable Rust core and a native macOS app today.
 
+![VivyShot screenshot](web/public/screenshot.png)
+
 ## What Is VivyShot?
 
 VivyShot is a focused screenshot and recording tool for people who want to capture something, mark it up, copy it, and move on. It is built around a portable Rust core for shared geometry, timeline, and export logic, with a native macOS app as the official surface today.
