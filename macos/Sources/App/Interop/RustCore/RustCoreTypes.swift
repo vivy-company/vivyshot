@@ -91,6 +91,60 @@ enum RustImageEncodeFormat: UInt8 {
   case jpeg = 1
 }
 
+enum RustStatsEventType: UInt8, Sendable {
+  case screenshotCaptured = 0
+  case screenshotSessionCompleted = 1
+  case recordingCompleted = 2
+}
+
+struct RustStatsDayKey: Equatable, Sendable {
+  let year: Int
+  let month: Int
+  let day: Int
+
+  var yyyyMMdd: String {
+    String(format: "%04d-%02d-%02d", year, month, day)
+  }
+}
+
+struct RustStatsEvent: Sendable {
+  let eventKey: String
+  let eventType: RustStatsEventType
+  let occurredAtMS: Int64
+  let timezoneOffsetMinutes: Int32
+  let bytesProduced: Int64
+  let durationMS: Int64?
+  let screenshotCompletionDurationMS: Int64?
+  let captureID: String
+}
+
+struct RustStatsSummary: Sendable {
+  let totalScreenshotsCaptured: Int64
+  let totalRecordingsCompleted: Int64
+  let totalRecordedDurationMS: Int64
+  let totalScreenshotCompletionDurationMS: Int64
+  let completedScreenshotSessionCount: Int64
+  let averageScreenshotEditorCompletionDurationMS: Int64
+  let totalCaptureBytesProduced: Int64
+  let currentCaptureStreakDays: Int
+  let bestCaptureStreakDays: Int
+  let activeCaptureDays: Int
+  let firstCaptureDay: RustStatsDayKey?
+  let lastCaptureDay: RustStatsDayKey?
+  let mostActiveDay: RustStatsDayKey?
+  let mostActiveDayScore: Int64
+}
+
+struct RustStatsDailyBucket: Sendable {
+  let day: RustStatsDayKey
+  let screenshotCount: Int
+  let recordingCount: Int
+  let recordedDurationMS: Int64
+  let captureBytesProduced: Int64
+  let firstCaptureAtMS: Int64?
+  let lastCaptureAtMS: Int64?
+}
+
 enum RustFFIStatus: Int32 {
   case ok = 0
   case noChange = 1
@@ -142,5 +196,3 @@ struct RustStitchSessionResult {
   let segmentCount: Int
   let scrollDirectionSign: Int
 }
-
-

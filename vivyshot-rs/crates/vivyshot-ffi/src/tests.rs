@@ -149,10 +149,122 @@ fn handle_registries_return_to_baseline_after_stress() {
             let timeline = vs_timeline_create(3_000, width as u32, height as u32);
             assert!(!timeline.is_null());
             vs_timeline_destroy(timeline);
+
+            let stats = vs_stats_session_create();
+            assert!(!stats.is_null());
+            vs_stats_session_destroy(stats);
         }
     }
 
     assert_eq!(live_handle_counts(), baseline);
+}
+
+#[test]
+fn stats_session_tracks_totals_and_serializes() {
+    let stats = vs_stats_session_create();
+    assert!(!stats.is_null());
+
+    let capture_id = b"capture-1";
+    let screenshot_key = b"screenshot_capture:capture-1";
+    let completion_key = b"screenshot_session_completed:capture-1";
+    let recording_id = b"recording-1";
+    let recording_key = b"recording_completed:recording-1";
+    let mut applied = false;
+
+    let screenshot = vs_stats_event {
+        event_type: VS_STATS_EVENT_SCREENSHOT_CAPTURED,
+        reserved0: [0, 0, 0],
+        timezone_offset_minutes: 480,
+        occurred_at_ms: 1_710_000_000_000,
+        bytes_produced: 12_345,
+        duration_ms: -1,
+        screenshot_completion_duration_ms: -1,
+        event_key_ptr: screenshot_key.as_ptr(),
+        event_key_len: screenshot_key.len(),
+        capture_id_ptr: capture_id.as_ptr(),
+        capture_id_len: capture_id.len(),
+    };
+    let completion = vs_stats_event {
+        event_type: VS_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED,
+        reserved0: [0, 0, 0],
+        timezone_offset_minutes: 480,
+        occurred_at_ms: 1_710_000_010_000,
+        bytes_produced: 0,
+        duration_ms: -1,
+        screenshot_completion_duration_ms: 10_000,
+        event_key_ptr: completion_key.as_ptr(),
+        event_key_len: completion_key.len(),
+        capture_id_ptr: capture_id.as_ptr(),
+        capture_id_len: capture_id.len(),
+    };
+    let recording = vs_stats_event {
+        event_type: VS_STATS_EVENT_RECORDING_COMPLETED,
+        reserved0: [0, 0, 0],
+        timezone_offset_minutes: 480,
+        occurred_at_ms: 1_710_086_400_000,
+        bytes_produced: 54_321,
+        duration_ms: 90_000,
+        screenshot_completion_duration_ms: -1,
+        event_key_ptr: recording_key.as_ptr(),
+        event_key_len: recording_key.len(),
+        capture_id_ptr: recording_id.as_ptr(),
+        capture_id_len: recording_id.len(),
+    };
+
+    unsafe {
+        assert_eq!(vs_stats_session_ingest_event(stats, screenshot, &mut applied), 0);
+        assert!(applied);
+        assert_eq!(vs_stats_session_ingest_event(stats, screenshot, &mut applied), 0);
+        assert!(!applied);
+        assert_eq!(vs_stats_session_ingest_event(stats, completion, &mut applied), 0);
+        assert!(applied);
+        assert_eq!(vs_stats_session_ingest_event(stats, recording, &mut applied), 0);
+        assert!(applied);
+
+        let mut summary = vs_stats_summary::default();
+        assert_eq!(vs_stats_session_get_summary(stats, &mut summary), 0);
+        assert_eq!(summary.total_screenshots_captured, 1);
+        assert_eq!(summary.total_recordings_completed, 1);
+        assert_eq!(summary.total_capture_bytes_produced, 66_666);
+        assert_eq!(summary.average_screenshot_editor_completion_duration_ms, 10_000);
+        assert_eq!(summary.current_capture_streak_days, 2);
+
+        let mut written = 0;
+        assert_eq!(
+            vs_stats_session_get_all_daily_buckets(stats, std::ptr::null_mut(), 0, &mut written),
+            0
+        );
+        assert_eq!(written, 2);
+
+        let mut buckets = vec![vs_stats_daily_bucket::default(); written as usize];
+        assert_eq!(
+            vs_stats_session_get_all_daily_buckets(
+                stats,
+                buckets.as_mut_ptr(),
+                buckets.len() as u32,
+                &mut written
+            ),
+            0
+        );
+        assert_eq!(written, 2);
+        assert_eq!(buckets[0].screenshot_count, 1);
+        assert_eq!(buckets[1].recording_count, 1);
+
+        let mut buffer = vec![0u8; 8_192];
+        assert_eq!(
+            vs_stats_session_serialize_json(
+                stats,
+                buffer.as_mut_ptr(),
+                buffer.len() as u32,
+                &mut written
+            ),
+            0
+        );
+        let restored = vs_stats_session_deserialize_json(buffer.as_ptr(), written);
+        assert!(!restored.is_null());
+        vs_stats_session_destroy(restored);
+        vs_stats_session_destroy(stats);
+    }
 }
 
 #[test]

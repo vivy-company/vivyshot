@@ -1,5 +1,7 @@
 import AppKit
 import Darwin
+import SQLite3
+import VivyShotKit
 import XCTest
 @testable import VivyShotDev
 
@@ -35,6 +37,80 @@ final class VivyShotTests: XCTestCase {
     XCTAssertTrue(entitlement.hasPaidAccess)
     XCTAssertEqual(entitlement.badgeTitle, "Supporter")
     XCTAssertEqual(entitlement.tierTitle, "Supporter")
+  }
+
+  func testCaptureStatisticsStorePersistsLedgerAndProjections() async throws {
+    let tempDirectory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("vivyshot-stats-tests", isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    let databaseURL = tempDirectory.appendingPathComponent("\(UUID().uuidString).sqlite")
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let store = CaptureStatisticsStore(databaseURL: databaseURL)
+    let screenshotStartedAt = Date(timeIntervalSince1970: 1_710_000_000)
+    let screenshotFinishedAt = screenshotStartedAt.addingTimeInterval(12)
+    let recordingAt = screenshotStartedAt.addingTimeInterval(86_400)
+
+    await store.recordScreenshotCaptured(
+      captureID: "capture-1",
+      occurredAt: screenshotStartedAt,
+      bytesProduced: 1_234
+    )
+    await store.recordScreenshotSessionCompleted(
+      captureID: "capture-1",
+      startedAt: screenshotStartedAt,
+      finishedAt: screenshotFinishedAt
+    )
+    await store.recordRecordingCompleted(
+      recordingID: "recording-1",
+      occurredAt: recordingAt,
+      bytesProduced: 4_321,
+      durationMS: 90_000
+    )
+
+    var db: OpaquePointer?
+    XCTAssertEqual(sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY, nil), SQLITE_OK)
+    guard let db else {
+      XCTFail("Unable to open test database")
+      return
+    }
+    defer { sqlite3_close(db) }
+
+    XCTAssertEqual(
+      try queryInt64(
+        db,
+        sql: "SELECT COUNT(*) FROM stats_ingested_events;"
+      ),
+      3
+    )
+    XCTAssertEqual(
+      try queryInt64(
+        db,
+        sql: "SELECT total_screenshots_captured FROM stats_lifetime_totals WHERE singleton_key = 1;"
+      ),
+      1
+    )
+    XCTAssertEqual(
+      try queryInt64(
+        db,
+        sql: "SELECT total_recordings_completed FROM stats_lifetime_totals WHERE singleton_key = 1;"
+      ),
+      1
+    )
+    XCTAssertEqual(
+      try queryInt64(
+        db,
+        sql: "SELECT average_screenshot_completion_duration_ms FROM (SELECT total_screenshot_completion_duration_ms / completed_screenshot_session_count AS average_screenshot_completion_duration_ms FROM stats_lifetime_totals WHERE singleton_key = 1);"
+      ),
+      12_000
+    )
+    XCTAssertEqual(
+      try queryInt64(
+        db,
+        sql: "SELECT COUNT(*) FROM stats_daily_capture;"
+      ),
+      2
+    )
   }
 
   func testPortableVideoExportPlanContract() {
@@ -611,4 +687,17 @@ final class VivyShotTests: XCTestCase {
     let rank = Int(((percentile / 100.0) * Double(sorted.count - 1)).rounded())
     return sorted[min(max(rank, 0), sorted.count - 1)]
   }
+}
+
+private func queryInt64(_ db: OpaquePointer, sql: String) throws -> Int64 {
+  var statement: OpaquePointer?
+  guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
+    throw NSError(domain: "VivyShotTests", code: -1, userInfo: nil)
+  }
+  defer { sqlite3_finalize(statement) }
+
+  guard sqlite3_step(statement) == SQLITE_ROW else {
+    throw NSError(domain: "VivyShotTests", code: -2, userInfo: nil)
+  }
+  return sqlite3_column_int64(statement, 0)
 }

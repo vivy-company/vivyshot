@@ -19,17 +19,17 @@ enum CaptureTransitionStyle: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .none:
-      return "None"
+      return String(localized: "None", bundle: AppLocalizer.shared.bundle)
     case .fade:
-      return "Fade"
+      return String(localized: "Fade", bundle: AppLocalizer.shared.bundle)
     case .ripple:
-      return "Wave Drop"
+      return String(localized: "Wave Drop", bundle: AppLocalizer.shared.bundle)
     case .liquidDrop:
-      return "Liquid Drop"
+      return String(localized: "Liquid Drop", bundle: AppLocalizer.shared.bundle)
     case .zoomBlur:
-      return "Zoom Blur"
+      return String(localized: "Zoom Blur", bundle: AppLocalizer.shared.bundle)
     case .waterWave:
-      return "Water Wave"
+      return String(localized: "Water Wave", bundle: AppLocalizer.shared.bundle)
     }
   }
 }
@@ -47,6 +47,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var captureUseControl: Bool
   @Published private(set) var captureShowHelper: Bool
   @Published private(set) var defaultCaptureType: CaptureContentType
+  @Published private(set) var appLanguage: AppLanguage
 
   @Published private(set) var toolOrder: [AnnotationTool]
   @Published private(set) var hiddenTools: Set<AnnotationTool>
@@ -71,6 +72,11 @@ final class AppSettings: ObservableObject {
   @Published private(set) var videoCodec: VideoCodecOption
   @Published private(set) var videoFrameRate: VideoFrameRateOption
   @Published private(set) var videoCountdown: VideoCountdownOption
+  @Published private(set) var videoExportCodec: PostRecordingExportCodec
+  @Published private(set) var videoExportFrameRate: PostRecordingExportFrameRate
+  @Published private(set) var videoExportQuality: PostRecordingExportQuality
+  @Published private(set) var videoExportScale: PostRecordingExportScale
+  @Published private(set) var videoExportBitrate: PostRecordingExportBitratePreset
   @Published private(set) var videoRecordSystemAudio: Bool
   @Published private(set) var videoRecordMicrophone: Bool
   @Published private(set) var videoShowWebcam: Bool
@@ -140,6 +146,7 @@ final class AppSettings: ObservableObject {
     static let captureUseControl = "settings.capture.useControl"
     static let captureShowHelper = "settings.capture.showHelper"
     static let defaultCaptureType = "settings.capture.defaultType"
+    static let appLanguage = "settings.app.language"
 
     static let toolOrder = "settings.toolbar.toolOrder"
     static let hiddenTools = "settings.toolbar.hiddenTools"
@@ -164,6 +171,11 @@ final class AppSettings: ObservableObject {
     static let videoCodec = "settings.video.codec"
     static let videoFrameRate = "settings.video.frameRate"
     static let videoCountdown = "settings.video.countdown"
+    static let videoExportCodec = "settings.video.export.codec"
+    static let videoExportFrameRate = "settings.video.export.frameRate"
+    static let videoExportQuality = "settings.video.export.quality"
+    static let videoExportScale = "settings.video.export.scale"
+    static let videoExportBitrate = "settings.video.export.bitrate"
     static let videoRecordSystemAudio = "settings.video.recordSystemAudio"
     static let videoRecordMicrophone = "settings.video.recordMicrophone"
     static let videoShowWebcam = "settings.video.showWebcam"
@@ -203,6 +215,8 @@ final class AppSettings: ObservableObject {
 
     let storedDefaultCaptureType = defaults.object(forKey: Keys.defaultCaptureType) as? Int
     defaultCaptureType = CaptureContentType(rawValue: storedDefaultCaptureType ?? CaptureContentType.screenshot.rawValue) ?? .screenshot
+    let storedAppLanguage = defaults.string(forKey: Keys.appLanguage)
+    appLanguage = AppLanguage(rawValue: storedAppLanguage ?? AppLanguage.system.rawValue) ?? .system
 
     let normalizedToolOrder = Self.normalizeToolOrder(rawValues: defaults.array(forKey: Keys.toolOrder) as? [Int])
     toolOrder = normalizedToolOrder
@@ -259,6 +273,21 @@ final class AppSettings: ObservableObject {
     let storedVideoCountdown = defaults.object(forKey: Keys.videoCountdown) as? Int
     videoCountdown = VideoCountdownOption(rawValue: storedVideoCountdown ?? VideoCountdownOption.off.rawValue) ?? .off
 
+    let storedVideoExportCodec = defaults.string(forKey: Keys.videoExportCodec)
+    videoExportCodec = PostRecordingExportCodec(rawValue: storedVideoExportCodec ?? PostRecordingExportCodec.h264.rawValue) ?? .h264
+
+    let storedVideoExportFrameRate = defaults.object(forKey: Keys.videoExportFrameRate) as? Int
+    videoExportFrameRate = PostRecordingExportFrameRate(rawValue: storedVideoExportFrameRate ?? PostRecordingExportFrameRate.fps30.rawValue) ?? .fps30
+
+    let storedVideoExportQuality = defaults.string(forKey: Keys.videoExportQuality)
+    videoExportQuality = PostRecordingExportQuality(rawValue: storedVideoExportQuality ?? PostRecordingExportQuality.standard.rawValue) ?? .standard
+
+    let storedVideoExportScale = defaults.string(forKey: Keys.videoExportScale)
+    videoExportScale = PostRecordingExportScale(rawValue: storedVideoExportScale ?? PostRecordingExportScale.full.rawValue) ?? .full
+
+    let storedVideoExportBitrate = defaults.string(forKey: Keys.videoExportBitrate)
+    videoExportBitrate = PostRecordingExportBitratePreset(rawValue: storedVideoExportBitrate ?? PostRecordingExportBitratePreset.standard.rawValue) ?? .standard
+
     if defaults.object(forKey: Keys.videoRecordSystemAudio) == nil {
       videoRecordSystemAudio = true
     } else {
@@ -289,6 +318,7 @@ final class AppSettings: ObservableObject {
       videoHideNotificationsBestEffort = defaults.bool(forKey: Keys.videoHideNotificationsBestEffort)
     }
 
+    AppLocalizer.shared.update(language: appLanguage)
     persistAll(notify: false)
   }
 
@@ -408,6 +438,15 @@ final class AppSettings: ObservableObject {
     persistVideoCaptureSettings()
   }
 
+  func setAppLanguage(_ language: AppLanguage) {
+    guard appLanguage != language else {
+      return
+    }
+    appLanguage = language
+    AppLocalizer.shared.update(language: language)
+    persistAppLanguage()
+  }
+
   func setVideoCodec(_ codec: VideoCodecOption) {
     guard videoCodec != codec else {
       return
@@ -429,6 +468,46 @@ final class AppSettings: ObservableObject {
       return
     }
     videoCountdown = countdown
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoExportCodec(_ codec: PostRecordingExportCodec) {
+    guard videoExportCodec != codec else {
+      return
+    }
+    videoExportCodec = codec
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoExportFrameRate(_ frameRate: PostRecordingExportFrameRate) {
+    guard videoExportFrameRate != frameRate else {
+      return
+    }
+    videoExportFrameRate = frameRate
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoExportQuality(_ quality: PostRecordingExportQuality) {
+    guard videoExportQuality != quality else {
+      return
+    }
+    videoExportQuality = quality
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoExportScale(_ scale: PostRecordingExportScale) {
+    guard videoExportScale != scale else {
+      return
+    }
+    videoExportScale = scale
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoExportBitrate(_ bitrate: PostRecordingExportBitratePreset) {
+    guard videoExportBitrate != bitrate else {
+      return
+    }
+    videoExportBitrate = bitrate
     persistVideoCaptureSettings()
   }
 
@@ -510,6 +589,11 @@ final class AppSettings: ObservableObject {
     videoCodec = .h264
     videoFrameRate = .fps30
     videoCountdown = .off
+    videoExportCodec = .h264
+    videoExportFrameRate = .fps30
+    videoExportQuality = .standard
+    videoExportScale = .full
+    videoExportBitrate = .standard
     videoRecordSystemAudio = true
     videoRecordMicrophone = false
     videoShowWebcam = false
@@ -1012,6 +1096,11 @@ final class AppSettings: ObservableObject {
     notifySettingsChanged()
   }
 
+  private func persistAppLanguage() {
+    defaults.set(appLanguage.rawValue, forKey: Keys.appLanguage)
+    notifySettingsChanged()
+  }
+
   private func persistToolbarConfiguration() {
     defaults.set(toolOrder.map(\.rawValue), forKey: Keys.toolOrder)
     defaults.set(Array(hiddenTools).map(\.rawValue), forKey: Keys.hiddenTools)
@@ -1057,6 +1146,11 @@ final class AppSettings: ObservableObject {
     defaults.set(videoCodec.rawValue, forKey: Keys.videoCodec)
     defaults.set(videoFrameRate.rawValue, forKey: Keys.videoFrameRate)
     defaults.set(videoCountdown.rawValue, forKey: Keys.videoCountdown)
+    defaults.set(videoExportCodec.rawValue, forKey: Keys.videoExportCodec)
+    defaults.set(videoExportFrameRate.rawValue, forKey: Keys.videoExportFrameRate)
+    defaults.set(videoExportQuality.rawValue, forKey: Keys.videoExportQuality)
+    defaults.set(videoExportScale.rawValue, forKey: Keys.videoExportScale)
+    defaults.set(videoExportBitrate.rawValue, forKey: Keys.videoExportBitrate)
     defaults.set(videoRecordSystemAudio, forKey: Keys.videoRecordSystemAudio)
     defaults.set(videoRecordMicrophone, forKey: Keys.videoRecordMicrophone)
     defaults.set(videoShowWebcam, forKey: Keys.videoShowWebcam)
@@ -1077,6 +1171,7 @@ final class AppSettings: ObservableObject {
     defaults.set(captureUseControl, forKey: Keys.captureUseControl)
     defaults.set(captureShowHelper, forKey: Keys.captureShowHelper)
     defaults.set(defaultCaptureType.rawValue, forKey: Keys.defaultCaptureType)
+    defaults.set(appLanguage.rawValue, forKey: Keys.appLanguage)
     defaults.set(toolOrder.map(\.rawValue), forKey: Keys.toolOrder)
     defaults.set(Array(hiddenTools).map(\.rawValue), forKey: Keys.hiddenTools)
     defaults.set(videoToolOrder.map(\.rawValue), forKey: Keys.videoToolOrder)
@@ -1096,6 +1191,11 @@ final class AppSettings: ObservableObject {
     defaults.set(videoCodec.rawValue, forKey: Keys.videoCodec)
     defaults.set(videoFrameRate.rawValue, forKey: Keys.videoFrameRate)
     defaults.set(videoCountdown.rawValue, forKey: Keys.videoCountdown)
+    defaults.set(videoExportCodec.rawValue, forKey: Keys.videoExportCodec)
+    defaults.set(videoExportFrameRate.rawValue, forKey: Keys.videoExportFrameRate)
+    defaults.set(videoExportQuality.rawValue, forKey: Keys.videoExportQuality)
+    defaults.set(videoExportScale.rawValue, forKey: Keys.videoExportScale)
+    defaults.set(videoExportBitrate.rawValue, forKey: Keys.videoExportBitrate)
     defaults.set(videoRecordSystemAudio, forKey: Keys.videoRecordSystemAudio)
     defaults.set(videoRecordMicrophone, forKey: Keys.videoRecordMicrophone)
     defaults.set(videoShowWebcam, forKey: Keys.videoShowWebcam)

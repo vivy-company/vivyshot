@@ -29,9 +29,9 @@ enum CaptureContentType: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .screenshot:
-      return "Screenshot"
+      return String(localized: "Screenshot", bundle: AppLocalizer.shared.bundle)
     case .video:
-      return "Video"
+      return String(localized: "Video", bundle: AppLocalizer.shared.bundle)
     }
   }
 
@@ -58,17 +58,17 @@ enum VideoToolbarTool: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .systemAudio:
-      return "System Audio"
+      return String(localized: "System Audio", bundle: AppLocalizer.shared.bundle)
     case .microphone:
-      return "Microphone"
+      return String(localized: "Microphone", bundle: AppLocalizer.shared.bundle)
     case .webcam:
-      return "Webcam Overlay"
+      return String(localized: "Webcam Overlay", bundle: AppLocalizer.shared.bundle)
     case .mouseClicks:
-      return "Mouse Click Highlights"
+      return String(localized: "Mouse Click Highlights", bundle: AppLocalizer.shared.bundle)
     case .keystrokes:
-      return "Keystroke Highlights"
+      return String(localized: "Keystroke Highlights", bundle: AppLocalizer.shared.bundle)
     case .countdown:
-      return "Countdown"
+      return String(localized: "Countdown", bundle: AppLocalizer.shared.bundle)
     }
   }
 
@@ -99,9 +99,9 @@ enum ScreenshotMainAction: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .copy:
-      return "Copy"
+      return String(localized: "Copy", bundle: AppLocalizer.shared.bundle)
     case .save:
-      return "Save"
+      return String(localized: "Save", bundle: AppLocalizer.shared.bundle)
     }
   }
 
@@ -124,9 +124,9 @@ enum VideoCodecOption: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .h264:
-      return "Standard (H.264)"
+      return String(localized: "Standard (H.264)", bundle: AppLocalizer.shared.bundle)
     case .hevc:
-      return "High (HEVC)"
+      return String(localized: "High (HEVC)", bundle: AppLocalizer.shared.bundle)
     }
   }
 }
@@ -152,7 +152,7 @@ enum VideoCountdownOption: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .off:
-      return "Off"
+      return String(localized: "Off", bundle: AppLocalizer.shared.bundle)
     case .three:
       return "3s"
     case .five:
@@ -171,11 +171,11 @@ enum VideoWebcamOverlaySizeOption: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .small:
-      return "Small"
+      return String(localized: "Small", bundle: AppLocalizer.shared.bundle)
     case .medium:
-      return "Medium"
+      return String(localized: "Medium", bundle: AppLocalizer.shared.bundle)
     case .large:
-      return "Large"
+      return String(localized: "Large", bundle: AppLocalizer.shared.bundle)
     }
   }
 
@@ -200,9 +200,9 @@ enum VideoWebcamOverlayShapeOption: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .roundedRect:
-      return "Rounded Rectangle"
+      return String(localized: "Rounded Rectangle", bundle: AppLocalizer.shared.bundle)
     case .circle:
-      return "Circle"
+      return String(localized: "Circle", bundle: AppLocalizer.shared.bundle)
     }
   }
 }

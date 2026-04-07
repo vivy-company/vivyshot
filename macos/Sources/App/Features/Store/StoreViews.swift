@@ -105,22 +105,22 @@ struct VivyShotStoreSettingsView: View {
 
   private var primaryActionTitle: String {
     if storeManager.hasSupporterBadge {
-      return "Manage Access"
+      return String(localized: "Manage Access", bundle: AppLocalizer.shared.bundle)
     }
     if storeManager.hasLifetimeUnlock {
-      return "Supporter Options"
+      return String(localized: "Supporter Options", bundle: AppLocalizer.shared.bundle)
     }
-    return "View Pricing"
+    return String(localized: "View Pricing", bundle: AppLocalizer.shared.bundle)
   }
 
   private var storeHeadline: String {
     if storeManager.hasSupporterBadge {
-      return "Thanks for supporting VivyShot."
+      return String(localized: "Thanks for supporting VivyShot.", bundle: AppLocalizer.shared.bundle)
     }
     if storeManager.hasLifetimeUnlock {
-      return "Lifetime access is unlocked."
+      return String(localized: "Lifetime access is unlocked.", bundle: AppLocalizer.shared.bundle)
     }
-    return "Free forever for the core workflow."
+    return String(localized: "Free forever for the core workflow.", bundle: AppLocalizer.shared.bundle)
   }
 
   private var headerGradient: LinearGradient {
@@ -151,10 +151,30 @@ struct VivyShotPaywallView: View {
 
   private var features: [(icon: String, title: String, description: String, color: Color)] {
     [
-      ("wand.and.stars", "Lifetime unlock", "A one-time unlock for the full tool.", .accentColor),
-      ("heart.circle", "Supporter tier", "Same full app as Lifetime, plus a small supporter badge.", .orange),
-      ("arrow.clockwise.circle", "Restorable purchases", "Everything is handled with standard StoreKit restore and entitlement updates.", .green),
-      ("shippingbox", "No subscription", "This store setup is intentionally simple: one-time purchases only.", .secondary)
+      (
+        "wand.and.stars",
+        String(localized: "Lifetime unlock", bundle: AppLocalizer.shared.bundle),
+        String(localized: "A one-time unlock for the full tool.", bundle: AppLocalizer.shared.bundle),
+        .accentColor
+      ),
+      (
+        "heart.circle",
+        String(localized: "Supporter tier", bundle: AppLocalizer.shared.bundle),
+        String(localized: "Same full app as Lifetime, plus a small supporter badge.", bundle: AppLocalizer.shared.bundle),
+        .orange
+      ),
+      (
+        "arrow.clockwise.circle",
+        String(localized: "Restorable purchases", bundle: AppLocalizer.shared.bundle),
+        String(localized: "Everything is handled with standard StoreKit restore and entitlement updates.", bundle: AppLocalizer.shared.bundle),
+        .green
+      ),
+      (
+        "shippingbox",
+        String(localized: "No subscription", bundle: AppLocalizer.shared.bundle),
+        String(localized: "This store setup is intentionally simple: one-time purchases only.", bundle: AppLocalizer.shared.bundle),
+        .secondary
+      )
     ]
   }
 
@@ -200,7 +220,7 @@ struct VivyShotPaywallView: View {
         }
       }
     ), presenting: alertInfo) { info in
-      Button("OK") {
+      Button(LocalizedStringKey("OK")) {
         if info.isRestore {
           storeManager.restoreState = .idle
         } else {
@@ -242,13 +262,15 @@ struct VivyShotPaywallView: View {
   }
 
   private var successTitle: String {
-    storeManager.lastPurchasedProductID == VivyShotProducts.supporter ? "You are now a supporter" : "Lifetime unlocked"
+    storeManager.lastPurchasedProductID == VivyShotProducts.supporter
+      ? String(localized: "You are now a supporter", bundle: AppLocalizer.shared.bundle)
+      : String(localized: "Lifetime unlocked", bundle: AppLocalizer.shared.bundle)
   }
 
   private var successSubtitle: String {
     storeManager.lastPurchasedProductID == VivyShotProducts.supporter
-      ? "Supporter badge and paid access are active."
-      : "Paid access is now active."
+      ? String(localized: "Supporter badge and paid access are active.", bundle: AppLocalizer.shared.bundle)
+      : String(localized: "Paid access is now active.", bundle: AppLocalizer.shared.bundle)
   }
 
   private var featuresSection: some View {
@@ -384,14 +406,16 @@ struct VivyShotPaywallView: View {
   }
 
   private var subscribeButtonTitle: String {
-    guard let product = selectedProduct else { return "Select a Plan" }
+    guard let product = selectedProduct else {
+      return String(localized: "Select a Plan", bundle: AppLocalizer.shared.bundle)
+    }
     if storeManager.hasLifetimeUnlock && !storeManager.hasSupporterBadge && product.id == VivyShotProducts.supporter {
-      return "Add supporter badge - \(product.displayPrice)"
+      return String(format: String(localized: "Add supporter badge - %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
     }
     if product.id == VivyShotProducts.supporter {
-      return "Become a supporter - \(product.displayPrice)"
+      return String(format: String(localized: "Become a supporter - %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
     }
-    return "Get lifetime - \(product.displayPrice)"
+    return String(format: String(localized: "Get lifetime - %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
   }
 
   @ViewBuilder
@@ -408,7 +432,11 @@ struct VivyShotPaywallView: View {
             .scaleEffect(0.8)
         }
 
-        Text(storeManager.purchaseState == .purchasing ? "Processing..." : subscribeButtonTitle)
+        Text(
+          storeManager.purchaseState == .purchasing
+            ? String(localized: "Processing...", bundle: AppLocalizer.shared.bundle)
+            : subscribeButtonTitle
+        )
           .fontWeight(.semibold)
       }
       .frame(maxWidth: .infinity)
@@ -434,7 +462,11 @@ struct VivyShotPaywallView: View {
         dismissPaywallWindow()
       }
     case .failed(let message):
-      alertInfo = AlertInfo(title: "Purchase Failed", message: message, isRestore: false)
+      alertInfo = AlertInfo(
+        title: String(localized: "Purchase Failed", bundle: AppLocalizer.shared.bundle),
+        message: message,
+        isRestore: false
+      )
     default:
       break
     }
@@ -444,12 +476,18 @@ struct VivyShotPaywallView: View {
     switch newState {
     case .restored(let hasAccess):
       alertInfo = AlertInfo(
-        title: "Restore Purchases",
-        message: hasAccess ? "Your purchases have been restored." : "No purchases were found for this Apple ID.",
+        title: String(localized: "Restore Purchases", bundle: AppLocalizer.shared.bundle),
+        message: hasAccess
+          ? String(localized: "Your purchases have been restored.", bundle: AppLocalizer.shared.bundle)
+          : String(localized: "No purchases were found for this Apple ID.", bundle: AppLocalizer.shared.bundle),
         isRestore: true
       )
     case .failed(let message):
-      alertInfo = AlertInfo(title: "Restore Failed", message: message, isRestore: true)
+      alertInfo = AlertInfo(
+        title: String(localized: "Restore Failed", bundle: AppLocalizer.shared.bundle),
+        message: message,
+        isRestore: true
+      )
     default:
       break
     }
@@ -477,22 +515,22 @@ struct VivyShotPaywallView: View {
 
   private var pricingPaneTitle: String {
     if storeManager.hasSupporterBadge {
-      return "You already support VivyShot"
+      return String(localized: "You already support VivyShot", bundle: AppLocalizer.shared.bundle)
     }
     if storeManager.hasLifetimeUnlock {
-      return "Add the supporter badge"
+      return String(localized: "Add the supporter badge", bundle: AppLocalizer.shared.bundle)
     }
-    return "Choose your upgrade"
+    return String(localized: "Choose your upgrade", bundle: AppLocalizer.shared.bundle)
   }
 
   private var pricingPaneSubtitle: String {
     if storeManager.hasSupporterBadge {
-      return "Supporter and paid access are already active on this Mac."
+      return String(localized: "Supporter and paid access are already active on this Mac.", bundle: AppLocalizer.shared.bundle)
     }
     if storeManager.hasLifetimeUnlock {
-      return "Lifetime is already unlocked. Supporter adds the badge and helps support the project."
+      return String(localized: "Lifetime is already unlocked. Supporter adds the badge and helps support the project.", bundle: AppLocalizer.shared.bundle)
     }
-    return "Both purchases are one-time. Supporter includes the same full unlock plus a badge."
+    return String(localized: "Both purchases are one-time. Supporter includes the same full unlock plus a badge.", bundle: AppLocalizer.shared.bundle)
   }
 
   private var isSelectedProductAlreadyOwned: Bool {
@@ -533,7 +571,7 @@ private struct PlanOptionRow: View {
 
               Spacer(minLength: 0)
 
-              Text(isOwned ? "Owned" : product.displayPrice)
+              Text(isOwned ? String(localized: "Owned", bundle: AppLocalizer.shared.bundle) : product.displayPrice)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(isOwned ? .secondary : .primary)
             }
@@ -553,7 +591,7 @@ private struct PlanOptionRow: View {
             }
 
             if isOwned {
-              Text("ACTIVE")
+              Text(String(localized: "ACTIVE", bundle: AppLocalizer.shared.bundle))
                 .font(.caption2)
                 .fontWeight(.bold)
                 .foregroundStyle(.secondary)

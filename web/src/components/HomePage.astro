@@ -434,6 +434,11 @@ const highlightAnswer = (text: string) =>
           >
             <option value="en">English</option>
             <option value="zh">中文</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Français</option>
+            <option value="es">Español</option>
           </select>
           <Icon class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" name="lucide:chevron-down" />
         </div>
@@ -447,6 +452,15 @@ const highlightAnswer = (text: string) =>
   const themeToggle = document.querySelector("[data-theme-toggle]");
   const heroMediaNodes = document.querySelectorAll("[data-hero-media]");
   const heroShotButtons = document.querySelectorAll("[data-hero-shot]");
+  const languageToHtmlLang = {
+    en: "en",
+    zh: "zh-CN",
+    ja: "ja",
+    ko: "ko",
+    de: "de",
+    fr: "fr",
+    es: "es"
+  };
   const getByPath = (object, path) =>
     path.split(".").reduce((value, part) => (value == null ? value : value[part]), object);
 
@@ -478,7 +492,7 @@ const highlightAnswer = (text: string) =>
 
   const applyLanguage = (lang) => {
     const dictionary = translations[lang] || translations.en;
-    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    document.documentElement.lang = languageToHtmlLang[lang] || "en";
     if (langSelect) langSelect.value = lang;
 
     document.querySelectorAll("[data-i18n]").forEach((node) => {
@@ -501,7 +515,16 @@ const highlightAnswer = (text: string) =>
 
   if (langSelect) {
     const storedLanguage = localStorage.getItem(languageStorageKey);
-    const preferredLanguage = storedLanguage || ((navigator.language || "").startsWith("zh") ? "zh" : "en");
+    const browserLanguage = (navigator.language || "").toLowerCase();
+    const inferredLanguage =
+      browserLanguage.startsWith("zh") ? "zh"
+      : browserLanguage.startsWith("ja") ? "ja"
+      : browserLanguage.startsWith("ko") ? "ko"
+      : browserLanguage.startsWith("de") ? "de"
+      : browserLanguage.startsWith("fr") ? "fr"
+      : browserLanguage.startsWith("es") ? "es"
+      : "en";
+    const preferredLanguage = storedLanguage || inferredLanguage;
     applyLanguage(preferredLanguage);
     langSelect.addEventListener("change", (event) => {
       const lang = event.currentTarget.value;

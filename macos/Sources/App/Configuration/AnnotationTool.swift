@@ -45,27 +45,27 @@ enum AnnotationTool: Int, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .move:
-      return "Move"
+      return String(localized: "Move", bundle: AppLocalizer.shared.bundle)
     case .rect:
-      return "Rect"
+      return String(localized: "Rect", bundle: AppLocalizer.shared.bundle)
     case .filledRect:
-      return "Filled Rect"
+      return String(localized: "Filled Rect", bundle: AppLocalizer.shared.bundle)
     case .circle:
-      return "Circle"
+      return String(localized: "Circle", bundle: AppLocalizer.shared.bundle)
     case .filledCircle:
-      return "Filled Circle"
+      return String(localized: "Filled Circle", bundle: AppLocalizer.shared.bundle)
     case .line:
-      return "Line"
+      return String(localized: "Line", bundle: AppLocalizer.shared.bundle)
     case .arrow:
-      return "Arrow"
+      return String(localized: "Arrow", bundle: AppLocalizer.shared.bundle)
     case .paint:
-      return "Paint"
+      return String(localized: "Paint", bundle: AppLocalizer.shared.bundle)
     case .text:
-      return "Text"
+      return String(localized: "Text", bundle: AppLocalizer.shared.bundle)
     case .pixelate:
-      return "Pixelate"
+      return String(localized: "Pixelate", bundle: AppLocalizer.shared.bundle)
     case .blur:
-      return "Blur"
+      return String(localized: "Blur", bundle: AppLocalizer.shared.bundle)
     }
   }
 }

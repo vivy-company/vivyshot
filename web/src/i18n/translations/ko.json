@@ -1,0 +1,176 @@
+{
+  "header": {
+    "download": "프로젝트",
+    "githubCta": "GitHub에서 보기"
+  },
+  "hero": {
+    "eyebrow": "단순하게. 네이티브하게. 빠르게.",
+    "title": "VivyShot: Screen Studio",
+    "subtitle": "업무, 문서, 버그 리포트, AI 에이전트 워크플로를 위해 스크린샷과 화면 녹화를 더 빠르게 만들도록 설계했습니다. 캡처, 주석, 내보내기를 한 흐름에 담았습니다.",
+    "primaryCta": "다운로드",
+    "meta": "현재 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>에서 사용할 수 있습니다. Windows와 HarmonyOS는 다음 단계입니다."
+  },
+  "why": {
+    "title": "무엇이 다른가",
+    "subtitle": "쉽게 쓰고, 각 플랫폼에서 네이티브하게 동작하며, 이식성을 고려해 설계되었고, 처음부터 오픈 소스입니다.",
+    "native": {
+      "title": "단순함",
+      "desc": "<kbd>⌘ ⇧ C</kbd>를 누르고 영역을 선택한 뒤 <kbd>⌘ C</kbd>로 복사해 바로 공유하는 직접적인 흐름을 위해 만들었습니다."
+    },
+    "modern": {
+      "title": "네이티브",
+      "desc": "각 플랫폼은 자체 네이티브 UI를 사용하므로 VivyShot은 어디서든 자연스럽게 느껴집니다."
+    },
+    "sync": {
+      "title": "이식 가능",
+      "desc": "공유 엔진이 플랫폼 간 동작을 일관되게 유지하고 더 많은 환경으로 확장하기 쉽게 만듭니다."
+    },
+    "pricing": {
+      "title": "오픈 소스",
+      "desc": "코드는 공개되어 있고, 확인할 수 있으며, 공개적으로 개발됩니다."
+    }
+  },
+  "roadmap": {
+    "title": "로드맵",
+    "subtitle": "세 단계, 단순하게 유지합니다.",
+    "now": {
+      "title": "macOS 출시",
+      "desc": "먼저 핵심 캡처 앱을 출시합니다."
+    },
+    "next": {
+      "title": "에디터 개선",
+      "desc": "간단한 후편집 기능을 추가합니다."
+    },
+    "later": {
+      "title": "더 많은 플랫폼",
+      "desc": "더 많은 네이티브 데스크톱 환경으로 확장합니다."
+    }
+  },
+  "features": {
+    "title": "할 수 있는 일",
+    "subtitle": "캡처, 주석, 녹화, 내보내기.",
+    "rendering": {
+      "title": "원하는 방식으로 스크린샷",
+      "desc": "<kbd>⌘ ⇧ C</kbd>로 시작해 영역, 창, 전체 화면을 캡처할 수 있습니다."
+    },
+    "connect": {
+      "title": "중요한 부분을 바로 강조",
+      "desc": "도형, 화살표, 텍스트, 블러, 픽셀화 도구를 사용할 수 있습니다."
+    },
+    "pickup": {
+      "title": "짧은 흐름도 또렷하게 녹화",
+      "desc": "오디오와 입력 오버레이가 포함된 화면 녹화를 지원합니다."
+    },
+    "organize": {
+      "title": "불필요한 단계 없는 내보내기",
+      "desc": "<kbd>⌘ C</kbd>로 빠르게 복사하거나 깔끔한 PNG와 JPEG로 저장할 수 있습니다."
+    }
+  },
+  "useCases": {
+    "title": "잘 맞는 용도",
+    "subtitle": "버그, 문서, 피드백, 그리고 원본 스크린샷만으로는 부족한 AI 에이전트 워크플로에 유용합니다.",
+    "solo": {
+      "title": "버그 리포트",
+      "desc": "긴 설명 대신 문제, 영향 범위, 중요한 시각 정보를 바로 보여줄 수 있습니다."
+    },
+    "homelab": {
+      "title": "제품 피드백",
+      "desc": "회귀, 레이아웃 문제, 디테일한 완성도 이슈를 더 적은 왕복으로 명확하게 전달할 수 있습니다."
+    },
+    "apple": {
+      "title": "문서 작성",
+      "desc": "설치 가이드, 릴리스 노트, 내부 문서, 온보딩 흐름에 더 읽기 쉬운 이미지를 만들 수 있습니다."
+    },
+    "ai": {
+      "title": "AI 에이전트 워크플로",
+      "desc": "Codex, Claude Code, OpenCode 같은 에이전트에 시각 맥락이 도움이 될 때 스크린샷을 제공할 수 있습니다."
+    }
+  },
+  "pricing": {
+    "title": "단순한 가격",
+    "subtitle": "무료, Lifetime, Supporter. 구독은 없습니다.",
+    "free": {
+      "name": "무료",
+      "description": "핵심 워크플로는 영구 무료",
+      "features": [
+        "핵심 스크린샷 캡처",
+        "기본 주석 도구",
+        "깔끔한 내보내기",
+        "빠른 일상 워크플로",
+        "영구 무료",
+        "적합성을 판단하기에 충분"
+      ],
+      "cta": "무료 다운로드"
+    },
+    "pro": {
+      "name": "Lifetime",
+      "description": "한 번의 구매로 전체 도구 잠금 해제",
+      "monthly": {
+        "period": "일회성"
+      },
+      "features": [
+        "무료 버전의 모든 기능",
+        "완전한 캡처와 주석",
+        "녹화 워크플로",
+        "더 다듬어진 일상 도구",
+        "더 나은 내보내기 옵션",
+        "향후 주요 개선 포함",
+        "구독 없음"
+      ],
+      "ctaMonthly": "Lifetime 구매",
+      "note": "환불은 App Store에서 처리합니다."
+    },
+    "lifetime": {
+      "name": "Supporter",
+      "description": "Lifetime과 같은 전체 기능에 앱 내 서포터 배지가 추가됩니다.",
+      "badge": "선택 사항",
+      "features": [
+        "Lifetime과 같은 전체 잠금 해제",
+        "선택적 앱 내 구매",
+        "설정의 서포터 배지",
+        "프로젝트를 추가로 지원"
+      ],
+      "cta": "서포터 되기",
+      "guarantee": "Lifetime은 $9.99, Supporter는 $24.99."
+    }
+  },
+  "whyBuilt": {
+    "title": "왜 만들었나",
+    "q1": {
+      "question": "너무 많은 비대함",
+      "answer": "많은 스크린샷 도구는 너무 많은 것을 하려 합니다. 더 작고, 더 빠르고, 더 집중된 도구가 필요했습니다."
+    },
+    "q2": {
+      "question": "너무 많은 마찰",
+      "answer": "스크린샷은 빨라야 합니다. 찍고, 표시하고, 복사하고, 바로 다음 작업으로 가야 합니다."
+    },
+    "q3": {
+      "question": "네이티브는 중요하다",
+      "answer": "하나의 무거운 인터페이스를 모든 플랫폼에 억지로 씌우고 싶지 않습니다. 실행되는 곳에서 자연스럽게 느껴져야 합니다."
+    },
+    "q4": {
+      "question": "유용함 유지",
+      "answer": "목표는 캡처, 주석, 녹화, 공유를 잘하는 도구를 유지하는 것이지, 잡음을 늘리는 것이 아닙니다."
+    }
+  },
+  "closing": {
+    "title": "지금 macOS에서 사용 가능합니다.",
+    "subtitle": "Windows와 HarmonyOS는 다음 예정이며, 각 플랫폼에서도 네이티브 UI를 유지합니다.",
+    "cta": "다운로드"
+  },
+  "footer": {
+    "tagline": "화면 캡처, 주석, 녹화",
+    "description": "오픈 소스로 공개되며, 이식 가능한 엔진을 중심으로 구축되어 VivyShot이 제공되는 각 플랫폼에서 네이티브하게 동작합니다.",
+    "productTitle": "제품",
+    "resourcesTitle": "리소스",
+    "navWhy": "무엇이 다른가",
+    "navFeatures": "기능",
+    "navPricing": "가격",
+    "navWhyBuilt": "왜 만들었나",
+    "copyright": "Vivy Technologies Co., Limited",
+    "github": "GitHub",
+    "privacy": "개인정보 처리방침",
+    "terms": "이용 약관",
+    "refunds": "환불"
+  }
+}

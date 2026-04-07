@@ -31,16 +31,16 @@ struct StoreEntitlement: Equatable {
 
   var badgeTitle: String? {
     if hasSupporterBadge {
-      return "Supporter"
+      return String(localized: "Supporter", bundle: AppLocalizer.shared.bundle)
     }
     if hasLifetimeUnlock {
-      return "Lifetime"
+      return String(localized: "Lifetime", bundle: AppLocalizer.shared.bundle)
     }
     return nil
   }
 
   var tierTitle: String {
-    badgeTitle ?? "Free"
+    badgeTitle ?? String(localized: "Free", bundle: AppLocalizer.shared.bundle)
   }
 
   static let free = StoreEntitlement(hasLifetimeUnlock: false, hasSupporterBadge: false)
@@ -60,9 +60,9 @@ enum StoreError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .verificationFailed:
-      return "Purchase verification failed"
+      return String(localized: "Purchase verification failed", bundle: AppLocalizer.shared.bundle)
     case .productNotFound:
-      return "Product not found"
+      return String(localized: "Product not found", bundle: AppLocalizer.shared.bundle)
     }
   }
 }

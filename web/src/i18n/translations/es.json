@@ -1,0 +1,176 @@
+{
+  "header": {
+    "download": "Proyecto",
+    "githubCta": "Ver en GitHub"
+  },
+  "hero": {
+    "eyebrow": "Simple. Nativa. Rápida.",
+    "title": "VivyShot: Screen Studio",
+    "subtitle": "Creada para hacer más rápidas las capturas y grabaciones de pantalla para trabajo, documentación, bugs y flujos con agentes de IA, con captura, anotación y exportación en un solo flujo.",
+    "primaryCta": "Descargar",
+    "meta": "Disponible ahora en <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>. Windows y HarmonyOS son los siguientes en la hoja de ruta."
+  },
+  "why": {
+    "title": "Qué la hace diferente",
+    "subtitle": "Fácil de usar, nativa en cada plataforma, portátil por diseño y open source desde el inicio.",
+    "native": {
+      "title": "Simple",
+      "desc": "Pensada para un flujo directo: pulsa <kbd>⌘ ⇧ C</kbd>, selecciona la zona, pulsa <kbd>⌘ C</kbd> y compártela."
+    },
+    "modern": {
+      "title": "Nativa",
+      "desc": "Cada plataforma tiene su propia interfaz nativa, así que VivyShot se siente natural donde se ejecuta."
+    },
+    "sync": {
+      "title": "Portable",
+      "desc": "Un motor compartido mantiene el comportamiento coherente entre plataformas y facilita llevar VivyShot a más dispositivos."
+    },
+    "pricing": {
+      "title": "Open source",
+      "desc": "El código es público, inspeccionable y se desarrolla en abierto."
+    }
+  },
+  "roadmap": {
+    "title": "Hoja de ruta",
+    "subtitle": "Tres pasos, manteniéndolo simple.",
+    "now": {
+      "title": "Lanzamiento en macOS",
+      "desc": "Primero lanzar la app principal de captura."
+    },
+    "next": {
+      "title": "Mejora del editor",
+      "desc": "Añadir edición sencilla después de capturar."
+    },
+    "later": {
+      "title": "Más plataformas",
+      "desc": "Llevarla a más escritorios nativos."
+    }
+  },
+  "features": {
+    "title": "Lo que puedes hacer",
+    "subtitle": "Capturar, anotar, grabar y exportar.",
+    "rendering": {
+      "title": "Captura a tu manera",
+      "desc": "Empieza con <kbd>⌘ ⇧ C</kbd> y captura un área, una ventana o toda la pantalla."
+    },
+    "connect": {
+      "title": "Marca lo importante",
+      "desc": "Usa formas, flechas, texto, desenfoque y pixelado."
+    },
+    "pickup": {
+      "title": "Graba flujos cortos con claridad",
+      "desc": "Graba vídeo de pantalla con audio y superposiciones de entrada."
+    },
+    "organize": {
+      "title": "Exporta sin pasos extra",
+      "desc": "Copia rápido con <kbd>⌘ C</kbd> o guarda PNG y JPEG limpios."
+    }
+  },
+  "useCases": {
+    "title": "Dónde resulta útil",
+    "subtitle": "Útil para bugs, documentación, feedback y flujos con agentes de IA cuando una captura en bruto no basta.",
+    "solo": {
+      "title": "Reportes de errores",
+      "desc": "Muestra el bug, la zona afectada y el detalle visual importante en lugar de explicarlo con texto."
+    },
+    "homelab": {
+      "title": "Feedback de producto",
+      "desc": "Señala regresiones, problemas de layout y fallos de acabado con menos ida y vuelta."
+    },
+    "apple": {
+      "title": "Documentación",
+      "desc": "Genera capturas más legibles para guías, notas de versión, documentación interna y onboarding."
+    },
+    "ai": {
+      "title": "Flujos con agentes de IA",
+      "desc": "Haz capturas para Codex, Claude Code, OpenCode y agentes similares cuando el contexto visual ayuda."
+    }
+  },
+  "pricing": {
+    "title": "Precios simples",
+    "subtitle": "Free, Lifetime y Supporter. Sin suscripción.",
+    "free": {
+      "name": "Free",
+      "description": "El flujo principal sigue siendo gratis para siempre",
+      "features": [
+        "Captura básica de pantalla",
+        "Herramientas básicas de anotación",
+        "Exportación limpia",
+        "Flujo rápido para el día a día",
+        "Gratis para siempre",
+        "Suficiente para evaluar si encaja"
+      ],
+      "cta": "Descargar gratis"
+    },
+    "pro": {
+      "name": "Lifetime",
+      "description": "Un pago único para desbloquear toda la herramienta",
+      "monthly": {
+        "period": "pago único"
+      },
+      "features": [
+        "Todo lo de Free",
+        "Captura y anotación completas",
+        "Flujo de grabación",
+        "Herramientas diarias más pulidas",
+        "Mejores opciones de exportación",
+        "Futuras mejoras importantes",
+        "Sin suscripción"
+      ],
+      "ctaMonthly": "Obtener Lifetime",
+      "note": "Los reembolsos los gestiona el App Store."
+    },
+    "lifetime": {
+      "name": "Supporter",
+      "description": "La misma app completa que Lifetime, más una pequeña insignia de supporter dentro de la app",
+      "badge": "Opcional",
+      "features": [
+        "El mismo desbloqueo completo que Lifetime",
+        "Compra integrada opcional",
+        "Insignia de supporter en Ajustes",
+        "Apoyo extra para el proyecto"
+      ],
+      "cta": "Hazte supporter",
+      "guarantee": "Lifetime cuesta $9.99. Supporter cuesta $24.99."
+    }
+  },
+  "whyBuilt": {
+    "title": "Por qué la hice",
+    "q1": {
+      "question": "Demasiado bloat",
+      "answer": "Muchas herramientas de captura intentan hacer demasiado. Yo quería algo más pequeño, más rápido y más enfocado."
+    },
+    "q2": {
+      "question": "Demasiada fricción",
+      "answer": "Una captura debería ser rápida. Capturas, marcas, copias y sigues."
+    },
+    "q3": {
+      "question": "Lo nativo importa",
+      "answer": "No quiero una interfaz pesada forzada en todas partes. La app debe sentirse natural donde corre."
+    },
+    "q4": {
+      "question": "Mantenerla útil",
+      "answer": "La meta es una herramienta buena para capturar, anotar, grabar y compartir, no una que crezca en ruido."
+    }
+  },
+  "closing": {
+    "title": "Disponible ahora en macOS.",
+    "subtitle": "Windows y HarmonyOS vienen después, con interfaz nativa en cada plataforma.",
+    "cta": "Descargar"
+  },
+  "footer": {
+    "tagline": "Captura de pantalla, anotación y grabación",
+    "description": "Open source y construida sobre un motor portable, con interfaz nativa en cada plataforma donde exista VivyShot.",
+    "productTitle": "Producto",
+    "resourcesTitle": "Recursos",
+    "navWhy": "Qué la hace diferente",
+    "navFeatures": "Funciones",
+    "navPricing": "Precios",
+    "navWhyBuilt": "Por qué la hice",
+    "copyright": "Vivy Technologies Co., Limited",
+    "github": "GitHub",
+    "privacy": "Privacidad",
+    "terms": "Términos de uso",
+    "refunds": "Reembolsos"
+  }
+}

@@ -91,6 +91,8 @@ final class RegionSelectionView: NSView {
 
   var session: RustDocumentSession?
   var onEditingDone: ((Bool) -> Void)?
+  var currentScreenshotCaptureID: String?
+  var screenshotEditorEnteredAt: Date?
   var stitchModeEnabled = false
   var stitchCaptureInProgress = false
   var stitchPassThroughOverlayActive = false
@@ -300,6 +302,8 @@ final class RegionSelectionView: NSView {
     updateSelectingHintVisibility(animated: true)
     needsLayout = true
     needsDisplay = true
+
+    beginScreenshotStatisticsSessionIfNeeded()
   }
 
   override func mouseDragged(with event: NSEvent) {
@@ -567,6 +571,8 @@ final class RegionSelectionView: NSView {
     onCancelRequestedImmediately = nil
     session = nil
     onEditingDone = nil
+    currentScreenshotCaptureID = nil
+    screenshotEditorEnteredAt = nil
     onStartVideoRequested = nil
     onStopVideoRequested = nil
     selectedCaptureMode = .selection
@@ -892,6 +898,7 @@ final class RegionSelectionView: NSView {
       return
     }
 
+    recordStandaloneScreenshotCapture(frozenImage)
     if let onCancelRequestedImmediately {
       onCancelRequestedImmediately()
     } else {
@@ -906,11 +913,13 @@ final class RegionSelectionView: NSView {
       return
     }
 
+    recordStandaloneScreenshotCapture(frozenImage)
+
     if settings.alwaysSaveToDefaultDirectory,
        let directory = settings.defaultSaveDirectoryURL
     {
       let destination = Self.makeAutoSaveURL(in: directory, ext: "png")
-      Self.saveImageToDisk(frozenImage, to: destination)
+      _ = Self.saveImageToDisk(frozenImage, to: destination)
       onCancelRequested?()
       return
     }

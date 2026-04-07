@@ -143,9 +143,135 @@ final class VideoRecordingHUDController: NSWindowController {
 // MARK: - Post-Recording Action Dialog
 
 enum PostRecordingAction {
-  case saveMP4
+  case saveVideo(PostRecordingExportOptions)
   case saveGIF
   case discard
+}
+
+struct PostRecordingExportOptions: Equatable {
+  var codec: PostRecordingExportCodec
+  var frameRate: PostRecordingExportFrameRate
+  var quality: PostRecordingExportQuality
+  var scale: PostRecordingExportScale
+  var bitrate: PostRecordingExportBitratePreset
+
+  @MainActor
+  static func defaultOptions(settings: AppSettings) -> PostRecordingExportOptions {
+    PostRecordingExportOptions(
+      codec: settings.videoExportCodec,
+      frameRate: settings.videoExportFrameRate,
+      quality: settings.videoExportQuality,
+      scale: settings.videoExportScale,
+      bitrate: settings.videoExportBitrate
+    )
+  }
+
+  @MainActor
+  func normalizedForCurrentAccess(storeManager: StoreManager) -> PostRecordingExportOptions {
+    guard !storeManager.hasPaidAccess else {
+      return self
+    }
+    return PostRecordingExportOptions(
+      codec: .h264,
+      frameRate: .fps30,
+      quality: .standard,
+      scale: .full,
+      bitrate: .standard
+    )
+  }
+}
+
+enum PostRecordingExportCodec: String, CaseIterable, Identifiable {
+  case h264
+  case hevc
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .h264:
+      return "H.264"
+    case .hevc:
+      return "HEVC"
+    }
+  }
+}
+
+enum PostRecordingExportFrameRate: Int, CaseIterable, Identifiable {
+  case fps30 = 30
+  case fps60 = 60
+  case fps120 = 120
+
+  var id: Int { rawValue }
+
+  var title: String {
+    "\(rawValue) fps"
+  }
+}
+
+enum PostRecordingExportQuality: String, CaseIterable, Identifiable {
+  case standard
+  case high
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .standard:
+      return String(localized: "Standard", bundle: AppLocalizer.shared.bundle)
+    case .high:
+      return String(localized: "High", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+}
+
+enum PostRecordingExportScale: String, CaseIterable, Identifiable {
+  case full
+  case percent75
+  case percent50
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .full:
+      return "100%"
+    case .percent75:
+      return "75%"
+    case .percent50:
+      return "50%"
+    }
+  }
+
+  var factor: CGFloat {
+    switch self {
+    case .full:
+      return 1.0
+    case .percent75:
+      return 0.75
+    case .percent50:
+      return 0.5
+    }
+  }
+}
+
+enum PostRecordingExportBitratePreset: String, CaseIterable, Identifiable {
+  case standard
+  case high
+  case veryHigh
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .standard:
+      return String(localized: "Standard", bundle: AppLocalizer.shared.bundle)
+    case .high:
+      return String(localized: "High", bundle: AppLocalizer.shared.bundle)
+    case .veryHigh:
+      return String(localized: "Very High", bundle: AppLocalizer.shared.bundle)
+    }
+  }
 }
 
 struct PostRecordingDetails {
@@ -206,7 +332,9 @@ struct PostRecordingDetails {
 final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
   private let inputURL: URL
   private let onAction: (PostRecordingAction) -> Void
+  private let storeManager = StoreManager.shared
   private var didPickAction = false
+  private var exportSheetController: PostRecordingExportSheetController?
 
   init(
     inputURL: URL,
@@ -225,7 +353,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
       backing: .buffered,
       defer: false
     )
-    panel.title = "Review Recording"
+    panel.title = String(localized: "Review Recording", bundle: AppLocalizer.shared.bundle)
     let toolbar = NSToolbar(identifier: "PostRecordingToolbar")
     toolbar.displayMode = .iconOnly
     toolbar.allowsUserCustomization = false
@@ -271,11 +399,11 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     }
 
     let alert = NSAlert()
-    alert.messageText = "Discard this recording?"
-    alert.informativeText = "Closing this window without saving will discard the temporary recording."
+    alert.messageText = String(localized: "Discard this recording?", bundle: AppLocalizer.shared.bundle)
+    alert.informativeText = String(localized: "Closing this window without saving will discard the temporary recording.", bundle: AppLocalizer.shared.bundle)
     alert.alertStyle = .warning
-    alert.addButton(withTitle: "Discard Recording")
-    alert.addButton(withTitle: "Keep Reviewing")
+    alert.addButton(withTitle: String(localized: "Discard Recording", bundle: AppLocalizer.shared.bundle))
+    alert.addButton(withTitle: String(localized: "Keep Reviewing", bundle: AppLocalizer.shared.bundle))
 
     let response = alert.runModal()
     guard response == .alertFirstButtonReturn else {
@@ -287,7 +415,11 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.discardRecording, .flexibleSpace, .saveGIFRecording, .saveMP4Recording]
+    [
+      .flexibleSpace,
+      .exportVideoRecording,
+      .saveVideoRecording
+    ]
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -300,26 +432,23 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     willBeInsertedIntoToolbar flag: Bool
   ) -> NSToolbarItem? {
     switch itemIdentifier {
-    case .discardRecording:
+    case .exportVideoRecording:
       return toolbarButtonItem(
         identifier: itemIdentifier,
-        label: "Discard",
-        symbolName: "trash",
-        action: #selector(discardRecording)
+        label: String(localized: "Export", bundle: AppLocalizer.shared.bundle),
+        symbolName: "slider.horizontal.3",
+        tintColor: .labelColor,
+        prominent: false,
+        action: #selector(exportVideoRecording)
       )
-    case .saveGIFRecording:
+    case .saveVideoRecording:
       return toolbarButtonItem(
         identifier: itemIdentifier,
-        label: "Save GIF",
-        symbolName: "square.and.arrow.down.on.square",
-        action: #selector(saveGIFRecording)
-      )
-    case .saveMP4Recording:
-      return toolbarButtonItem(
-        identifier: itemIdentifier,
-        label: "Save MP4",
+        label: String(localized: "Save", bundle: AppLocalizer.shared.bundle),
         symbolName: "square.and.arrow.down",
-        action: #selector(saveMP4Recording)
+        tintColor: .white,
+        prominent: true,
+        action: #selector(saveVideoRecording)
       )
     default:
       return nil
@@ -330,16 +459,30 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     identifier: NSToolbarItem.Identifier,
     label: String,
     symbolName: String,
+    tintColor: NSColor = .labelColor,
+    prominent: Bool = false,
     action: Selector
   ) -> NSToolbarItem {
     let item = NSToolbarItem(itemIdentifier: identifier)
     item.label = label
     item.paletteLabel = label
     item.toolTip = label
-    item.target = self
-    item.action = action
-    item.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: label)
-    item.isBordered = true
+    let button = NSButton(title: label, target: self, action: action)
+    button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: label)
+    button.imagePosition = .imageLeading
+    button.bezelStyle = .rounded
+    button.controlSize = .regular
+    button.contentTintColor = tintColor
+    button.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+    button.imageScaling = .scaleProportionallyDown
+    if prominent {
+      button.bezelColor = .controlAccentColor
+    }
+    button.setButtonType(.momentaryPushIn)
+    button.sizeToFit()
+    let fittedSize = button.frame.size
+    button.frame.size = CGSize(width: fittedSize.width + 18, height: max(36, fittedSize.height))
+    item.view = button
     return item
   }
 
@@ -357,18 +500,30 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
   }
 
   @objc
-  private func discardRecording() {
-    performAction(.discard)
+  private func exportVideoRecording() {
+    guard let window else {
+      return
+    }
+
+    let controller = PostRecordingExportSheetController(
+      initialOptions: defaultExportOptions(),
+      storeManager: storeManager
+    ) { [weak self] options in
+      self?.performAction(.saveVideo(options))
+    }
+    exportSheetController = controller
+    controller.presentSheet(for: window)
   }
 
   @objc
-  private func saveGIFRecording() {
-    performAction(.saveGIF)
+  private func saveVideoRecording() {
+    performAction(.saveVideo(defaultExportOptions()))
   }
 
-  @objc
-  private func saveMP4Recording() {
-    performAction(.saveMP4)
+  private func defaultExportOptions() -> PostRecordingExportOptions {
+    PostRecordingExportOptions
+      .defaultOptions(settings: .shared)
+      .normalizedForCurrentAccess(storeManager: storeManager)
   }
 
   static func loadAssetInfo(url: URL) async -> (durationSeconds: Double, thumbnail: NSImage?, videoSize: CGSize?) {
@@ -448,10 +603,199 @@ private struct PostRecordingActionView: View {
   }
 }
 
+@MainActor
+private final class PostRecordingExportSheetController: NSWindowController {
+  private let onSave: (PostRecordingExportOptions) -> Void
+
+  init(
+    initialOptions: PostRecordingExportOptions,
+    storeManager: StoreManager,
+    onSave: @escaping (PostRecordingExportOptions) -> Void
+  ) {
+    self.onSave = onSave
+
+    let window = NSWindow(
+      contentRect: CGRect(x: 0, y: 0, width: 420, height: 340),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false
+    )
+    window.title = String(localized: "Export Video", bundle: AppLocalizer.shared.bundle)
+    window.isReleasedWhenClosed = false
+
+    super.init(window: window)
+
+    let rootView = PostRecordingExportSheetView(
+      initialOptions: initialOptions,
+      storeManager: storeManager,
+      onCancel: { [weak self] in
+        self?.dismiss()
+      },
+      onSave: { [weak self] options in
+        self?.dismiss()
+        self?.onSave(options)
+      }
+    )
+    window.contentView = NSHostingView(rootView: rootView.environment(\.locale, AppLocalizer.shared.locale))
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  func presentSheet(for parent: NSWindow) {
+    guard let window else {
+      return
+    }
+    parent.beginSheet(window)
+  }
+
+  private func dismiss() {
+    guard let window, let parent = window.sheetParent else {
+      return
+    }
+    parent.endSheet(window)
+  }
+}
+
+private struct PostRecordingExportSheetView: View {
+  @ObservedObject private var storeManager: StoreManager
+  @State private var options: PostRecordingExportOptions
+  let onCancel: () -> Void
+  let onSave: (PostRecordingExportOptions) -> Void
+
+  init(
+    initialOptions: PostRecordingExportOptions,
+    storeManager: StoreManager,
+    onCancel: @escaping () -> Void,
+    onSave: @escaping (PostRecordingExportOptions) -> Void
+  ) {
+    _storeManager = ObservedObject(wrappedValue: storeManager)
+    _options = State(initialValue: initialOptions.normalizedForCurrentAccess(storeManager: storeManager))
+    self.onCancel = onCancel
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text("Export Video")
+            .font(.title3.weight(.semibold))
+          Text("Choose how this recording should be exported.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
+
+        Spacer()
+
+        Button {
+          onCancel()
+        } label: {
+          Image(systemName: "xmark")
+            .font(.system(size: 11, weight: .semibold))
+            .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+      }
+
+      Form {
+        Picker("Codec", selection: $options.codec) {
+          ForEach(PostRecordingExportCodec.allCases) { codec in
+            Text(menuTitle(for: codec)).tag(codec).disabled(isLocked(codec))
+          }
+        }
+
+        Picker("Frame Rate", selection: $options.frameRate) {
+          ForEach(PostRecordingExportFrameRate.allCases) { frameRate in
+            Text(menuTitle(for: frameRate)).tag(frameRate).disabled(isLocked(frameRate))
+          }
+        }
+
+        Picker("Quality", selection: $options.quality) {
+          ForEach(PostRecordingExportQuality.allCases) { quality in
+            Text(menuTitle(for: quality)).tag(quality).disabled(isLocked(quality))
+          }
+        }
+
+        Picker("Scale", selection: $options.scale) {
+          ForEach(PostRecordingExportScale.allCases) { scale in
+            Text(menuTitle(for: scale)).tag(scale).disabled(isLocked(scale))
+          }
+        }
+
+        Picker("Bitrate", selection: $options.bitrate) {
+          ForEach(PostRecordingExportBitratePreset.allCases) { bitrate in
+            Text(menuTitle(for: bitrate)).tag(bitrate).disabled(isLocked(bitrate))
+          }
+        }
+      }
+      .formStyle(.grouped)
+      .fixedSize(horizontal: false, vertical: true)
+
+      HStack {
+        Spacer()
+        Button(LocalizedStringKey("Cancel")) {
+          onCancel()
+        }
+        Button(LocalizedStringKey("Export")) {
+          onSave(options.normalizedForCurrentAccess(storeManager: storeManager))
+        }
+        .keyboardShortcut(.defaultAction)
+      }
+    }
+    .padding(.horizontal, 18)
+    .padding(.top, 16)
+    .padding(.bottom, 14)
+    .frame(width: 420)
+  }
+
+  private func isLocked(_ codec: PostRecordingExportCodec) -> Bool {
+    codec == .hevc && !storeManager.hasPaidAccess
+  }
+
+  private func isLocked(_ frameRate: PostRecordingExportFrameRate) -> Bool {
+    frameRate != .fps30 && !storeManager.hasPaidAccess
+  }
+
+  private func isLocked(_ quality: PostRecordingExportQuality) -> Bool {
+    quality != .standard && !storeManager.hasPaidAccess
+  }
+
+  private func isLocked(_ scale: PostRecordingExportScale) -> Bool {
+    scale != .full && !storeManager.hasPaidAccess
+  }
+
+  private func isLocked(_ bitrate: PostRecordingExportBitratePreset) -> Bool {
+    bitrate != .standard && !storeManager.hasPaidAccess
+  }
+
+  private func menuTitle(for codec: PostRecordingExportCodec) -> String {
+    isLocked(codec) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), codec.title) : codec.title
+  }
+
+  private func menuTitle(for frameRate: PostRecordingExportFrameRate) -> String {
+    isLocked(frameRate) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), frameRate.title) : frameRate.title
+  }
+
+  private func menuTitle(for quality: PostRecordingExportQuality) -> String {
+    isLocked(quality) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), quality.title) : quality.title
+  }
+
+  private func menuTitle(for scale: PostRecordingExportScale) -> String {
+    isLocked(scale) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), scale.title) : scale.title
+  }
+
+  private func menuTitle(for bitrate: PostRecordingExportBitratePreset) -> String {
+    isLocked(bitrate) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), bitrate.title) : bitrate.title
+  }
+}
+
 private extension NSToolbarItem.Identifier {
-  static let discardRecording = NSToolbarItem.Identifier("com.vivyshot.post-recording.discard")
-  static let saveGIFRecording = NSToolbarItem.Identifier("com.vivyshot.post-recording.save-gif")
-  static let saveMP4Recording = NSToolbarItem.Identifier("com.vivyshot.post-recording.save-mp4")
+  static let exportVideoRecording = NSToolbarItem.Identifier("com.vivyshot.post-recording.export-video")
+  static let saveVideoRecording = NSToolbarItem.Identifier("com.vivyshot.post-recording.save-video")
 }
 
 private struct PostRecordingPlayerPreview: NSViewRepresentable {

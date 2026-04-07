@@ -206,6 +206,67 @@ pub struct vs_video_export_context {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_stats_day_key {
+    pub year: i32,
+    pub month: u8,
+    pub day: u8,
+    pub reserved: u8,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_stats_event {
+    pub event_type: u8,
+    pub reserved0: [u8; 3],
+    pub timezone_offset_minutes: i32,
+    pub occurred_at_ms: i64,
+    pub bytes_produced: i64,
+    pub duration_ms: i64,
+    pub screenshot_completion_duration_ms: i64,
+    pub event_key_ptr: *const u8,
+    pub event_key_len: usize,
+    pub capture_id_ptr: *const u8,
+    pub capture_id_len: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_stats_summary {
+    pub total_screenshots_captured: i64,
+    pub total_recordings_completed: i64,
+    pub total_recorded_duration_ms: i64,
+    pub total_screenshot_completion_duration_ms: i64,
+    pub completed_screenshot_session_count: i64,
+    pub average_screenshot_editor_completion_duration_ms: i64,
+    pub total_capture_bytes_produced: i64,
+    pub current_capture_streak_days: i32,
+    pub best_capture_streak_days: i32,
+    pub active_capture_days: i32,
+    pub first_capture_day: vs_stats_day_key,
+    pub has_first_capture_day: bool,
+    pub last_capture_day: vs_stats_day_key,
+    pub has_last_capture_day: bool,
+    pub most_active_day: vs_stats_day_key,
+    pub has_most_active_day: bool,
+    pub most_active_day_score: i64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_stats_daily_bucket {
+    pub day: vs_stats_day_key,
+    pub screenshot_count: i32,
+    pub recording_count: i32,
+    pub recorded_duration_ms: i64,
+    pub capture_bytes_produced: i64,
+    pub first_capture_at_ms: i64,
+    pub has_first_capture_at_ms: bool,
+    pub last_capture_at_ms: i64,
+    pub has_last_capture_at_ms: bool,
+}
+
+#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct vs_bgra_image_view {
     pub width: u32,

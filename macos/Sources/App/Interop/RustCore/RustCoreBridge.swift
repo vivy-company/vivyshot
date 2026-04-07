@@ -25,6 +25,10 @@ final class RustCoreBridge {
     RustTimelineSession(durationMS: durationMS, width: width, height: height)
   }
 
+  func makeStatsSession() -> RustStatsSession? {
+    RustStatsSession()
+  }
+
   func cropImage(_ image: CGImage, imageRect: CGRect) -> CGImage? {
     guard let cropRect = Self.normalizedCropRect(
       imageRect,

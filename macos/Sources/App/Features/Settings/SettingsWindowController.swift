@@ -7,6 +7,7 @@ import SwiftUI
 struct VivyShotSettingsView: View {
   private enum SettingsTab: String, CaseIterable, Identifiable {
     case store
+    case statistics
     case general
     case appearance
     case screenshot
@@ -18,22 +19,25 @@ struct VivyShotSettingsView: View {
     var title: String {
       switch self {
       case .store:
-        return "Upgrade"
+        return String(localized: "Upgrade", bundle: AppLocalizer.shared.bundle)
+      case .statistics:
+        return String(localized: "Statistics", bundle: AppLocalizer.shared.bundle)
       case .general:
-        return "General"
+        return String(localized: "General", bundle: AppLocalizer.shared.bundle)
       case .appearance:
-        return "Appearance"
+        return String(localized: "Appearance", bundle: AppLocalizer.shared.bundle)
       case .screenshot:
-        return "Screenshot"
+        return String(localized: "Screenshot", bundle: AppLocalizer.shared.bundle)
       case .video:
-        return "Video"
+        return String(localized: "Video", bundle: AppLocalizer.shared.bundle)
       case .about:
-        return "About"
+        return String(localized: "About", bundle: AppLocalizer.shared.bundle)
       }
     }
   }
 
   @ObservedObject var settings: AppSettings
+  @ObservedObject private var storeManager = StoreManager.shared
   @State private var selectedTab: SettingsTab = .general
   @State private var isRecordingShortcut = false
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
@@ -62,6 +66,10 @@ struct VivyShotSettingsView: View {
       VivyShotStoreSettingsView()
       .tabItem { Label(SettingsTab.store.title, systemImage: "sparkles") }
       .tag(SettingsTab.store)
+
+      VivyShotStatisticsView(presentation: .settings)
+        .tabItem { Label(SettingsTab.statistics.title, systemImage: "chart.bar.xaxis") }
+        .tag(SettingsTab.statistics)
 
       settingsContainer {
         captureSection
@@ -172,6 +180,24 @@ struct VivyShotSettingsView: View {
 
   private var captureSection: some View {
     Section("Capture") {
+      HStack(spacing: 10) {
+        Text("Language")
+          .frame(width: 78, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("App Language", selection: appLanguageBinding) {
+          ForEach(AppLanguage.allCases) { language in
+            Text(languageLabel(for: language)).tag(language)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      Text("System Default follows your macOS language. Changing this updates the app immediately.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
       HStack(spacing: 10) {
         Text("Shortcut")
           .frame(width: 78, alignment: .leading)
@@ -472,6 +498,90 @@ struct VivyShotSettingsView: View {
       Toggle("Hide notifications (best effort)", isOn: videoHideNotificationsBestEffortBinding)
         .toggleStyle(.switch)
 
+      Divider()
+
+      HStack(spacing: 10) {
+        Text("Export Codec")
+          .frame(width: 96, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Export Codec", selection: videoExportCodecBinding) {
+          ForEach(availableExportCodecs, id: \.id) { codec in
+            Text(codec.title).tag(codec)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
+        Text("Export FPS")
+          .frame(width: 96, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Export Frame Rate", selection: videoExportFrameRateBinding) {
+          ForEach(availableExportFrameRates, id: \.id) { rate in
+            Text(rate.title).tag(rate)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
+        Text("Export Quality")
+          .frame(width: 96, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Export Quality", selection: videoExportQualityBinding) {
+          ForEach(availableExportQualities, id: \.id) { quality in
+            Text(quality.title).tag(quality)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
+        Text("Export Scale")
+          .frame(width: 96, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Export Scale", selection: videoExportScaleBinding) {
+          ForEach(availableExportScales, id: \.id) { scale in
+            Text(scale.title).tag(scale)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
+        Text("Export Bitrate")
+          .frame(width: 96, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Export Bitrate", selection: videoExportBitrateBinding) {
+          ForEach(availableExportBitrates, id: \.id) { bitrate in
+            Text(bitrate.title).tag(bitrate)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 190, alignment: .trailing)
+      }
+
+      if !storeManager.hasPaidAccess {
+        HStack {
+          Text("Upgrade unlocks HEVC, 60/120 fps, high quality, scaling, and bitrate presets.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button("Upgrade") {
+            presentPaywallWindow()
+          }
+        }
+      }
+
       HStack {
         if videoWebcamFeatureVisible || videoKeystrokesFeatureVisible {
           Text(permissionOverlaySummary)
@@ -744,6 +854,13 @@ struct VivyShotSettingsView: View {
     )
   }
 
+  private var appLanguageBinding: Binding<AppLanguage> {
+    Binding(
+      get: { settings.appLanguage },
+      set: { settings.setAppLanguage($0) }
+    )
+  }
+
   private var alwaysSaveToDefaultDirectoryBinding: Binding<Bool> {
     Binding(
       get: { settings.alwaysSaveToDefaultDirectory },
@@ -790,6 +907,41 @@ struct VivyShotSettingsView: View {
     Binding(
       get: { settings.videoCountdown },
       set: { settings.setVideoCountdown($0) }
+    )
+  }
+
+  private var videoExportCodecBinding: Binding<PostRecordingExportCodec> {
+    Binding(
+      get: { settings.videoExportCodec },
+      set: { settings.setVideoExportCodec($0) }
+    )
+  }
+
+  private var videoExportFrameRateBinding: Binding<PostRecordingExportFrameRate> {
+    Binding(
+      get: { settings.videoExportFrameRate },
+      set: { settings.setVideoExportFrameRate($0) }
+    )
+  }
+
+  private var videoExportQualityBinding: Binding<PostRecordingExportQuality> {
+    Binding(
+      get: { settings.videoExportQuality },
+      set: { settings.setVideoExportQuality($0) }
+    )
+  }
+
+  private var videoExportScaleBinding: Binding<PostRecordingExportScale> {
+    Binding(
+      get: { settings.videoExportScale },
+      set: { settings.setVideoExportScale($0) }
+    )
+  }
+
+  private var videoExportBitrateBinding: Binding<PostRecordingExportBitratePreset> {
+    Binding(
+      get: { settings.videoExportBitrate },
+      set: { settings.setVideoExportBitrate($0) }
     )
   }
 
@@ -856,11 +1008,38 @@ struct VivyShotSettingsView: View {
     )
   }
 
+  private var availableExportCodecs: [PostRecordingExportCodec] {
+    storeManager.hasPaidAccess ? PostRecordingExportCodec.allCases : [.h264]
+  }
+
+  private var availableExportFrameRates: [PostRecordingExportFrameRate] {
+    storeManager.hasPaidAccess ? PostRecordingExportFrameRate.allCases : [.fps30]
+  }
+
+  private var availableExportQualities: [PostRecordingExportQuality] {
+    storeManager.hasPaidAccess ? PostRecordingExportQuality.allCases : [.standard]
+  }
+
+  private var availableExportScales: [PostRecordingExportScale] {
+    storeManager.hasPaidAccess ? PostRecordingExportScale.allCases : [.full]
+  }
+
+  private var availableExportBitrates: [PostRecordingExportBitratePreset] {
+    storeManager.hasPaidAccess ? PostRecordingExportBitratePreset.allCases : [.standard]
+  }
+
   private var defaultSaveDirectoryDisplay: String {
     guard let url = settings.defaultSaveDirectoryURL else {
-      return "Not set"
+      return String(localized: "Not set", bundle: AppLocalizer.shared.bundle)
     }
     return (url.path as NSString).abbreviatingWithTildeInPath
+  }
+
+  private func languageLabel(for language: AppLanguage) -> String {
+    if language == .system {
+      return String(localized: String.LocalizationValue(language.nativeDisplayName), bundle: AppLocalizer.shared.bundle)
+    }
+    return language.nativeDisplayName
   }
 
   private func chooseDefaultSaveDirectory() {
@@ -869,8 +1048,8 @@ struct VivyShotSettingsView: View {
     panel.canChooseFiles = false
     panel.allowsMultipleSelection = false
     panel.canCreateDirectories = true
-    panel.prompt = "Choose"
-    panel.title = "Choose Default Save Folder"
+    panel.prompt = String(localized: "Choose", bundle: AppLocalizer.shared.bundle)
+    panel.title = String(localized: "Choose Default Save Folder", bundle: AppLocalizer.shared.bundle)
     panel.directoryURL = settings.defaultSaveDirectoryURL
       ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
 

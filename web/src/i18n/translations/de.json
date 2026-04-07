@@ -1,0 +1,176 @@
+{
+  "header": {
+    "download": "Projekt",
+    "githubCta": "Auf GitHub ansehen"
+  },
+  "hero": {
+    "eyebrow": "Einfach. Nativ. Schnell.",
+    "title": "VivyShot: Screen Studio",
+    "subtitle": "Entwickelt, um Screenshots und kurze Bildschirmaufnahmen für Arbeit, Dokumentation, Bug-Reports und KI-Agenten-Workflows schneller zu machen, mit Aufnahme, Annotation und Export in einem Ablauf.",
+    "primaryCta": "Download",
+    "meta": "Jetzt auf <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span> verfügbar. Windows und HarmonyOS sind als Nächstes geplant."
+  },
+  "why": {
+    "title": "Was den Unterschied macht",
+    "subtitle": "Einfach zu benutzen, auf jeder Plattform nativ, portabel gedacht und von Anfang an Open Source.",
+    "native": {
+      "title": "Einfach",
+      "desc": "Für einen direkten Ablauf gebaut: <kbd>⌘ ⇧ C</kbd> drücken, Bereich wählen, <kbd>⌘ C</kbd> drücken und teilen."
+    },
+    "modern": {
+      "title": "Nativ",
+      "desc": "Jede Plattform bekommt ihre eigene native UI, damit sich VivyShot überall richtig anfühlt."
+    },
+    "sync": {
+      "title": "Portabel",
+      "desc": "Eine gemeinsame Engine hält das Verhalten plattformübergreifend konsistent und erleichtert die Erweiterung auf weitere Geräte."
+    },
+    "pricing": {
+      "title": "Open Source",
+      "desc": "Der Code ist öffentlich, überprüfbar und wird offen entwickelt."
+    }
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "subtitle": "Drei Schritte, bewusst einfach gehalten.",
+    "now": {
+      "title": "macOS-Start",
+      "desc": "Zuerst die Kern-App für Capture veröffentlichen."
+    },
+    "next": {
+      "title": "Editor-Ausbau",
+      "desc": "Einfache Nachbearbeitung nach dem Capture ergänzen."
+    },
+    "later": {
+      "title": "Mehr Plattformen",
+      "desc": "Auf weitere native Desktop-Plattformen bringen."
+    }
+  },
+  "features": {
+    "title": "Was du damit tun kannst",
+    "subtitle": "Aufnehmen, annotieren, filmen und exportieren.",
+    "rendering": {
+      "title": "Screenshots auf deine Weise",
+      "desc": "Mit <kbd>⌘ ⇧ C</kbd> starten und dann Bereich, Fenster oder den ganzen Bildschirm erfassen."
+    },
+    "connect": {
+      "title": "Das Wichtige direkt hervorheben",
+      "desc": "Mit Formen, Pfeilen, Text, Unschärfe und Pixelierung arbeiten."
+    },
+    "pickup": {
+      "title": "Kurze Abläufe klar aufnehmen",
+      "desc": "Bildschirmvideo mit Audio und Eingabe-Overlays aufnehmen."
+    },
+    "organize": {
+      "title": "Ohne Zusatzschritte exportieren",
+      "desc": "Per <kbd>⌘ C</kbd> schnell kopieren oder saubere PNG- und JPEG-Dateien speichern."
+    }
+  },
+  "useCases": {
+    "title": "Wofür es nützlich ist",
+    "subtitle": "Nützlich für Bugs, Dokumentation, Feedback und KI-Agenten-Workflows, in denen ein roher Screenshot nicht reicht.",
+    "solo": {
+      "title": "Bug-Reports",
+      "desc": "Statt lange zu beschreiben, zeigst du direkt den Bug, den betroffenen Bereich und das entscheidende visuelle Detail."
+    },
+    "homelab": {
+      "title": "Produktfeedback",
+      "desc": "Regressionen, Layout-Probleme und Detailmängel klarer zeigen, mit weniger Hin und Her."
+    },
+    "apple": {
+      "title": "Dokumentation",
+      "desc": "Besser lesbare Screenshots für Setup-Guides, Release Notes, interne Doku und Onboarding erstellen."
+    },
+    "ai": {
+      "title": "KI-Agenten-Workflows",
+      "desc": "Screenshots für Codex, Claude Code, OpenCode und ähnliche Agenten machen, wenn visueller Kontext hilft."
+    }
+  },
+  "pricing": {
+    "title": "Einfache Preise",
+    "subtitle": "Free, Lifetime und Supporter. Kein Abo.",
+    "free": {
+      "name": "Free",
+      "description": "Der Kern-Workflow bleibt dauerhaft kostenlos",
+      "features": [
+        "Grundlegende Screenshot-Erfassung",
+        "Basis-Annotationen",
+        "Sauberer Export",
+        "Schneller Workflow für den Alltag",
+        "Dauerhaft kostenlos",
+        "Genug, um zu sehen, ob es passt"
+      ],
+      "cta": "Kostenlos laden"
+    },
+    "pro": {
+      "name": "Lifetime",
+      "description": "Einmalig die ganze App freischalten",
+      "monthly": {
+        "period": "einmalig"
+      },
+      "features": [
+        "Alles aus Free",
+        "Vollständige Aufnahme und Annotation",
+        "Recording-Workflow",
+        "Mehr ausgefeilte Werkzeuge für jeden Tag",
+        "Bessere Exportoptionen",
+        "Künftige größere Verbesserungen",
+        "Kein Abo"
+      ],
+      "ctaMonthly": "Lifetime holen",
+      "note": "Rückerstattungen werden vom App Store bearbeitet."
+    },
+    "lifetime": {
+      "name": "Supporter",
+      "description": "Gleiche volle App wie Lifetime, plus ein kleines Supporter-Abzeichen in der App",
+      "badge": "Optional",
+      "features": [
+        "Gleiche Freischaltung wie Lifetime",
+        "Optionale In-App-Kaufstufe",
+        "Supporter-Abzeichen in den Einstellungen",
+        "Zusätzliche Unterstützung für das Projekt"
+      ],
+      "cta": "Supporter werden",
+      "guarantee": "Lifetime kostet $9.99. Supporter kostet $24.99."
+    }
+  },
+  "whyBuilt": {
+    "title": "Warum ich es gebaut habe",
+    "q1": {
+      "question": "Zu viel Ballast",
+      "answer": "Viele Screenshot-Tools wollen zu viel. Ich wollte etwas Kleineres, Schnelleres und Fokussierteres."
+    },
+    "q2": {
+      "question": "Zu viel Reibung",
+      "answer": "Ein Screenshot sollte schnell sein. Aufnehmen, markieren, kopieren und weitermachen."
+    },
+    "q3": {
+      "question": "Nativ ist wichtig",
+      "answer": "Ich will keine schwere Oberfläche, die überall erzwungen wird. Die App soll sich dort richtig anfühlen, wo sie läuft."
+    },
+    "q4": {
+      "question": "Nützlich bleiben",
+      "answer": "Das Ziel ist ein Tool, das Capture, Annotation, Recording und Teilen gut beherrscht, statt in Rauschen auszuufern."
+    }
+  },
+  "closing": {
+    "title": "Jetzt auf macOS verfügbar.",
+    "subtitle": "Windows und HarmonyOS sind als Nächstes geplant, jeweils mit nativer Oberfläche.",
+    "cta": "Download"
+  },
+  "footer": {
+    "tagline": "Screen Capture, Annotation und Recording",
+    "description": "Open Source und auf einer portablen Engine aufgebaut, mit nativer UI auf jeder Plattform, auf der VivyShot erscheint.",
+    "productTitle": "Produkt",
+    "resourcesTitle": "Ressourcen",
+    "navWhy": "Was den Unterschied macht",
+    "navFeatures": "Funktionen",
+    "navPricing": "Preise",
+    "navWhyBuilt": "Warum ich es gebaut habe",
+    "copyright": "Vivy Technologies Co., Limited",
+    "github": "GitHub",
+    "privacy": "Datenschutz",
+    "terms": "Nutzungsbedingungen",
+    "refunds": "Rückerstattung"
+  }
+}

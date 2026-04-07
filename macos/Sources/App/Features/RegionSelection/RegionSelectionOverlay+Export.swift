@@ -1,6 +1,12 @@
 import AppKit
 import CoreGraphics
+import Foundation
 import UniformTypeIdentifiers
+
+private struct ScreenshotStatisticsCompletionContext {
+  let captureID: String
+  let startedAt: Date
+}
 
 @MainActor
 extension RegionSelectionView {
@@ -34,7 +40,10 @@ extension RegionSelectionView {
       return
     }
 
+    let completionContext = currentScreenshotStatisticsCompletionContext()
+    let finishedAt = Date()
     finishEditing(animatedClose: false)
+    recordScreenshotStatisticsCompletionIfNeeded(completionContext, finishedAt: finishedAt)
     TransientToast.show("Copied to Clipboard")
   }
 
@@ -49,25 +58,38 @@ extension RegionSelectionView {
       return
     }
 
+    let completionContext = currentScreenshotStatisticsCompletionContext()
     if settings.alwaysSaveToDefaultDirectory,
        let directory = settings.defaultSaveDirectoryURL
     {
-      finishEditing(animatedClose: false)
       let destination = Self.makeAutoSaveURL(in: directory, ext: "png")
-      Self.saveImageToDisk(image, to: destination)
+      let finishedAt = Date()
+      finishEditing(animatedClose: false)
+      if Self.saveImageToDisk(image, to: destination) {
+        recordScreenshotStatisticsCompletionIfNeeded(completionContext, finishedAt: finishedAt)
+      }
       return
     }
 
     let suggestedDirectory = settings.defaultSaveDirectoryURL
     let imageToSave = image
     finishEditing(animatedClose: false)
-    Task { @MainActor [imageToSave, suggestedDirectory] in
+    Task { @MainActor [imageToSave, suggestedDirectory, completionContext] in
       await Task.yield()
-      Self.presentSavePanel(for: imageToSave, suggestedDirectory: suggestedDirectory)
+      Self.presentSavePanel(
+        for: imageToSave,
+        suggestedDirectory: suggestedDirectory
+      ) {
+        self.recordScreenshotStatisticsCompletionIfNeeded(completionContext, finishedAt: Date())
+      }
     }
   }
 
-  static func presentSavePanel(for image: CGImage, suggestedDirectory: URL?) {
+  static func presentSavePanel(
+    for image: CGImage,
+    suggestedDirectory: URL?,
+    onSuccessfulSave: (() -> Void)? = nil
+  ) {
     let panel = NSSavePanel()
     panel.title = "Save Annotation"
     panel.canCreateDirectories = true
@@ -94,7 +116,9 @@ extension RegionSelectionView {
       return
     }
 
-    Self.saveImageToDisk(image, to: url)
+    if Self.saveImageToDisk(image, to: url) {
+      onSuccessfulSave?()
+    }
   }
 
   func exportImageForCurrentSelection() -> CGImage? {
@@ -204,7 +228,7 @@ extension RegionSelectionView {
     return false
   }
 
-  static func saveImageToDisk(_ image: CGImage, to url: URL) {
+  static func saveImageToDisk(_ image: CGImage, to url: URL) -> Bool {
     let ext = url.pathExtension.lowercased()
     let extType = UTType(filenameExtension: ext)
     let selectedType: UTType = (extType == .jpeg || ext == "jpg") ? .jpeg : .png
@@ -220,17 +244,18 @@ extension RegionSelectionView {
     let quality = selectedType == .jpeg ? 88 : 100
     guard let encoded = RustCoreBridge.shared.encodeImage(image, format: format, jpegQuality: quality) else {
       NSSound.beep()
-      return
+      return false
     }
 
     do {
       try encoded.write(to: targetURL, options: .atomic)
     } catch {
       NSSound.beep()
-      return
+      return false
     }
 
     TransientToast.show("Saved")
+    return true
   }
 
   static func makeAutoSaveURL(in directory: URL, ext: String) -> URL {
@@ -254,5 +279,64 @@ extension RegionSelectionView {
     formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
     let timestamp = formatter.string(from: Date())
     return "vivyshot_\(timestamp)"
+  }
+
+  func beginScreenshotStatisticsSessionIfNeeded() {
+    guard selectedCaptureType == .screenshot else {
+      currentScreenshotCaptureID = nil
+      screenshotEditorEnteredAt = nil
+      return
+    }
+    guard currentScreenshotCaptureID == nil else {
+      return
+    }
+
+    let captureID = UUID().uuidString
+    currentScreenshotCaptureID = captureID
+    screenshotEditorEnteredAt = Date()
+    let bytesProduced = Int64(encodedImageForCurrentSelection(format: .png, jpegQuality: 100)?.count ?? 0)
+    let occurredAt = screenshotEditorEnteredAt ?? Date()
+    Task {
+      await CaptureStatisticsStore.shared.recordScreenshotCaptured(
+        captureID: captureID,
+        occurredAt: occurredAt,
+        bytesProduced: bytesProduced
+      )
+    }
+  }
+
+  fileprivate func currentScreenshotStatisticsCompletionContext() -> ScreenshotStatisticsCompletionContext? {
+    guard let captureID = currentScreenshotCaptureID, let startedAt = screenshotEditorEnteredAt else {
+      return nil
+    }
+    return ScreenshotStatisticsCompletionContext(captureID: captureID, startedAt: startedAt)
+  }
+
+  fileprivate func recordScreenshotStatisticsCompletionIfNeeded(
+    _ context: ScreenshotStatisticsCompletionContext?,
+    finishedAt: Date
+  ) {
+    guard let context else {
+      return
+    }
+    Task {
+      await CaptureStatisticsStore.shared.recordScreenshotSessionCompleted(
+        captureID: context.captureID,
+        startedAt: context.startedAt,
+        finishedAt: finishedAt
+      )
+    }
+  }
+
+  func recordStandaloneScreenshotCapture(_ image: CGImage, occurredAt: Date = Date()) {
+    let captureID = UUID().uuidString
+    let bytesProduced = Int64(RustCoreBridge.shared.encodeImage(image, format: .png, jpegQuality: 100)?.count ?? 0)
+    Task {
+      await CaptureStatisticsStore.shared.recordScreenshotCaptured(
+        captureID: captureID,
+        occurredAt: occurredAt,
+        bytesProduced: bytesProduced
+      )
+    }
   }
 }

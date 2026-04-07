@@ -6,6 +6,7 @@
 mod types;
 
 pub mod geometry;
+pub mod stats;
 pub mod stitch;
 pub mod timeline;
 pub mod video;
@@ -14,6 +15,14 @@ pub use geometry::{
     image_delta_to_view_delta, image_rect_to_view_rect, quantize_image_point, quantize_image_rect,
     quantize_rgba, selection_move_rect, selection_resize_rect, view_delta_to_image_delta,
     view_rect_to_image_rect, viewport_clamp_pan_offset,
+};
+pub use stats::{
+    capture_statistics_daily_buckets, capture_statistics_ingest_event,
+    capture_statistics_recent_daily_buckets, capture_statistics_reset,
+    capture_statistics_summary, CaptureStatisticsError, CaptureStatisticsEvent,
+    CaptureStatisticsEventType, CaptureStatisticsState, CaptureStatisticsSummary,
+    DailyCaptureStats, StatsDayKey, STATS_EVENT_RECORDING_COMPLETED,
+    STATS_EVENT_SCREENSHOT_CAPTURED, STATS_EVENT_SCREENSHOT_SESSION_COMPLETED,
 };
 pub use stitch::{
     bgra_view_to_owned, build_gif_export_plan, gif_frame_time_ms, normalize_trim_range,

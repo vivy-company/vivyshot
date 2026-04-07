@@ -1,0 +1,176 @@
+{
+  "header": {
+    "download": "Projet",
+    "githubCta": "Voir sur GitHub"
+  },
+  "hero": {
+    "eyebrow": "Simple. Natif. Rapide.",
+    "title": "VivyShot: Screen Studio",
+    "subtitle": "Conçu pour accélérer les captures et enregistrements d’écran pour le travail, la documentation, les bugs et les workflows d’agents IA, avec capture, annotation et export dans un seul flux.",
+    "primaryCta": "Télécharger",
+    "meta": "Disponible dès maintenant sur <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>. Windows et HarmonyOS sont prévus ensuite."
+  },
+  "why": {
+    "title": "Ce qui le rend différent",
+    "subtitle": "Simple à utiliser, natif sur chaque plateforme, pensé pour être portable et open source dès le départ.",
+    "native": {
+      "title": "Simple",
+      "desc": "Pensé pour un flux direct : appuyez sur <kbd>⌘ ⇧ C</kbd>, sélectionnez une zone, puis <kbd>⌘ C</kbd> pour copier et partager."
+    },
+    "modern": {
+      "title": "Natif",
+      "desc": "Chaque plateforme reçoit sa propre interface native, pour que VivyShot semble à sa place partout."
+    },
+    "sync": {
+      "title": "Portable",
+      "desc": "Un moteur partagé garde le comportement cohérent entre plateformes et facilite l’arrivée sur d’autres appareils."
+    },
+    "pricing": {
+      "title": "Open source",
+      "desc": "Le code est public, inspectable et développé au grand jour."
+    }
+  },
+  "roadmap": {
+    "title": "Feuille de route",
+    "subtitle": "Trois étapes, volontairement simples.",
+    "now": {
+      "title": "Lancement macOS",
+      "desc": "Sortir d’abord l’app de capture principale."
+    },
+    "next": {
+      "title": "Passage éditeur",
+      "desc": "Ajouter une édition simple après capture."
+    },
+    "later": {
+      "title": "Plus de plateformes",
+      "desc": "L’amener sur davantage de bureaux natifs."
+    }
+  },
+  "features": {
+    "title": "Ce que vous pouvez faire",
+    "subtitle": "Capturer, annoter, enregistrer et exporter.",
+    "rendering": {
+      "title": "Capturer à votre façon",
+      "desc": "Commencez avec <kbd>⌘ ⇧ C</kbd>, puis capturez une zone, une fenêtre ou l’écran entier."
+    },
+    "connect": {
+      "title": "Mettre l’essentiel en évidence",
+      "desc": "Utilisez formes, flèches, texte, flou et pixellisation."
+    },
+    "pickup": {
+      "title": "Enregistrer clairement de courts flux",
+      "desc": "Enregistrez l’écran avec audio et surcouches d’entrée."
+    },
+    "organize": {
+      "title": "Exporter sans étapes en plus",
+      "desc": "Copiez vite avec <kbd>⌘ C</kbd>, ou enregistrez en PNG et JPEG propres."
+    }
+  },
+  "useCases": {
+    "title": "Quand c’est utile",
+    "subtitle": "Utile pour les bugs, la documentation, les retours et les workflows d’agents IA lorsque la capture brute ne suffit pas.",
+    "solo": {
+      "title": "Signalements de bugs",
+      "desc": "Montrez le bug, la zone concernée et le détail visuel qui compte, au lieu d’écrire autour du problème."
+    },
+    "homelab": {
+      "title": "Retours produit",
+      "desc": "Signalez plus clairement les régressions, soucis de mise en page et problèmes de finition avec moins d’allers-retours."
+    },
+    "apple": {
+      "title": "Documentation",
+      "desc": "Produisez des captures plus lisibles pour les guides d’installation, notes de version, docs internes et parcours d’onboarding."
+    },
+    "ai": {
+      "title": "Workflows d’agents IA",
+      "desc": "Faites des captures pour Codex, Claude Code, OpenCode et d’autres agents quand le contexte visuel aide au raisonnement."
+    }
+  },
+  "pricing": {
+    "title": "Tarification simple",
+    "subtitle": "Free, Lifetime et Supporter. Pas d’abonnement.",
+    "free": {
+      "name": "Free",
+      "description": "Le flux principal reste gratuit pour toujours",
+      "features": [
+        "Capture d’écran essentielle",
+        "Outils d’annotation de base",
+        "Export propre",
+        "Flux rapide pour tous les jours",
+        "Gratuit pour toujours",
+        "De quoi juger si l’outil vous convient"
+      ],
+      "cta": "Télécharger gratuitement"
+    },
+    "pro": {
+      "name": "Lifetime",
+      "description": "Un achat unique pour débloquer l’outil complet",
+      "monthly": {
+        "period": "achat unique"
+      },
+      "features": [
+        "Tout ce qui est dans Free",
+        "Capture et annotation complètes",
+        "Flux d’enregistrement",
+        "Outils du quotidien plus aboutis",
+        "Meilleures options d’export",
+        "Grandes améliorations futures incluses",
+        "Pas d’abonnement"
+      ],
+      "ctaMonthly": "Obtenir Lifetime",
+      "note": "Les remboursements sont gérés par l’App Store."
+    },
+    "lifetime": {
+      "name": "Supporter",
+      "description": "Même app complète que Lifetime, avec un petit badge supporter dans l’app",
+      "badge": "Optionnel",
+      "features": [
+        "Même déblocage complet que Lifetime",
+        "Achat intégré facultatif",
+        "Badge supporter dans Réglages",
+        "Un soutien supplémentaire au projet"
+      ],
+      "cta": "Devenir supporter",
+      "guarantee": "Lifetime coûte $9.99. Supporter coûte $24.99."
+    }
+  },
+  "whyBuilt": {
+    "title": "Pourquoi je l’ai créé",
+    "q1": {
+      "question": "Trop de lourdeur",
+      "answer": "Beaucoup d’outils de capture veulent tout faire. Je voulais quelque chose de plus petit, plus rapide et plus concentré."
+    },
+    "q2": {
+      "question": "Trop de friction",
+      "answer": "Une capture doit aller vite. Capturer, annoter, copier et passer à la suite."
+    },
+    "q3": {
+      "question": "Le natif compte",
+      "answer": "Je ne veux pas d’une interface lourde forcée partout. L’app doit sembler juste là où elle tourne."
+    },
+    "q4": {
+      "question": "Rester utile",
+      "answer": "Le but est un outil qui reste bon pour capturer, annoter, enregistrer et partager, au lieu de dériver vers du bruit."
+    }
+  },
+  "closing": {
+    "title": "Disponible maintenant sur macOS.",
+    "subtitle": "Windows et HarmonyOS arrivent ensuite, avec une interface native sur chaque plateforme.",
+    "cta": "Télécharger"
+  },
+  "footer": {
+    "tagline": "Capture d’écran, annotation et enregistrement",
+    "description": "Open source et construit autour d’un moteur portable, avec une interface native sur chaque plateforme où VivyShot arrive.",
+    "productTitle": "Produit",
+    "resourcesTitle": "Ressources",
+    "navWhy": "Ce qui le rend différent",
+    "navFeatures": "Fonctionnalités",
+    "navPricing": "Tarifs",
+    "navWhyBuilt": "Pourquoi je l’ai créé",
+    "copyright": "Vivy Technologies Co., Limited",
+    "github": "GitHub",
+    "privacy": "Confidentialité",
+    "terms": "Conditions d’utilisation",
+    "refunds": "Remboursements"
+  }
+}

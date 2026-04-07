@@ -13,8 +13,8 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
       backing: .buffered,
       defer: false
     )
-    window.title = "Upgrade VivyShot"
-    window.subtitle = "Lifetime access or support the project"
+    window.title = String(localized: "Upgrade VivyShot", bundle: AppLocalizer.shared.bundle)
+    window.subtitle = String(localized: "Lifetime access or support the project", bundle: AppLocalizer.shared.bundle)
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
     window.toolbarStyle = .unified
@@ -22,13 +22,10 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
     window.isReleasedWhenClosed = false
     window.center()
     window.setContentSize(NSSize(width: 720, height: 660))
-    window.contentView = NSHostingView(rootView: VivyShotPaywallView())
+    window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView()))
 
     super.init(window: window)
-    let toolbar = NSToolbar(identifier: "VivyShotPaywallToolbar")
-    toolbar.delegate = self
-    toolbar.displayMode = .default
-    window.toolbar = toolbar
+    window.toolbar = makeToolbar()
     window.delegate = self
   }
 
@@ -39,14 +36,29 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
 
   func show() {
     guard let window else { return }
-    if let hostingView = window.contentView as? NSHostingView<VivyShotPaywallView> {
-      hostingView.rootView = VivyShotPaywallView()
+    if let hostingView = window.contentView as? NSHostingView<AnyView> {
+      hostingView.rootView = AnyView(Self.makePaywallView())
     } else {
-      window.contentView = NSHostingView(rootView: VivyShotPaywallView())
+      window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView()))
     }
+    window.title = String(localized: "Upgrade VivyShot", bundle: AppLocalizer.shared.bundle)
+    window.subtitle = String(localized: "Lifetime access or support the project", bundle: AppLocalizer.shared.bundle)
+    window.toolbar = makeToolbar()
     window.center()
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  private func makeToolbar() -> NSToolbar {
+    let toolbar = NSToolbar(identifier: "VivyShotPaywallToolbar")
+    toolbar.delegate = self
+    toolbar.displayMode = .default
+    return toolbar
+  }
+
+  private static func makePaywallView() -> some View {
+    VivyShotPaywallView()
+      .environment(\.locale, AppLocalizer.shared.locale)
   }
 
   func windowWillClose(_ notification: Notification) {
@@ -82,12 +94,12 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
   }
 
   private func titleToolbarView() -> NSView {
-    let titleLabel = NSTextField(labelWithString: "Upgrade VivyShot")
+    let titleLabel = NSTextField(labelWithString: String(localized: "Upgrade VivyShot", bundle: AppLocalizer.shared.bundle))
     titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
     titleLabel.alignment = .left
     titleLabel.textColor = .labelColor
 
-    let subtitleLabel = NSTextField(labelWithString: "Lifetime access or support the project")
+    let subtitleLabel = NSTextField(labelWithString: String(localized: "Lifetime access or support the project", bundle: AppLocalizer.shared.bundle))
     subtitleLabel.font = .systemFont(ofSize: 11)
     subtitleLabel.alignment = .left
     subtitleLabel.textColor = .secondaryLabelColor

@@ -11,6 +11,7 @@ enum UITestRuntime {
 
 struct VivyShotApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  @StateObject private var localizer = AppLocalizer.shared
   @StateObject private var statusController: StatusItemController
   @StateObject private var storeManager = StoreManager.shared
 
@@ -38,6 +39,7 @@ struct VivyShotApp: App {
   var body: some Scene {
     MenuBarExtra {
       MenuBarMenuContent(statusController: statusController)
+        .environment(\.locale, localizer.locale)
     } label: {
       Label(
         "VivyShot",
@@ -48,24 +50,36 @@ struct VivyShotApp: App {
 
     Settings {
       VivyShotSettingsView(settings: .shared)
+        .environment(\.locale, localizer.locale)
     }
+
+    Window("Statistics", id: StatisticsWindowScene.id) {
+      StatisticsWindowSceneRootView()
+        .environment(\.locale, localizer.locale)
+    }
+    .defaultLaunchBehavior(.suppressed)
+    .restorationBehavior(.disabled)
+    .defaultSize(width: 780, height: 680)
+    .windowResizability(.contentMinSize)
+    .windowToolbarStyle(.unified(showsTitle: true))
   }
 }
 
 private struct MenuBarMenuContent: View {
   @ObservedObject var statusController: StatusItemController
   @ObservedObject private var storeManager = StoreManager.shared
+  @Environment(\.openWindow) private var openWindow
   @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     Group {
       if statusController.isRecordingActive {
-        Button("Stop Recording") {
+        Button(LocalizedStringKey("Stop Recording")) {
           statusController.captureOrStopPressed()
         }
         .keyboardShortcut("s", modifiers: .command)
       } else {
-        Button("Capture Region") {
+        Button(LocalizedStringKey("Capture Region")) {
           statusController.captureOrStopPressed()
         }
         .keyboardShortcut("c", modifiers: .command)
@@ -89,19 +103,23 @@ private struct MenuBarMenuContent: View {
         }
         .padding(.vertical, 2)
       } else {
-        Button("Upgrade") {
+        Button(LocalizedStringKey("Upgrade")) {
           presentPaywallWindow()
         }
       }
 
-      Button("Settings…") {
+      Button(LocalizedStringKey("Statistics…")) {
+        openStatisticsWindow()
+      }
+
+      Button(LocalizedStringKey("Settings…")) {
         openSettingsOnTop()
       }
       .keyboardShortcut(",", modifiers: .command)
 
       Divider()
 
-      Button("Quit VivyShot") {
+      Button(LocalizedStringKey("Quit VivyShot")) {
         statusController.quitPressed()
       }
       .keyboardShortcut("q", modifiers: .command)
@@ -118,6 +136,11 @@ private struct MenuBarMenuContent: View {
         visibleWindow.makeKeyAndOrderFront(nil)
       }
     }
+  }
+
+  private func openStatisticsWindow() {
+    NSApp.activate(ignoringOtherApps: true)
+    openWindow(id: StatisticsWindowScene.id)
   }
 }
 

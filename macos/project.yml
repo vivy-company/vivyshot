@@ -51,6 +51,7 @@ targets:
     dependencies:
       - framework: ../VivyShotKit.xcframework
         embed: false
+      - sdk: libsqlite3.tbd
     settings:
       base:
         PRODUCT_NAME: VivyShot
@@ -63,6 +64,8 @@ targets:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.dev
           PRODUCT_NAME: VivyShotDev
+          ENABLE_HARDENED_RUNTIME: NO
+          CODE_SIGN_ENTITLEMENTS: ""
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot
 
@@ -76,9 +79,15 @@ targets:
       - target: VivyShot
       - framework: ../VivyShotKit.xcframework
         embed: false
+      - sdk: libsqlite3.tbd
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.tests
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: ""
-        BUNDLE_LOADER: ""
+      configs:
+        Debug:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShotDev.app/Contents/MacOS/VivyShotDev"
+          BUNDLE_LOADER: "$(TEST_HOST)"
+        Release:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShot.app/Contents/MacOS/VivyShot"
+          BUNDLE_LOADER: "$(TEST_HOST)"
