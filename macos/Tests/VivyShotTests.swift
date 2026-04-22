@@ -7,6 +7,40 @@ import XCTest
 @testable import VivyShot
 
 final class VivyShotTests: XCTestCase {
+  private final class StubLaunchAtLoginService: LaunchAtLoginService {
+    var status: LaunchAtLoginServiceStatus
+    var registerError: Error?
+    var unregisterError: Error?
+    var registerCallCount = 0
+    var unregisterCallCount = 0
+    var statusAfterRegister: LaunchAtLoginServiceStatus?
+    var statusAfterUnregister: LaunchAtLoginServiceStatus?
+
+    init(status: LaunchAtLoginServiceStatus) {
+      self.status = status
+    }
+
+    func register() throws {
+      registerCallCount += 1
+      if let registerError {
+        throw registerError
+      }
+      if let statusAfterRegister {
+        status = statusAfterRegister
+      }
+    }
+
+    func unregister() throws {
+      unregisterCallCount += 1
+      if let unregisterError {
+        throw unregisterError
+      }
+      if let statusAfterUnregister {
+        status = statusAfterUnregister
+      }
+    }
+  }
+
   private struct SyntheticRaster {
     let width: Int
     let height: Int
@@ -147,6 +181,61 @@ final class VivyShotTests: XCTestCase {
 
     XCTAssertEqual(fileType, .m4v)
     XCTAssertEqual(preset, AVAssetExportPresetHighestQuality)
+  }
+
+  @MainActor
+  func testLaunchAtLoginControllerHandlesApprovalAndDisable() {
+    let service = StubLaunchAtLoginService(status: .notRegistered)
+    service.statusAfterRegister = .requiresApproval
+    service.statusAfterUnregister = .notRegistered
+
+    let controller = LaunchAtLoginController(service: service)
+    controller.setEnabled(true)
+
+    let enabledAfterRegister = controller.isEnabled
+    let detailAfterRegister = controller.detailText
+    let registerCallCount = service.registerCallCount
+
+    controller.setEnabled(false)
+
+    let enabledAfterUnregister = controller.isEnabled
+    let detailAfterUnregister = controller.detailText
+    let unregisterCallCount = service.unregisterCallCount
+
+    XCTAssertTrue(enabledAfterRegister)
+    XCTAssertEqual(
+      detailAfterRegister,
+      "Finish enabling startup in System Settings > General > Login Items."
+    )
+    XCTAssertEqual(registerCallCount, 1)
+    XCTAssertFalse(enabledAfterUnregister)
+    XCTAssertNil(detailAfterUnregister)
+    XCTAssertEqual(unregisterCallCount, 1)
+  }
+
+  @MainActor
+  func testLaunchAtLoginControllerSurfacesUpdateErrors() {
+    enum StubError: LocalizedError {
+      case blocked
+
+      var errorDescription: String? {
+        "Blocked"
+      }
+    }
+
+    let service = StubLaunchAtLoginService(status: .notRegistered)
+    service.registerError = StubError.blocked
+
+    let controller = LaunchAtLoginController(service: service)
+    controller.setEnabled(true)
+
+    let enabled = controller.isEnabled
+    let detail = controller.detailText
+    let registerCallCount = service.registerCallCount
+
+    XCTAssertFalse(enabled)
+    XCTAssertEqual(detail, "Unable to update launch at login. Blocked")
+    XCTAssertEqual(registerCallCount, 1)
   }
 
   func testPortableTrimNormalizationContract() {

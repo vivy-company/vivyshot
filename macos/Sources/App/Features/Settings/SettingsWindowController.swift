@@ -38,6 +38,7 @@ struct VivyShotSettingsView: View {
 
   @ObservedObject var settings: AppSettings
   @ObservedObject private var storeManager = StoreManager.shared
+  @ObservedObject private var launchAtLoginController = LaunchAtLoginController.shared
   @State private var selectedTab: SettingsTab = .general
   @State private var isRecordingShortcut = false
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
@@ -65,6 +66,7 @@ struct VivyShotSettingsView: View {
     TabView(selection: $selectedTab) {
       settingsContainer {
         languageSection
+        startupSection
         shortcutSection
         captureDefaultsSection
         savingSection
@@ -113,6 +115,7 @@ struct VivyShotSettingsView: View {
     .frame(minWidth: 500, minHeight: 620)
     .onAppear {
       availableFamilies = AppSettings.availableTextFontFamilyNames()
+      launchAtLoginController.refresh()
       if videoWebcamFeatureVisible {
         refreshWebcamDevices()
       }
@@ -238,6 +241,24 @@ struct VivyShotSettingsView: View {
             : "Used to start capture from anywhere. Hold Command, Shift, Option, or Control while pressing a key.",
           bundle: AppLocalizer.shared.bundle
         )
+      )
+    }
+  }
+
+  private var startupSection: some View {
+    Section {
+      Toggle("Start VivyShot at login", isOn: launchAtLoginBinding)
+        .toggleStyle(.switch)
+        .controlSize(.small)
+    } header: {
+      Text("Startup")
+    } footer: {
+      Text(
+        launchAtLoginController.detailText
+          ?? String(
+            localized: "Automatically launches the menu bar app after you sign in.",
+            bundle: AppLocalizer.shared.bundle
+          )
       )
     }
   }
@@ -794,6 +815,13 @@ struct VivyShotSettingsView: View {
     Binding(
       get: { settings.captureShowHelper },
       set: { settings.setCaptureShowHelper($0) }
+    )
+  }
+
+  private var launchAtLoginBinding: Binding<Bool> {
+    Binding(
+      get: { launchAtLoginController.isEnabled },
+      set: { launchAtLoginController.setEnabled($0) }
     )
   }
 
