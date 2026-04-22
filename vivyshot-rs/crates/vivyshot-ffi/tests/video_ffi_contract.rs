@@ -1,18 +1,18 @@
 use serde_json::Value;
 use vivyshot_core::{
     vs_click_event_is_duplicate, vs_core_abi_version, vs_key_event_is_duplicate,
-    vs_normalize_click_point, vs_normalize_key_token, vs_video_click_event,
-    vs_video_compute_export_plan, vs_video_compute_overlay_clip_window,
-    vs_video_derive_export_decision, vs_video_export_context, vs_video_export_decision,
-    vs_video_export_plan, vs_video_key_event, vs_video_key_overlay_label_layout,
-    vs_video_overlay_clip_window, vs_video_overlay_label_layout, vs_video_session_add_click_event,
-    vs_video_session_add_key_event, vs_video_session_config, vs_video_session_create,
-    vs_video_session_deserialize_json, vs_video_session_destroy, vs_video_session_get_export_plan,
-    vs_video_session_serialize_json, vs_video_session_set_export_context,
-    vs_video_session_set_trim, vs_video_text_overlay_label_layout, VS_CORE_ABI_VERSION_MAJOR,
-    VS_CORE_ABI_VERSION_MINOR, VS_CORE_ABI_VERSION_PATCH, VS_STATUS_INVALID_ARGUMENT,
-    VS_STATUS_NULL_POINTER, VS_VIDEO_EXPORT_TARGET_GIF, VS_VIDEO_EXPORT_TARGET_MP4,
-    VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS,
+    vs_normalize_click_point, vs_normalize_key_token, vs_video_best_export_preset,
+    vs_video_best_save_container, vs_video_click_event, vs_video_compute_export_plan,
+    vs_video_compute_overlay_clip_window, vs_video_derive_export_decision, vs_video_export_context,
+    vs_video_export_decision, vs_video_export_plan, vs_video_key_event,
+    vs_video_key_overlay_label_layout, vs_video_overlay_clip_window, vs_video_overlay_label_layout,
+    vs_video_session_add_click_event, vs_video_session_add_key_event, vs_video_session_config,
+    vs_video_session_create, vs_video_session_deserialize_json, vs_video_session_destroy,
+    vs_video_session_get_export_plan, vs_video_session_serialize_json,
+    vs_video_session_set_export_context, vs_video_session_set_trim,
+    vs_video_text_overlay_label_layout, VS_CORE_ABI_VERSION_MAJOR, VS_CORE_ABI_VERSION_MINOR,
+    VS_CORE_ABI_VERSION_PATCH, VS_STATUS_INVALID_ARGUMENT, VS_STATUS_NULL_POINTER,
+    VS_VIDEO_EXPORT_TARGET_GIF, VS_VIDEO_EXPORT_TARGET_MP4, VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS,
 };
 
 fn sample_config() -> vs_video_session_config {
@@ -384,4 +384,32 @@ fn key_and_click_normalization_helpers_are_consistent() {
     assert!(vs_click_event_is_duplicate(
         88, 0, 0.42, 0.58, 88, 0, 0.42005, 0.57995, 0.001,
     ));
+}
+
+#[test]
+fn new_video_policy_helpers_keep_safe_fallbacks() {
+    let mut container = 255u8;
+    // SAFETY: output pointer is valid.
+    unsafe {
+        assert_eq!(
+            vs_video_best_save_container(1, false, true, &mut container),
+            0
+        );
+    }
+    assert_eq!(container, 1);
+
+    let mut preset = 255u8;
+    // SAFETY: output pointer is valid.
+    unsafe {
+        assert_eq!(vs_video_best_export_preset(1, 1, 0, &mut preset), 0);
+    }
+    assert_eq!(preset, 0);
+
+    // SAFETY: invalid-argument path for no supported save container.
+    unsafe {
+        assert_eq!(
+            vs_video_best_save_container(0, false, false, &mut container),
+            VS_STATUS_INVALID_ARGUMENT
+        );
+    }
 }

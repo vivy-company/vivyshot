@@ -39,7 +39,7 @@ struct VivyShotStoreSettingsView: View {
           if let badgeTitle = storeManager.badgeTitle {
             StoreBadgeChip(title: badgeTitle, prominence: badgeTitle == "Supporter" ? .supporter : .lifetime)
           } else {
-            Button("Upgrade") {
+            Button("Purchase License") {
               presentPaywallWindow()
             }
             .buttonStyle(.borderedProminent)
@@ -78,7 +78,7 @@ struct VivyShotStoreSettingsView: View {
           Text("Lifetime is already active. Supporter can still be purchased separately if you want the badge and an extra way to support the project.")
             .foregroundStyle(.secondary)
 
-          Button("Get Supporter Badge") {
+          Button("Purchase Supporter Badge") {
             presentPaywallWindow()
           }
           .buttonStyle(.bordered)
@@ -105,12 +105,12 @@ struct VivyShotStoreSettingsView: View {
 
   private var primaryActionTitle: String {
     if storeManager.hasSupporterBadge {
-      return String(localized: "Manage Access", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "License Details", bundle: AppLocalizer.shared.bundle)
     }
     if storeManager.hasLifetimeUnlock {
-      return String(localized: "Supporter Options", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "License Options", bundle: AppLocalizer.shared.bundle)
     }
-    return String(localized: "View Pricing", bundle: AppLocalizer.shared.bundle)
+    return String(localized: "Purchase License", bundle: AppLocalizer.shared.bundle)
   }
 
   private var storeHeadline: String {
@@ -520,7 +520,7 @@ struct VivyShotPaywallView: View {
     if storeManager.hasLifetimeUnlock {
       return String(localized: "Add the supporter badge", bundle: AppLocalizer.shared.bundle)
     }
-    return String(localized: "Choose your upgrade", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Choose your license", bundle: AppLocalizer.shared.bundle)
   }
 
   private var pricingPaneSubtitle: String {

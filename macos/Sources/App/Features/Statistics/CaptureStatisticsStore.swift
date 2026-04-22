@@ -108,8 +108,6 @@ actor CaptureStatisticsStore {
       do {
         _ = session.reset()
         try execute("DELETE FROM stats_ingested_events;", db: db)
-        try execute("DELETE FROM stats_daily_capture;", db: db)
-        try execute("DELETE FROM stats_lifetime_totals;", db: db)
         try commitTransaction(db)
         postStatisticsDidChange()
       } catch {
@@ -135,7 +133,6 @@ actor CaptureStatisticsStore {
           guard let applied = session.ingestEvent(event), applied else {
             throw StatisticsStoreError.rustIngestFailed
           }
-          try rewriteProjections(using: session, db: db)
         }
         try commitTransaction(db)
         if inserted {
@@ -168,7 +165,6 @@ actor CaptureStatisticsStore {
       self.session = session
 
       try replayLedger(into: session, db: database)
-      try rewriteProjections(using: session, db: database)
     } catch {
       sqlite3_close(database)
       self.db = nil
@@ -221,41 +217,6 @@ actor CaptureStatisticsStore {
   }
 
   private func installSchema(_ db: OpaquePointer) throws {
-    try execute(
-      """
-      CREATE TABLE IF NOT EXISTS stats_lifetime_totals (
-        singleton_key INTEGER PRIMARY KEY CHECK (singleton_key = 1),
-        total_screenshots_captured INTEGER NOT NULL DEFAULT 0,
-        total_recordings_completed INTEGER NOT NULL DEFAULT 0,
-        total_recorded_duration_ms INTEGER NOT NULL DEFAULT 0,
-        total_screenshot_completion_duration_ms INTEGER NOT NULL DEFAULT 0,
-        completed_screenshot_session_count INTEGER NOT NULL DEFAULT 0,
-        total_capture_bytes_produced INTEGER NOT NULL DEFAULT 0,
-        current_capture_streak_days INTEGER NOT NULL DEFAULT 0,
-        best_capture_streak_days INTEGER NOT NULL DEFAULT 0,
-        first_capture_day_key TEXT,
-        last_capture_day_key TEXT,
-        updated_at_ms INTEGER NOT NULL
-      );
-      """,
-      db: db
-    )
-
-    try execute(
-      """
-      CREATE TABLE IF NOT EXISTS stats_daily_capture (
-        day_key TEXT PRIMARY KEY,
-        screenshot_count INTEGER NOT NULL DEFAULT 0,
-        recording_count INTEGER NOT NULL DEFAULT 0,
-        recorded_duration_ms INTEGER NOT NULL DEFAULT 0,
-        capture_bytes_produced INTEGER NOT NULL DEFAULT 0,
-        first_capture_at_ms INTEGER,
-        last_capture_at_ms INTEGER
-      );
-      """,
-      db: db
-    )
-
     try execute(
       """
       CREATE TABLE IF NOT EXISTS stats_ingested_events (
@@ -372,114 +333,6 @@ actor CaptureStatisticsStore {
     return sqlite3_changes(db) > 0
   }
 
-  private func rewriteProjections(using session: RustStatsSession, db: OpaquePointer) throws {
-    guard let summary = session.summary() else {
-      throw StatisticsStoreError.rustSummaryUnavailable
-    }
-    let buckets = session.allDailyBuckets()
-
-    try replaceLifetimeTotals(summary, db: db)
-    try replaceDailyBuckets(buckets, db: db)
-  }
-
-  private func replaceLifetimeTotals(_ summary: RustStatsSummary, db: OpaquePointer) throws {
-    let statement = try prepare(
-      """
-      INSERT INTO stats_lifetime_totals (
-        singleton_key,
-        total_screenshots_captured,
-        total_recordings_completed,
-        total_recorded_duration_ms,
-        total_screenshot_completion_duration_ms,
-        completed_screenshot_session_count,
-        total_capture_bytes_produced,
-        current_capture_streak_days,
-        best_capture_streak_days,
-        first_capture_day_key,
-        last_capture_day_key,
-        updated_at_ms
-      ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(singleton_key) DO UPDATE SET
-        total_screenshots_captured = excluded.total_screenshots_captured,
-        total_recordings_completed = excluded.total_recordings_completed,
-        total_recorded_duration_ms = excluded.total_recorded_duration_ms,
-        total_screenshot_completion_duration_ms = excluded.total_screenshot_completion_duration_ms,
-        completed_screenshot_session_count = excluded.completed_screenshot_session_count,
-        total_capture_bytes_produced = excluded.total_capture_bytes_produced,
-        current_capture_streak_days = excluded.current_capture_streak_days,
-        best_capture_streak_days = excluded.best_capture_streak_days,
-        first_capture_day_key = excluded.first_capture_day_key,
-        last_capture_day_key = excluded.last_capture_day_key,
-        updated_at_ms = excluded.updated_at_ms;
-      """,
-      db: db
-    )
-    defer { sqlite3_finalize(statement) }
-
-    sqlite3_bind_int64(statement, 1, summary.totalScreenshotsCaptured)
-    sqlite3_bind_int64(statement, 2, summary.totalRecordingsCompleted)
-    sqlite3_bind_int64(statement, 3, summary.totalRecordedDurationMS)
-    sqlite3_bind_int64(statement, 4, summary.totalScreenshotCompletionDurationMS)
-    sqlite3_bind_int64(statement, 5, summary.completedScreenshotSessionCount)
-    sqlite3_bind_int64(statement, 6, summary.totalCaptureBytesProduced)
-    sqlite3_bind_int(statement, 7, Int32(summary.currentCaptureStreakDays))
-    sqlite3_bind_int(statement, 8, Int32(summary.bestCaptureStreakDays))
-    try bindNullable(statement, text: summary.firstCaptureDay?.yyyyMMdd, index: 9)
-    try bindNullable(statement, text: summary.lastCaptureDay?.yyyyMMdd, index: 10)
-    sqlite3_bind_int64(statement, 11, Date().epochMilliseconds)
-
-    guard sqlite3_step(statement) == SQLITE_DONE else {
-      throw StatisticsStoreError.sqlite(sqliteErrorMessage(db: db))
-    }
-  }
-
-  private func replaceDailyBuckets(_ buckets: [RustStatsDailyBucket], db: OpaquePointer) throws {
-    try execute("DELETE FROM stats_daily_capture;", db: db)
-    guard !buckets.isEmpty else {
-      return
-    }
-
-    let statement = try prepare(
-      """
-      INSERT INTO stats_daily_capture (
-        day_key,
-        screenshot_count,
-        recording_count,
-        recorded_duration_ms,
-        capture_bytes_produced,
-        first_capture_at_ms,
-        last_capture_at_ms
-      ) VALUES (?, ?, ?, ?, ?, ?, ?);
-      """,
-      db: db
-    )
-    defer { sqlite3_finalize(statement) }
-
-    for bucket in buckets {
-      sqlite3_reset(statement)
-      sqlite3_clear_bindings(statement)
-      try bind(statement, text: bucket.day.yyyyMMdd, index: 1)
-      sqlite3_bind_int(statement, 2, Int32(bucket.screenshotCount))
-      sqlite3_bind_int(statement, 3, Int32(bucket.recordingCount))
-      sqlite3_bind_int64(statement, 4, bucket.recordedDurationMS)
-      sqlite3_bind_int64(statement, 5, bucket.captureBytesProduced)
-      if let firstCaptureAtMS = bucket.firstCaptureAtMS {
-        sqlite3_bind_int64(statement, 6, firstCaptureAtMS)
-      } else {
-        sqlite3_bind_null(statement, 6)
-      }
-      if let lastCaptureAtMS = bucket.lastCaptureAtMS {
-        sqlite3_bind_int64(statement, 7, lastCaptureAtMS)
-      } else {
-        sqlite3_bind_null(statement, 7)
-      }
-
-      guard sqlite3_step(statement) == SQLITE_DONE else {
-        throw StatisticsStoreError.sqlite(sqliteErrorMessage(db: db))
-      }
-    }
-  }
-
   private func prepare(_ sql: String, db: OpaquePointer) throws -> OpaquePointer {
     var statement: OpaquePointer?
     guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
@@ -509,14 +362,6 @@ actor CaptureStatisticsStore {
   private func bind(_ statement: OpaquePointer, text: String, index: Int32) throws {
     guard sqlite3_bind_text(statement, index, text, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
       throw StatisticsStoreError.sqlite("Unable to bind text")
-    }
-  }
-
-  private func bindNullable(_ statement: OpaquePointer, text: String?, index: Int32) throws {
-    if let text {
-      try bind(statement, text: text, index: index)
-    } else {
-      sqlite3_bind_null(statement, index)
     }
   }
 
@@ -579,7 +424,6 @@ private enum StatisticsStoreError: LocalizedError {
   case applicationSupportUnavailable
   case unableToCreateRustSession
   case rustIngestFailed
-  case rustSummaryUnavailable
   case sqlite(String)
 
   var errorDescription: String? {
@@ -590,8 +434,6 @@ private enum StatisticsStoreError: LocalizedError {
       return "Unable to create Rust statistics session"
     case .rustIngestFailed:
       return "Rust statistics ingest failed"
-    case .rustSummaryUnavailable:
-      return "Rust statistics summary unavailable"
     case .sqlite(let message):
       return message
     }

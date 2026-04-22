@@ -1,5 +1,11 @@
 "System Default" = "Systemstandard";
 "Upgrade" = "Upgrade";
+"Upgrade to Pro" = "Auf Pro upgraden";
+"Purchase License" = "Lizenz kaufen";
+"License" = "Lizenz";
+"License Details" = "Lizenzdetails";
+"License Options" = "Lizenzoptionen";
+"Choose your license" = "Lizenz auswählen";
 "Statistics" = "Statistik";
 "General" = "Allgemein";
 "Appearance" = "Darstellung";
@@ -32,7 +38,8 @@
 "Free" = "Kostenlos";
 "Lifetime" = "Lifetime";
 "Supporter" = "Supporter";
-"Upgrade VivyShot" = "VivyShot upgraden";
+"Purchase Supporter Badge" = "Supporter-Abzeichen kaufen";
+"VivyShot License" = "VivyShot Lizenz";
 "Lifetime access or support the project" = "Dauerzugang oder Projekt unterstützen";
 "Review Recording" = "Aufnahme prüfen";
 "Discard this recording?" = "Diese Aufnahme verwerfen?";

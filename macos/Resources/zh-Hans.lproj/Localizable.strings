@@ -1,5 +1,10 @@
 "System Default" = "跟随系统";
 "Upgrade" = "升级";
+"Upgrade to Pro" = "升级到专业版";
+"Purchase License" = "购买许可";
+"License" = "许可";
+"License Details" = "许可详情";
+"License Options" = "许可选项";
 "Statistics" = "统计";
 "General" = "通用";
 "Appearance" = "外观";
@@ -113,7 +118,7 @@
 "Supporter" = "支持者";
 "Purchase verification failed" = "购买验证失败";
 "Product not found" = "未找到商品";
-"Upgrade VivyShot" = "升级 VivyShot";
+"VivyShot License" = "VivyShot 许可";
 "Lifetime access or support the project" = "购买终身版或支持项目";
 "Review Recording" = "查看录制";
 "Discard this recording?" = "要丢弃这段录制吗？";
@@ -141,7 +146,7 @@
 "Active" = "已启用";
 "Not active" = "未启用";
 "Lifetime is already active. Supporter can still be purchased separately if you want the badge and an extra way to support the project." = "终身版已激活。如果你想获得徽章并额外支持项目，仍然可以单独购买支持者。";
-"Get Supporter Badge" = "获取支持者徽章";
+"Purchase Supporter Badge" = "购买支持者徽章";
 "Actions" = "操作";
 "Manage Access" = "管理权限";
 "Supporter Options" = "支持者选项";
@@ -181,6 +186,7 @@
 "Supporter and paid access are already active on this Mac." = "支持者徽章和付费权限已在这台 Mac 上启用。";
 "Lifetime is already unlocked. Supporter adds the badge and helps support the project." = "终身版已解锁。支持者会额外提供徽章并帮助支持项目。";
 "Choose your upgrade" = "选择升级方案";
+"Choose your license" = "选择许可";
 "Both purchases are one-time. Supporter includes the same full unlock plus a badge." = "两种购买均为一次性。支持者包含相同的完整解锁并附带徽章。";
 "Owned" = "已拥有";
 "ACTIVE" = "已启用";

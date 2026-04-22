@@ -6,22 +6,18 @@ import SwiftUI
 @MainActor
 struct VivyShotSettingsView: View {
   private enum SettingsTab: String, CaseIterable, Identifiable {
-    case store
-    case statistics
     case general
     case appearance
     case screenshot
     case video
+    case statistics
+    case license
     case about
 
     var id: String { rawValue }
 
     var title: String {
       switch self {
-      case .store:
-        return String(localized: "Upgrade", bundle: AppLocalizer.shared.bundle)
-      case .statistics:
-        return String(localized: "Statistics", bundle: AppLocalizer.shared.bundle)
       case .general:
         return String(localized: "General", bundle: AppLocalizer.shared.bundle)
       case .appearance:
@@ -30,6 +26,10 @@ struct VivyShotSettingsView: View {
         return String(localized: "Screenshot", bundle: AppLocalizer.shared.bundle)
       case .video:
         return String(localized: "Video", bundle: AppLocalizer.shared.bundle)
+      case .statistics:
+        return String(localized: "Statistics", bundle: AppLocalizer.shared.bundle)
+      case .license:
+        return String(localized: "License", bundle: AppLocalizer.shared.bundle)
       case .about:
         return String(localized: "About", bundle: AppLocalizer.shared.bundle)
       }
@@ -63,16 +63,10 @@ struct VivyShotSettingsView: View {
 
   var body: some View {
     TabView(selection: $selectedTab) {
-      VivyShotStoreSettingsView()
-      .tabItem { Label(SettingsTab.store.title, systemImage: "sparkles") }
-      .tag(SettingsTab.store)
-
-      VivyShotStatisticsView(presentation: .settings)
-        .tabItem { Label(SettingsTab.statistics.title, systemImage: "chart.bar.xaxis") }
-        .tag(SettingsTab.statistics)
-
       settingsContainer {
-        captureSection
+        languageSection
+        shortcutSection
+        captureDefaultsSection
         savingSection
       }
       .tabItem { Label(SettingsTab.general.title, systemImage: "gearshape") }
@@ -100,6 +94,14 @@ struct VivyShotSettingsView: View {
       }
       .tabItem { Label(SettingsTab.video.title, systemImage: "record.circle") }
       .tag(SettingsTab.video)
+
+      VivyShotStatisticsView(presentation: .settings)
+        .tabItem { Label(SettingsTab.statistics.title, systemImage: "chart.bar.xaxis") }
+        .tag(SettingsTab.statistics)
+
+      VivyShotStoreSettingsView()
+      .tabItem { Label(SettingsTab.license.title, systemImage: "sparkles") }
+      .tag(SettingsTab.license)
 
       settingsContainer {
         aboutHeroSection
@@ -178,12 +180,9 @@ struct VivyShotSettingsView: View {
     }
   }
 
-  private var captureSection: some View {
-    Section("Capture") {
-      HStack(spacing: 10) {
-        Text("Language")
-          .frame(width: 78, alignment: .leading)
-        Spacer(minLength: 0)
+  private var languageSection: some View {
+    Section {
+      LabeledContent("Language") {
         Picker("App Language", selection: appLanguageBinding) {
           ForEach(AppLanguage.allCases) { language in
             Text(languageLabel(for: language)).tag(language)
@@ -191,17 +190,18 @@ struct VivyShotSettingsView: View {
         }
         .labelsHidden()
         .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
+        .frame(width: 220, alignment: .trailing)
       }
+    } header: {
+      Text("App Language")
+    } footer: {
+      Text(String(localized: "System Default follows your macOS language.", bundle: AppLocalizer.shared.bundle))
+    }
+  }
 
-      Text("System Default follows your macOS language. Changing this updates the app immediately.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-
-      HStack(spacing: 10) {
-        Text("Shortcut")
-          .frame(width: 78, alignment: .leading)
-
+  private var shortcutSection: some View {
+    Section {
+      LabeledContent("Shortcut") {
         ShortcutRecorderFieldRepresentable(
           displayText: settings.captureShortcutDisplay,
           isRecording: $isRecordingShortcut,
@@ -209,41 +209,46 @@ struct VivyShotSettingsView: View {
             settings.setCaptureShortcut(keyCode: keyCode, modifierFlags: flags)
           }
         )
-        .frame(minWidth: 200, maxWidth: 320, minHeight: 28)
+        .frame(width: 240)
+        .frame(minHeight: 28)
+      }
+
+      HStack(spacing: 8) {
+        Button(isRecordingShortcut ? "Stop" : "Record") {
+          isRecordingShortcut.toggle()
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(isRecordingShortcut ? .red : .accentColor)
+
+        Button("Reset") {
+          settings.resetCaptureShortcut()
+          isRecordingShortcut = false
+        }
+        .buttonStyle(.bordered)
 
         Spacer(minLength: 0)
-
-        HStack(spacing: 6) {
-          Button(isRecordingShortcut ? "Stop" : "Record") {
-            isRecordingShortcut.toggle()
-          }
-          .buttonStyle(.borderedProminent)
-          .tint(isRecordingShortcut ? .red : .accentColor)
-
-          Button("Reset") {
-            settings.resetCaptureShortcut()
-            isRecordingShortcut = false
-          }
-          .buttonStyle(.bordered)
-        }
-        .fixedSize(horizontal: true, vertical: false)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+    } header: {
+      Text("Capture Shortcut")
+    } footer: {
+      Text(
+        String(
+          localized: isRecordingShortcut
+            ? "Press the shortcut you want to use now. Esc cancels."
+            : "Used to start capture from anywhere. Hold Command, Shift, Option, or Control while pressing a key.",
+          bundle: AppLocalizer.shared.bundle
+        )
+      )
+    }
+  }
 
-      Text(isRecordingShortcut
-           ? "Press a key combination now. Esc cancels."
-           : "Hold Command/Shift/Option/Control while pressing a key.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-
+  private var captureDefaultsSection: some View {
+    Section {
       Toggle("Show Capture Helper", isOn: captureShowHelperBinding)
         .toggleStyle(.switch)
         .controlSize(.small)
 
-      HStack(spacing: 10) {
-        Text("Default")
-          .frame(width: 78, alignment: .leading)
-        Spacer(minLength: 0)
+      LabeledContent("Start In") {
         Picker("Default Capture Type", selection: defaultCaptureTypeBinding) {
           ForEach(CaptureContentType.allCases) { type in
             Text(type.title).tag(type)
@@ -251,13 +256,22 @@ struct VivyShotSettingsView: View {
         }
         .labelsHidden()
         .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
+        .frame(width: 220, alignment: .trailing)
       }
+    } header: {
+      Text("Capture Defaults")
+    } footer: {
+      Text(
+        String(
+          localized: "Choose the default mode and whether VivyShot shows the helper after capture starts.",
+          bundle: AppLocalizer.shared.bundle
+        )
+      )
     }
   }
 
   private var savingSection: some View {
-    Section("Saving") {
+    Section {
       LabeledContent("Default Folder") {
         Text(defaultSaveDirectoryDisplay)
           .font(.system(.callout, design: .monospaced))
@@ -266,7 +280,7 @@ struct VivyShotSettingsView: View {
           .multilineTextAlignment(.trailing)
       }
 
-      HStack {
+      HStack(spacing: 8) {
         Button("Choose Folder…") {
           chooseDefaultSaveDirectory()
         }
@@ -283,11 +297,24 @@ struct VivyShotSettingsView: View {
         }
         .buttonStyle(.bordered)
         .disabled(settings.defaultSaveDirectoryURL == nil)
+
+        Spacer(minLength: 0)
       }
 
       Toggle("Always save to this folder (skip Save dialog)", isOn: alwaysSaveToDefaultDirectoryBinding)
         .toggleStyle(.switch)
         .disabled(settings.defaultSaveDirectoryURL == nil)
+    } header: {
+      Text("Saving")
+    } footer: {
+      Text(
+        String(
+          localized: settings.defaultSaveDirectoryURL == nil
+            ? "If no folder is selected, VivyShot asks where to save each capture."
+            : "Turn on Always Save to skip the save dialog and save directly into the selected folder.",
+          bundle: AppLocalizer.shared.bundle
+        )
+      )
     }
   }
 
@@ -497,90 +524,6 @@ struct VivyShotSettingsView: View {
       }
       Toggle("Hide notifications (best effort)", isOn: videoHideNotificationsBestEffortBinding)
         .toggleStyle(.switch)
-
-      Divider()
-
-      HStack(spacing: 10) {
-        Text("Export Codec")
-          .frame(width: 96, alignment: .leading)
-        Spacer(minLength: 0)
-        Picker("Export Codec", selection: videoExportCodecBinding) {
-          ForEach(availableExportCodecs, id: \.id) { codec in
-            Text(codec.title).tag(codec)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
-      }
-
-      HStack(spacing: 10) {
-        Text("Export FPS")
-          .frame(width: 96, alignment: .leading)
-        Spacer(minLength: 0)
-        Picker("Export Frame Rate", selection: videoExportFrameRateBinding) {
-          ForEach(availableExportFrameRates, id: \.id) { rate in
-            Text(rate.title).tag(rate)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
-      }
-
-      HStack(spacing: 10) {
-        Text("Export Quality")
-          .frame(width: 96, alignment: .leading)
-        Spacer(minLength: 0)
-        Picker("Export Quality", selection: videoExportQualityBinding) {
-          ForEach(availableExportQualities, id: \.id) { quality in
-            Text(quality.title).tag(quality)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
-      }
-
-      HStack(spacing: 10) {
-        Text("Export Scale")
-          .frame(width: 96, alignment: .leading)
-        Spacer(minLength: 0)
-        Picker("Export Scale", selection: videoExportScaleBinding) {
-          ForEach(availableExportScales, id: \.id) { scale in
-            Text(scale.title).tag(scale)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
-      }
-
-      HStack(spacing: 10) {
-        Text("Export Bitrate")
-          .frame(width: 96, alignment: .leading)
-        Spacer(minLength: 0)
-        Picker("Export Bitrate", selection: videoExportBitrateBinding) {
-          ForEach(availableExportBitrates, id: \.id) { bitrate in
-            Text(bitrate.title).tag(bitrate)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
-      }
-
-      if !storeManager.hasPaidAccess {
-        HStack {
-          Text("Upgrade unlocks HEVC, 60/120 fps, high quality, scaling, and bitrate presets.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Spacer()
-          Button("Upgrade") {
-            presentPaywallWindow()
-          }
-        }
-      }
 
       HStack {
         if videoWebcamFeatureVisible || videoKeystrokesFeatureVisible {

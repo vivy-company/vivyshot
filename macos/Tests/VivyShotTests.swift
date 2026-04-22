@@ -1,9 +1,10 @@
 import AppKit
+import AVFoundation
 import Darwin
 import SQLite3
 import VivyShotKit
 import XCTest
-@testable import VivyShotDev
+@testable import VivyShot
 
 final class VivyShotTests: XCTestCase {
   private struct SyntheticRaster {
@@ -39,7 +40,7 @@ final class VivyShotTests: XCTestCase {
     XCTAssertEqual(entitlement.tierTitle, "Supporter")
   }
 
-  func testCaptureStatisticsStorePersistsLedgerAndProjections() async throws {
+  func testCaptureStatisticsStorePersistsLedgerAndDerivesDashboardFromRust() async throws {
     let tempDirectory = FileManager.default.temporaryDirectory
       .appendingPathComponent("vivyshot-stats-tests", isDirectory: true)
     try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
@@ -68,6 +69,13 @@ final class VivyShotTests: XCTestCase {
       durationMS: 90_000
     )
 
+    let dashboardData = await store.dashboardData()
+    XCTAssertNotNil(dashboardData)
+    XCTAssertEqual(dashboardData?.summary.totalScreenshotsCaptured, 1)
+    XCTAssertEqual(dashboardData?.summary.totalRecordingsCompleted, 1)
+    XCTAssertEqual(dashboardData?.summary.averageScreenshotEditorCompletionDurationMS, 12_000)
+    XCTAssertEqual(dashboardData?.dailyBuckets.count, 2)
+
     var db: OpaquePointer?
     XCTAssertEqual(sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY, nil), SQLITE_OK)
     guard let db else {
@@ -86,30 +94,16 @@ final class VivyShotTests: XCTestCase {
     XCTAssertEqual(
       try queryInt64(
         db,
-        sql: "SELECT total_screenshots_captured FROM stats_lifetime_totals WHERE singleton_key = 1;"
+        sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'stats_lifetime_totals';"
       ),
-      1
+      0
     )
     XCTAssertEqual(
       try queryInt64(
         db,
-        sql: "SELECT total_recordings_completed FROM stats_lifetime_totals WHERE singleton_key = 1;"
+        sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'stats_daily_capture';"
       ),
-      1
-    )
-    XCTAssertEqual(
-      try queryInt64(
-        db,
-        sql: "SELECT average_screenshot_completion_duration_ms FROM (SELECT total_screenshot_completion_duration_ms / completed_screenshot_session_count AS average_screenshot_completion_duration_ms FROM stats_lifetime_totals WHERE singleton_key = 1);"
-      ),
-      12_000
-    )
-    XCTAssertEqual(
-      try queryInt64(
-        db,
-        sql: "SELECT COUNT(*) FROM stats_daily_capture;"
-      ),
-      2
+      0
     )
   }
 
@@ -140,6 +134,19 @@ final class VivyShotTests: XCTestCase {
     XCTAssertEqual(plan.overlay_item_count, 3)
     XCTAssertFalse(plan.include_audio)
     XCTAssertTrue(plan.needs_custom_compositor)
+  }
+
+  @MainActor
+  func testVideoExportBridgeFallbacksStaySafe() {
+    let fileType = RustCoreBridge.shared.bestVideoSaveFileType(codec: .h264, supportedTypes: [.m4v])
+    let preset = RustCoreBridge.shared.bestVideoExportPreset(
+      codec: .hevc,
+      quality: .high,
+      compatiblePresets: []
+    )
+
+    XCTAssertEqual(fileType, .m4v)
+    XCTAssertEqual(preset, AVAssetExportPresetHighestQuality)
   }
 
   func testPortableTrimNormalizationContract() {

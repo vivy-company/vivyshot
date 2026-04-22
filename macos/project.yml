@@ -23,6 +23,9 @@ schemes:
     build:
       targets:
         VivyShot: all
+    run:
+      config: Debug
+      storeKitConfiguration: ../Resources/VivyShot.storekit
     test:
       targets:
         - name: VivyShotTests
@@ -35,7 +38,6 @@ targets:
     info:
       path: Config/Info.plist
       properties:
-        CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.photography
@@ -62,10 +64,9 @@ targets:
         ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR: none
       configs:
         Debug:
-          PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot.dev
-          PRODUCT_NAME: VivyShotDev
+          PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot
+          PRODUCT_NAME: VivyShot
           ENABLE_HARDENED_RUNTIME: NO
-          CODE_SIGN_ENTITLEMENTS: ""
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: com.vivyshot
 
@@ -86,7 +87,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
       configs:
         Debug:
-          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShotDev.app/Contents/MacOS/VivyShotDev"
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShot.app/Contents/MacOS/VivyShot"
           BUNDLE_LOADER: "$(TEST_HOST)"
         Release:
           TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VivyShot.app/Contents/MacOS/VivyShot"

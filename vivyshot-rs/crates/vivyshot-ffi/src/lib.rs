@@ -24,11 +24,6 @@ use std::sync::{Mutex, OnceLock};
 use vivyshot_domain::{
     bgra_view_to_owned as domain_bgra_view_to_owned,
     build_gif_export_plan as domain_build_gif_export_plan,
-    capture_statistics_daily_buckets as domain_capture_statistics_daily_buckets,
-    capture_statistics_ingest_event as domain_capture_statistics_ingest_event,
-    capture_statistics_recent_daily_buckets as domain_capture_statistics_recent_daily_buckets,
-    capture_statistics_reset as domain_capture_statistics_reset,
-    capture_statistics_summary as domain_capture_statistics_summary,
     click_event_is_duplicate as domain_click_event_is_duplicate,
     derive_video_export_decision as domain_derive_video_export_decision,
     gif_frame_time_ms as domain_gif_frame_time_ms,
@@ -41,20 +36,11 @@ use vivyshot_domain::{
     stitch_extract_strip as domain_stitch_extract_strip,
     stitch_merge_frames as domain_stitch_merge_frames,
     stitch_resize_width_nearest as domain_stitch_resize_width_nearest,
-    timeline_clamp_clip_end as domain_timeline_clamp_clip_end,
-    timeline_full_duration_end as domain_timeline_full_duration_end,
-    timeline_normalize_text_clip_range as domain_timeline_normalize_text_clip_range,
-    timeline_validate_split as domain_timeline_validate_split,
     BgraImageOwned as DomainBgraImageOwned, BgraImageView as DomainBgraImageView,
     CaptureStatisticsEvent as DomainCaptureStatisticsEvent,
     CaptureStatisticsEventType as DomainCaptureStatisticsEventType,
-    CaptureStatisticsState as DomainCaptureStatisticsState,
-    CaptureStatisticsSummary,
-    DailyCaptureStats,
-    StatsDayKey as DomainStatsDayKey,
-    STATS_EVENT_RECORDING_COMPLETED as DOMAIN_STATS_EVENT_RECORDING_COMPLETED,
-    STATS_EVENT_SCREENSHOT_CAPTURED as DOMAIN_STATS_EVENT_SCREENSHOT_CAPTURED,
-    STATS_EVENT_SCREENSHOT_SESSION_COMPLETED as DOMAIN_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED,
+    CaptureStatisticsSession as DomainCaptureStatisticsSession,
+    CaptureStatisticsSummary, DailyCaptureStats, StatsDayKey as DomainStatsDayKey,
     STITCH_SIDE_BOTTOM as DOMAIN_STITCH_SIDE_BOTTOM, STITCH_SIDE_TOP as DOMAIN_STITCH_SIDE_TOP,
 };
 
@@ -72,7 +58,6 @@ use ffi::domain::{
 use ffi::encode as ffi_encode;
 use ffi::geometry as ffi_geometry;
 use ffi::stitch as ffi_stitch;
-use ffi::timeline as ffi_timeline;
 use ffi::video as ffi_video;
 
 mod abi;
@@ -145,16 +130,22 @@ const VS_TRIM_HANDLE_START: u8 = 1;
 const VS_TRIM_HANDLE_END: u8 = 2;
 pub const VS_VIDEO_EXPORT_TARGET_MP4: u8 = 0;
 pub const VS_VIDEO_EXPORT_TARGET_GIF: u8 = 1;
-pub const VS_STATS_EVENT_SCREENSHOT_CAPTURED: u8 = DOMAIN_STATS_EVENT_SCREENSHOT_CAPTURED;
-pub const VS_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED: u8 =
-    DOMAIN_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED;
-pub const VS_STATS_EVENT_RECORDING_COMPLETED: u8 = DOMAIN_STATS_EVENT_RECORDING_COMPLETED;
+pub const VS_VIDEO_EXPORT_CONTAINER_MP4: u8 = 0;
+pub const VS_VIDEO_EXPORT_CONTAINER_MOV: u8 = 1;
+pub const VS_VIDEO_EXPORT_PRESET_HIGHEST_QUALITY: u8 = 0;
+pub const VS_VIDEO_EXPORT_PRESET_1920X1080: u8 = 1;
+pub const VS_VIDEO_EXPORT_PRESET_1280X720: u8 = 2;
+pub const VS_VIDEO_EXPORT_PRESET_MEDIUM_QUALITY: u8 = 3;
+pub const VS_VIDEO_EXPORT_PRESET_HEVC_1920X1080: u8 = 4;
+pub const VS_VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY: u8 = 5;
+pub const VS_STATS_EVENT_SCREENSHOT_CAPTURED: u8 = 0;
+pub const VS_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED: u8 = 1;
+pub const VS_STATS_EVENT_RECORDING_COMPLETED: u8 = 2;
 
 pub const VS_CORE_ABI_VERSION_MAJOR: u32 = 1;
 pub const VS_CORE_ABI_VERSION_MINOR: u32 = 1;
 pub const VS_CORE_ABI_VERSION_PATCH: u32 = 0;
 const VS_VIDEO_SESSION_SNAPSHOT_VERSION: u32 = 1;
-const VS_STATS_SESSION_SNAPSHOT_VERSION: u32 = 1;
 pub const VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS: f64 = 0.05;
 pub const VS_VIDEO_TEXT_MIN_FADE_DURATION_SECONDS: f64 = 0.10;
 pub const VS_VIDEO_KEY_FADE_DURATION_SECONDS: f32 = 0.95;

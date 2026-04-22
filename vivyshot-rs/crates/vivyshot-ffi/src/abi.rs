@@ -180,6 +180,25 @@ pub struct vs_video_export_decision {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
+pub struct vs_affine_transform {
+    pub a: f32,
+    pub b: f32,
+    pub c: f32,
+    pub d: f32,
+    pub tx: f32,
+    pub ty: f32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_post_recording_composition_plan {
+    pub render_width: u32,
+    pub render_height: u32,
+    pub transform: vs_affine_transform,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
 pub struct vs_video_overlay_label_layout {
     pub width: f32,
     pub height: f32,

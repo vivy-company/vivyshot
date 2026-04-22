@@ -5,12 +5,18 @@
 
 mod types;
 
+pub mod document;
 pub mod geometry;
 pub mod stats;
 pub mod stitch;
 pub mod timeline;
 pub mod video;
 
+pub use document::{
+    Document, DocumentAnnotationInfo, DocumentArrowCommand, DocumentBlurRectCommand,
+    DocumentCommand, DocumentEllipseCommand, DocumentError, DocumentLineCommand, DocumentPathStyle,
+    DocumentPixelateRectCommand, DocumentRectCommand, DocumentTextCommand,
+};
 pub use geometry::{
     image_delta_to_view_delta, image_rect_to_view_rect, quantize_image_point, quantize_image_rect,
     quantize_rgba, selection_move_rect, selection_resize_rect, view_delta_to_image_delta,
@@ -18,11 +24,12 @@ pub use geometry::{
 };
 pub use stats::{
     capture_statistics_daily_buckets, capture_statistics_ingest_event,
-    capture_statistics_recent_daily_buckets, capture_statistics_reset,
-    capture_statistics_summary, CaptureStatisticsError, CaptureStatisticsEvent,
-    CaptureStatisticsEventType, CaptureStatisticsState, CaptureStatisticsSummary,
-    DailyCaptureStats, StatsDayKey, STATS_EVENT_RECORDING_COMPLETED,
-    STATS_EVENT_SCREENSHOT_CAPTURED, STATS_EVENT_SCREENSHOT_SESSION_COMPLETED,
+    capture_statistics_recent_daily_buckets, capture_statistics_reset, capture_statistics_summary,
+    CaptureStatisticsError, CaptureStatisticsEvent, CaptureStatisticsEventType,
+    CaptureStatisticsSession, CaptureStatisticsSessionSnapshot, CaptureStatisticsState,
+    CaptureStatisticsStateSnapshot, CaptureStatisticsSummary, DailyCaptureStats, StatsDayKey,
+    STATS_EVENT_RECORDING_COMPLETED, STATS_EVENT_SCREENSHOT_CAPTURED,
+    STATS_EVENT_SCREENSHOT_SESSION_COMPLETED, STATS_SESSION_SNAPSHOT_VERSION,
 };
 pub use stitch::{
     bgra_view_to_owned, build_gif_export_plan, gif_frame_time_ms, normalize_trim_range,
@@ -32,13 +39,23 @@ pub use stitch::{
 pub use timeline::{
     timeline_clamp_clip_end, timeline_collect_text_export_clips, timeline_full_duration_end,
     timeline_normalize_text_clip_range, timeline_validate_split,
-    timeline_webcam_visible_for_export,
+    timeline_webcam_visible_for_export, Timeline, TimelineError, TIMELINE_TRACK_AUDIO,
+    TIMELINE_TRACK_CURSOR, TIMELINE_TRACK_SHAPE, TIMELINE_TRACK_TEXT, TIMELINE_TRACK_VIDEO,
+    TIMELINE_TRACK_WEBCAM, TIMELINE_TRACK_ZOOM,
 };
 pub use types::{
-    BgraImageOwned, BgraImageView, F32Point, F32Rect, GifExportPlan, I32Rect, ResizeCorner, Rgba8,
-    StitchAutoscrollState, StitchDelta, TimelineTextClipExportInput, TimelineTextClipExportRef,
-    TimelineTrackSummary, TrimHandle, VideoExportContext, VideoExportDecision, VideoExportPlan,
-    VideoOverlayClipWindow, VideoOverlayLabelLayout, STITCH_SIDE_BOTTOM, STITCH_SIDE_TOP,
+    AffineTransform, BgraImageOwned, BgraImageView, F32Point, F32Rect, GifExportPlan, I32Point,
+    I32Rect, ResizeCorner, Rgba8, StitchAutoscrollState, StitchDelta, TimelineClip,
+    TimelineClipData, TimelineClipSnapshot, TimelineClipTransform, TimelineShapeStyle,
+    TimelineTextClipExportInput, TimelineTextClipExportRef, TimelineTextStyle, TimelineTrack,
+    TimelineTrackSummary, TrimHandle, VideoExportBitratePreset, VideoExportCodec,
+    VideoExportContainer, VideoExportContext, VideoExportDecision, VideoExportFrameRate,
+    VideoExportPlan, VideoExportPreset, VideoExportQuality, VideoExportScale,
+    VideoOverlayClipWindow, VideoOverlayLabelLayout, VideoPostRecordingCompositionPlan,
+    STITCH_SIDE_BOTTOM, STITCH_SIDE_TOP, VIDEO_EXPORT_CONTAINER_MOV, VIDEO_EXPORT_CONTAINER_MP4,
+    VIDEO_EXPORT_PRESET_1280X720, VIDEO_EXPORT_PRESET_1920X1080,
+    VIDEO_EXPORT_PRESET_HEVC_1920X1080, VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY,
+    VIDEO_EXPORT_PRESET_HIGHEST_QUALITY, VIDEO_EXPORT_PRESET_MEDIUM_QUALITY,
     VIDEO_EXPORT_TARGET_GIF, VIDEO_EXPORT_TARGET_MP4, VIDEO_KEY_OVERLAY_FADE_DURATION_SECONDS,
     VIDEO_KEY_OVERLAY_FADE_HOLD_KEYTIME, VIDEO_KEY_OVERLAY_FADE_IN_KEYTIME,
     VIDEO_PLAN_MODE_COMPOSITE_MP4, VIDEO_PLAN_MODE_PASSTHROUGH,
@@ -46,9 +63,12 @@ pub use types::{
     VIDEO_TEXT_OVERLAY_MIN_FADE_DURATION_SECONDS, VIDEO_TEXT_OVERLAY_MIN_VISIBLE_SECONDS,
 };
 pub use video::{
+    allowed_video_export_containers, best_video_export_container, best_video_export_preset,
     click_event_is_duplicate, compute_video_export_plan, derive_key_overlay_label_layout,
     derive_overlay_clip_window, derive_text_overlay_label_layout, derive_video_export_context,
-    derive_video_export_decision, normalize_click_point, overlay_fade_duration_seconds,
+    derive_video_export_decision, estimated_video_file_length_limit, normalize_click_point,
+    overlay_fade_duration_seconds, post_recording_video_composition_plan,
+    preferred_video_export_container,
 };
 
 #[cfg(test)]
@@ -131,6 +151,22 @@ mod tests {
         assert!((text.height - 62.0).abs() < 0.001);
         assert!((text.y - 129.6).abs() < 0.001);
         assert!((text.font_size - 26.04).abs() < 0.001);
+    }
+
+    #[test]
+    fn video_export_helper_fallbacks_remain_safe() {
+        assert_eq!(
+            best_video_export_preset(VideoExportCodec::Hevc, VideoExportQuality::High, 0),
+            Some(VideoExportPreset::HighestQuality)
+        );
+        assert_eq!(
+            best_video_export_container(VideoExportCodec::H264, false, false),
+            None
+        );
+        assert_eq!(
+            best_video_export_container(VideoExportCodec::Hevc, false, true),
+            Some(VideoExportContainer::Mov)
+        );
     }
 
     #[test]

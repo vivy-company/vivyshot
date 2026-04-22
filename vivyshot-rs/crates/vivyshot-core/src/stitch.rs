@@ -559,4 +559,3 @@ pub fn stitch_estimate_delta(
         score: best_score as f32,
     })
 }
-

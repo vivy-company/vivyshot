@@ -246,6 +246,125 @@ pub unsafe extern "C" fn vs_video_derive_export_decision(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn vs_video_preferred_save_container(
+    codec: u8,
+    out_container: *mut u8,
+) -> i32 {
+    if out_container.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+
+    let Some(container) = ffi_video::preferred_save_container(codec) else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+
+    unsafe {
+        *out_container = container;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_best_save_container(
+    codec: u8,
+    supports_mp4: bool,
+    supports_mov: bool,
+    out_container: *mut u8,
+) -> i32 {
+    if out_container.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+
+    let Some(container) = ffi_video::best_save_container(codec, supports_mp4, supports_mov) else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+
+    unsafe {
+        *out_container = container;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_best_export_preset(
+    codec: u8,
+    quality: u8,
+    compatible_mask: u32,
+    out_preset: *mut u8,
+) -> i32 {
+    if out_preset.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+
+    let Some(preset) = ffi_video::best_export_preset(codec, quality, compatible_mask) else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+
+    unsafe {
+        *out_preset = preset;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_estimated_file_length_limit(
+    duration_seconds: f64,
+    codec: u8,
+    frame_rate: u8,
+    quality: u8,
+    scale: u8,
+    bitrate: u8,
+    out_limit: *mut i64,
+) -> i32 {
+    if out_limit.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+
+    let Some(limit) = ffi_video::estimated_file_length_limit(
+        duration_seconds,
+        codec,
+        frame_rate,
+        quality,
+        scale,
+        bitrate,
+    ) else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+
+    unsafe {
+        *out_limit = limit;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_video_post_recording_video_composition_plan(
+    natural_width: f32,
+    natural_height: f32,
+    preferred_transform: crate::vs_affine_transform,
+    scale: u8,
+    out_plan: *mut vs_video_post_recording_composition_plan,
+) -> i32 {
+    if out_plan.is_null() {
+        return VS_STATUS_NULL_POINTER;
+    }
+
+    let Some(plan) = ffi_video::post_recording_video_composition_plan(
+        natural_width,
+        natural_height,
+        preferred_transform,
+        scale,
+    ) else {
+        return VS_STATUS_INVALID_ARGUMENT;
+    };
+
+    unsafe {
+        *out_plan = plan;
+    }
+    VS_STATUS_OK
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn vs_video_key_overlay_label_layout(
     render_width: f32,
     render_height: f32,

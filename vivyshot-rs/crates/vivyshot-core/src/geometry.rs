@@ -435,4 +435,3 @@ pub fn quantize_rgba(r: f32, g: f32, b: f32, a: f32) -> Option<Rgba8> {
         a: to_u8(a),
     })
 }
-

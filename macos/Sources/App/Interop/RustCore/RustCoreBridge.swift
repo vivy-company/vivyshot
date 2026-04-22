@@ -1,6 +1,8 @@
 import AppKit
+import AVFoundation
 import CoreGraphics
 import Foundation
+import UniformTypeIdentifiers
 import VivyShotKit
 
 @MainActor
@@ -27,6 +29,28 @@ final class RustCoreBridge {
 
   func makeStatsSession() -> RustStatsSession? {
     RustStatsSession()
+  }
+
+  func preferredVideoSaveContentType(codec: PostRecordingExportCodec) -> UTType {
+    switch preferredVideoSaveContainer(codec: codec) {
+    case .mp4:
+      return .mpeg4Movie
+    case .mov:
+      return .quickTimeMovie
+    }
+  }
+
+  func allowedVideoSaveContentTypes(codec: PostRecordingExportCodec) -> [UTType] {
+    let containers = preferredAndFallbackVideoSaveContainers(codec: codec)
+    if containers == (.mp4, .mov) {
+      return [.mpeg4Movie, .quickTimeMovie]
+    }
+    if containers == (.mov, .mp4) {
+      return [.quickTimeMovie, .mpeg4Movie]
+    }
+    return preferredVideoSaveContentType(codec: codec) == .mpeg4Movie
+      ? [.mpeg4Movie]
+      : [.quickTimeMovie]
   }
 
   func cropImage(_ image: CGImage, imageRect: CGRect) -> CGImage? {
@@ -109,6 +133,133 @@ final class RustCoreBridge {
       return nil
     }
     return data
+  }
+
+  func preferredVideoSaveContainer(codec: PostRecordingExportCodec) -> RustVideoExportContainer {
+    var rawContainer: UInt8 = 0
+    let status = vs_video_preferred_save_container(Self.videoExportCodecCode(codec), &rawContainer)
+    guard RustFFIStatus.isSuccess(status) else {
+      return .mp4
+    }
+    return Self.videoExportContainer(from: rawContainer)
+  }
+
+  func preferredAndFallbackVideoSaveContainers(
+    codec: PostRecordingExportCodec
+  ) -> (RustVideoExportContainer, RustVideoExportContainer) {
+    let preferred = preferredVideoSaveContainer(codec: codec)
+    return preferred == .mp4 ? (.mp4, .mov) : (.mov, .mp4)
+  }
+
+  func bestVideoSaveFileType(
+    codec: PostRecordingExportCodec,
+    supportedTypes: [AVFileType]
+  ) -> AVFileType {
+    let supportsMP4 = supportedTypes.contains(.mp4)
+    let supportsMOV = supportedTypes.contains(.mov)
+    guard supportsMP4 || supportsMOV else {
+      return supportedTypes.first
+        ?? (preferredVideoSaveContainer(codec: codec) == .mov ? .mov : .mp4)
+    }
+    let container = bestVideoSaveContainer(
+      codec: codec,
+      supportsMP4: supportsMP4,
+      supportsMOV: supportsMOV
+    )
+    if container == .mov {
+      return .mov
+    }
+    return .mp4
+  }
+
+  func bestVideoSaveContainer(
+    codec: PostRecordingExportCodec,
+    supportsMP4: Bool,
+    supportsMOV: Bool
+  ) -> RustVideoExportContainer {
+    var rawContainer: UInt8 = 0
+    let status = vs_video_best_save_container(
+      Self.videoExportCodecCode(codec),
+      supportsMP4,
+      supportsMOV,
+      &rawContainer
+    )
+    guard RustFFIStatus.isSuccess(status) else {
+      return .mp4
+    }
+    return Self.videoExportContainer(from: rawContainer)
+  }
+
+  func bestVideoExportPreset(
+    codec: PostRecordingExportCodec,
+    quality: PostRecordingExportQuality,
+    compatiblePresets: [String]
+  ) -> String {
+    let rawCodec = Self.videoExportCodecCode(codec)
+    let rawQuality = Self.videoExportQualityCode(quality)
+    let compatibleMask = Self.videoExportPresetCompatibilityMask(compatiblePresets)
+    var rawPreset: UInt8 = 0
+    let status = vs_video_best_export_preset(rawCodec, rawQuality, compatibleMask, &rawPreset)
+    guard RustFFIStatus.isSuccess(status) else {
+      return AVAssetExportPresetHighestQuality
+    }
+    return Self.videoExportPresetName(from: rawPreset)
+  }
+
+  func estimatedVideoFileLengthLimit(
+    durationSeconds: Double,
+    options: PostRecordingExportOptions
+  ) -> Int64? {
+    var limit: Int64 = 0
+    let status = vs_video_estimated_file_length_limit(
+      durationSeconds,
+      Self.videoExportCodecCode(options.codec),
+      Self.videoExportFrameRateCode(options.frameRate),
+      Self.videoExportQualityCode(options.quality),
+      Self.videoExportScaleCode(options.scale),
+      Self.videoExportBitrateCode(options.bitrate),
+      &limit
+    )
+    guard RustFFIStatus.isSuccess(status) else {
+      return nil
+    }
+    return limit
+  }
+
+  func postRecordingVideoCompositionPlan(
+    naturalSize: CGSize,
+    preferredTransform: CGAffineTransform,
+    scale: PostRecordingExportScale
+  ) -> RustVideoPostRecordingCompositionPlan? {
+    var raw = vs_video_post_recording_composition_plan()
+    let status = vs_video_post_recording_video_composition_plan(
+      Float(naturalSize.width),
+      Float(naturalSize.height),
+      vs_affine_transform(
+        a: Float(preferredTransform.a),
+        b: Float(preferredTransform.b),
+        c: Float(preferredTransform.c),
+        d: Float(preferredTransform.d),
+        tx: Float(preferredTransform.tx),
+        ty: Float(preferredTransform.ty)
+      ),
+      Self.videoExportScaleCode(scale),
+      &raw
+    )
+    guard RustFFIStatus.isSuccess(status) else {
+      return nil
+    }
+    return RustVideoPostRecordingCompositionPlan(
+      renderSize: CGSize(width: CGFloat(raw.render_width), height: CGFloat(raw.render_height)),
+      transform: CGAffineTransform(
+        a: CGFloat(raw.transform.a),
+        b: CGFloat(raw.transform.b),
+        c: CGFloat(raw.transform.c),
+        d: CGFloat(raw.transform.d),
+        tx: CGFloat(raw.transform.tx),
+        ty: CGFloat(raw.transform.ty)
+      )
+    )
   }
 
   func encodeImage(
@@ -600,6 +751,110 @@ final class RustCoreBridge {
           UInt32(tokenPtr.count)
         )
       }
+    }
+  }
+
+  private static func videoExportCodecCode(_ codec: PostRecordingExportCodec) -> UInt8 {
+    switch codec {
+    case .h264:
+      return 0
+    case .hevc:
+      return 1
+    }
+  }
+
+  private static func videoExportQualityCode(_ quality: PostRecordingExportQuality) -> UInt8 {
+    switch quality {
+    case .standard:
+      return 0
+    case .high:
+      return 1
+    }
+  }
+
+  private static func videoExportFrameRateCode(_ frameRate: PostRecordingExportFrameRate) -> UInt8 {
+    switch frameRate {
+    case .fps30:
+      return 0
+    case .fps60:
+      return 1
+    case .fps120:
+      return 2
+    }
+  }
+
+  private static func videoExportBitrateCode(_ bitrate: PostRecordingExportBitratePreset) -> UInt8 {
+    switch bitrate {
+    case .standard:
+      return 0
+    case .high:
+      return 1
+    case .veryHigh:
+      return 2
+    }
+  }
+
+  private static func videoExportScaleCode(_ scale: PostRecordingExportScale) -> UInt8 {
+    switch scale {
+    case .full:
+      return 0
+    case .percent75:
+      return 1
+    case .percent50:
+      return 2
+    }
+  }
+
+  private static func videoExportPresetCompatibilityMask(_ compatiblePresets: [String]) -> UInt32 {
+    var mask: UInt32 = 0
+    for preset in compatiblePresets {
+      switch preset {
+      case AVAssetExportPresetHighestQuality:
+        mask |= 1 << 0
+      case AVAssetExportPreset1920x1080:
+        mask |= 1 << 1
+      case AVAssetExportPreset1280x720:
+        mask |= 1 << 2
+      case AVAssetExportPresetMediumQuality:
+        mask |= 1 << 3
+      case AVAssetExportPresetHEVC1920x1080:
+        mask |= 1 << 4
+      case AVAssetExportPresetHEVCHighestQuality:
+        mask |= 1 << 5
+      default:
+        continue
+      }
+    }
+    return mask
+  }
+
+  private static func videoExportPresetName(from raw: UInt8) -> String {
+    switch raw {
+    case 1:
+      return AVAssetExportPreset1920x1080
+    case 2:
+      return AVAssetExportPreset1280x720
+    case 3:
+      return AVAssetExportPresetMediumQuality
+    case 4:
+      return AVAssetExportPresetHEVC1920x1080
+    case 5:
+      return AVAssetExportPresetHEVCHighestQuality
+    case 0:
+      fallthrough
+    default:
+      return AVAssetExportPresetHighestQuality
+    }
+  }
+
+  private static func videoExportContainer(from raw: UInt8) -> RustVideoExportContainer {
+    switch raw {
+    case 1:
+      return .mov
+    case 0:
+      fallthrough
+    default:
+      return .mp4
     }
   }
 

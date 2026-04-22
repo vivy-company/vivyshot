@@ -13,7 +13,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
       backing: .buffered,
       defer: false
     )
-    window.title = String(localized: "Upgrade VivyShot", bundle: AppLocalizer.shared.bundle)
+    window.title = String(localized: "VivyShot License", bundle: AppLocalizer.shared.bundle)
     window.subtitle = String(localized: "Lifetime access or support the project", bundle: AppLocalizer.shared.bundle)
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
@@ -41,7 +41,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
     } else {
       window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView()))
     }
-    window.title = String(localized: "Upgrade VivyShot", bundle: AppLocalizer.shared.bundle)
+    window.title = String(localized: "VivyShot License", bundle: AppLocalizer.shared.bundle)
     window.subtitle = String(localized: "Lifetime access or support the project", bundle: AppLocalizer.shared.bundle)
     window.toolbar = makeToolbar()
     window.center()
@@ -94,7 +94,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
   }
 
   private func titleToolbarView() -> NSView {
-    let titleLabel = NSTextField(labelWithString: String(localized: "Upgrade VivyShot", bundle: AppLocalizer.shared.bundle))
+    let titleLabel = NSTextField(labelWithString: String(localized: "VivyShot License", bundle: AppLocalizer.shared.bundle))
     titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
     titleLabel.alignment = .left
     titleLabel.textColor = .labelColor

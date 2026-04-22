@@ -1,37 +1,265 @@
 use super::*;
+use vivyshot_domain::{
+    Document as CoreDocument, DocumentArrowCommand, DocumentBlurRectCommand,
+    DocumentCommand as CoreCommand, DocumentEllipseCommand, DocumentLineCommand, DocumentPathStyle,
+    DocumentPixelateRectCommand, DocumentRectCommand, DocumentTextCommand, I32Point as CorePoint,
+    I32Rect as CoreRect,
+};
 
-#[derive(Clone)]
-enum VsCommand {
-    Rect(vs_rect_command),
-    FilledRect(vs_rect_command),
-    Ellipse(vs_ellipse_command),
-    FilledEllipse(vs_ellipse_command),
-    Line(vs_line_command),
-    Arrow(vs_arrow_command),
-    Path {
-        points: Vec<vs_point_i32>,
-        style: vs_path_style,
-    },
-    Text {
-        text: String,
-        cmd: vs_text_command,
-    },
-    Pixelate(vs_pixelate_rect_command),
-    Blur(vs_blur_rect_command),
+type VsCommand = CoreCommand;
+type VsDocument = CoreDocument;
+
+impl From<vs_rect_command> for DocumentRectCommand {
+    fn from(value: vs_rect_command) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
 }
 
-unsafe fn document_from_handle_mut<'a>(doc: *mut c_void) -> Result<&'a mut vs_document, i32> {
+impl From<DocumentRectCommand> for vs_rect_command {
+    fn from(value: DocumentRectCommand) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<vs_ellipse_command> for DocumentEllipseCommand {
+    fn from(value: vs_ellipse_command) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<DocumentEllipseCommand> for vs_ellipse_command {
+    fn from(value: DocumentEllipseCommand) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<vs_line_command> for DocumentLineCommand {
+    fn from(value: vs_line_command) -> Self {
+        Self {
+            x0: value.x0,
+            y0: value.y0,
+            x1: value.x1,
+            y1: value.y1,
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<DocumentLineCommand> for vs_line_command {
+    fn from(value: DocumentLineCommand) -> Self {
+        Self {
+            x0: value.x0,
+            y0: value.y0,
+            x1: value.x1,
+            y1: value.y1,
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<vs_arrow_command> for DocumentArrowCommand {
+    fn from(value: vs_arrow_command) -> Self {
+        Self {
+            x0: value.x0,
+            y0: value.y0,
+            x1: value.x1,
+            y1: value.y1,
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<DocumentArrowCommand> for vs_arrow_command {
+    fn from(value: DocumentArrowCommand) -> Self {
+        Self {
+            x0: value.x0,
+            y0: value.y0,
+            x1: value.x1,
+            y1: value.y1,
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<vs_text_command> for DocumentTextCommand {
+    fn from(value: vs_text_command) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            font_px: value.font_px,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<DocumentTextCommand> for vs_text_command {
+    fn from(value: DocumentTextCommand) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            font_px: value.font_px,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<vs_pixelate_rect_command> for DocumentPixelateRectCommand {
+    fn from(value: vs_pixelate_rect_command) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            block_size: value.block_size,
+        }
+    }
+}
+
+impl From<DocumentPixelateRectCommand> for vs_pixelate_rect_command {
+    fn from(value: DocumentPixelateRectCommand) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            block_size: value.block_size,
+        }
+    }
+}
+
+impl From<vs_blur_rect_command> for DocumentBlurRectCommand {
+    fn from(value: vs_blur_rect_command) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            radius: value.radius,
+        }
+    }
+}
+
+impl From<DocumentBlurRectCommand> for vs_blur_rect_command {
+    fn from(value: DocumentBlurRectCommand) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+            radius: value.radius,
+        }
+    }
+}
+
+impl From<vs_path_style> for DocumentPathStyle {
+    fn from(value: vs_path_style) -> Self {
+        Self {
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<DocumentPathStyle> for vs_path_style {
+    fn from(value: DocumentPathStyle) -> Self {
+        Self {
+            stroke_width: value.stroke_width,
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
+impl From<vs_point_i32> for CorePoint {
+    fn from(value: vs_point_i32) -> Self {
+        Self { x: value.x, y: value.y }
+    }
+}
+
+impl From<CorePoint> for vs_point_i32 {
+    fn from(value: CorePoint) -> Self {
+        Self { x: value.x, y: value.y }
+    }
+}
+
+unsafe fn document_from_handle_mut<'a>(doc: *mut c_void) -> Result<&'a mut VsDocument, i32> {
     validate_handle(&DOCUMENT_HANDLES, doc)?;
     // SAFETY: pointer was validated by registry and originates from Box::into_raw.
-    Ok(unsafe { &mut *doc.cast::<vs_document>() })
+    Ok(unsafe { &mut *doc.cast::<VsDocument>() })
 }
 
-unsafe fn document_from_handle<'a>(doc: *const c_void) -> Result<&'a vs_document, i32> {
+unsafe fn document_from_handle<'a>(doc: *const c_void) -> Result<&'a VsDocument, i32> {
     validate_handle(&DOCUMENT_HANDLES, doc)?;
     // SAFETY: pointer was validated by registry and originates from Box::into_raw.
-    Ok(unsafe { &*doc.cast::<vs_document>() })
+    Ok(unsafe { &*doc.cast::<VsDocument>() })
 }
-
 
 #[derive(Clone, Copy)]
 struct RectI {
@@ -68,15 +296,6 @@ impl RectI {
         }
     }
 
-    fn union(self, other: RectI) -> RectI {
-        RectI {
-            x0: self.x0.min(other.x0),
-            y0: self.y0.min(other.y0),
-            x1: self.x1.max(other.x1),
-            y1: self.y1.max(other.y1),
-        }
-    }
-
     fn clamp_to_image(self, width: i32, height: i32) -> Option<RectI> {
         self.intersect(RectI {
             x0: 0,
@@ -96,75 +315,24 @@ impl RectI {
     }
 }
 
-#[repr(C)]
-pub struct vs_document {
-    width: u32,
-    height: u32,
-    stride: u32,
-    base: Vec<u8>,
-    commands: Vec<VsCommand>,
-    cursor: usize,
-    pending_dirty: Option<RectI>,
-}
-
-impl vs_document {
-    fn expected_len(&self) -> Option<usize> {
-        (self.stride as usize).checked_mul(self.height as usize)
-    }
-
-    fn image_width_i32(&self) -> i32 {
-        self.width as i32
-    }
-
-    fn image_height_i32(&self) -> i32 {
-        self.height as i32
-    }
-
-    fn full_image_rect(&self) -> RectI {
-        RectI {
-            x0: 0,
-            y0: 0,
-            x1: self.image_width_i32(),
-            y1: self.image_height_i32(),
+impl From<RectI> for CoreRect {
+    fn from(value: RectI) -> Self {
+        Self {
+            x: value.x0,
+            y: value.y0,
+            width: value.width(),
+            height: value.height(),
         }
     }
+}
 
-    fn applied_commands(&self) -> &[VsCommand] {
-        let end = self.cursor.min(self.commands.len());
-        &self.commands[..end]
-    }
-
-    fn has_global_effect_command(&self) -> bool {
-        self.applied_commands().iter().any(is_global_effect_command)
-    }
-
-    fn add_dirty_full(&mut self) {
-        let full = self.full_image_rect();
-        self.pending_dirty = Some(match self.pending_dirty {
-            Some(prev) => prev.union(full),
-            None => full,
-        });
-    }
-
-    fn add_dirty(&mut self, rect: Option<RectI>) {
-        let Some(rect) = rect else {
-            return;
-        };
-
-        let Some(clamped) = rect.clamp_to_image(self.image_width_i32(), self.image_height_i32())
-        else {
-            return;
-        };
-
-        let merged = match self.pending_dirty {
-            Some(prev) => prev.union(clamped),
-            None => clamped,
-        };
-
-        self.pending_dirty = Some(merged);
-
-        if self.has_global_effect_command() {
-            self.pending_dirty = Some(self.full_image_rect());
+impl From<CoreRect> for RectI {
+    fn from(value: CoreRect) -> Self {
+        RectI {
+            x0: value.x,
+            y0: value.y,
+            x1: value.x.saturating_add(value.width),
+            y1: value.y.saturating_add(value.height),
         }
     }
 }
@@ -201,14 +369,8 @@ pub unsafe extern "C" fn vs_create_document_from_bgra(
 
     // SAFETY: `ptr` is non-null and `len >= expected_len` has been validated above.
     let src = unsafe { slice::from_raw_parts(ptr, expected_len) };
-    let doc = vs_document {
-        width,
-        height,
-        stride,
-        base: src.to_vec(),
-        commands: Vec::new(),
-        cursor: 0,
-        pending_dirty: None,
+    let Some(doc) = CoreDocument::new(width, height, stride, src.to_vec()) else {
+        return std::ptr::null_mut();
     };
 
     let handle = Box::into_raw(Box::new(doc)).cast();
@@ -224,7 +386,7 @@ pub unsafe extern "C" fn vs_destroy_document(doc: *mut c_void) {
 
     // SAFETY: `doc` came from `Box::into_raw` in `vs_create_document_from_bgra`.
     unsafe {
-        drop(Box::from_raw(doc.cast::<vs_document>()));
+        drop(Box::from_raw(doc.cast::<VsDocument>()));
     }
 }
 
@@ -234,20 +396,10 @@ pub unsafe extern "C" fn vs_add_rect(doc: *mut c_void, cmd: vs_rect_command) -> 
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    let Some(bounds) = rect_command_bounds(cmd) else {
-        return -2;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_rect(cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::Rect(cmd));
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-
-    0
 }
 
 #[no_mangle]
@@ -256,19 +408,10 @@ pub unsafe extern "C" fn vs_add_filled_rect(doc: *mut c_void, cmd: vs_rect_comma
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    let Some(bounds) = rect_command_bounds(cmd) else {
-        return -2;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_filled_rect(cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::FilledRect(cmd));
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -277,19 +420,10 @@ pub unsafe extern "C" fn vs_add_ellipse(doc: *mut c_void, cmd: vs_ellipse_comman
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    let Some(bounds) = ellipse_command_bounds(cmd) else {
-        return -2;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_ellipse(cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::Ellipse(cmd));
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -298,19 +432,10 @@ pub unsafe extern "C" fn vs_add_filled_ellipse(doc: *mut c_void, cmd: vs_ellipse
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    let Some(bounds) = ellipse_command_bounds(cmd) else {
-        return -2;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_filled_ellipse(cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::FilledEllipse(cmd));
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -319,19 +444,10 @@ pub unsafe extern "C" fn vs_add_line(doc: *mut c_void, cmd: vs_line_command) -> 
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    let Some(bounds) = line_command_bounds(cmd) else {
-        return -2;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_line(cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::Line(cmd));
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -351,21 +467,11 @@ pub unsafe extern "C" fn vs_add_path(
 
     // SAFETY: pointer and length validated above.
     let points = unsafe { slice::from_raw_parts(points_ptr, points_len) };
-    let Some(bounds) = path_command_bounds(points, style) else {
-        return -3;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    let points = points.iter().copied().map(Into::into).collect();
+    match doc.add_path(points, style.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::Path {
-        points: points.to_vec(),
-        style,
-    });
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -374,19 +480,10 @@ pub unsafe extern "C" fn vs_add_arrow(doc: *mut c_void, cmd: vs_arrow_command) -
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    let Some(bounds) = arrow_command_bounds(cmd) else {
-        return -2;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_arrow(cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::Arrow(cmd));
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -410,23 +507,14 @@ pub unsafe extern "C" fn vs_add_text(
         Ok(v) => v.trim().to_string(),
         Err(_) => return -3,
     };
-
     if text.is_empty() {
         return -4;
     }
 
-    let Some(bounds) = text_command_bounds(&text, cmd) else {
-        return -5;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_text(text, cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::Text { text, cmd });
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -438,19 +526,10 @@ pub unsafe extern "C" fn vs_add_pixelate_rect(
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    let Some(bounds) = effect_rect_bounds(cmd.x, cmd.y, cmd.width, cmd.height) else {
-        return -2;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_pixelate(cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::Pixelate(cmd));
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -459,19 +538,10 @@ pub unsafe extern "C" fn vs_add_blur_rect(doc: *mut c_void, cmd: vs_blur_rect_co
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    let Some(bounds) = effect_rect_bounds(cmd.x, cmd.y, cmd.width, cmd.height) else {
-        return -2;
-    };
-
-    if doc.cursor < doc.commands.len() {
-        doc.commands.truncate(doc.cursor);
+    match doc.add_blur(cmd.into()) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    doc.commands.push(VsCommand::Blur(cmd));
-    doc.cursor = doc.commands.len();
-    doc.add_dirty(Some(bounds));
-    0
 }
 
 #[no_mangle]
@@ -480,21 +550,11 @@ pub unsafe extern "C" fn vs_undo(doc: *mut c_void) -> i32 {
         Ok(v) => v,
         Err(code) => return code,
     };
-    if doc.cursor == 0 {
-        return 1;
+    match doc.undo() {
+        Ok(true) => 0,
+        Ok(false) => 1,
+        Err(code) => code.code(),
     }
-
-    let (undone_global, undone_bounds) = {
-        let cmd = &doc.commands[doc.cursor - 1];
-        (is_global_effect_command(cmd), command_bounds(cmd))
-    };
-    doc.cursor -= 1;
-    if undone_global {
-        doc.add_dirty_full();
-    } else {
-        doc.add_dirty(undone_bounds);
-    }
-    0
 }
 
 #[no_mangle]
@@ -503,21 +563,11 @@ pub unsafe extern "C" fn vs_redo(doc: *mut c_void) -> i32 {
         Ok(v) => v,
         Err(code) => return code,
     };
-    if doc.cursor >= doc.commands.len() {
-        return 1;
+    match doc.redo() {
+        Ok(true) => 0,
+        Ok(false) => 1,
+        Err(code) => code.code(),
     }
-
-    let (redone_global, redone_bounds) = {
-        let cmd = &doc.commands[doc.cursor];
-        (is_global_effect_command(cmd), command_bounds(cmd))
-    };
-    doc.cursor += 1;
-    if redone_global {
-        doc.add_dirty_full();
-    } else {
-        doc.add_dirty(redone_bounds);
-    }
-    0
 }
 
 #[no_mangle]
@@ -539,38 +589,22 @@ pub unsafe extern "C" fn vs_list_annotations(
         Ok(v) => v,
         Err(code) => return code,
     };
-    let image_w = doc.image_width_i32();
-    let image_h = doc.image_height_i32();
+    let annotations = doc.list_annotations();
+    let total = annotations.len();
 
-    let mut total: usize = 0;
-    let mut written: usize = 0;
-    for (index, cmd) in doc.applied_commands().iter().enumerate() {
-        let Some(bounds) = command_bounds(cmd) else {
-            continue;
-        };
-        let Some(clamped) = bounds.clamp_to_image(image_w, image_h) else {
-            continue;
-        };
-
-        if written < out_cap {
-            // SAFETY: `out_ptr` is non-null if `out_cap > 0`, guaranteed above.
-            unsafe {
-                *out_ptr.add(written) = vs_annotation_info {
-                    index: index as u32,
-                    kind: annotation_kind(cmd),
-                    x: clamped.x0,
-                    y: clamped.y0,
-                    width: clamped.width(),
-                    height: clamped.height(),
-                };
-            }
-            written += 1;
+    for (index, annotation) in annotations.iter().take(out_cap).enumerate() {
+        unsafe {
+            *out_ptr.add(index) = vs_annotation_info {
+                index: annotation.index,
+                kind: annotation.kind,
+                x: annotation.x,
+                y: annotation.y,
+                width: annotation.width,
+                height: annotation.height,
+            };
         }
-
-        total += 1;
     }
 
-    // SAFETY: `out_written_ptr` nullability checked above.
     unsafe {
         *out_written_ptr = total;
     }
@@ -590,33 +624,12 @@ pub unsafe extern "C" fn vs_move_annotation(doc: *mut c_void, index: u32, dx: i3
     let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
         return -2;
     };
-    if idx >= doc.cursor {
-        return -2;
+
+    match doc.move_annotation(idx, dx, dy) {
+        Ok(true) => 0,
+        Ok(false) => 1,
+        Err(code) => code.code(),
     }
-
-    let (was_global, old_bounds) = {
-        let cmd = &doc.commands[idx];
-        (is_global_effect_command(cmd), command_bounds(cmd))
-    };
-
-    {
-        let cmd = &mut doc.commands[idx];
-        translate_command(cmd, dx, dy);
-    }
-
-    let new_bounds = {
-        let cmd = &doc.commands[idx];
-        command_bounds(cmd)
-    };
-
-    if was_global {
-        doc.add_dirty_full();
-    } else {
-        doc.add_dirty(old_bounds);
-        doc.add_dirty(new_bounds);
-    }
-
-    0
 }
 
 #[no_mangle]
@@ -628,25 +641,11 @@ pub unsafe extern "C" fn vs_remove_annotation(doc: *mut c_void, index: u32) -> i
     let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
         return -2;
     };
-    if idx >= doc.cursor {
-        return -2;
+
+    match doc.remove_annotation(idx) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-
-    let (was_global, old_bounds) = {
-        let cmd = &doc.commands[idx];
-        (is_global_effect_command(cmd), command_bounds(cmd))
-    };
-
-    doc.commands.remove(idx);
-    doc.cursor = doc.cursor.saturating_sub(1);
-
-    if was_global {
-        doc.add_dirty_full();
-    } else {
-        doc.add_dirty(old_bounds);
-    }
-
-    0
 }
 
 #[no_mangle]
@@ -679,39 +678,12 @@ pub unsafe extern "C" fn vs_resize_annotation(
     let Some(idx) = ffi_document::validate_annotation_index(index, doc.commands.len()) else {
         return -3;
     };
-    if idx >= doc.cursor {
-        return -3;
+
+    match doc.resize_annotation(idx, target.into()) {
+        Ok(true) => 0,
+        Ok(false) => 1,
+        Err(code) => code.code(),
     }
-
-    let (was_global, old_bounds) = {
-        let cmd = &doc.commands[idx];
-        (is_global_effect_command(cmd), command_bounds(cmd))
-    };
-    let Some(old_bounds) = old_bounds else {
-        return -4;
-    };
-
-    let changed = {
-        let cmd = &mut doc.commands[idx];
-        resize_command(cmd, old_bounds, target)
-    };
-    if !changed {
-        return 1;
-    }
-
-    let new_bounds = {
-        let cmd = &doc.commands[idx];
-        command_bounds(cmd)
-    };
-
-    if was_global {
-        doc.add_dirty_full();
-    } else {
-        doc.add_dirty(Some(old_bounds));
-        doc.add_dirty(new_bounds);
-    }
-
-    0
 }
 
 #[no_mangle]
@@ -746,27 +718,10 @@ pub unsafe extern "C" fn vs_copy_annotations_affine(
         Err(code) => return code,
     };
 
-    if dst.cursor < dst.commands.len() {
-        dst.commands.truncate(dst.cursor);
+    match dst.copy_annotations_affine(src, scale_x, scale_y, translate_x, translate_y) {
+        Ok(()) => 0,
+        Err(code) => code.code(),
     }
-    dst.commands.clear();
-    dst.cursor = 0;
-
-    if src.applied_commands().is_empty() {
-        return 0;
-    }
-
-    let mut copied = Vec::with_capacity(src.applied_commands().len());
-    for cmd in src.applied_commands() {
-        let mut next = cmd.clone();
-        transform_command_affine(&mut next, scale_x, scale_y, translate_x, translate_y);
-        copied.push(next);
-    }
-
-    dst.commands = copied;
-    dst.cursor = dst.commands.len();
-    dst.add_dirty_full();
-    0
 }
 
 #[no_mangle]
@@ -803,7 +758,7 @@ pub unsafe extern "C" fn vs_render_full(doc: *mut c_void, out_ptr: *mut u8, out_
         );
     }
 
-    doc.pending_dirty = None;
+    doc.clear_dirty();
     0
 }
 
@@ -842,7 +797,7 @@ pub unsafe extern "C" fn vs_render_dirty(
         return -4;
     }
 
-    let Some(dirty) = doc.pending_dirty else {
+    let Some(dirty) = doc.pending_dirty.map(RectI::from) else {
         return 0;
     };
 
@@ -876,7 +831,7 @@ pub unsafe extern "C" fn vs_render_dirty(
         }
     }
 
-    doc.pending_dirty = None;
+    doc.clear_dirty();
     0
 }
 
@@ -890,476 +845,34 @@ fn draw_command(
 ) {
     match cmd {
         VsCommand::Rect(rect) => {
-            draw_rect(buf, image_width, image_height, stride, *rect, false, clip)
+            draw_rect(buf, image_width, image_height, stride, (*rect).into(), false, clip)
         }
         VsCommand::FilledRect(rect) => {
-            draw_rect(buf, image_width, image_height, stride, *rect, true, clip)
+            draw_rect(buf, image_width, image_height, stride, (*rect).into(), true, clip)
         }
         VsCommand::Ellipse(cmd) => {
-            draw_ellipse(buf, image_width, image_height, stride, *cmd, false, clip)
+            draw_ellipse(buf, image_width, image_height, stride, (*cmd).into(), false, clip)
         }
         VsCommand::FilledEllipse(cmd) => {
-            draw_ellipse(buf, image_width, image_height, stride, *cmd, true, clip)
+            draw_ellipse(buf, image_width, image_height, stride, (*cmd).into(), true, clip)
         }
-        VsCommand::Line(line) => draw_line(buf, image_width, image_height, stride, *line, clip),
-        VsCommand::Arrow(arrow) => draw_arrow(buf, image_width, image_height, stride, *arrow, clip),
+        VsCommand::Line(line) => draw_line(buf, image_width, image_height, stride, (*line).into(), clip),
+        VsCommand::Arrow(arrow) => draw_arrow(buf, image_width, image_height, stride, (*arrow).into(), clip),
         VsCommand::Path { points, style } => {
             draw_path(buf, image_width, image_height, stride, points, *style, clip)
         }
         VsCommand::Text { text, cmd } => {
-            draw_text(buf, image_width, image_height, stride, text, *cmd, clip)
+            draw_text(buf, image_width, image_height, stride, text, (*cmd).into(), clip)
         }
         VsCommand::Pixelate(cmd) => {
-            draw_pixelate(buf, image_width, image_height, stride, *cmd, clip)
+            draw_pixelate(buf, image_width, image_height, stride, (*cmd).into(), clip)
         }
-        VsCommand::Blur(cmd) => draw_blur(buf, image_width, image_height, stride, *cmd, clip),
+        VsCommand::Blur(cmd) => draw_blur(buf, image_width, image_height, stride, (*cmd).into(), clip),
     }
 }
 
 fn command_bounds(cmd: &VsCommand) -> Option<RectI> {
-    match cmd {
-        VsCommand::Rect(rect) => rect_command_bounds(*rect),
-        VsCommand::FilledRect(rect) => rect_command_bounds(*rect),
-        VsCommand::Ellipse(cmd) => ellipse_command_bounds(*cmd),
-        VsCommand::FilledEllipse(cmd) => ellipse_command_bounds(*cmd),
-        VsCommand::Line(line) => line_command_bounds(*line),
-        VsCommand::Arrow(arrow) => arrow_command_bounds(*arrow),
-        VsCommand::Path { points, style } => path_command_bounds(points, *style),
-        VsCommand::Text { text, cmd } => text_command_bounds(text, *cmd),
-        VsCommand::Pixelate(cmd) => effect_rect_bounds(cmd.x, cmd.y, cmd.width, cmd.height),
-        VsCommand::Blur(cmd) => effect_rect_bounds(cmd.x, cmd.y, cmd.width, cmd.height),
-    }
-}
-
-fn annotation_kind(cmd: &VsCommand) -> u32 {
-    match cmd {
-        VsCommand::Rect(_) => 1,
-        VsCommand::FilledRect(_) => 2,
-        VsCommand::Ellipse(_) => 3,
-        VsCommand::FilledEllipse(_) => 4,
-        VsCommand::Line(_) => 5,
-        VsCommand::Arrow(_) => 6,
-        VsCommand::Path { .. } => 7,
-        VsCommand::Text { .. } => 8,
-        VsCommand::Pixelate(_) => 9,
-        VsCommand::Blur(_) => 10,
-    }
-}
-
-fn translate_command(cmd: &mut VsCommand, dx: i32, dy: i32) {
-    match cmd {
-        VsCommand::Rect(rect) => {
-            rect.x = rect.x.saturating_add(dx);
-            rect.y = rect.y.saturating_add(dy);
-        }
-        VsCommand::FilledRect(rect) => {
-            rect.x = rect.x.saturating_add(dx);
-            rect.y = rect.y.saturating_add(dy);
-        }
-        VsCommand::Ellipse(ellipse) => {
-            ellipse.x = ellipse.x.saturating_add(dx);
-            ellipse.y = ellipse.y.saturating_add(dy);
-        }
-        VsCommand::FilledEllipse(ellipse) => {
-            ellipse.x = ellipse.x.saturating_add(dx);
-            ellipse.y = ellipse.y.saturating_add(dy);
-        }
-        VsCommand::Line(line) => {
-            line.x0 = line.x0.saturating_add(dx);
-            line.y0 = line.y0.saturating_add(dy);
-            line.x1 = line.x1.saturating_add(dx);
-            line.y1 = line.y1.saturating_add(dy);
-        }
-        VsCommand::Arrow(arrow) => {
-            arrow.x0 = arrow.x0.saturating_add(dx);
-            arrow.y0 = arrow.y0.saturating_add(dy);
-            arrow.x1 = arrow.x1.saturating_add(dx);
-            arrow.y1 = arrow.y1.saturating_add(dy);
-        }
-        VsCommand::Path { points, .. } => {
-            for point in points.iter_mut() {
-                point.x = point.x.saturating_add(dx);
-                point.y = point.y.saturating_add(dy);
-            }
-        }
-        VsCommand::Text { cmd, .. } => {
-            cmd.x = cmd.x.saturating_add(dx);
-            cmd.y = cmd.y.saturating_add(dy);
-        }
-        VsCommand::Pixelate(pixelate) => {
-            pixelate.x = pixelate.x.saturating_add(dx);
-            pixelate.y = pixelate.y.saturating_add(dy);
-        }
-        VsCommand::Blur(blur) => {
-            blur.x = blur.x.saturating_add(dx);
-            blur.y = blur.y.saturating_add(dy);
-        }
-    }
-}
-
-fn round_to_i32(value: f32) -> i32 {
-    if !value.is_finite() {
-        return 0;
-    }
-
-    if value >= i32::MAX as f32 {
-        i32::MAX
-    } else if value <= i32::MIN as f32 {
-        i32::MIN
-    } else {
-        value.round() as i32
-    }
-}
-
-fn transform_rect_affine(
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    scale_x: f32,
-    scale_y: f32,
-    translate_x: f32,
-    translate_y: f32,
-) -> (i32, i32, i32, i32) {
-    let x0 = x as f32 * scale_x + translate_x;
-    let y0 = y as f32 * scale_y + translate_y;
-    let x1 = x.saturating_add(width) as f32 * scale_x + translate_x;
-    let y1 = y.saturating_add(height) as f32 * scale_y + translate_y;
-
-    let left = round_to_i32(x0.min(x1));
-    let top = round_to_i32(y0.min(y1));
-    let right = round_to_i32(x0.max(x1));
-    let bottom = round_to_i32(y0.max(y1));
-
-    let next_width = right.saturating_sub(left).max(1);
-    let next_height = bottom.saturating_sub(top).max(1);
-    (left, top, next_width, next_height)
-}
-
-fn transform_point_affine(
-    x: i32,
-    y: i32,
-    scale_x: f32,
-    scale_y: f32,
-    translate_x: f32,
-    translate_y: f32,
-) -> (i32, i32) {
-    (
-        round_to_i32(x as f32 * scale_x + translate_x),
-        round_to_i32(y as f32 * scale_y + translate_y),
-    )
-}
-
-fn transform_command_affine(
-    cmd: &mut VsCommand,
-    scale_x: f32,
-    scale_y: f32,
-    translate_x: f32,
-    translate_y: f32,
-) {
-    match cmd {
-        VsCommand::Rect(rect) | VsCommand::FilledRect(rect) => {
-            let (x, y, width, height) = transform_rect_affine(
-                rect.x,
-                rect.y,
-                rect.width,
-                rect.height,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            rect.x = x;
-            rect.y = y;
-            rect.width = width;
-            rect.height = height;
-        }
-        VsCommand::Ellipse(ellipse) | VsCommand::FilledEllipse(ellipse) => {
-            let (x, y, width, height) = transform_rect_affine(
-                ellipse.x,
-                ellipse.y,
-                ellipse.width,
-                ellipse.height,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            ellipse.x = x;
-            ellipse.y = y;
-            ellipse.width = width;
-            ellipse.height = height;
-        }
-        VsCommand::Line(line) => {
-            let (x0, y0) = transform_point_affine(
-                line.x0,
-                line.y0,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            let (x1, y1) = transform_point_affine(
-                line.x1,
-                line.y1,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            line.x0 = x0;
-            line.y0 = y0;
-            line.x1 = x1;
-            line.y1 = y1;
-        }
-        VsCommand::Arrow(arrow) => {
-            let (x0, y0) = transform_point_affine(
-                arrow.x0,
-                arrow.y0,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            let (x1, y1) = transform_point_affine(
-                arrow.x1,
-                arrow.y1,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            arrow.x0 = x0;
-            arrow.y0 = y0;
-            arrow.x1 = x1;
-            arrow.y1 = y1;
-        }
-        VsCommand::Path { points, .. } => {
-            for point in points.iter_mut() {
-                let (x, y) = transform_point_affine(
-                    point.x,
-                    point.y,
-                    scale_x,
-                    scale_y,
-                    translate_x,
-                    translate_y,
-                );
-                point.x = x;
-                point.y = y;
-            }
-        }
-        VsCommand::Text { cmd: text_cmd, .. } => {
-            let (x, y) = transform_point_affine(
-                text_cmd.x,
-                text_cmd.y,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            text_cmd.x = x;
-            text_cmd.y = y;
-
-            let avg_scale = ((scale_x.abs() + scale_y.abs()) * 0.5).clamp(0.25, 8.0);
-            text_cmd.font_px = ((text_cmd.font_px as f32) * avg_scale)
-                .round()
-                .clamp(8.0, 256.0) as u32;
-        }
-        VsCommand::Pixelate(pixelate) => {
-            let (x, y, width, height) = transform_rect_affine(
-                pixelate.x,
-                pixelate.y,
-                pixelate.width,
-                pixelate.height,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            pixelate.x = x;
-            pixelate.y = y;
-            pixelate.width = width;
-            pixelate.height = height;
-        }
-        VsCommand::Blur(blur) => {
-            let (x, y, width, height) = transform_rect_affine(
-                blur.x,
-                blur.y,
-                blur.width,
-                blur.height,
-                scale_x,
-                scale_y,
-                translate_x,
-                translate_y,
-            );
-            blur.x = x;
-            blur.y = y;
-            blur.width = width;
-            blur.height = height;
-        }
-    }
-}
-
-fn resize_command(cmd: &mut VsCommand, from: RectI, to: RectI) -> bool {
-    if from.is_empty() || to.is_empty() {
-        return false;
-    }
-
-    match cmd {
-        VsCommand::Rect(rect) | VsCommand::FilledRect(rect) => {
-            let next = rect_from_bounds(*rect, to);
-            if rect_equals(*rect, next) {
-                return false;
-            }
-            *rect = next;
-            true
-        }
-        VsCommand::Ellipse(ellipse) | VsCommand::FilledEllipse(ellipse) => {
-            let next = ellipse_from_bounds(*ellipse, to);
-            if ellipse_equals(*ellipse, next) {
-                return false;
-            }
-            *ellipse = next;
-            true
-        }
-        VsCommand::Line(line) => {
-            let (x0, y0) = scale_point_between_rects(line.x0, line.y0, from, to);
-            let (x1, y1) = scale_point_between_rects(line.x1, line.y1, from, to);
-            if line.x0 == x0 && line.y0 == y0 && line.x1 == x1 && line.y1 == y1 {
-                return false;
-            }
-            line.x0 = x0;
-            line.y0 = y0;
-            line.x1 = x1;
-            line.y1 = y1;
-            true
-        }
-        VsCommand::Arrow(arrow) => {
-            let (x0, y0) = scale_point_between_rects(arrow.x0, arrow.y0, from, to);
-            let (x1, y1) = scale_point_between_rects(arrow.x1, arrow.y1, from, to);
-            if arrow.x0 == x0 && arrow.y0 == y0 && arrow.x1 == x1 && arrow.y1 == y1 {
-                return false;
-            }
-            arrow.x0 = x0;
-            arrow.y0 = y0;
-            arrow.x1 = x1;
-            arrow.y1 = y1;
-            true
-        }
-        VsCommand::Path { points, .. } => {
-            if points.is_empty() {
-                return false;
-            }
-
-            let mut changed = false;
-            for point in points.iter_mut() {
-                let (nx, ny) = scale_point_between_rects(point.x, point.y, from, to);
-                if point.x != nx || point.y != ny {
-                    point.x = nx;
-                    point.y = ny;
-                    changed = true;
-                }
-            }
-            changed
-        }
-        VsCommand::Text { cmd: text_cmd, .. } => {
-            let old_w = from.width().max(1) as f32;
-            let old_h = from.height().max(1) as f32;
-            let new_w = to.width().max(1) as f32;
-            let new_h = to.height().max(1) as f32;
-            let scale = ((new_w / old_w) + (new_h / old_h)) * 0.5;
-            let font_px = ((text_cmd.font_px as f32) * scale)
-                .round()
-                .clamp(8.0, 256.0) as u32;
-
-            if text_cmd.x == to.x0 && text_cmd.y == to.y0 && text_cmd.font_px == font_px {
-                return false;
-            }
-
-            text_cmd.x = to.x0;
-            text_cmd.y = to.y0;
-            text_cmd.font_px = font_px;
-            true
-        }
-        VsCommand::Pixelate(pixelate) => {
-            let width = to.width().max(1);
-            let height = to.height().max(1);
-            if pixelate.x == to.x0
-                && pixelate.y == to.y0
-                && pixelate.width == width
-                && pixelate.height == height
-            {
-                return false;
-            }
-            pixelate.x = to.x0;
-            pixelate.y = to.y0;
-            pixelate.width = width;
-            pixelate.height = height;
-            true
-        }
-        VsCommand::Blur(blur) => {
-            let width = to.width().max(1);
-            let height = to.height().max(1);
-            if blur.x == to.x0 && blur.y == to.y0 && blur.width == width && blur.height == height {
-                return false;
-            }
-            blur.x = to.x0;
-            blur.y = to.y0;
-            blur.width = width;
-            blur.height = height;
-            true
-        }
-    }
-}
-
-fn rect_from_bounds(prev: vs_rect_command, bounds: RectI) -> vs_rect_command {
-    let width = bounds.width().max(1);
-    let height = bounds.height().max(1);
-    vs_rect_command {
-        x: bounds.x0,
-        y: bounds.y0,
-        width,
-        height,
-        ..prev
-    }
-}
-
-fn ellipse_from_bounds(prev: vs_ellipse_command, bounds: RectI) -> vs_ellipse_command {
-    let width = bounds.width().max(1);
-    let height = bounds.height().max(1);
-    vs_ellipse_command {
-        x: bounds.x0,
-        y: bounds.y0,
-        width,
-        height,
-        ..prev
-    }
-}
-
-fn rect_equals(lhs: vs_rect_command, rhs: vs_rect_command) -> bool {
-    lhs.x == rhs.x && lhs.y == rhs.y && lhs.width == rhs.width && lhs.height == rhs.height
-}
-
-fn ellipse_equals(lhs: vs_ellipse_command, rhs: vs_ellipse_command) -> bool {
-    lhs.x == rhs.x && lhs.y == rhs.y && lhs.width == rhs.width && lhs.height == rhs.height
-}
-
-fn scale_point_between_rects(px: i32, py: i32, from: RectI, to: RectI) -> (i32, i32) {
-    let from_w = from.width().max(1) as f32;
-    let from_h = from.height().max(1) as f32;
-    let to_w = to.width().max(1) as f32;
-    let to_h = to.height().max(1) as f32;
-
-    let nx = (px.saturating_sub(from.x0) as f32) / from_w;
-    let ny = (py.saturating_sub(from.y0) as f32) / from_h;
-
-    let x = to.x0 as f32 + nx * to_w;
-    let y = to.y0 as f32 + ny * to_h;
-    (x.round() as i32, y.round() as i32)
-}
-
-fn is_global_effect_command(cmd: &VsCommand) -> bool {
-    matches!(cmd, VsCommand::Pixelate(_) | VsCommand::Blur(_))
+    cmd.bounds().map(RectI::from)
 }
 
 fn rect_command_bounds(cmd: vs_rect_command) -> Option<RectI> {
@@ -1394,46 +907,6 @@ fn line_command_bounds(cmd: vs_line_command) -> Option<RectI> {
     }
 
     let pad = ((cmd.stroke_width as i32).max(1) + 1) / 2 + 1;
-    Some(RectI {
-        x0: cmd.x0.min(cmd.x1).saturating_sub(pad),
-        y0: cmd.y0.min(cmd.y1).saturating_sub(pad),
-        x1: cmd.x0.max(cmd.x1).saturating_add(pad + 1),
-        y1: cmd.y0.max(cmd.y1).saturating_add(pad + 1),
-    })
-}
-
-fn path_command_bounds(points: &[vs_point_i32], style: vs_path_style) -> Option<RectI> {
-    let first = points.first()?;
-
-    let mut min_x = first.x;
-    let mut min_y = first.y;
-    let mut max_x = first.x;
-    let mut max_y = first.y;
-
-    for point in &points[1..] {
-        min_x = min_x.min(point.x);
-        min_y = min_y.min(point.y);
-        max_x = max_x.max(point.x);
-        max_y = max_y.max(point.y);
-    }
-
-    let pad = ((style.stroke_width as i32).max(1) + 1) / 2 + 2;
-    Some(RectI {
-        x0: min_x.saturating_sub(pad),
-        y0: min_y.saturating_sub(pad),
-        x1: max_x.saturating_add(pad + 1),
-        y1: max_y.saturating_add(pad + 1),
-    })
-}
-
-fn arrow_command_bounds(cmd: vs_arrow_command) -> Option<RectI> {
-    if cmd.x0 == cmd.x1 && cmd.y0 == cmd.y1 {
-        return None;
-    }
-
-    let stroke = (cmd.stroke_width as i32).max(1);
-    let head_len = (stroke * 6).max(16);
-    let pad = head_len + stroke;
     Some(RectI {
         x0: cmd.x0.min(cmd.x1).saturating_sub(pad),
         y0: cmd.y0.min(cmd.y1).saturating_sub(pad),
@@ -1839,8 +1312,8 @@ fn draw_path(
     image_width: i32,
     image_height: i32,
     stride: usize,
-    points: &[vs_point_i32],
-    style: vs_path_style,
+    points: &[CorePoint],
+    style: DocumentPathStyle,
     clip: Option<RectI>,
 ) {
     if points.is_empty() {

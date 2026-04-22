@@ -1,18 +1,29 @@
 use crate::{
     vs_f32_point, vs_f32_rect, vs_gif_export_plan, vs_i32_rect, vs_rgba8,
     vs_stitch_autoscroll_state, vs_video_export_context, vs_video_export_decision,
-    vs_video_export_plan, VS_RESIZE_CORNER_BOTTOM, VS_RESIZE_CORNER_BOTTOM_LEFT,
+    vs_video_export_plan, vs_video_post_recording_composition_plan, VS_RESIZE_CORNER_BOTTOM,
+    VS_RESIZE_CORNER_BOTTOM_LEFT,
     VS_RESIZE_CORNER_BOTTOM_RIGHT, VS_RESIZE_CORNER_LEFT, VS_RESIZE_CORNER_RIGHT,
     VS_RESIZE_CORNER_TOP, VS_RESIZE_CORNER_TOP_LEFT, VS_RESIZE_CORNER_TOP_RIGHT,
+    VS_VIDEO_EXPORT_CONTAINER_MOV, VS_VIDEO_EXPORT_CONTAINER_MP4,
+    VS_VIDEO_EXPORT_PRESET_1280X720, VS_VIDEO_EXPORT_PRESET_1920X1080,
+    VS_VIDEO_EXPORT_PRESET_HEVC_1920X1080, VS_VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY,
+    VS_VIDEO_EXPORT_PRESET_HIGHEST_QUALITY, VS_VIDEO_EXPORT_PRESET_MEDIUM_QUALITY,
     VS_TRIM_HANDLE_END, VS_TRIM_HANDLE_START, VS_TRIM_HANDLE_UNKNOWN,
 };
 use vivyshot_domain::{
-    F32Point as DomainF32Point, F32Rect as DomainF32Rect, GifExportPlan as DomainGifExportPlan,
-    I32Rect as DomainI32Rect, ResizeCorner as DomainResizeCorner, Rgba8 as DomainRgba8,
-    StitchAutoscrollState as DomainStitchAutoscrollState,
-    TimelineTrackSummary as DomainTimelineTrackSummary, TrimHandle as DomainTrimHandle,
+    AffineTransform as DomainAffineTransform, F32Point as DomainF32Point,
+    F32Rect as DomainF32Rect, GifExportPlan as DomainGifExportPlan, I32Rect as DomainI32Rect,
+    ResizeCorner as DomainResizeCorner, Rgba8 as DomainRgba8,
+    StitchAutoscrollState as DomainStitchAutoscrollState, TrimHandle as DomainTrimHandle,
+    VideoExportBitratePreset as DomainVideoExportBitratePreset,
+    VideoExportCodec as DomainVideoExportCodec, VideoExportContainer as DomainVideoExportContainer,
     VideoExportContext as DomainVideoExportContext,
-    VideoExportDecision as DomainVideoExportDecision, VideoExportPlan as DomainVideoExportPlan,
+    VideoExportDecision as DomainVideoExportDecision,
+    VideoExportFrameRate as DomainVideoExportFrameRate, VideoExportPlan as DomainVideoExportPlan,
+    VideoExportPreset as DomainVideoExportPreset, VideoExportQuality as DomainVideoExportQuality,
+    VideoExportScale as DomainVideoExportScale,
+    VideoPostRecordingCompositionPlan as DomainVideoPostRecordingCompositionPlan,
 };
 
 pub(crate) fn to_domain_trim_handle(raw: u8) -> Option<DomainTrimHandle> {
@@ -20,6 +31,51 @@ pub(crate) fn to_domain_trim_handle(raw: u8) -> Option<DomainTrimHandle> {
         VS_TRIM_HANDLE_UNKNOWN => Some(DomainTrimHandle::Unknown),
         VS_TRIM_HANDLE_START => Some(DomainTrimHandle::Start),
         VS_TRIM_HANDLE_END => Some(DomainTrimHandle::End),
+        _ => None,
+    }
+}
+
+pub(crate) fn to_domain_video_export_codec(raw: u8) -> Option<DomainVideoExportCodec> {
+    match raw {
+        0 => Some(DomainVideoExportCodec::H264),
+        1 => Some(DomainVideoExportCodec::Hevc),
+        _ => None,
+    }
+}
+
+pub(crate) fn to_domain_video_export_quality(raw: u8) -> Option<DomainVideoExportQuality> {
+    match raw {
+        0 => Some(DomainVideoExportQuality::Standard),
+        1 => Some(DomainVideoExportQuality::High),
+        _ => None,
+    }
+}
+
+pub(crate) fn to_domain_video_export_frame_rate(raw: u8) -> Option<DomainVideoExportFrameRate> {
+    match raw {
+        0 => Some(DomainVideoExportFrameRate::Fps30),
+        1 => Some(DomainVideoExportFrameRate::Fps60),
+        2 => Some(DomainVideoExportFrameRate::Fps120),
+        _ => None,
+    }
+}
+
+pub(crate) fn to_domain_video_export_scale(raw: u8) -> Option<DomainVideoExportScale> {
+    match raw {
+        0 => Some(DomainVideoExportScale::Full),
+        1 => Some(DomainVideoExportScale::Percent75),
+        2 => Some(DomainVideoExportScale::Percent50),
+        _ => None,
+    }
+}
+
+pub(crate) fn to_domain_video_export_bitrate_preset(
+    raw: u8,
+) -> Option<DomainVideoExportBitratePreset> {
+    match raw {
+        0 => Some(DomainVideoExportBitratePreset::Standard),
+        1 => Some(DomainVideoExportBitratePreset::High),
+        2 => Some(DomainVideoExportBitratePreset::VeryHigh),
         _ => None,
     }
 }
@@ -133,6 +189,54 @@ pub(crate) fn to_ffi_video_export_decision(
     }
 }
 
+pub(crate) fn to_ffi_video_export_container(container: DomainVideoExportContainer) -> u8 {
+    match container {
+        DomainVideoExportContainer::Mp4 => VS_VIDEO_EXPORT_CONTAINER_MP4,
+        DomainVideoExportContainer::Mov => VS_VIDEO_EXPORT_CONTAINER_MOV,
+    }
+}
+
+pub(crate) fn to_ffi_video_export_preset(preset: DomainVideoExportPreset) -> u8 {
+    match preset {
+        DomainVideoExportPreset::HighestQuality => VS_VIDEO_EXPORT_PRESET_HIGHEST_QUALITY,
+        DomainVideoExportPreset::Resolution1920x1080 => VS_VIDEO_EXPORT_PRESET_1920X1080,
+        DomainVideoExportPreset::Resolution1280x720 => VS_VIDEO_EXPORT_PRESET_1280X720,
+        DomainVideoExportPreset::MediumQuality => VS_VIDEO_EXPORT_PRESET_MEDIUM_QUALITY,
+        DomainVideoExportPreset::HevcResolution1920x1080 => VS_VIDEO_EXPORT_PRESET_HEVC_1920X1080,
+        DomainVideoExportPreset::HevcHighestQuality => {
+            VS_VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY
+        }
+    }
+}
+
+pub(crate) fn to_ffi_post_recording_video_composition_plan(
+    plan: DomainVideoPostRecordingCompositionPlan,
+) -> vs_video_post_recording_composition_plan {
+    vs_video_post_recording_composition_plan {
+        render_width: plan.render_width,
+        render_height: plan.render_height,
+        transform: crate::vs_affine_transform {
+            a: plan.transform.a,
+            b: plan.transform.b,
+            c: plan.transform.c,
+            d: plan.transform.d,
+            tx: plan.transform.tx,
+            ty: plan.transform.ty,
+        },
+    }
+}
+
+pub(crate) fn to_domain_affine_transform(transform: crate::vs_affine_transform) -> DomainAffineTransform {
+    DomainAffineTransform {
+        a: transform.a,
+        b: transform.b,
+        c: transform.c,
+        d: transform.d,
+        tx: transform.tx,
+        ty: transform.ty,
+    }
+}
+
 pub(crate) fn to_domain_f32_rect(rect: vs_f32_rect) -> DomainF32Rect {
     DomainF32Rect {
         x: rect.x,
@@ -187,17 +291,5 @@ pub(crate) fn to_domain_resize_corner(raw: u8) -> Option<DomainResizeCorner> {
         VS_RESIZE_CORNER_BOTTOM_LEFT => Some(DomainResizeCorner::BottomLeft),
         VS_RESIZE_CORNER_BOTTOM_RIGHT => Some(DomainResizeCorner::BottomRight),
         _ => None,
-    }
-}
-
-pub(crate) fn to_domain_timeline_track_summary(
-    kind: u8,
-    visible: bool,
-    clip_count: u32,
-) -> DomainTimelineTrackSummary {
-    DomainTimelineTrackSummary {
-        kind,
-        visible,
-        clip_count,
     }
 }

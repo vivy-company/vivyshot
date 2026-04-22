@@ -2,77 +2,7 @@ use super::*;
 
 #[repr(C)]
 struct vs_stats_session {
-    state: DomainCaptureStatisticsState,
-}
-
-#[derive(Serialize, Deserialize)]
-struct VsStatsSessionSnapshot {
-    version: u32,
-    state: VsStatsStateSnapshot,
-}
-
-#[derive(Serialize, Deserialize)]
-struct VsStatsStateSnapshot {
-    total_screenshots_captured: i64,
-    total_recordings_completed: i64,
-    total_recorded_duration_ms: i64,
-    total_screenshot_completion_duration_ms: i64,
-    completed_screenshot_session_count: i64,
-    total_capture_bytes_produced: i64,
-    current_capture_streak_days: i32,
-    best_capture_streak_days: i32,
-    first_capture_day_key: Option<DomainStatsDayKey>,
-    last_capture_day_key: Option<DomainStatsDayKey>,
-    daily_capture: Vec<DailyCaptureStats>,
-    ingested_event_keys: Vec<String>,
-}
-
-impl From<&DomainCaptureStatisticsState> for VsStatsStateSnapshot {
-    fn from(state: &DomainCaptureStatisticsState) -> Self {
-        let mut ingested_event_keys = state.ingested_event_keys.iter().cloned().collect::<Vec<_>>();
-        ingested_event_keys.sort();
-
-        Self {
-            total_screenshots_captured: state.total_screenshots_captured,
-            total_recordings_completed: state.total_recordings_completed,
-            total_recorded_duration_ms: state.total_recorded_duration_ms,
-            total_screenshot_completion_duration_ms: state.total_screenshot_completion_duration_ms,
-            completed_screenshot_session_count: state.completed_screenshot_session_count,
-            total_capture_bytes_produced: state.total_capture_bytes_produced,
-            current_capture_streak_days: state.current_capture_streak_days,
-            best_capture_streak_days: state.best_capture_streak_days,
-            first_capture_day_key: state.first_capture_day_key,
-            last_capture_day_key: state.last_capture_day_key,
-            daily_capture: state.daily_capture.values().cloned().collect(),
-            ingested_event_keys,
-        }
-    }
-}
-
-impl From<VsStatsStateSnapshot> for DomainCaptureStatisticsState {
-    fn from(snapshot: VsStatsStateSnapshot) -> Self {
-        let daily_capture = snapshot
-            .daily_capture
-            .into_iter()
-            .map(|bucket| (bucket.day_key, bucket))
-            .collect();
-        let ingested_event_keys = snapshot.ingested_event_keys.into_iter().collect();
-
-        Self {
-            total_screenshots_captured: snapshot.total_screenshots_captured,
-            total_recordings_completed: snapshot.total_recordings_completed,
-            total_recorded_duration_ms: snapshot.total_recorded_duration_ms,
-            total_screenshot_completion_duration_ms: snapshot.total_screenshot_completion_duration_ms,
-            completed_screenshot_session_count: snapshot.completed_screenshot_session_count,
-            total_capture_bytes_produced: snapshot.total_capture_bytes_produced,
-            current_capture_streak_days: snapshot.current_capture_streak_days,
-            best_capture_streak_days: snapshot.best_capture_streak_days,
-            first_capture_day_key: snapshot.first_capture_day_key,
-            last_capture_day_key: snapshot.last_capture_day_key,
-            daily_capture,
-            ingested_event_keys,
-        }
-    }
+    session: DomainCaptureStatisticsSession,
 }
 
 unsafe fn stats_session_from_handle_mut<'a>(
@@ -90,7 +20,7 @@ unsafe fn stats_session_from_handle<'a>(handle: *const c_void) -> Result<&'a vs_
 #[no_mangle]
 pub extern "C" fn vs_stats_session_create() -> *mut c_void {
     let session = vs_stats_session {
-        state: domain_capture_statistics_reset(),
+        session: DomainCaptureStatisticsSession::new(),
     };
     let handle = Box::into_raw(Box::new(session)).cast();
     register_handle(&STATS_SESSION_HANDLES, handle);
@@ -128,7 +58,7 @@ pub unsafe extern "C" fn vs_stats_session_ingest_event(
         Err(code) => return code,
     };
 
-    let applied = match domain_capture_statistics_ingest_event(&mut session.state, &domain_event) {
+    let applied = match session.session.ingest_event(&domain_event) {
         Ok(value) => value,
         Err(_) => return VS_STATUS_INVALID_ARGUMENT,
     };
@@ -152,7 +82,7 @@ pub unsafe extern "C" fn vs_stats_session_get_summary(
         Ok(value) => value,
         Err(code) => return code,
     };
-    let summary = domain_capture_statistics_summary(&session.state);
+    let summary = session.session.summary();
     unsafe {
         *out_summary = to_ffi_summary(summary);
     }
@@ -178,8 +108,7 @@ pub unsafe extern "C" fn vs_stats_session_get_recent_daily_buckets(
         Ok(value) => value,
         Err(code) => return code,
     };
-    let buckets =
-        domain_capture_statistics_recent_daily_buckets(&session.state, day_count as usize);
+    let buckets = session.session.recent_daily_buckets(day_count as usize);
     write_daily_buckets(buckets, out_ptr, out_cap, out_written)
 }
 
@@ -201,7 +130,7 @@ pub unsafe extern "C" fn vs_stats_session_get_all_daily_buckets(
         Ok(value) => value,
         Err(code) => return code,
     };
-    let buckets = domain_capture_statistics_daily_buckets(&session.state);
+    let buckets = session.session.all_daily_buckets();
     write_daily_buckets(buckets, out_ptr, out_cap, out_written)
 }
 
@@ -211,7 +140,7 @@ pub unsafe extern "C" fn vs_stats_session_reset(handle: *mut c_void) -> i32 {
         Ok(value) => value,
         Err(code) => return code,
     };
-    session.state = domain_capture_statistics_reset();
+    session.session.reset();
     VS_STATUS_OK
 }
 
@@ -230,12 +159,7 @@ pub unsafe extern "C" fn vs_stats_session_serialize_json(
         Ok(value) => value,
         Err(code) => return code,
     };
-    let snapshot = VsStatsSessionSnapshot {
-        version: VS_STATS_SESSION_SNAPSHOT_VERSION,
-        state: VsStatsStateSnapshot::from(&session.state),
-    };
-
-    let json = match serde_json::to_vec(&snapshot) {
+    let json = match session.session.serialize_snapshot_json() {
         Ok(value) => value,
         Err(_) => return VS_STATUS_REJECTED,
     };
@@ -269,17 +193,12 @@ pub unsafe extern "C" fn vs_stats_session_deserialize_json(
     }
 
     let json = unsafe { slice::from_raw_parts(json_ptr, json_len as usize) };
-    let snapshot: VsStatsSessionSnapshot = match serde_json::from_slice(json) {
+    let session = match DomainCaptureStatisticsSession::deserialize_snapshot_json(json) {
         Ok(value) => value,
         Err(_) => return std::ptr::null_mut(),
     };
-    if snapshot.version != VS_STATS_SESSION_SNAPSHOT_VERSION {
-        return std::ptr::null_mut();
-    }
 
-    let session = vs_stats_session {
-        state: DomainCaptureStatisticsState::from(snapshot.state),
-    };
+    let session = vs_stats_session { session };
     let handle = Box::into_raw(Box::new(session)).cast();
     register_handle(&STATS_SESSION_HANDLES, handle);
     handle

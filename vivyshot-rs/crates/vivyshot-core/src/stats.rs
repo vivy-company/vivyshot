@@ -5,6 +5,7 @@ use time::{Date, Month, OffsetDateTime, UtcOffset};
 pub const STATS_EVENT_SCREENSHOT_CAPTURED: u8 = 0;
 pub const STATS_EVENT_SCREENSHOT_SESSION_COMPLETED: u8 = 1;
 pub const STATS_EVENT_RECORDING_COMPLETED: u8 = 2;
+pub const STATS_SESSION_SNAPSHOT_VERSION: u32 = 1;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct StatsDayKey {
@@ -154,6 +155,159 @@ pub struct CaptureStatisticsState {
     pub ingested_event_keys: HashSet<String>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureStatisticsStateSnapshot {
+    pub total_screenshots_captured: i64,
+    pub total_recordings_completed: i64,
+    pub total_recorded_duration_ms: i64,
+    pub total_screenshot_completion_duration_ms: i64,
+    pub completed_screenshot_session_count: i64,
+    pub total_capture_bytes_produced: i64,
+    pub current_capture_streak_days: i32,
+    pub best_capture_streak_days: i32,
+    pub first_capture_day_key: Option<StatsDayKey>,
+    pub last_capture_day_key: Option<StatsDayKey>,
+    pub daily_capture: Vec<DailyCaptureStats>,
+    pub ingested_event_keys: Vec<String>,
+}
+
+impl From<&CaptureStatisticsState> for CaptureStatisticsStateSnapshot {
+    fn from(state: &CaptureStatisticsState) -> Self {
+        let mut ingested_event_keys = state
+            .ingested_event_keys
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        ingested_event_keys.sort();
+
+        Self {
+            total_screenshots_captured: state.total_screenshots_captured,
+            total_recordings_completed: state.total_recordings_completed,
+            total_recorded_duration_ms: state.total_recorded_duration_ms,
+            total_screenshot_completion_duration_ms: state.total_screenshot_completion_duration_ms,
+            completed_screenshot_session_count: state.completed_screenshot_session_count,
+            total_capture_bytes_produced: state.total_capture_bytes_produced,
+            current_capture_streak_days: state.current_capture_streak_days,
+            best_capture_streak_days: state.best_capture_streak_days,
+            first_capture_day_key: state.first_capture_day_key,
+            last_capture_day_key: state.last_capture_day_key,
+            daily_capture: state.daily_capture.values().cloned().collect(),
+            ingested_event_keys,
+        }
+    }
+}
+
+impl From<CaptureStatisticsStateSnapshot> for CaptureStatisticsState {
+    fn from(snapshot: CaptureStatisticsStateSnapshot) -> Self {
+        let daily_capture = snapshot
+            .daily_capture
+            .into_iter()
+            .map(|bucket| (bucket.day_key, bucket))
+            .collect();
+        let ingested_event_keys = snapshot.ingested_event_keys.into_iter().collect();
+
+        Self {
+            total_screenshots_captured: snapshot.total_screenshots_captured,
+            total_recordings_completed: snapshot.total_recordings_completed,
+            total_recorded_duration_ms: snapshot.total_recorded_duration_ms,
+            total_screenshot_completion_duration_ms: snapshot
+                .total_screenshot_completion_duration_ms,
+            completed_screenshot_session_count: snapshot.completed_screenshot_session_count,
+            total_capture_bytes_produced: snapshot.total_capture_bytes_produced,
+            current_capture_streak_days: snapshot.current_capture_streak_days,
+            best_capture_streak_days: snapshot.best_capture_streak_days,
+            first_capture_day_key: snapshot.first_capture_day_key,
+            last_capture_day_key: snapshot.last_capture_day_key,
+            daily_capture,
+            ingested_event_keys,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureStatisticsSessionSnapshot {
+    pub version: u32,
+    pub state: CaptureStatisticsStateSnapshot,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CaptureStatisticsSession {
+    state: CaptureStatisticsState,
+}
+
+impl CaptureStatisticsSession {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn from_state(state: CaptureStatisticsState) -> Self {
+        Self { state }
+    }
+
+    pub fn into_state(self) -> CaptureStatisticsState {
+        self.state
+    }
+
+    pub fn state(&self) -> &CaptureStatisticsState {
+        &self.state
+    }
+
+    pub fn state_mut(&mut self) -> &mut CaptureStatisticsState {
+        &mut self.state
+    }
+
+    pub fn ingest_event(
+        &mut self,
+        event: &CaptureStatisticsEvent,
+    ) -> Result<bool, CaptureStatisticsError> {
+        capture_statistics_ingest_event(&mut self.state, event)
+    }
+
+    pub fn summary(&self) -> CaptureStatisticsSummary {
+        capture_statistics_summary(&self.state)
+    }
+
+    pub fn all_daily_buckets(&self) -> Vec<DailyCaptureStats> {
+        capture_statistics_daily_buckets(&self.state)
+    }
+
+    pub fn recent_daily_buckets(&self, day_count: usize) -> Vec<DailyCaptureStats> {
+        capture_statistics_recent_daily_buckets(&self.state, day_count)
+    }
+
+    pub fn reset(&mut self) {
+        self.state = capture_statistics_reset();
+    }
+
+    pub fn snapshot(&self) -> CaptureStatisticsSessionSnapshot {
+        CaptureStatisticsSessionSnapshot {
+            version: STATS_SESSION_SNAPSHOT_VERSION,
+            state: CaptureStatisticsStateSnapshot::from(&self.state),
+        }
+    }
+
+    pub fn from_snapshot(
+        snapshot: CaptureStatisticsSessionSnapshot,
+    ) -> Result<Self, CaptureStatisticsError> {
+        if snapshot.version != STATS_SESSION_SNAPSHOT_VERSION {
+            return Err(CaptureStatisticsError::InvalidSnapshotVersion);
+        }
+        Ok(Self {
+            state: snapshot.state.into(),
+        })
+    }
+
+    pub fn serialize_snapshot_json(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(&self.snapshot())
+    }
+
+    pub fn deserialize_snapshot_json(json: &[u8]) -> Result<Self, CaptureStatisticsError> {
+        let snapshot: CaptureStatisticsSessionSnapshot =
+            serde_json::from_slice(json).map_err(|_| CaptureStatisticsError::InvalidSnapshot)?;
+        Self::from_snapshot(snapshot)
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CaptureStatisticsSummary {
     pub total_screenshots_captured: i64,
@@ -185,6 +339,8 @@ pub enum CaptureStatisticsError {
     MissingScreenshotCompletionDuration,
     UnexpectedDuration,
     UnexpectedScreenshotCompletionDuration,
+    InvalidSnapshot,
+    InvalidSnapshotVersion,
 }
 
 pub fn capture_statistics_ingest_event(
@@ -204,10 +360,13 @@ pub fn capture_statistics_ingest_event(
             state.total_capture_bytes_produced = state
                 .total_capture_bytes_produced
                 .saturating_add(event.bytes_produced);
-            let bucket = state.daily_capture.entry(day_key).or_insert_with(|| DailyCaptureStats {
-                day_key,
-                ..DailyCaptureStats::default()
-            });
+            let bucket = state
+                .daily_capture
+                .entry(day_key)
+                .or_insert_with(|| DailyCaptureStats {
+                    day_key,
+                    ..DailyCaptureStats::default()
+                });
             bucket.record_screenshot(event.occurred_at_ms, event.bytes_produced);
             update_streak(state, day_key);
         }
@@ -230,10 +389,13 @@ pub fn capture_statistics_ingest_event(
             state.total_capture_bytes_produced = state
                 .total_capture_bytes_produced
                 .saturating_add(event.bytes_produced);
-            let bucket = state.daily_capture.entry(day_key).or_insert_with(|| DailyCaptureStats {
-                day_key,
-                ..DailyCaptureStats::default()
-            });
+            let bucket = state
+                .daily_capture
+                .entry(day_key)
+                .or_insert_with(|| DailyCaptureStats {
+                    day_key,
+                    ..DailyCaptureStats::default()
+                });
             bucket.record_recording(event.occurred_at_ms, duration_ms, event.bytes_produced);
             update_streak(state, day_key);
         }
@@ -243,17 +405,18 @@ pub fn capture_statistics_ingest_event(
 }
 
 pub fn capture_statistics_summary(state: &CaptureStatisticsState) -> CaptureStatisticsSummary {
-    let (most_active_day_key, most_active_day_score) = state
-        .daily_capture
-        .iter()
-        .fold((None, 0_i64), |best, (day_key, bucket)| {
-            let score = bucket.activity_score();
-            if score < best.1 {
-                best
-            } else {
-                (Some(*day_key), score)
-            }
-        });
+    let (most_active_day_key, most_active_day_score) =
+        state
+            .daily_capture
+            .iter()
+            .fold((None, 0_i64), |best, (day_key, bucket)| {
+                let score = bucket.activity_score();
+                if score < best.1 {
+                    best
+                } else {
+                    (Some(*day_key), score)
+                }
+            });
 
     CaptureStatisticsSummary {
         total_screenshots_captured: state.total_screenshots_captured,
@@ -303,7 +466,8 @@ pub fn capture_statistics_recent_daily_buckets(
                     ..DailyCaptureStats::default()
                 }),
         );
-        let Some(previous_date) = current_day.as_date().and_then(|value| value.previous_day()) else {
+        let Some(previous_date) = current_day.as_date().and_then(|value| value.previous_day())
+        else {
             break;
         };
         current_day = StatsDayKey::from_date(previous_date);
@@ -388,7 +552,9 @@ fn validate_event(event: &CaptureStatisticsEvent) -> Result<(), CaptureStatistic
     Ok(())
 }
 
-fn derive_event_day_key(event: &CaptureStatisticsEvent) -> Result<StatsDayKey, CaptureStatisticsError> {
+fn derive_event_day_key(
+    event: &CaptureStatisticsEvent,
+) -> Result<StatsDayKey, CaptureStatisticsError> {
     StatsDayKey::from_timestamp_ms_and_offset(event.occurred_at_ms, event.timezone_offset_minutes)
         .ok_or(CaptureStatisticsError::InvalidTimestamp)
 }
@@ -414,7 +580,10 @@ fn update_streak(state: &mut CaptureStatisticsState, day_key: StatsDayKey) {
     state.best_capture_streak_days = state
         .best_capture_streak_days
         .max(state.current_capture_streak_days);
-    if state.last_capture_day_key.map_or(true, |existing| day_key > existing) {
+    if state
+        .last_capture_day_key
+        .map_or(true, |existing| day_key > existing)
+    {
         state.last_capture_day_key = Some(day_key);
     }
 }
@@ -422,6 +591,7 @@ fn update_streak(state: &mut CaptureStatisticsState, day_key: StatsDayKey) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
 
     fn screenshot_event(
         event_key: &str,
@@ -484,16 +654,29 @@ mod tests {
     #[test]
     fn duplicate_events_are_no_ops() {
         let mut state = CaptureStatisticsState::default();
-        let event = screenshot_event("screenshot_capture:c1", "c1", 1_710_000_000_000, 480, 10_240);
-        assert_eq!(capture_statistics_ingest_event(&mut state, &event), Ok(true));
-        assert_eq!(capture_statistics_ingest_event(&mut state, &event), Ok(false));
+        let event = screenshot_event(
+            "screenshot_capture:c1",
+            "c1",
+            1_710_000_000_000,
+            480,
+            10_240,
+        );
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &event),
+            Ok(true)
+        );
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &event),
+            Ok(false)
+        );
         assert_eq!(state.total_screenshots_captured, 1);
     }
 
     #[test]
     fn screenshot_completion_durations_accumulate() {
         let mut state = CaptureStatisticsState::default();
-        let capture = screenshot_event("screenshot_capture:c1", "c1", 1_710_000_000_000, 480, 2_000);
+        let capture =
+            screenshot_event("screenshot_capture:c1", "c1", 1_710_000_000_000, 480, 2_000);
         let completion = screenshot_completed_event(
             "screenshot_session_completed:c1",
             "c1",
@@ -501,28 +684,37 @@ mod tests {
             480,
             10_000,
         );
-        assert_eq!(capture_statistics_ingest_event(&mut state, &capture), Ok(true));
-        assert_eq!(capture_statistics_ingest_event(&mut state, &completion), Ok(true));
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &capture),
+            Ok(true)
+        );
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &completion),
+            Ok(true)
+        );
         let summary = capture_statistics_summary(&state);
         assert_eq!(summary.total_screenshots_captured, 1);
         assert_eq!(summary.completed_screenshot_session_count, 1);
-        assert_eq!(summary.average_screenshot_editor_completion_duration_ms, 10_000);
+        assert_eq!(
+            summary.average_screenshot_editor_completion_duration_ms,
+            10_000
+        );
     }
 
     #[test]
     fn streaks_advance_across_consecutive_days() {
         let mut state = CaptureStatisticsState::default();
         let first = screenshot_event("screenshot_capture:c1", "c1", 1_710_000_000_000, 0, 1_000);
-        let second = screenshot_event(
-            "screenshot_capture:c2",
-            "c2",
-            1_710_086_400_000,
-            0,
-            1_500,
+        let second = screenshot_event("screenshot_capture:c2", "c2", 1_710_086_400_000, 0, 1_500);
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &first),
+            Ok(true)
         );
-        assert_eq!(capture_statistics_ingest_event(&mut state, &first), Ok(true));
         assert_eq!(state.current_capture_streak_days, 1);
-        assert_eq!(capture_statistics_ingest_event(&mut state, &second), Ok(true));
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &second),
+            Ok(true)
+        );
         assert_eq!(state.current_capture_streak_days, 2);
         assert_eq!(state.best_capture_streak_days, 2);
     }
@@ -538,7 +730,10 @@ mod tests {
             25_000_000,
             610_000,
         );
-        assert_eq!(capture_statistics_ingest_event(&mut state, &event), Ok(true));
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &event),
+            Ok(true)
+        );
         let summary = capture_statistics_summary(&state);
         assert_eq!(summary.total_recordings_completed, 1);
         assert_eq!(summary.total_recorded_duration_ms, 610_000);
@@ -550,15 +745,15 @@ mod tests {
     fn recent_daily_buckets_zero_fill_gaps() {
         let mut state = CaptureStatisticsState::default();
         let first = screenshot_event("screenshot_capture:c1", "c1", 1_710_000_000_000, 0, 1_000);
-        let third = screenshot_event(
-            "screenshot_capture:c3",
-            "c3",
-            1_710_172_800_000,
-            0,
-            1_000,
+        let third = screenshot_event("screenshot_capture:c3", "c3", 1_710_172_800_000, 0, 1_000);
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &first),
+            Ok(true)
         );
-        assert_eq!(capture_statistics_ingest_event(&mut state, &first), Ok(true));
-        assert_eq!(capture_statistics_ingest_event(&mut state, &third), Ok(true));
+        assert_eq!(
+            capture_statistics_ingest_event(&mut state, &third),
+            Ok(true)
+        );
 
         let recent = capture_statistics_recent_daily_buckets(&state, 3);
         assert_eq!(recent.len(), 3);
@@ -575,5 +770,43 @@ mod tests {
         assert_ne!(pacific, china);
         assert_eq!(pacific.to_yyyy_mm_dd(), "2024-03-09");
         assert_eq!(china.to_yyyy_mm_dd(), "2024-03-10");
+    }
+
+    #[test]
+    fn session_snapshot_roundtrip_preserves_state() {
+        let mut session = CaptureStatisticsSession::new();
+        let screenshot =
+            screenshot_event("screenshot_capture:c1", "c1", 1_710_000_000_000, 480, 2_048);
+        let completed = screenshot_completed_event(
+            "screenshot_session_completed:c1",
+            "c1",
+            1_710_000_010_000,
+            480,
+            8_000,
+        );
+
+        assert_eq!(session.ingest_event(&screenshot), Ok(true));
+        assert_eq!(session.ingest_event(&completed), Ok(true));
+
+        let json = session.serialize_snapshot_json().unwrap();
+        let restored = CaptureStatisticsSession::deserialize_snapshot_json(&json).unwrap();
+
+        assert_eq!(restored.summary(), session.summary());
+        assert_eq!(restored.all_daily_buckets(), session.all_daily_buckets());
+    }
+
+    #[test]
+    fn session_snapshot_version_is_rejected() {
+        let session = CaptureStatisticsSession::new();
+        let mut value: Value =
+            serde_json::from_slice(&session.serialize_snapshot_json().unwrap()).unwrap();
+        value["version"] = Value::from(999u32);
+        let json = serde_json::to_vec(&value).unwrap();
+
+        let restored = CaptureStatisticsSession::deserialize_snapshot_json(&json);
+        assert!(matches!(
+            restored,
+            Err(CaptureStatisticsError::InvalidSnapshotVersion)
+        ));
     }
 }

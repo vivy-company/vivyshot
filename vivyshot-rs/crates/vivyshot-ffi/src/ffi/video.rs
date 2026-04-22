@@ -1,16 +1,26 @@
 use crate::{
     vs_video_export_context, vs_video_export_plan, vs_video_overlay_clip_window,
-    vs_video_overlay_label_layout,
+    vs_video_overlay_label_layout, vs_video_post_recording_composition_plan,
 };
 use vivyshot_domain::{
     compute_video_export_plan as domain_compute_video_export_plan,
+    estimated_video_file_length_limit as domain_estimated_video_file_length_limit,
+    post_recording_video_composition_plan as domain_post_recording_video_composition_plan,
     derive_key_overlay_label_layout as domain_derive_key_overlay_label_layout,
     derive_overlay_clip_window as domain_derive_overlay_clip_window,
     derive_text_overlay_label_layout as domain_derive_text_overlay_label_layout,
     overlay_fade_duration_seconds as domain_overlay_fade_duration_seconds,
+    best_video_export_container as domain_best_video_export_container,
+    best_video_export_preset as domain_best_video_export_preset,
+    preferred_video_export_container as domain_preferred_video_export_container,
 };
 
-use super::domain::{to_domain_video_export_context, to_ffi_video_export_plan};
+use super::domain::{
+    to_domain_affine_transform, to_domain_video_export_bitrate_preset,
+    to_domain_video_export_codec, to_domain_video_export_frame_rate,
+    to_domain_video_export_quality, to_domain_video_export_scale, to_domain_video_export_context,
+    to_ffi_post_recording_video_composition_plan, to_ffi_video_export_plan,
+};
 
 pub(crate) fn compute_export_plan(
     trim_start_ms: u32,
@@ -27,6 +37,60 @@ pub(crate) fn compute_export_plan(
         to_domain_video_export_context(context),
     )
     .map(to_ffi_video_export_plan)
+}
+
+pub(crate) fn preferred_save_container(codec: u8) -> Option<u8> {
+    let codec = to_domain_video_export_codec(codec)?;
+    Some(super::domain::to_ffi_video_export_container(
+        domain_preferred_video_export_container(codec),
+    ))
+}
+
+pub(crate) fn best_save_container(codec: u8, supports_mp4: bool, supports_mov: bool) -> Option<u8> {
+    let codec = to_domain_video_export_codec(codec)?;
+    domain_best_video_export_container(codec, supports_mp4, supports_mov)
+        .map(super::domain::to_ffi_video_export_container)
+}
+
+pub(crate) fn best_export_preset(codec: u8, quality: u8, compatible_mask: u32) -> Option<u8> {
+    let codec = to_domain_video_export_codec(codec)?;
+    let quality = to_domain_video_export_quality(quality)?;
+    domain_best_video_export_preset(codec, quality, compatible_mask)
+        .map(super::domain::to_ffi_video_export_preset)
+}
+
+pub(crate) fn estimated_file_length_limit(
+    duration_seconds: f64,
+    codec: u8,
+    frame_rate: u8,
+    quality: u8,
+    scale: u8,
+    bitrate: u8,
+) -> Option<i64> {
+    domain_estimated_video_file_length_limit(
+        duration_seconds,
+        to_domain_video_export_codec(codec)?,
+        to_domain_video_export_frame_rate(frame_rate)?,
+        to_domain_video_export_quality(quality)?,
+        to_domain_video_export_scale(scale)?,
+        to_domain_video_export_bitrate_preset(bitrate)?,
+    )
+}
+
+pub(crate) fn post_recording_video_composition_plan(
+    natural_width: f32,
+    natural_height: f32,
+    preferred_transform: crate::vs_affine_transform,
+    scale: u8,
+) -> Option<vs_video_post_recording_composition_plan> {
+    let scale = to_domain_video_export_scale(scale)?;
+    domain_post_recording_video_composition_plan(
+        natural_width,
+        natural_height,
+        to_domain_affine_transform(preferred_transform),
+        scale,
+    )
+    .map(to_ffi_post_recording_video_composition_plan)
 }
 
 pub(crate) fn key_overlay_label_layout(

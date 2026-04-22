@@ -1,5 +1,11 @@
 "System Default" = "システム設定";
 "Upgrade" = "アップグレード";
+"Upgrade to Pro" = "Pro にアップグレード";
+"Purchase License" = "ライセンスを購入";
+"License" = "ライセンス";
+"License Details" = "ライセンス詳細";
+"License Options" = "ライセンスオプション";
+"Choose your license" = "ライセンスを選択";
 "Statistics" = "統計";
 "General" = "一般";
 "Appearance" = "外観";
@@ -43,7 +49,8 @@
 "Free" = "無料";
 "Lifetime" = "買い切り";
 "Supporter" = "サポーター";
-"Upgrade VivyShot" = "VivyShot をアップグレード";
+"Purchase Supporter Badge" = "サポーターバッジを購入";
+"VivyShot License" = "VivyShot ライセンス";
 "Lifetime access or support the project" = "買い切りアクセスまたはプロジェクト支援";
 "Review Recording" = "録画を確認";
 "Discard this recording?" = "この録画を破棄しますか？";

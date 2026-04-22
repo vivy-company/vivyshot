@@ -34,7 +34,6 @@ fi
 
 echo "==> Installing to $INSTALL_APP_PATH..."
 pkill -x VivyShot >/dev/null 2>&1 || true
-pkill -x VivyShotDev >/dev/null 2>&1 || true
 
 rm -rf "$INSTALL_APP_PATH" 2>/dev/null || true
 if ! ditto "$APP_SOURCE_PATH" "$INSTALL_APP_PATH"; then

@@ -1,5 +1,11 @@
 "System Default" = "시스템 기본값";
 "Upgrade" = "업그레이드";
+"Upgrade to Pro" = "프로로 업그레이드";
+"Purchase License" = "라이선스 구매";
+"License" = "라이선스";
+"License Details" = "라이선스 세부정보";
+"License Options" = "라이선스 옵션";
+"Choose your license" = "라이선스 선택";
 "Statistics" = "통계";
 "General" = "일반";
 "Appearance" = "모양";
@@ -34,7 +40,8 @@
 "Free" = "무료";
 "Lifetime" = "라이프타임";
 "Supporter" = "서포터";
-"Upgrade VivyShot" = "VivyShot 업그레이드";
+"Purchase Supporter Badge" = "서포터 배지 구매";
+"VivyShot License" = "VivyShot 라이선스";
 "Lifetime access or support the project" = "평생 이용권 또는 프로젝트 후원";
 "Review Recording" = "녹화 검토";
 "Discard this recording?" = "이 녹화를 버릴까요?";

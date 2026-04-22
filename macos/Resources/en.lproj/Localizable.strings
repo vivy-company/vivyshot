@@ -1,5 +1,10 @@
 "System Default" = "System Default";
 "Upgrade" = "Upgrade";
+"Upgrade to Pro" = "Upgrade to Pro";
+"Purchase License" = "Purchase License";
+"License" = "License";
+"License Details" = "License Details";
+"License Options" = "License Options";
 "Statistics" = "Statistics";
 "General" = "General";
 "Appearance" = "Appearance";
@@ -113,7 +118,7 @@
 "Supporter" = "Supporter";
 "Purchase verification failed" = "Purchase verification failed";
 "Product not found" = "Product not found";
-"Upgrade VivyShot" = "Upgrade VivyShot";
+"VivyShot License" = "VivyShot License";
 "Lifetime access or support the project" = "Lifetime access or support the project";
 "Review Recording" = "Review Recording";
 "Discard this recording?" = "Discard this recording?";
@@ -141,7 +146,7 @@
 "Active" = "Active";
 "Not active" = "Not active";
 "Lifetime is already active. Supporter can still be purchased separately if you want the badge and an extra way to support the project." = "Lifetime is already active. Supporter can still be purchased separately if you want the badge and an extra way to support the project.";
-"Get Supporter Badge" = "Get Supporter Badge";
+"Purchase Supporter Badge" = "Purchase Supporter Badge";
 "Actions" = "Actions";
 "Manage Access" = "Manage Access";
 "Supporter Options" = "Supporter Options";
@@ -181,6 +186,7 @@
 "Supporter and paid access are already active on this Mac." = "Supporter and paid access are already active on this Mac.";
 "Lifetime is already unlocked. Supporter adds the badge and helps support the project." = "Lifetime is already unlocked. Supporter adds the badge and helps support the project.";
 "Choose your upgrade" = "Choose your upgrade";
+"Choose your license" = "Choose your license";
 "Both purchases are one-time. Supporter includes the same full unlock plus a badge." = "Both purchases are one-time. Supporter includes the same full unlock plus a badge.";
 "Owned" = "Owned";
 "ACTIVE" = "ACTIVE";

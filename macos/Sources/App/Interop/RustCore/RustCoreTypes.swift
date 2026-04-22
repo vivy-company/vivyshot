@@ -76,6 +76,16 @@ struct RustVideoExportContext {
   let textOverlayCount: Int
 }
 
+struct RustVideoPostRecordingCompositionPlan {
+  let renderSize: CGSize
+  let transform: CGAffineTransform
+}
+
+enum RustVideoExportContainer: UInt8 {
+  case mp4 = 0
+  case mov = 1
+}
+
 enum RustVideoPlanMode: UInt8 {
   case passthrough = 0
   case compositeMP4 = 1

@@ -12,11 +12,27 @@
 
 #define VS_VIDEO_EXPORT_TARGET_GIF 1
 
-#define VS_STATS_EVENT_SCREENSHOT_CAPTURED DOMAIN_STATS_EVENT_SCREENSHOT_CAPTURED
+#define VS_VIDEO_EXPORT_CONTAINER_MP4 0
 
-#define VS_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED DOMAIN_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED
+#define VS_VIDEO_EXPORT_CONTAINER_MOV 1
 
-#define VS_STATS_EVENT_RECORDING_COMPLETED DOMAIN_STATS_EVENT_RECORDING_COMPLETED
+#define VS_VIDEO_EXPORT_PRESET_HIGHEST_QUALITY 0
+
+#define VS_VIDEO_EXPORT_PRESET_1920X1080 1
+
+#define VS_VIDEO_EXPORT_PRESET_1280X720 2
+
+#define VS_VIDEO_EXPORT_PRESET_MEDIUM_QUALITY 3
+
+#define VS_VIDEO_EXPORT_PRESET_HEVC_1920X1080 4
+
+#define VS_VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY 5
+
+#define VS_STATS_EVENT_SCREENSHOT_CAPTURED 0
+
+#define VS_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED 1
+
+#define VS_STATS_EVENT_RECORDING_COMPLETED 2
 
 #define VS_CORE_ABI_VERSION_MAJOR 1
 
@@ -205,6 +221,21 @@ typedef struct vs_video_export_decision {
   bool include_audio;
   bool include_webcam;
 } vs_video_export_decision;
+
+typedef struct vs_affine_transform {
+  float a;
+  float b;
+  float c;
+  float d;
+  float tx;
+  float ty;
+} vs_affine_transform;
+
+typedef struct vs_video_post_recording_composition_plan {
+  uint32_t render_width;
+  uint32_t render_height;
+  struct vs_affine_transform transform;
+} vs_video_post_recording_composition_plan;
 
 typedef struct vs_video_overlay_label_layout {
   float width;
@@ -476,6 +507,32 @@ int32_t vs_video_compute_export_plan(uint32_t trim_start_ms,
 int32_t vs_video_derive_export_decision(uint8_t target,
                                         struct vs_video_export_plan plan,
                                         struct vs_video_export_decision *out_decision);
+
+int32_t vs_video_preferred_save_container(uint8_t codec, uint8_t *out_container);
+
+int32_t vs_video_best_save_container(uint8_t codec,
+                                     bool supports_mp4,
+                                     bool supports_mov,
+                                     uint8_t *out_container);
+
+int32_t vs_video_best_export_preset(uint8_t codec,
+                                    uint8_t quality,
+                                    uint32_t compatible_mask,
+                                    uint8_t *out_preset);
+
+int32_t vs_video_estimated_file_length_limit(double duration_seconds,
+                                             uint8_t codec,
+                                             uint8_t frame_rate,
+                                             uint8_t quality,
+                                             uint8_t scale,
+                                             uint8_t bitrate,
+                                             int64_t *out_limit);
+
+int32_t vs_video_post_recording_video_composition_plan(float natural_width,
+                                                       float natural_height,
+                                                       struct vs_affine_transform preferred_transform,
+                                                       uint8_t scale,
+                                                       struct vs_video_post_recording_composition_plan *out_plan);
 
 int32_t vs_video_key_overlay_label_layout(float render_width,
                                           float render_height,

@@ -283,11 +283,11 @@ final class VideoCaptureCoordinator {
   private func quickSaveVideo(inputURL: URL, options: PostRecordingExportOptions) {
     let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
       .replacingOccurrences(of: ":", with: "-")
-    let contentType = options.preferredSaveContentType
+    let contentType = RustCoreBridge.shared.preferredVideoSaveContentType(codec: options.codec)
     let defaultName = "VivyShot \(timestamp).\(contentType.preferredFilenameExtension ?? "mp4")"
 
     let panel = NSSavePanel()
-    panel.allowedContentTypes = options.allowedSaveContentTypes
+    panel.allowedContentTypes = RustCoreBridge.shared.allowedVideoSaveContentTypes(codec: options.codec)
     panel.nameFieldStringValue = defaultName
     panel.canCreateDirectories = true
     panel.isExtensionHidden = false
@@ -300,14 +300,21 @@ final class VideoCaptureCoordinator {
         let durationTime = try await asset.load(.duration)
         let durationSeconds = max(0, CMTimeGetSeconds(durationTime))
         let trimRange = CMTimeRange(start: .zero, duration: durationTime)
-        let presetName = options.bestExportPreset(for: asset)
+        let presetName = RustCoreBridge.shared.bestVideoExportPreset(
+          codec: options.codec,
+          quality: options.quality,
+          compatiblePresets: AVAssetExportSession.exportPresets(compatibleWith: asset)
+        )
 
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
           TransientToast.show("Export failed: unable to create session.", duration: 2.5)
           return
         }
 
-        let outputFileType = options.bestOutputFileType(supportedTypes: exportSession.supportedFileTypes)
+        let outputFileType = RustCoreBridge.shared.bestVideoSaveFileType(
+          codec: options.codec,
+          supportedTypes: exportSession.supportedFileTypes
+        )
         exportSession.outputURL = outputURL
         exportSession.outputFileType = outputFileType
         exportSession.shouldOptimizeForNetworkUse = true
@@ -315,7 +322,10 @@ final class VideoCaptureCoordinator {
         if let videoComposition = try await makePostRecordingVideoComposition(asset: asset, options: options) {
           exportSession.videoComposition = videoComposition
         }
-        if let fileLengthLimit = options.estimatedFileLengthLimit(durationSeconds: durationSeconds) {
+        if let fileLengthLimit = RustCoreBridge.shared.estimatedVideoFileLengthLimit(
+          durationSeconds: durationSeconds,
+          options: options
+        ) {
           exportSession.fileLengthLimit = fileLengthLimit
         }
         try await exportSession.vs_export()
@@ -339,29 +349,24 @@ final class VideoCaptureCoordinator {
     let preferredTransform = try await videoTrack.load(.preferredTransform)
     let duration = try await asset.load(.duration)
 
-    let baseRect = CGRect(origin: .zero, size: naturalSize)
-    let scaledTransform = preferredTransform.scaledBy(x: options.scale.factor, y: options.scale.factor)
-    let transformedRect = baseRect.applying(scaledTransform)
-    let translation = CGAffineTransform(
-      translationX: -transformedRect.minX,
-      y: -transformedRect.minY
-    )
-    let finalTransform = scaledTransform.concatenating(translation)
-
-    let renderWidth = max(2, Int(abs(transformedRect.width).rounded()) & ~1)
-    let renderHeight = max(2, Int(abs(transformedRect.height).rounded()) & ~1)
-    let renderSize = CGSize(width: renderWidth, height: renderHeight)
+    guard let plan = RustCoreBridge.shared.postRecordingVideoCompositionPlan(
+      naturalSize: naturalSize,
+      preferredTransform: preferredTransform,
+      scale: options.scale
+    ) else {
+      return nil
+    }
 
     let instruction = AVMutableVideoCompositionInstruction()
     instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
 
     let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
-    layerInstruction.setTransform(finalTransform, at: .zero)
+    layerInstruction.setTransform(plan.transform, at: .zero)
     instruction.layerInstructions = [layerInstruction]
 
     let composition = AVMutableVideoComposition()
     composition.instructions = [instruction]
-    composition.renderSize = renderSize
+    composition.renderSize = plan.renderSize
     composition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(options.frameRate.rawValue))
     return composition
   }
@@ -490,156 +495,6 @@ final class VideoCaptureCoordinator {
 
   private var effectiveHighlightKeystrokesEnabled: Bool {
     videoKeystrokesFeatureEnabled && settings.videoHighlightKeystrokes
-  }
-}
-
-private extension PostRecordingExportOptions {
-  var preferredSaveContentType: UTType {
-    switch codec {
-    case .h264:
-      return .mpeg4Movie
-    case .hevc:
-      return .quickTimeMovie
-    }
-  }
-
-  var allowedSaveContentTypes: [UTType] {
-    switch codec {
-    case .h264:
-      return [.mpeg4Movie, .quickTimeMovie]
-    case .hevc:
-      return [.quickTimeMovie, .mpeg4Movie]
-    }
-  }
-
-  func bestOutputFileType(supportedTypes: [AVFileType]) -> AVFileType {
-    switch codec {
-    case .h264:
-      if supportedTypes.contains(.mp4) {
-        return .mp4
-      }
-      return supportedTypes.first ?? .mov
-    case .hevc:
-      if supportedTypes.contains(.mov) {
-        return .mov
-      }
-      if supportedTypes.contains(.mp4) {
-        return .mp4
-      }
-      return supportedTypes.first ?? .mov
-    }
-  }
-
-  func bestExportPreset(for asset: AVAsset) -> String {
-    let compatiblePresets = AVAssetExportSession.exportPresets(compatibleWith: asset)
-    let candidates: [String]
-
-    switch (codec, quality) {
-    case (.h264, .standard):
-      candidates = [
-        AVAssetExportPreset1920x1080,
-        AVAssetExportPreset1280x720,
-        AVAssetExportPresetMediumQuality,
-        AVAssetExportPresetHighestQuality
-      ]
-    case (.h264, .high):
-      candidates = [
-        AVAssetExportPresetHighestQuality,
-        AVAssetExportPreset1920x1080,
-        AVAssetExportPreset1280x720
-      ]
-    case (.hevc, .standard):
-      candidates = [
-        AVAssetExportPresetHEVC1920x1080,
-        AVAssetExportPresetHEVCHighestQuality,
-        AVAssetExportPresetHighestQuality
-      ]
-    case (.hevc, .high):
-      candidates = [
-        AVAssetExportPresetHEVCHighestQuality,
-        AVAssetExportPresetHEVC1920x1080,
-        AVAssetExportPresetHighestQuality
-      ]
-    }
-
-    return candidates.first(where: { compatiblePresets.contains($0) }) ?? AVAssetExportPresetHighestQuality
-  }
-
-  func estimatedFileLengthLimit(durationSeconds: Double) -> Int64? {
-    guard durationSeconds > 0 else {
-      return nil
-    }
-
-    var videoBitrate = bitrate.baseBitsPerSecond
-    videoBitrate *= quality.multiplier
-    videoBitrate *= frameRate.multiplier
-    videoBitrate *= scale.multiplier
-    videoBitrate *= codec.compressionMultiplier
-
-    let totalBitsPerSecond = max(2_000_000, Int(videoBitrate.rounded()))
-    let bytes = (durationSeconds * Double(totalBitsPerSecond)) / 8.0
-    return Int64(bytes.rounded(.up))
-  }
-}
-
-private extension PostRecordingExportBitratePreset {
-  var baseBitsPerSecond: Double {
-    switch self {
-    case .standard:
-      return 8_000_000
-    case .high:
-      return 14_000_000
-    case .veryHigh:
-      return 22_000_000
-    }
-  }
-}
-
-private extension PostRecordingExportQuality {
-  var multiplier: Double {
-    switch self {
-    case .standard:
-      return 1.0
-    case .high:
-      return 1.2
-    }
-  }
-}
-
-private extension PostRecordingExportFrameRate {
-  var multiplier: Double {
-    switch self {
-    case .fps30:
-      return 1.0
-    case .fps60:
-      return 1.35
-    case .fps120:
-      return 1.8
-    }
-  }
-}
-
-private extension PostRecordingExportScale {
-  var multiplier: Double {
-    switch self {
-    case .full:
-      return 1.0
-    case .percent75:
-      return 0.72
-    case .percent50:
-      return 0.55
-    }
-  }
-}
-
-private extension PostRecordingExportCodec {
-  var compressionMultiplier: Double {
-    switch self {
-    case .h264:
-      return 1.0
-    case .hevc:
-      return 0.78
-    }
   }
 }
 

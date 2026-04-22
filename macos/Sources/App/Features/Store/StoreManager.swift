@@ -82,8 +82,9 @@ final class StoreManager: ObservableObject {
         purchaseState = .idle
       }
     } catch {
-      purchaseState = .failed(error.localizedDescription)
-      logger.error("Purchase failed: \(error.localizedDescription)")
+      let message = purchaseFailureMessage(for: error)
+      purchaseState = .failed(message)
+      logger.error("Purchase failed: \(message)")
     }
   }
 
@@ -108,8 +109,9 @@ final class StoreManager: ObservableObject {
       restoreState = .restored(hasAccess: hasPaidAccess)
       logger.info("Restore completed")
     } catch {
-      restoreState = .failed(error.localizedDescription)
-      logger.error("Restore failed: \(error.localizedDescription)")
+      let message = restoreFailureMessage(for: error)
+      restoreState = .failed(message)
+      logger.error("Restore failed: \(message)")
     }
   }
 
@@ -155,5 +157,33 @@ final class StoreManager: ObservableObject {
     case .unverified:
       throw StoreError.verificationFailed
     }
+  }
+
+  private func purchaseFailureMessage(for error: Error) -> String {
+    let message = error.localizedDescription
+    let normalized = message.lowercased()
+
+    if normalized.contains("sandbox"),
+       normalized.contains("permission"),
+       normalized.contains("in-app purchase")
+    {
+      return "This Sandbox Apple Account cannot make purchases right now. Sign in with a Sandbox tester that is allowed to make in-app purchases in App Store Connect."
+    }
+
+    return message
+  }
+
+  private func restoreFailureMessage(for error: Error) -> String {
+    let message = error.localizedDescription
+    let normalized = message.lowercased()
+
+    if normalized.contains("sandbox"),
+       normalized.contains("permission"),
+       normalized.contains("in-app purchase")
+    {
+      return "This Sandbox Apple Account cannot restore purchases right now. Sign in with a Sandbox tester that is allowed to make in-app purchases in App Store Connect."
+    }
+
+    return message
   }
 }

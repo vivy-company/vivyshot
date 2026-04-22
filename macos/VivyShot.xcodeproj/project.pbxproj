@@ -23,7 +23,6 @@
 		3293C133DF1A4B31736B5148 /* VideoCaptureComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A63F21778CC5E87650878CA /* VideoCaptureComponents.swift */; };
 		32D056FDA37CE29668BAD784 /* StoreViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBDF458763F94FAA4919012E /* StoreViews.swift */; };
 		334BCD9713252C7120CE9A27 /* AnnotationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D91B677D960DFB0D26E9C44 /* AnnotationTool.swift */; };
-		394091DB2A9921A6A322899F /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 101FF5863A4053D45DAED3C3 /* AppIcon.icns */; };
 		3AECEA6788A23BB1D307B14F /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CB3680D67A271DD95942D6 /* AppSettings.swift */; };
 		3DC7D7055455F7D3EFA549DF /* RustTimelineSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 816DD48AE89ABD30828BF4E0 /* RustTimelineSession.swift */; };
 		3EAA37C88CD88FE24C7522BC /* CaptureMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B26EFAF92AF34AAD2E24534 /* CaptureMode.swift */; };
@@ -85,7 +84,6 @@
 /* Begin PBXFileReference section */
 		03F33B526AE66F6F7197D725 /* RegionSelectionOverlay+EditingSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingSelection.swift"; sourceTree = "<group>"; };
 		05BDFA700DB8EFFBFBD4E286 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
-		101FF5863A4053D45DAED3C3 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		10E44C1A62C88CBB945A7AF4 /* AnnotationCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvasView.swift; sourceTree = "<group>"; };
 		11E4EA737BCAD29F3EE51FFA /* RegionSelectionOverlay+EditingToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingToolbar.swift"; sourceTree = "<group>"; };
 		19A1AFDC17A789D30DA0B5D0 /* RegionSelectionOverlay+EditingUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingUI.swift"; sourceTree = "<group>"; };
@@ -197,7 +195,6 @@
 			isa = PBXGroup;
 			children = (
 				BA2AE082AD1D1E751F851917 /* Localizable.strings */,
-				101FF5863A4053D45DAED3C3 /* AppIcon.icns */,
 				E09D563D2FE97127B7A1E0DB /* Assets.xcassets */,
 				2E3FA09634A5C59A860D6444 /* PrivacyInfo.xcprivacy */,
 				6C302A5AB0ABDEEFC2A13FE3 /* VivyShot.storekit */,
@@ -496,7 +493,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				394091DB2A9921A6A322899F /* AppIcon.icns in Resources */,
 				4EF7321858709E0AA0FA30CB /* Assets.xcassets in Resources */,
 				2ED7F1A68FA1FEABC1D8A2AA /* Localizable.strings in Resources */,
 				C1C1D5589A6113A8A1F16D65 /* PrivacyInfo.xcprivacy in Resources */,
@@ -776,7 +772,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VivyShotDev.app/Contents/MacOS/VivyShotDev";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VivyShot.app/Contents/MacOS/VivyShot";
 			};
 			name = Debug;
 		};
@@ -801,8 +797,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot.dev;
-				PRODUCT_NAME = VivyShotDev;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vivyshot;
+				PRODUCT_NAME = VivyShot;
 				SDKROOT = macosx;
 			};
 			name = Debug;

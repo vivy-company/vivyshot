@@ -52,35 +52,28 @@ struct VivyShotApp: App {
       VivyShotSettingsView(settings: .shared)
         .environment(\.locale, localizer.locale)
     }
-
-    Window("Statistics", id: StatisticsWindowScene.id) {
-      StatisticsWindowSceneRootView()
-        .environment(\.locale, localizer.locale)
-    }
-    .defaultLaunchBehavior(.suppressed)
-    .restorationBehavior(.disabled)
-    .defaultSize(width: 780, height: 680)
-    .windowResizability(.contentMinSize)
-    .windowToolbarStyle(.unified(showsTitle: true))
   }
 }
 
 private struct MenuBarMenuContent: View {
   @ObservedObject var statusController: StatusItemController
   @ObservedObject private var storeManager = StoreManager.shared
-  @Environment(\.openWindow) private var openWindow
   @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     Group {
       if statusController.isRecordingActive {
-        Button(LocalizedStringKey("Stop Recording")) {
+        Button {
           statusController.captureOrStopPressed()
+        } label: {
+          Label("Stop Recording", systemImage: "stop.circle")
         }
         .keyboardShortcut("s", modifiers: .command)
       } else {
-        Button(LocalizedStringKey("Capture Region")) {
+        Button {
           statusController.captureOrStopPressed()
+        } label: {
+          Label("Capture Region", systemImage: "camera.viewfinder")
         }
         .keyboardShortcut("c", modifiers: .command)
       }
@@ -103,24 +96,32 @@ private struct MenuBarMenuContent: View {
         }
         .padding(.vertical, 2)
       } else {
-        Button(LocalizedStringKey("Upgrade")) {
+        Button {
           presentPaywallWindow()
+        } label: {
+          Label("Purchase License", systemImage: "sparkles")
         }
       }
 
-      Button(LocalizedStringKey("Statistics…")) {
+      Button {
         openStatisticsWindow()
+      } label: {
+        Label("Statistics…", systemImage: "chart.bar.xaxis")
       }
 
-      Button(LocalizedStringKey("Settings…")) {
+      Button {
         openSettingsOnTop()
+      } label: {
+        Label("Settings…", systemImage: "gearshape")
       }
       .keyboardShortcut(",", modifiers: .command)
 
       Divider()
 
-      Button(LocalizedStringKey("Quit VivyShot")) {
+      Button {
         statusController.quitPressed()
+      } label: {
+        Label("Quit VivyShot", systemImage: "power")
       }
       .keyboardShortcut("q", modifiers: .command)
     }
@@ -140,7 +141,7 @@ private struct MenuBarMenuContent: View {
 
   private func openStatisticsWindow() {
     NSApp.activate(ignoringOtherApps: true)
-    openWindow(id: StatisticsWindowScene.id)
+    presentStatisticsWindow()
   }
 }
 
