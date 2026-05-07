@@ -324,6 +324,7 @@ struct CaptureVideoToolbar: View {
   let highlightMouseClicks: Bool
   let highlightKeystrokes: Bool
   let toolOrder: [VideoToolbarTool]
+  let lockedTools: Set<VideoToolbarTool>
   let accentColor: Color
   let isRecordingActive: Bool
   let isRecordingPending: Bool
@@ -511,39 +512,45 @@ struct CaptureVideoToolbar: View {
       }
 
     case .microphone:
+      let locked = lockedTools.contains(.microphone)
       if fallback {
         fallbackIconButton(
           symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
-          help: "Microphone (⌥⌘M)",
+          help: locked ? "Microphone (Paid)" : "Microphone (⌥⌘M)",
           isSelected: recordMicrophone,
           isDisabled: isRecordingActive || isRecordingPending,
+          isLocked: locked,
           action: onToggleMicrophone
         )
       } else {
         toolbarIconButton(
           symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
-          help: "Microphone (⌥⌘M)",
+          help: locked ? "Microphone (Paid)" : "Microphone (⌥⌘M)",
           isSelected: recordMicrophone,
           isDisabled: isRecordingActive || isRecordingPending,
+          isLocked: locked,
           action: onToggleMicrophone
         )
       }
 
     case .webcam:
+      let locked = lockedTools.contains(.webcam)
       if fallback {
         fallbackIconButton(
           symbol: showWebcam ? "video.fill" : "video.slash.fill",
-          help: "Webcam Overlay (⌥⌘W)",
+          help: locked ? "Webcam Overlay (Paid)" : "Webcam Overlay (⌥⌘W)",
           isSelected: showWebcam,
           isDisabled: isRecordingActive || isRecordingPending,
+          isLocked: locked,
           action: onToggleWebcam
         )
       } else {
         toolbarIconButton(
           symbol: showWebcam ? "video.fill" : "video.slash.fill",
-          help: "Webcam Overlay (⌥⌘W)",
+          help: locked ? "Webcam Overlay (Paid)" : "Webcam Overlay (⌥⌘W)",
           isSelected: showWebcam,
           isDisabled: isRecordingActive || isRecordingPending,
+          isLocked: locked,
           action: onToggleWebcam
         )
       }
@@ -568,20 +575,23 @@ struct CaptureVideoToolbar: View {
       }
 
     case .keystrokes:
+      let locked = lockedTools.contains(.keystrokes)
       if fallback {
         fallbackIconButton(
           symbol: highlightKeystrokes ? "keyboard" : "keyboard.fill",
-          help: "Keystroke Highlights (⌥⌘K)",
+          help: locked ? "Keystroke Highlights (Paid)" : "Keystroke Highlights (⌥⌘K)",
           isSelected: highlightKeystrokes,
           isDisabled: isRecordingActive || isRecordingPending,
+          isLocked: locked,
           action: onToggleKeystrokes
         )
       } else {
         toolbarIconButton(
           symbol: highlightKeystrokes ? "keyboard" : "keyboard.fill",
-          help: "Keystroke Highlights (⌥⌘K)",
+          help: locked ? "Keystroke Highlights (Paid)" : "Keystroke Highlights (⌥⌘K)",
           isSelected: highlightKeystrokes,
           isDisabled: isRecordingActive || isRecordingPending,
+          isLocked: locked,
           action: onToggleKeystrokes
         )
       }
@@ -596,6 +606,7 @@ struct CaptureVideoToolbar: View {
     help: String,
     isSelected: Bool,
     isDisabled: Bool = false,
+    isLocked: Bool = false,
     action: @escaping () -> Void
   ) -> some View {
     HoverTooltipIconButton(
@@ -608,6 +619,7 @@ struct CaptureVideoToolbar: View {
       cornerRadius: 7,
       selectedFillOpacity: 0.18,
       selectedStrokeOpacity: 0.34,
+      isLocked: isLocked,
       action: action
     )
   }
@@ -617,6 +629,7 @@ struct CaptureVideoToolbar: View {
     help: String,
     isSelected: Bool,
     isDisabled: Bool = false,
+    isLocked: Bool = false,
     action: @escaping () -> Void
   ) -> some View {
     HoverTooltipIconButton(
@@ -629,6 +642,7 @@ struct CaptureVideoToolbar: View {
       cornerRadius: 7,
       selectedFillOpacity: 0.2,
       selectedStrokeOpacity: 0,
+      isLocked: isLocked,
       action: action
     )
   }

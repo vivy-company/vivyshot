@@ -209,7 +209,6 @@ This spec includes the following post-recording export controls as the intended 
 2. `Frame Rate`
    - `30 fps`
    - `60 fps`
-   - `120 fps`
 3. `Quality`
    - `Standard`
    - `High`
@@ -237,17 +236,15 @@ Free:
 1. `H.264`
 2. `30 fps`
 3. `Standard`
-4. `100%` scale
+4. `100%`, `75%`, and `50%` scale
 5. default bitrate preset
 
 Paid:
 
 1. `HEVC`
 2. `60 fps`
-3. `120 fps`
-4. `High`
-5. downscale presets
-6. higher bitrate presets
+3. `High`
+4. higher bitrate presets
 
 ### 7.4 Platform-Specific Rule
 
@@ -292,7 +289,7 @@ Suggested enums:
 
 ```text
 PostRecordingExportCodec = h264 | hevc
-PostRecordingExportFrameRate = fps30 | fps60 | fps120
+PostRecordingExportFrameRate = fps30 | fps60
 PostRecordingExportQuality = standard | high
 PostRecordingExportScale = full | percent75 | percent50
 PostRecordingExportBitratePreset = standard | high | veryHigh

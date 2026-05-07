@@ -15,11 +15,12 @@ struct RegionSelectionResult {
 
 @MainActor
 final class RegionSelectionOverlayController {
-  // TODO(vivyshot): Re-enable capture enter/exit transition effects once stable.
-  private let captureTransitionEffectsEnabled = false
   private let settings: AppSettings
+  private let storeManager = StoreManager.shared
   private var window: RegionSelectionWindow?
   private weak var selectionView: RegionSelectionView?
+  private var transitionPreviewStyleOverride: CaptureTransitionStyle?
+  private var transitionPreviewTask: Task<Void, Never>?
 
   init(settings: AppSettings = .shared) {
     self.settings = settings
@@ -182,7 +183,7 @@ final class RegionSelectionOverlayController {
     session: RustDocumentSession?,
     selectionRectInScreen: CGRect,
     initialCaptureType: CaptureContentType,
-    onStartVideo: @escaping (CGRect, @escaping (Bool) -> Void) -> Void,
+    onStartVideo: @escaping (CGRect, VideoCaptureOverlayState, @escaping (Bool) -> Void) -> Void,
     onStopVideo: @escaping () -> Void,
     onDone: @escaping () -> Void
   ) {
@@ -210,7 +211,7 @@ final class RegionSelectionOverlayController {
       }
     }
 
-    selectionView.onStartVideoRequested = { [weak window] localRect, completion in
+    selectionView.onStartVideoRequested = { [weak window] localRect, overlayState, completion in
       guard let window else {
         completion(false)
         return
@@ -218,7 +219,7 @@ final class RegionSelectionOverlayController {
       let globalRect = localRect
         .offsetBy(dx: window.frame.origin.x, dy: window.frame.origin.y)
         .standardized
-      onStartVideo(globalRect, completion)
+      onStartVideo(globalRect, overlayState, completion)
     }
 
     selectionView.onStopVideoRequested = { [weak self] in
@@ -229,8 +230,78 @@ final class RegionSelectionOverlayController {
     window.makeFirstResponder(selectionView)
   }
 
+  func previewCaptureTransition(onScreenFrame frame: CGRect, frozenImage: CGImage) {
+    guard !frame.isNull, !frame.isEmpty, settings.captureTransitionStyle != .none else {
+      return
+    }
+
+    transitionPreviewTask?.cancel()
+    transitionPreviewTask = nil
+    transitionPreviewStyleOverride = nil
+    closeWindow(animated: false)
+    transitionPreviewStyleOverride = settings.captureTransitionStyle
+
+    let window = RegionSelectionWindow(
+      contentRect: frame,
+      styleMask: [.nonactivatingPanel, .borderless],
+      backing: .buffered,
+      defer: false
+    )
+    window.isReleasedWhenClosed = false
+    window.level = .screenSaver
+    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+    window.backgroundColor = .clear
+    window.isOpaque = false
+    window.hasShadow = false
+    window.ignoresMouseEvents = false
+    window.acceptsMouseMovedEvents = true
+    window.animationBehavior = .none
+
+    let selectionView = RegionSelectionView(
+      frame: CGRect(origin: .zero, size: frame.size),
+      frozenImage: frozenImage,
+      settings: settings
+    )
+    selectionView.onCancelRequested = { [weak self] in
+      self?.closeTransitionPreview(animated: true)
+    }
+    selectionView.onCancelRequestedImmediately = { [weak self] in
+      self?.closeTransitionPreview(animated: false)
+    }
+    window.onCancel = { [weak selectionView] in
+      selectionView?.handleCancelShortcut()
+    }
+
+    window.contentView = selectionView
+    self.window = window
+    self.selectionView = selectionView
+
+    window.makeKeyAndOrderFront(nil)
+    window.makeFirstResponder(selectionView)
+    window.invalidateCursorRects(for: selectionView)
+    NSCursor.crosshair.set()
+    animateCaptureOverlayIn(window)
+
+    let holdDuration = transitionDuration(entering: true, style: settings.captureTransitionStyle) + 0.7
+    transitionPreviewTask = Task { @MainActor in
+      try? await Task.sleep(nanoseconds: UInt64(holdDuration * 1_000_000_000))
+      guard !Task.isCancelled else {
+        return
+      }
+      closeTransitionPreview(animated: true)
+    }
+  }
+
   func closeFlow(animated: Bool = true, completion: (() -> Void)? = nil) {
     closeWindow(animated: animated, completion: completion)
+  }
+
+  private func closeTransitionPreview(animated: Bool) {
+    transitionPreviewTask?.cancel()
+    transitionPreviewTask = nil
+    closeWindow(animated: animated) { [weak self] in
+      self?.transitionPreviewStyleOverride = nil
+    }
   }
 
   private func closeWindow(animated: Bool = true, completion: (() -> Void)? = nil) {
@@ -343,28 +414,30 @@ final class RegionSelectionOverlayController {
   }
 
   private func transitionDuration(entering: Bool, style: CaptureTransitionStyle) -> TimeInterval {
-    let speed = max(0.8, min(2.4, settings.captureTransitionSpeed))
-    let effectiveSpeed = 0.9 + speed * 0.7
+    let speed = max(0.5, min(2.4, settings.captureTransitionSpeed))
     let base: TimeInterval
     switch style {
     case .none:
       return 0
     case .fade:
-      base = entering ? 0.12 : 0.1
-    case .ripple:
       base = entering ? 0.24 : 0.2
+    case .ripple:
+      base = entering ? 0.44 : 0.36
     case .liquidDrop:
-      base = entering ? 0.3 : 0.25
+      base = entering ? 0.52 : 0.44
     case .zoomBlur:
-      base = entering ? 0.2 : 0.17
+      base = entering ? 0.38 : 0.32
     case .waterWave:
-      base = entering ? 0.33 : 0.28
+      base = entering ? 0.58 : 0.48
     }
-    return max(0.06, base / effectiveSpeed)
+    return max(0.12, base / speed)
   }
 
   private var effectiveCaptureTransitionStyle: CaptureTransitionStyle {
-    guard captureTransitionEffectsEnabled else {
+    if let transitionPreviewStyleOverride {
+      return transitionPreviewStyleOverride
+    }
+    guard storeManager.canUse(.captureTransitions) else {
       return .none
     }
     return settings.captureTransitionStyle
@@ -549,6 +622,117 @@ final class RegionSelectionOverlayController {
     return CGPath(ellipseIn: rect, transform: nil)
   }
 }
+
+@MainActor
+final class CaptureTransitionPreviewCoordinator {
+  static let shared = CaptureTransitionPreviewCoordinator()
+
+  private let overlay = RegionSelectionOverlayController(settings: .shared)
+  private var previewTask: Task<Void, Never>?
+
+  private init() {}
+
+  func preview() {
+    previewTask?.cancel()
+
+    guard let screen = activeScreenForPreview() else {
+      return
+    }
+
+    let frame = screen.frame
+    previewTask = Task { @MainActor in
+      let image = await capturePreviewImage(in: frame) ?? makeFallbackFrozenImage(size: frame.size)
+      guard !Task.isCancelled, let image else {
+        return
+      }
+      overlay.previewCaptureTransition(onScreenFrame: frame, frozenImage: image)
+    }
+  }
+
+  private func activeScreenForPreview() -> NSScreen? {
+    let mouse = NSEvent.mouseLocation
+    return NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main ?? NSScreen.screens.first
+  }
+
+  private func capturePreviewImage(in rect: CGRect) async -> CGImage? {
+    guard #available(macOS 15.2, *), CGPreflightScreenCaptureAccess() else {
+      return nil
+    }
+
+    return try? await withCheckedThrowingContinuation { continuation in
+      let captureRect: CGRect
+      if let primaryHeight = NSScreen.screens.first?.frame.height {
+        captureRect = CGRect(
+          x: rect.origin.x,
+          y: primaryHeight - rect.maxY,
+          width: rect.width,
+          height: rect.height
+        )
+      } else {
+        captureRect = rect
+      }
+
+      SCScreenshotManager.captureImage(in: captureRect) { image, error in
+        if let error {
+          continuation.resume(throwing: error)
+          return
+        }
+
+        guard let image else {
+          continuation.resume(throwing: NSError(
+            domain: "com.vivyshot.capture-preview",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "No image returned by ScreenCaptureKit."]
+          ))
+          return
+        }
+
+        continuation.resume(returning: image)
+      }
+    }
+  }
+
+  private func makeFallbackFrozenImage(size: CGSize) -> CGImage? {
+    let width = max(2, Int(size.width.rounded()))
+    let height = max(2, Int(size.height.rounded()))
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+
+    guard let context = CGContext(
+      data: nil,
+      width: width,
+      height: height,
+      bitsPerComponent: 8,
+      bytesPerRow: width * 4,
+      space: colorSpace,
+      bitmapInfo: bitmapInfo
+    ) else {
+      return nil
+    }
+
+    let bounds = CGRect(x: 0, y: 0, width: width, height: height)
+    context.setFillColor(NSColor.windowBackgroundColor.cgColor)
+    context.fill(bounds)
+
+    let panelRect = bounds.insetBy(dx: bounds.width * 0.18, dy: bounds.height * 0.2)
+    context.setFillColor(NSColor.controlBackgroundColor.cgColor)
+    context.fill(panelRect)
+
+    context.setFillColor(NSColor.labelColor.withAlphaComponent(0.16).cgColor)
+    for index in 0 ..< 7 {
+      let row = CGRect(
+        x: panelRect.minX + 32,
+        y: panelRect.minY + 36 + CGFloat(index) * 36,
+        width: panelRect.width * CGFloat(index.isMultiple(of: 2) ? 0.72 : 0.52),
+        height: 10
+      )
+      context.fill(row)
+    }
+
+    return context.makeImage()
+  }
+}
+
 final class RegionSelectionWindow: NSPanel {
   var onUndo: (() -> Void)?
   var onRedo: (() -> Void)?

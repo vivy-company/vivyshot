@@ -62,7 +62,7 @@ struct VivyShotStoreSettingsView: View {
           }
         }
 
-        LabeledContent("Paid Features") {
+        LabeledContent("Lifetime Features") {
           Text(storeManager.hasPaidAccess ? "Available" : "Not unlocked")
             .foregroundStyle(.secondary)
         }
@@ -75,7 +75,7 @@ struct VivyShotStoreSettingsView: View {
 
       if storeManager.hasLifetimeUnlock && !storeManager.hasSupporterBadge {
         Section("Supporter") {
-          Text("Lifetime is already active. Supporter can still be purchased separately if you want the badge and an extra way to support the project.")
+          Text("Lifetime is already active. Supporter can still be purchased separately if you want the badge and an extra way to fund VivyShot development.")
             .foregroundStyle(.secondary)
 
           Button("Purchase Supporter Badge") {
@@ -138,7 +138,7 @@ struct VivyShotStoreSettingsView: View {
 struct VivyShotPaywallView: View {
   @ObservedObject private var storeManager = StoreManager.shared
 
-  @State private var selectedProduct: Product?
+  @State private var selectedPlan: VivyShotPlanKind = .lifetime
   @State private var showSuccess = false
   @State private var alertInfo: AlertInfo?
 
@@ -149,52 +149,24 @@ struct VivyShotPaywallView: View {
     let isRestore: Bool
   }
 
-  private var features: [(icon: String, title: String, description: String, color: Color)] {
-    [
-      (
-        "wand.and.stars",
-        String(localized: "Lifetime unlock", bundle: AppLocalizer.shared.bundle),
-        String(localized: "A one-time unlock for the full tool.", bundle: AppLocalizer.shared.bundle),
-        .accentColor
-      ),
-      (
-        "heart.circle",
-        String(localized: "Supporter tier", bundle: AppLocalizer.shared.bundle),
-        String(localized: "Same full app as Lifetime, plus a small supporter badge.", bundle: AppLocalizer.shared.bundle),
-        .orange
-      ),
-      (
-        "arrow.clockwise.circle",
-        String(localized: "Restorable purchases", bundle: AppLocalizer.shared.bundle),
-        String(localized: "Everything is handled with standard StoreKit restore and entitlement updates.", bundle: AppLocalizer.shared.bundle),
-        .green
-      ),
-      (
-        "shippingbox",
-        String(localized: "No subscription", bundle: AppLocalizer.shared.bundle),
-        String(localized: "This store setup is intentionally simple: one-time purchases only.", bundle: AppLocalizer.shared.bundle),
-        .secondary
-      )
-    ]
-  }
-
   var body: some View {
     VStack(spacing: 0) {
-      VStack(alignment: .leading, spacing: 24) {
-        featuresSection
-        pricingPane
+      ScrollView {
+        contentStack
+          .padding(.horizontal, 22)
+          .padding(.top, 18)
+          .padding(.bottom, 18)
       }
-      .padding(.horizontal, 24)
-      .padding(.top, 22)
-      .padding(.bottom, 20)
+      .scrollIndicators(.automatic)
+
+      purchaseFooter
     }
-    .frame(width: 720)
-    .fixedSize(horizontal: false, vertical: true)
-    .background(Color(nsColor: .windowBackgroundColor))
+    .frame(width: 520, height: 720)
+    .background(sheetBackground)
     .task {
       await storeManager.loadProducts()
       await storeManager.refreshEntitlements()
-      selectedProduct = defaultSelectedProduct
+      selectedPlan = defaultPlan
     }
     .onChange(of: storeManager.purchaseState) { _, newState in
       handlePurchaseStateChange(newState)
@@ -233,30 +205,176 @@ struct VivyShotPaywallView: View {
     }
   }
 
+  private var contentStack: some View {
+    VStack(alignment: .leading, spacing: 18) {
+      comparisonSection
+      planSection
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var comparisonSection: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      sectionHeader(
+        title: String(localized: "Compare plans", bundle: AppLocalizer.shared.bundle),
+        subtitle: String(localized: "Try Pro features before buying. Your first Pro export is free.", bundle: AppLocalizer.shared.bundle)
+      )
+
+      NativeSectionCard(padding: 0) {
+        ComparisonTable(rows: comparisonRows)
+      }
+    }
+  }
+
+  private var planSection: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      sectionHeader(title: String(localized: "Choose a license", bundle: AppLocalizer.shared.bundle))
+
+      if availablePlans.isEmpty {
+        NativeSectionCard {
+          HStack(spacing: 10) {
+            ProgressView()
+            Text("Loading plans...")
+              .foregroundStyle(.secondary)
+          }
+          .frame(maxWidth: .infinity, minHeight: 82)
+        }
+      } else {
+        VStack(spacing: 12) {
+          ForEach(availablePlans) { plan in
+            if let product = product(for: plan) {
+              VivyShotPlanSelectionCard(
+                product: product,
+                plan: plan,
+                isSelected: selectedPlan == plan,
+                isOwned: isOwned(plan)
+              ) {
+                selectedPlan = plan
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var purchaseFooter: some View {
+    VStack(spacing: 5) {
+      Button {
+        if let product = selectedProduct {
+          Task { await storeManager.purchase(product) }
+        }
+      } label: {
+        ZStack {
+          Text(purchaseButtonTitle)
+            .fontWeight(.semibold)
+            .opacity(storeManager.purchaseState == .purchasing ? 0 : 1)
+
+          HStack(spacing: 8) {
+            ProgressView()
+              .progressViewStyle(.circular)
+              .controlSize(.small)
+              .tint(.white)
+
+            Text("Processing...")
+              .fontWeight(.semibold)
+          }
+          .opacity(storeManager.purchaseState == .purchasing ? 1 : 0)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 24)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.large)
+      .disabled(selectedProduct == nil || isSelectedPlanAlreadyOwned)
+      .allowsHitTesting(storeManager.purchaseState != .purchasing)
+
+      footerSupportRow
+
+      Text("One-time purchase. No subscription renewal.")
+        .font(.caption2)
+        .foregroundStyle(.tertiary)
+    }
+    .padding(.horizontal, 20)
+    .padding(.top, 8)
+    .padding(.bottom, 4)
+    .overlay(alignment: .top) {
+      Divider()
+        .opacity(0.55)
+    }
+    .background(sheetBackground)
+  }
+
+  private var footerSupportRow: some View {
+    HStack(spacing: 6) {
+      restoreButton
+
+      Text(verbatim: "•")
+        .foregroundStyle(.tertiary)
+
+      legalLink(title: "Terms", url: "https://vivyshot.com/terms")
+
+      Text(verbatim: "•")
+        .foregroundStyle(.tertiary)
+
+      legalLink(title: "Privacy", url: "https://vivyshot.com/privacy")
+
+      Text(verbatim: "•")
+        .foregroundStyle(.tertiary)
+
+      legalLink(title: "Refund", url: "https://vivyshot.com/refund")
+    }
+    .font(.caption)
+    .foregroundStyle(.secondary)
+    .lineLimit(1)
+    .minimumScaleFactor(0.75)
+  }
+
+  private var restoreButton: some View {
+    Button {
+      Task { await storeManager.restorePurchases() }
+    } label: {
+      HStack(spacing: 8) {
+        if storeManager.restoreState == .restoring {
+          ProgressView()
+            .progressViewStyle(.circular)
+            .scaleEffect(0.85)
+        } else {
+          Image(systemName: "arrow.clockwise.circle")
+            .imageScale(.small)
+        }
+        Text(storeManager.restoreState == .restoring
+             ? String(localized: "Restoring...", bundle: AppLocalizer.shared.bundle)
+             : String(localized: "Restore Purchases", bundle: AppLocalizer.shared.bundle))
+      }
+      .font(.footnote.weight(.semibold))
+      .foregroundStyle(.secondary)
+    }
+    .buttonStyle(.plain)
+    .disabled(storeManager.restoreState == .restoring)
+  }
+
   private var successOverlay: some View {
     ZStack {
-      Color.black.opacity(0.6)
+      Color.black.opacity(0.45)
         .ignoresSafeArea()
 
       VStack(spacing: 16) {
         Image(systemName: "checkmark.circle.fill")
-          .font(.system(size: 60))
-          .foregroundStyle(Color.accentColor)
+          .font(.system(size: 56))
+          .foregroundStyle(.green)
 
         Text(successTitle)
-          .font(.title2)
+          .font(.title3)
           .fontWeight(.semibold)
-          .foregroundStyle(.white)
 
         Text(successSubtitle)
           .font(.subheadline)
-          .foregroundStyle(.white.opacity(0.8))
+          .foregroundStyle(.secondary)
       }
-      .padding(32)
-      .background(
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-          .fill(.ultraThinMaterial)
-      )
+      .padding(28)
+      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+      .padding(24)
     }
     .transition(.opacity)
   }
@@ -269,196 +387,165 @@ struct VivyShotPaywallView: View {
 
   private var successSubtitle: String {
     storeManager.lastPurchasedProductID == VivyShotProducts.supporter
-      ? String(localized: "Supporter badge and paid access are active.", bundle: AppLocalizer.shared.bundle)
-      : String(localized: "Paid access is now active.", bundle: AppLocalizer.shared.bundle)
+      ? String(localized: "Supporter badge and Lifetime features are active.", bundle: AppLocalizer.shared.bundle)
+      : String(localized: "Lifetime features are now active.", bundle: AppLocalizer.shared.bundle)
   }
 
-  private var featuresSection: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      ForEach(Array(features.enumerated()), id: \.element.title) { index, feature in
-        HStack(spacing: 16) {
-          Image(systemName: feature.icon)
-            .font(.system(size: 22, weight: .medium))
-            .foregroundStyle(feature.color)
-            .frame(width: 32, height: 32)
+  private var availablePlans: [VivyShotPlanKind] {
+    VivyShotPlanKind.displayOrder.filter { product(for: $0) != nil }
+  }
 
-          VStack(alignment: .leading, spacing: 3) {
-            Text(feature.title)
-              .font(.body)
-              .fontWeight(.semibold)
-              .fixedSize(horizontal: false, vertical: true)
-            Text(feature.description)
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-          }
+  private var selectedProduct: Product? {
+    product(for: selectedPlan) ?? product(for: defaultPlan)
+  }
 
-          Spacer()
-        }
-        .padding(.vertical, 4)
-
-        if index < features.count - 1 {
-          Divider()
-            .overlay(Color.primary.opacity(0.08))
-        }
-      }
+  private var defaultPlan: VivyShotPlanKind {
+    if storeManager.hasLifetimeUnlock && !storeManager.hasSupporterBadge && storeManager.supporterProduct != nil {
+      return .supporter
     }
-    .padding(.horizontal, 4)
-    .padding(.vertical, 6)
+    if storeManager.lifetimeProduct != nil { return .lifetime }
+    if storeManager.supporterProduct != nil { return .supporter }
+    return .lifetime
   }
 
-  private var planOptionsSection: some View {
-    HStack(alignment: .top, spacing: 12) {
-      if let lifetime = storeManager.lifetimeProduct {
-        PlanOptionRow(
-          product: lifetime,
-          title: "Lifetime",
-          subtitle: "One-time unlock for the full tool",
-          badge: nil,
-          isSelected: selectedProduct?.id == lifetime.id,
-          isOwned: storeManager.hasLifetimeUnlock
-        ) {
-          selectedProduct = lifetime
-        }
-        .frame(maxWidth: .infinity)
-      }
-
-      if let supporter = storeManager.supporterProduct {
-        PlanOptionRow(
-          product: supporter,
-          title: "Supporter",
-          subtitle: "Same full app, plus supporter badge",
-          badge: nil,
-          isSelected: selectedProduct?.id == supporter.id,
-          isOwned: storeManager.hasSupporterBadge
-        ) {
-          selectedProduct = supporter
-        }
-        .frame(maxWidth: .infinity)
-      }
+  private func product(for plan: VivyShotPlanKind) -> Product? {
+    switch plan {
+    case .lifetime:
+      return storeManager.lifetimeProduct
+    case .supporter:
+      return storeManager.supporterProduct
     }
   }
 
-  private var pricingPane: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      VStack(alignment: .leading, spacing: 4) {
-        Text(pricingPaneTitle)
-          .font(.headline)
-
-        Text(pricingPaneSubtitle)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-      }
-
-      planOptionsSection
-
-      subscribeButton
-
-      HStack {
-        Spacer()
-        restoreButton
-        Spacer()
-      }
-
-      legalFooter
-        .padding(.top, 2)
+  private func isOwned(_ plan: VivyShotPlanKind) -> Bool {
+    switch plan {
+    case .lifetime:
+      return storeManager.hasLifetimeUnlock
+    case .supporter:
+      return storeManager.hasSupporterBadge
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private var restoreButton: some View {
-    Button {
-      Task { await storeManager.restorePurchases() }
-    } label: {
-      HStack(spacing: 8) {
-        if storeManager.restoreState == .restoring {
-          ProgressView()
-            .progressViewStyle(.circular)
-            .scaleEffect(0.8)
-        }
-        Text(storeManager.restoreState == .restoring ? "Restoring..." : "Restore Purchases")
-      }
-    }
-    .buttonStyle(.bordered)
-    .disabled(storeManager.restoreState == .restoring)
+  private var isSelectedPlanAlreadyOwned: Bool {
+    isOwned(selectedPlan)
   }
 
-  private var legalFooter: some View {
-    VStack(spacing: 8) {
-      Text("No subscription. Purchases are one-time and restorable.")
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.center)
-
-      HStack(spacing: 10) {
-        legalLink(title: "Terms of Use", url: "https://vivyshot.com/terms")
-        Text(verbatim: "•")
-          .foregroundStyle(.tertiary)
-        legalLink(title: "Privacy Policy", url: "https://vivyshot.com/privacy")
-        Text(verbatim: "•")
-          .foregroundStyle(.tertiary)
-        legalLink(title: "Refund Policy", url: "https://vivyshot.com/refund")
-      }
-      .font(.callout)
-      .foregroundStyle(.secondary)
+  private var purchaseButtonTitle: String {
+    guard let product = selectedProduct else { return String(localized: "Select a License", bundle: AppLocalizer.shared.bundle) }
+    if isSelectedPlanAlreadyOwned {
+      return String(localized: "Already Owned", bundle: AppLocalizer.shared.bundle)
     }
-    .frame(maxWidth: .infinity, alignment: .center)
+    if selectedPlan == .supporter && storeManager.hasLifetimeUnlock {
+      return String(format: String(localized: "Add Supporter for %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
+    }
+    if selectedPlan == .supporter {
+      return String(format: String(localized: "Become Supporter for %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
+    }
+    return String(format: String(localized: "Buy %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
   }
 
-  private var subscribeButtonTitle: String {
-    guard let product = selectedProduct else {
-      return String(localized: "Select a Plan", bundle: AppLocalizer.shared.bundle)
-    }
-    if storeManager.hasLifetimeUnlock && !storeManager.hasSupporterBadge && product.id == VivyShotProducts.supporter {
-      return String(format: String(localized: "Add supporter badge - %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
-    }
-    if product.id == VivyShotProducts.supporter {
-      return String(format: String(localized: "Become a supporter - %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
-    }
-    return String(format: String(localized: "Get lifetime - %@", bundle: AppLocalizer.shared.bundle), product.displayPrice)
-  }
-
-  @ViewBuilder
-  private var subscribeButton: some View {
-    Button {
-      if let product = selectedProduct {
-        Task { await storeManager.purchase(product) }
-      }
-    } label: {
-      HStack(spacing: 8) {
-        if storeManager.purchaseState == .purchasing {
-          ProgressView()
-            .progressViewStyle(.circular)
-            .scaleEffect(0.8)
-        }
-
-        Text(
-          storeManager.purchaseState == .purchasing
-            ? String(localized: "Processing...", bundle: AppLocalizer.shared.bundle)
-            : subscribeButtonTitle
-        )
-          .fontWeight(.semibold)
-      }
-      .frame(maxWidth: .infinity)
-      .frame(height: 48)
-    }
-    .buttonStyle(.borderedProminent)
-    .clipShape(Capsule())
-    .disabled(
-      selectedProduct == nil ||
-      storeManager.purchaseState == .purchasing ||
-      isSelectedProductAlreadyOwned
-    )
+  private var comparisonRows: [ComparisonFeature] {
+    [
+      ComparisonFeature(
+        icon: "camera.viewfinder",
+        title: String(localized: "Screenshots", bundle: AppLocalizer.shared.bundle),
+        free: .included(accessibilityLabel: String(localized: "Screenshots included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "Screenshots included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "pencil.and.outline",
+        title: String(localized: "Annotation tools", bundle: AppLocalizer.shared.bundle),
+        free: .included(accessibilityLabel: String(localized: "Annotation tools included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "Annotation tools included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "record.circle",
+        title: String(localized: "Screen recording", bundle: AppLocalizer.shared.bundle),
+        free: .included(accessibilityLabel: String(localized: "Screen recording included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "Screen recording included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "speaker.wave.2.fill",
+        title: String(localized: "System audio", bundle: AppLocalizer.shared.bundle),
+        free: .included(accessibilityLabel: String(localized: "System audio included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "System audio included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "mic.fill",
+        title: String(localized: "Microphone audio export", bundle: AppLocalizer.shared.bundle),
+        free: .notIncluded(accessibilityLabel: String(localized: "Microphone audio export not included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "Microphone audio export included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "video.fill",
+        title: String(localized: "Webcam overlay export", bundle: AppLocalizer.shared.bundle),
+        free: .notIncluded(accessibilityLabel: String(localized: "Webcam overlay export not included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "Webcam overlay export included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "keyboard",
+        title: String(localized: "Keystroke overlay export", bundle: AppLocalizer.shared.bundle),
+        free: .notIncluded(accessibilityLabel: String(localized: "Keystroke overlay export not included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "Keystroke overlay export included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "sparkles",
+        title: String(localized: "Capture transitions", bundle: AppLocalizer.shared.bundle),
+        free: .text(String(localized: "Preview", bundle: AppLocalizer.shared.bundle), emphasized: false),
+        pro: .included(accessibilityLabel: String(localized: "Capture transitions included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "photo.stack",
+        title: String(localized: "GIF export", bundle: AppLocalizer.shared.bundle),
+        free: .notIncluded(accessibilityLabel: String(localized: "GIF export not included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "GIF export included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "film",
+        title: String(localized: "Video codec", bundle: AppLocalizer.shared.bundle),
+        free: .text("H.264", emphasized: false),
+        pro: .text("H.264 + HEVC", emphasized: true)
+      ),
+      ComparisonFeature(
+        icon: "gauge.with.dots.needle.bottom.50percent",
+        title: String(localized: "Frame rate", bundle: AppLocalizer.shared.bundle),
+        free: .text("30 fps", emphasized: false),
+        pro: .text("30/60 fps", emphasized: true)
+      ),
+      ComparisonFeature(
+        icon: "slider.horizontal.3",
+        title: String(localized: "Export quality", bundle: AppLocalizer.shared.bundle),
+        free: .text(String(localized: "Standard", bundle: AppLocalizer.shared.bundle), emphasized: false),
+        pro: .text(String(localized: "High bitrate", bundle: AppLocalizer.shared.bundle), emphasized: true)
+      ),
+      ComparisonFeature(
+        icon: "arrow.down.right.and.arrow.up.left",
+        title: String(localized: "Export scale", bundle: AppLocalizer.shared.bundle),
+        free: .text("100/75/50", emphasized: false),
+        pro: .text("100/75/50", emphasized: true)
+      ),
+      ComparisonFeature(
+        icon: "chart.bar.xaxis",
+        title: String(localized: "Statistics", bundle: AppLocalizer.shared.bundle),
+        free: .notIncluded(accessibilityLabel: String(localized: "Statistics not included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "Statistics included on Paid", bundle: AppLocalizer.shared.bundle))
+      ),
+      ComparisonFeature(
+        icon: "lock.shield",
+        title: String(localized: "Local-only data", bundle: AppLocalizer.shared.bundle),
+        free: .included(accessibilityLabel: String(localized: "Local-only data included on Free", bundle: AppLocalizer.shared.bundle)),
+        pro: .included(accessibilityLabel: String(localized: "Local-only data included on Paid", bundle: AppLocalizer.shared.bundle))
+      )
+    ]
   }
 
   private func handlePurchaseStateChange(_ newState: PurchaseState) {
     switch newState {
     case .purchased:
-      withAnimation(.easeInOut(duration: 0.25)) {
+      withAnimation(.easeInOut(duration: 0.3)) {
         showSuccess = true
       }
-      DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
-        showSuccess = false
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
         dismissPaywallWindow()
       }
     case .failed(let message):
@@ -493,6 +580,19 @@ struct VivyShotPaywallView: View {
     }
   }
 
+  private func sectionHeader(title: String, subtitle: String? = nil) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(title)
+        .font(.headline)
+      if let subtitle {
+        Text(subtitle)
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private func legalLink(title: String, url: String) -> some View {
     Link(destination: URL(string: url)!) {
       Text(title)
@@ -503,130 +603,101 @@ struct VivyShotPaywallView: View {
     }
   }
 
-  private var defaultSelectedProduct: Product? {
-    if storeManager.hasLifetimeUnlock && !storeManager.hasSupporterBadge {
-      return storeManager.supporterProduct ?? storeManager.lifetimeProduct
-    }
-    if storeManager.hasSupporterBadge {
-      return storeManager.supporterProduct ?? storeManager.lifetimeProduct
-    }
-    return storeManager.lifetimeProduct ?? storeManager.supporterProduct
-  }
-
-  private var pricingPaneTitle: String {
-    if storeManager.hasSupporterBadge {
-      return String(localized: "You already support VivyShot", bundle: AppLocalizer.shared.bundle)
-    }
-    if storeManager.hasLifetimeUnlock {
-      return String(localized: "Add the supporter badge", bundle: AppLocalizer.shared.bundle)
-    }
-      return String(localized: "Choose your license", bundle: AppLocalizer.shared.bundle)
-  }
-
-  private var pricingPaneSubtitle: String {
-    if storeManager.hasSupporterBadge {
-      return String(localized: "Supporter and paid access are already active on this Mac.", bundle: AppLocalizer.shared.bundle)
-    }
-    if storeManager.hasLifetimeUnlock {
-      return String(localized: "Lifetime is already unlocked. Supporter adds the badge and helps support the project.", bundle: AppLocalizer.shared.bundle)
-    }
-    return String(localized: "Both purchases are one-time. Supporter includes the same full unlock plus a badge.", bundle: AppLocalizer.shared.bundle)
-  }
-
-  private var isSelectedProductAlreadyOwned: Bool {
-    guard let selectedProduct else { return false }
-    if selectedProduct.id == VivyShotProducts.lifetime {
-      return storeManager.hasLifetimeUnlock
-    }
-    if selectedProduct.id == VivyShotProducts.supporter {
-      return storeManager.hasSupporterBadge
-    }
-    return false
+  private var sheetBackground: Color {
+    Color(nsColor: .windowBackgroundColor)
   }
 }
 
-private struct PlanOptionRow: View {
+private enum VivyShotPlanKind: String, CaseIterable, Identifiable {
+  case lifetime
+  case supporter
+
+  static let displayOrder: [VivyShotPlanKind] = [.lifetime, .supporter]
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .lifetime:
+      return String(localized: "Lifetime", bundle: AppLocalizer.shared.bundle)
+    case .supporter:
+      return String(localized: "Supporter", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+
+  var detail: String {
+    switch self {
+    case .lifetime:
+      return String(localized: "Unlock capture effects, overlays, GIF, statistics, HEVC, 60 fps, and high-bitrate exports.", bundle: AppLocalizer.shared.bundle)
+    case .supporter:
+      return String(localized: "Everything in Lifetime, plus a supporter badge and extra support for independent development.", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+
+  var badge: String? {
+    switch self {
+    case .lifetime:
+      return nil
+    case .supporter:
+      return String(localized: "Supporter", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+}
+
+private struct VivyShotPlanSelectionCard: View {
   let product: Product
-  let title: String
-  let subtitle: String
-  let badge: PlanBadge?
+  let plan: VivyShotPlanKind
   let isSelected: Bool
   let isOwned: Bool
   let onSelect: () -> Void
 
   var body: some View {
     Button(action: onSelect) {
-      VStack(alignment: .leading, spacing: 6) {
-        HStack(alignment: .top, spacing: 10) {
-          Image(systemName: selectionSymbolName)
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(selectionColor)
-            .padding(.top, 1)
+      HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 3) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(plan.title)
+              .font(.headline)
+              .fontWeight(.semibold)
 
-          VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-              Text(title)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
-
-              Spacer(minLength: 0)
-
-              Text(isOwned ? String(localized: "Owned", bundle: AppLocalizer.shared.bundle) : product.displayPrice)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(isOwned ? .secondary : .primary)
-            }
-
-            HStack(spacing: 8) {
-            if let badge {
-              Text(badge.title)
+            if let badge = plan.badge {
+              Text(badge)
                 .font(.caption2)
-                .fontWeight(.bold)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(
-                  Capsule()
-                    .fill(badgeBackground(for: badge.style))
-                )
-            }
-
-            if isOwned {
-              Text(String(localized: "ACTIVE", bundle: AppLocalizer.shared.bundle))
-                .font(.caption2)
-                .fontWeight(.bold)
+                .fontWeight(.medium)
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(
-                  Capsule()
-                    .fill(Color.secondary.opacity(0.12))
-                )
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(.quaternary, in: Capsule())
             }
-
-            Spacer(minLength: 0)
-            }
-
-            Text(subtitle)
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
           }
+
+          Text(priceLine)
+            .font(.body)
+            .foregroundStyle(.primary)
+
+          Text(plan.detail)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
+
+        Spacer()
+
+        Image(systemName: selectionSymbolName)
+          .font(.title3)
+          .symbolRenderingMode(.hierarchical)
+          .foregroundStyle(selectionColor)
       }
-      .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
-      .padding(10)
-      .background(
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-          .fill(backgroundFillColor)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-          .stroke(borderStrokeColor, lineWidth: isSelected ? 2 : 1)
-      )
-      .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+      .padding(.horizontal, 14)
+      .padding(.vertical, 12)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(cardFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+          .stroke(isSelected ? Color.accentColor : cardStroke, lineWidth: isSelected ? 3 : 0.5)
+      }
     }
     .buttonStyle(.plain)
-    .disabled(isOwned)
   }
 
   private var selectionSymbolName: String {
@@ -638,42 +709,236 @@ private struct PlanOptionRow: View {
 
   private var selectionColor: Color {
     if isOwned {
-      return .secondary
+      return Color.accentColor
     }
     return isSelected ? Color.accentColor : .secondary.opacity(0.5)
   }
 
-  private var backgroundFillColor: Color {
+  private var priceLine: String {
     if isOwned {
-      return Color.secondary.opacity(0.06)
+      return String(localized: "Owned", bundle: AppLocalizer.shared.bundle)
     }
-    return isSelected ? Color.accentColor.opacity(0.10) : Color.clear
+    return String(format: String(localized: "%@ one time", bundle: AppLocalizer.shared.bundle), product.displayPrice)
   }
 
-  private var borderStrokeColor: Color {
-    if isOwned {
-      return Color.secondary.opacity(0.18)
-    }
-    return isSelected ? Color.accentColor : Color(nsColor: .separatorColor).opacity(0.7)
+  private var cardFill: Color {
+    paywallCardFillColor
+  }
+
+  private var cardStroke: Color {
+    paywallCardBorderColor
   }
 }
 
-private struct PlanBadge {
+private struct ComparisonFeature: Identifiable {
+  let icon: String
   let title: String
-  let style: PlanBadgeStyle
+  let free: ComparisonValue
+  let pro: ComparisonValue
+
+  var id: String { title }
 }
 
-private enum PlanBadgeStyle {
-  case forever
-  case support
+private enum ComparisonValue {
+  case included(accessibilityLabel: String)
+  case notIncluded(accessibilityLabel: String)
+  case text(String, emphasized: Bool)
 }
 
-private func badgeBackground(for style: PlanBadgeStyle) -> LinearGradient {
-  switch style {
-  case .forever:
-    return LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
-  case .support:
-    return LinearGradient(colors: [Color.orange, Color(red: 0.82, green: 0.4, blue: 0.2)], startPoint: .leading, endPoint: .trailing)
+private struct ComparisonTable: View {
+  let rows: [ComparisonFeature]
+
+  var body: some View {
+    VStack(spacing: 0) {
+      ComparisonTableRow(isHeader: true) {
+        ComparisonHeaderCell(title: String(localized: "Feature", bundle: AppLocalizer.shared.bundle), alignment: .leading)
+      } free: {
+        ComparisonHeaderCell(title: String(localized: "Free", bundle: AppLocalizer.shared.bundle), alignment: .center)
+      } pro: {
+        ComparisonHeaderCell(title: String(localized: "Paid", bundle: AppLocalizer.shared.bundle), alignment: .center)
+      }
+
+      separator
+
+      ForEach(rows) { row in
+        ComparisonTableRow {
+          ComparisonFeatureCell(feature: row)
+        } free: {
+          ComparisonValueCell(value: row.free)
+        } pro: {
+          ComparisonValueCell(value: row.pro)
+        }
+
+        if row.id != rows.last?.id {
+          separator
+        }
+      }
+    }
+    .overlay {
+      GeometryReader { proxy in
+        Path { path in
+          let featureBoundary = proxy.size.width - (ComparisonTableLayout.valueColumnWidth * 2)
+          let proBoundary = proxy.size.width - ComparisonTableLayout.valueColumnWidth
+
+          path.move(to: CGPoint(x: featureBoundary, y: 0))
+          path.addLine(to: CGPoint(x: featureBoundary, y: proxy.size.height))
+          path.move(to: CGPoint(x: proBoundary, y: 0))
+          path.addLine(to: CGPoint(x: proBoundary, y: proxy.size.height))
+        }
+        .stroke(paywallTableGridColor, lineWidth: 0.5)
+      }
+      .allowsHitTesting(false)
+    }
+  }
+
+  private var separator: some View {
+    Rectangle()
+      .fill(paywallTableGridColor)
+      .frame(height: 0.5)
+  }
+}
+
+private struct ComparisonTableRow<Feature: View, Free: View, Pro: View>: View {
+  var isHeader = false
+  @ViewBuilder let feature: Feature
+  @ViewBuilder let free: Free
+  @ViewBuilder let pro: Pro
+
+  var body: some View {
+    HStack(spacing: 0) {
+      feature
+        .frame(maxWidth: .infinity, minHeight: rowHeight, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, verticalPadding)
+
+      free
+        .frame(width: ComparisonTableLayout.valueColumnWidth, alignment: .center)
+        .frame(minHeight: rowHeight, alignment: .center)
+        .padding(.vertical, verticalPadding)
+
+      pro
+        .frame(width: ComparisonTableLayout.valueColumnWidth, alignment: .center)
+        .frame(minHeight: rowHeight, alignment: .center)
+        .padding(.vertical, verticalPadding)
+    }
+  }
+
+  private var rowHeight: CGFloat {
+    isHeader ? 20 : 20
+  }
+
+  private var verticalPadding: CGFloat {
+    isHeader ? 6 : 4
+  }
+}
+
+private enum ComparisonTableLayout {
+  static let valueColumnWidth: CGFloat = 96
+}
+
+private struct ComparisonFeatureCell: View {
+  let feature: ComparisonFeature
+
+  var body: some View {
+    HStack(spacing: 7) {
+      Image(systemName: feature.icon)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .frame(width: 15)
+
+      Text(feature.title)
+        .font(.caption)
+        .fontWeight(.medium)
+        .foregroundStyle(.primary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.82)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+}
+
+private struct ComparisonHeaderCell: View {
+  let title: String
+  let alignment: Alignment
+
+  var body: some View {
+    Text(title)
+      .font(.caption)
+      .fontWeight(.semibold)
+      .foregroundStyle(.secondary)
+      .textCase(.uppercase)
+      .frame(maxWidth: .infinity, alignment: alignment)
+  }
+}
+
+private struct ComparisonValueCell: View {
+  let value: ComparisonValue
+
+  var body: some View {
+    Group {
+      switch value {
+      case .included(let accessibilityLabel):
+        Image(systemName: "checkmark")
+          .font(.caption.weight(.bold))
+          .foregroundStyle(.tint)
+          .accessibilityLabel(accessibilityLabel)
+
+      case .notIncluded(let accessibilityLabel):
+        Text(verbatim: "-")
+          .font(.caption)
+          .fontWeight(.semibold)
+          .foregroundStyle(.tertiary)
+          .accessibilityLabel(accessibilityLabel)
+
+      case .text(let text, let emphasized):
+        Text(text)
+          .font(.caption2)
+          .fontWeight(emphasized ? .semibold : .regular)
+          .foregroundStyle(emphasized ? .primary : .secondary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.75)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .center)
+  }
+}
+
+private var paywallTableGridColor: Color {
+  Color.primary.opacity(0.13)
+}
+
+private var paywallCardFillColor: Color {
+  Color(nsColor: .controlBackgroundColor)
+}
+
+private var paywallCardBorderColor: Color {
+  Color.primary.opacity(0.16)
+}
+
+private struct NativeSectionCard<Content: View>: View {
+  var padding: CGFloat = 14
+  @ViewBuilder let content: Content
+
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+
+    content
+      .padding(padding)
+      .background(
+        shape.fill(cardFill)
+      )
+      .clipShape(shape)
+      .overlay(
+        shape.stroke(cardStroke, lineWidth: 0.5)
+      )
+  }
+
+  private var cardFill: Color {
+    paywallCardFillColor
+  }
+
+  private var cardStroke: Color {
+    paywallCardBorderColor
   }
 }
 

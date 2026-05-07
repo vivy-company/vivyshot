@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import AVFoundation
 import Carbon
 import CoreGraphics
 import Foundation
@@ -38,7 +39,7 @@ final class RegionSelectionView: NSView {
   var onSelectionResult: ((CGRect?, CaptureContentType) -> Void)?
   var onCancelRequested: (() -> Void)?
   var onCancelRequestedImmediately: (() -> Void)?
-  var onStartVideoRequested: ((CGRect, @escaping (Bool) -> Void) -> Void)?
+  var onStartVideoRequested: ((CGRect, VideoCaptureOverlayState, @escaping (Bool) -> Void) -> Void)?
   var onStopVideoRequested: (() -> Void)?
   let settings: AppSettings
   var settingsObserver: NSObjectProtocol?
@@ -71,6 +72,8 @@ final class RegionSelectionView: NSView {
 
   let canvasView = AnnotationCanvasView()
   let editingMaskView = SelectionMaskOverlayView()
+  let videoWebcamPlacementView = CaptureOverlayPlacementView(kind: .webcam)
+  let videoKeystrokePlacementView = CaptureOverlayPlacementView(kind: .keystroke)
   lazy var toolbarHost = NSHostingView(rootView: makeToolbarView())
   lazy var selectingHintHost = NSHostingView(rootView: CaptureHintGlassCard(selectedType: selectedCaptureType))
   lazy var captureTypeHost = NSHostingView(rootView: makeCaptureTypeSidebar())
@@ -110,12 +113,9 @@ final class RegionSelectionView: NSView {
   let stitchCaptureInterval: TimeInterval = 0.12
   // TODO(vivyshot): Re-enable scrolling capture once auto-scroll is production-ready.
   let stitchCaptureFeatureVisible = false
-  // TODO(vivyshot): Re-enable microphone capture once video recording support is production-ready.
-  let videoMicrophoneFeatureVisible = false
-  // TODO(vivyshot): Re-enable webcam overlay once video recording support is production-ready.
-  let videoWebcamFeatureVisible = false
-  // TODO(vivyshot): Re-enable keystroke highlighting once video recording support is production-ready.
-  let videoKeystrokesFeatureVisible = false
+  let videoMicrophoneFeatureVisible = true
+  let videoWebcamFeatureVisible = true
+  let videoKeystrokesFeatureVisible = true
   var stitchAutoScrollEnabled = true
   var stitchAutoScrollDirectionSign: Int32 = -1
   var stitchAutoScrollNoMotionTicks = 0
@@ -1087,4 +1087,242 @@ func overlayCocoaRectToCGDisplayRect(_ rect: CGRect) -> CGRect {
 func overlayCGDisplayRectToCocoaRect(_ rect: CGRect) -> CGRect {
   guard let primaryHeight = NSScreen.screens.first?.frame.height else { return rect }
   return CGRect(x: rect.origin.x, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
+}
+
+enum CaptureOverlayPlacementKind {
+  case webcam
+  case keystroke
+}
+
+@MainActor
+final class CaptureOverlayPlacementView: NSView {
+  let kind: CaptureOverlayPlacementKind
+  var containerFrame: CGRect = .zero
+  var onFrameChanged: ((CGRect) -> Void)?
+  var webcamShape: VideoWebcamOverlayShapeOption = .roundedRect {
+    didSet { needsDisplay = true }
+  }
+  var keystrokeStyle: VideoKeystrokeOverlayStyleOption = .glass {
+    didSet { needsDisplay = true }
+  }
+
+  private var dragStartFrame: CGRect = .zero
+  private var dragStartLocation: CGPoint = .zero
+  private var previewSession: AVCaptureSession?
+  private var previewLayer: AVCaptureVideoPreviewLayer?
+  private var previewDeviceID: String?
+  private var previewAccessRequestActive = false
+
+  init(kind: CaptureOverlayPlacementKind) {
+    self.kind = kind
+    super.init(frame: .zero)
+    wantsLayer = true
+    layer?.cornerRadius = kind == .webcam ? 18 : 14
+    layer?.masksToBounds = false
+    layer?.shadowColor = NSColor.black.cgColor
+    layer?.shadowOpacity = 0.22
+    layer?.shadowRadius = 10
+    layer?.shadowOffset = CGSize(width: 0, height: -2)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  override func resetCursorRects() {
+    addCursorRect(bounds, cursor: .openHand)
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    dragStartFrame = frame
+    dragStartLocation = window?.convertPoint(toScreen: event.locationInWindow) ?? .zero
+    NSCursor.closedHand.set()
+  }
+
+  override func mouseDragged(with event: NSEvent) {
+    let location = window?.convertPoint(toScreen: event.locationInWindow) ?? .zero
+    let delta = CGSize(width: location.x - dragStartLocation.x, height: location.y - dragStartLocation.y)
+    frame = clampedFrame(dragStartFrame.offsetBy(dx: delta.width, dy: delta.height))
+    onFrameChanged?(frame)
+  }
+
+  override func mouseUp(with _: NSEvent) {
+    NSCursor.openHand.set()
+    onFrameChanged?(frame)
+  }
+
+  override func layout() {
+    super.layout()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    previewLayer?.frame = bounds
+    layer?.cornerRadius = kind == .webcam && webcamShape == .circle ? min(bounds.width, bounds.height) * 0.5 : (kind == .webcam ? 18 : 14)
+    CATransaction.commit()
+  }
+
+  func updateWebcamPreview(preferredDeviceID: String) {
+    guard kind == .webcam else {
+      return
+    }
+    guard previewSession == nil || previewDeviceID != preferredDeviceID else {
+      return
+    }
+    stopWebcamPreview()
+
+    switch AVCaptureDevice.authorizationStatus(for: .video) {
+    case .authorized:
+      configureWebcamPreview(preferredDeviceID: preferredDeviceID)
+    case .notDetermined:
+      guard !previewAccessRequestActive else {
+        return
+      }
+      previewAccessRequestActive = true
+      Task { @MainActor [weak self] in
+        let granted = await AVCaptureDevice.requestAccess(for: .video)
+        guard let self else {
+          return
+        }
+        self.previewAccessRequestActive = false
+        if granted {
+          self.configureWebcamPreview(preferredDeviceID: preferredDeviceID)
+        }
+      }
+    case .denied, .restricted:
+      return
+    @unknown default:
+      return
+    }
+  }
+
+  func stopWebcamPreview() {
+    previewLayer?.removeFromSuperlayer()
+    previewLayer = nil
+    if let previewSession, previewSession.isRunning {
+      previewSession.stopRunning()
+    }
+    previewSession = nil
+    previewDeviceID = nil
+    needsDisplay = true
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    super.draw(dirtyRect)
+    let rect = bounds.insetBy(dx: 1, dy: 1)
+    let path: NSBezierPath
+    switch kind {
+    case .webcam:
+      if webcamShape == .circle {
+        path = NSBezierPath(ovalIn: rect)
+      } else {
+        path = NSBezierPath(roundedRect: rect, xRadius: 18, yRadius: 18)
+      }
+    case .keystroke:
+      path = NSBezierPath(roundedRect: rect, xRadius: 14, yRadius: 14)
+    }
+
+    let fillAlpha: CGFloat = kind == .keystroke && keystrokeStyle == .compact ? 0.68 : 0.46
+    NSColor.black.withAlphaComponent(fillAlpha).setFill()
+    path.fill()
+    NSColor.white.withAlphaComponent(0.34).setStroke()
+    path.lineWidth = 1
+    path.stroke()
+
+    if kind == .webcam, previewLayer != nil {
+      return
+    }
+
+    let symbolName: String
+    let title: String
+    switch kind {
+    case .webcam:
+      symbolName = "video.fill"
+      title = String(localized: "Webcam", bundle: AppLocalizer.shared.bundle)
+    case .keystroke:
+      symbolName = "keyboard"
+      title = "⌘K"
+    }
+
+    if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) {
+      let size: CGFloat = kind == .webcam ? 18 : 16
+      symbol.draw(
+        in: CGRect(x: rect.midX - size * 0.5, y: rect.midY + 2, width: size, height: size),
+        from: .zero,
+        operation: .sourceOver,
+        fraction: 0.92
+      )
+    }
+
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    let attrs: [NSAttributedString.Key: Any] = [
+      .font: NSFont.systemFont(ofSize: kind == .webcam ? 13 : 16, weight: .semibold),
+      .foregroundColor: NSColor.white.withAlphaComponent(0.92),
+      .paragraphStyle: paragraph
+    ]
+    NSString(string: title).draw(
+      in: CGRect(x: rect.minX + 6, y: rect.midY - 20, width: rect.width - 12, height: 18),
+      withAttributes: attrs
+    )
+  }
+
+  private func clampedFrame(_ proposed: CGRect) -> CGRect {
+    guard !containerFrame.isNull, !containerFrame.isEmpty else {
+      return proposed
+    }
+    let width = min(proposed.width, containerFrame.width)
+    let height = min(proposed.height, containerFrame.height)
+    let x = min(max(containerFrame.minX, proposed.minX), containerFrame.maxX - width)
+    let y = min(max(containerFrame.minY, proposed.minY), containerFrame.maxY - height)
+    return CGRect(x: x, y: y, width: width, height: height).integral
+  }
+
+  private func configureWebcamPreview(preferredDeviceID: String) {
+    guard kind == .webcam else {
+      return
+    }
+
+    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+    if #available(macOS 14.0, *) {
+      deviceTypes.append(.external)
+    } else {
+      deviceTypes.append(.externalUnknown)
+    }
+    if #available(macOS 15.0, *) {
+      deviceTypes.append(.continuityCamera)
+    }
+
+    let devices = AVCaptureDevice.DiscoverySession(
+      deviceTypes: deviceTypes,
+      mediaType: .video,
+      position: .unspecified
+    ).devices
+    let selectedDevice = devices.first(where: { $0.uniqueID == preferredDeviceID })
+    guard let device = selectedDevice ?? AVCaptureDevice.default(for: .video) ?? devices.first,
+          let input = try? AVCaptureDeviceInput(device: device)
+    else {
+      return
+    }
+
+    let session = AVCaptureSession()
+    session.beginConfiguration()
+    session.sessionPreset = .medium
+    if session.canAddInput(input) {
+      session.addInput(input)
+    }
+    session.commitConfiguration()
+    guard !session.inputs.isEmpty else {
+      return
+    }
+
+    let layer = AVCaptureVideoPreviewLayer(session: session)
+    layer.videoGravity = .resizeAspectFill
+    self.layer?.insertSublayer(layer, at: 0)
+    previewSession = session
+    previewLayer = layer
+    previewDeviceID = preferredDeviceID
+    needsDisplay = true
+    needsLayout = true
+    session.startRunning()
+  }
 }

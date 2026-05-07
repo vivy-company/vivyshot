@@ -143,8 +143,8 @@ final class VideoRecordingHUDController: NSWindowController {
 // MARK: - Post-Recording Action Dialog
 
 enum PostRecordingAction {
-  case saveVideo(PostRecordingExportOptions)
-  case saveGIF
+  case saveVideo(PostRecordingExportOptions, consumesFreeProExportTrial: Bool)
+  case saveGIF(consumesFreeProExportTrial: Bool)
   case discard
 }
 
@@ -165,19 +165,97 @@ struct PostRecordingExportOptions: Equatable {
       bitrate: settings.videoExportBitrate
     )
   }
+}
 
-  @MainActor
-  func normalizedForCurrentAccess(storeManager: StoreManager) -> PostRecordingExportOptions {
-    guard !storeManager.hasPaidAccess else {
-      return self
+enum PostRecordingExportTarget {
+  case video
+  case gif
+}
+
+struct ProExportRequirement: Equatable {
+  let reasons: [ProExportReason]
+
+  var requiresPro: Bool {
+    !reasons.isEmpty
+  }
+
+  var featureListText: String {
+    reasons.map(\.title).joined(separator: ", ")
+  }
+
+  static func evaluate(
+    project: PostRecordingProject,
+    options: PostRecordingExportOptions?,
+    target: PostRecordingExportTarget
+  ) -> ProExportRequirement {
+    var reasons: [ProExportReason] = []
+
+    if project.overlayConfiguration.webcamURL != nil {
+      reasons.append(.webcamOverlay)
     }
-    return PostRecordingExportOptions(
-      codec: .h264,
-      frameRate: .fps30,
-      quality: .standard,
-      scale: .full,
-      bitrate: .standard
-    )
+    if !project.overlayConfiguration.keyEvents.isEmpty {
+      reasons.append(.keystrokeOverlay)
+    }
+    if target == .video, project.details.microphoneEnabled {
+      reasons.append(.microphoneAudio)
+    }
+    if target == .gif {
+      reasons.append(.gifExport)
+    }
+
+    if target == .video, let options {
+      if options.codec == .hevc {
+        reasons.append(.hevcExport)
+      }
+      if options.frameRate != .fps30 {
+        reasons.append(.sixtyFPS)
+      }
+      if options.quality != .standard {
+        reasons.append(.highQuality)
+      }
+      if options.bitrate != .standard {
+        reasons.append(.highBitrate)
+      }
+    }
+
+    return ProExportRequirement(reasons: reasons)
+  }
+}
+
+enum ProExportReason: String, CaseIterable, Identifiable {
+  case webcamOverlay
+  case keystrokeOverlay
+  case microphoneAudio
+  case gifExport
+  case hevcExport
+  case sixtyFPS
+  case highQuality
+  case highBitrate
+  case bakedTransition
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .webcamOverlay:
+      return String(localized: "Webcam overlay", bundle: AppLocalizer.shared.bundle)
+    case .keystrokeOverlay:
+      return String(localized: "Keystroke overlay", bundle: AppLocalizer.shared.bundle)
+    case .microphoneAudio:
+      return String(localized: "Microphone audio", bundle: AppLocalizer.shared.bundle)
+    case .gifExport:
+      return String(localized: "GIF export", bundle: AppLocalizer.shared.bundle)
+    case .hevcExport:
+      return String(localized: "HEVC export", bundle: AppLocalizer.shared.bundle)
+    case .sixtyFPS:
+      return String(localized: "60 fps export", bundle: AppLocalizer.shared.bundle)
+    case .highQuality:
+      return String(localized: "High quality export", bundle: AppLocalizer.shared.bundle)
+    case .highBitrate:
+      return String(localized: "High bitrate export", bundle: AppLocalizer.shared.bundle)
+    case .bakedTransition:
+      return String(localized: "Capture transitions", bundle: AppLocalizer.shared.bundle)
+    }
   }
 }
 
@@ -200,7 +278,6 @@ enum PostRecordingExportCodec: String, CaseIterable, Identifiable {
 enum PostRecordingExportFrameRate: Int, CaseIterable, Identifiable {
   case fps30 = 30
   case fps60 = 60
-  case fps120 = 120
 
   var id: Int { rawValue }
 
@@ -331,6 +408,7 @@ struct PostRecordingDetails {
 @MainActor
 final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
   private let inputURL: URL
+  private let project: PostRecordingProject
   private let onAction: (PostRecordingAction) -> Void
   private let storeManager = StoreManager.shared
   private var didPickAction = false
@@ -338,6 +416,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 
   init(
     inputURL: URL,
+    project: PostRecordingProject,
     details: PostRecordingDetails,
     durationSeconds: Double,
     thumbnail: NSImage?,
@@ -345,6 +424,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     onAction: @escaping (PostRecordingAction) -> Void
   ) {
     self.inputURL = inputURL
+    self.project = project
     self.onAction = onAction
 
     let panel = NSWindow(
@@ -490,12 +570,92 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     guard !didPickAction else {
       return
     }
+    guard let approvedAction = approvedActionAfterExportGate(action) else {
+      return
+    }
 
     didPickAction = true
     window?.close()
     let actionHandler = onAction
     DispatchQueue.main.async {
-      actionHandler(action)
+      actionHandler(approvedAction)
+    }
+  }
+
+  private func approvedActionAfterExportGate(_ action: PostRecordingAction) -> PostRecordingAction? {
+    switch action {
+    case .saveVideo(let options, _):
+      guard let consumesTrial = proExportGateDecision(target: .video, options: options) else {
+        return nil
+      }
+      return .saveVideo(options, consumesFreeProExportTrial: consumesTrial)
+    case .saveGIF(_):
+      guard let consumesTrial = proExportGateDecision(target: .gif, options: nil) else {
+        return nil
+      }
+      return .saveGIF(consumesFreeProExportTrial: consumesTrial)
+    case .discard:
+      return action
+    }
+  }
+
+  private func proExportGateDecision(
+    target: PostRecordingExportTarget,
+    options: PostRecordingExportOptions?
+  ) -> Bool? {
+    let requirement = ProExportRequirement.evaluate(
+      project: project,
+      options: options,
+      target: target
+    )
+    guard requirement.requiresPro, !storeManager.hasPaidAccess else {
+      return false
+    }
+
+    if AppSettings.shared.isProExportTrialAvailable {
+      return confirmFreeProExport(requirement: requirement)
+    }
+
+    showConsumedTrialPaywallPrompt(requirement: requirement)
+    return nil
+  }
+
+  private func confirmFreeProExport(requirement: ProExportRequirement) -> Bool? {
+    let alert = NSAlert()
+    alert.messageText = String(localized: "Use your free Pro export?", bundle: AppLocalizer.shared.bundle)
+    alert.informativeText = String(
+      format: String(localized: "This recording uses Pro features: %@. Your first Pro export is free.", bundle: AppLocalizer.shared.bundle),
+      requirement.featureListText
+    )
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: String(localized: "Use Free Pro Export", bundle: AppLocalizer.shared.bundle))
+    alert.addButton(withTitle: String(localized: "Upgrade", bundle: AppLocalizer.shared.bundle))
+    alert.addButton(withTitle: String(localized: "Cancel", bundle: AppLocalizer.shared.bundle))
+
+    switch alert.runModal() {
+    case .alertFirstButtonReturn:
+      return true
+    case .alertSecondButtonReturn:
+      presentPaywallWindow()
+      return nil
+    default:
+      return nil
+    }
+  }
+
+  private func showConsumedTrialPaywallPrompt(requirement: ProExportRequirement) {
+    let alert = NSAlert()
+    alert.messageText = String(localized: "Upgrade for unlimited Pro exports", bundle: AppLocalizer.shared.bundle)
+    alert.informativeText = String(
+      format: String(localized: "This export uses Pro features: %@. Upgrade to export unlimited Pro recordings.", bundle: AppLocalizer.shared.bundle),
+      requirement.featureListText
+    )
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: String(localized: "Upgrade", bundle: AppLocalizer.shared.bundle))
+    alert.addButton(withTitle: String(localized: "Cancel", bundle: AppLocalizer.shared.bundle))
+
+    if alert.runModal() == .alertFirstButtonReturn {
+      presentPaywallWindow()
     }
   }
 
@@ -509,7 +669,9 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
       initialOptions: defaultExportOptions(),
       storeManager: storeManager
     ) { [weak self] options in
-      self?.performAction(.saveVideo(options))
+      self?.performAction(.saveVideo(options, consumesFreeProExportTrial: false))
+    } onSaveGIF: { [weak self] in
+      self?.performAction(.saveGIF(consumesFreeProExportTrial: false))
     }
     exportSheetController = controller
     controller.presentSheet(for: window)
@@ -517,13 +679,11 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 
   @objc
   private func saveVideoRecording() {
-    performAction(.saveVideo(defaultExportOptions()))
+    performAction(.saveVideo(defaultExportOptions(), consumesFreeProExportTrial: false))
   }
 
   private func defaultExportOptions() -> PostRecordingExportOptions {
-    PostRecordingExportOptions
-      .defaultOptions(settings: .shared)
-      .normalizedForCurrentAccess(storeManager: storeManager)
+    PostRecordingExportOptions.defaultOptions(settings: .shared)
   }
 
   static func loadAssetInfo(url: URL) async -> (durationSeconds: Double, thumbnail: NSImage?, videoSize: CGSize?) {
@@ -606,16 +766,19 @@ private struct PostRecordingActionView: View {
 @MainActor
 private final class PostRecordingExportSheetController: NSWindowController {
   private let onSave: (PostRecordingExportOptions) -> Void
+  private let onSaveGIF: () -> Void
 
   init(
     initialOptions: PostRecordingExportOptions,
     storeManager: StoreManager,
-    onSave: @escaping (PostRecordingExportOptions) -> Void
+    onSave: @escaping (PostRecordingExportOptions) -> Void,
+    onSaveGIF: @escaping () -> Void
   ) {
     self.onSave = onSave
+    self.onSaveGIF = onSaveGIF
 
     let window = NSWindow(
-      contentRect: CGRect(x: 0, y: 0, width: 420, height: 340),
+      contentRect: CGRect(x: 0, y: 0, width: 420, height: 380),
       styleMask: [.titled, .closable],
       backing: .buffered,
       defer: false
@@ -634,6 +797,13 @@ private final class PostRecordingExportSheetController: NSWindowController {
       onSave: { [weak self] options in
         self?.dismiss()
         self?.onSave(options)
+      },
+      onSaveGIF: { [weak self] in
+        guard let self else {
+          return
+        }
+        self.dismiss()
+        self.onSaveGIF()
       }
     )
     window.contentView = NSHostingView(rootView: rootView.environment(\.locale, AppLocalizer.shared.locale))
@@ -664,17 +834,20 @@ private struct PostRecordingExportSheetView: View {
   @State private var options: PostRecordingExportOptions
   let onCancel: () -> Void
   let onSave: (PostRecordingExportOptions) -> Void
+  let onSaveGIF: () -> Void
 
   init(
     initialOptions: PostRecordingExportOptions,
     storeManager: StoreManager,
     onCancel: @escaping () -> Void,
-    onSave: @escaping (PostRecordingExportOptions) -> Void
+    onSave: @escaping (PostRecordingExportOptions) -> Void,
+    onSaveGIF: @escaping () -> Void
   ) {
     _storeManager = ObservedObject(wrappedValue: storeManager)
-    _options = State(initialValue: initialOptions.normalizedForCurrentAccess(storeManager: storeManager))
+    _options = State(initialValue: initialOptions)
     self.onCancel = onCancel
     self.onSave = onSave
+    self.onSaveGIF = onSaveGIF
   }
 
   var body: some View {
@@ -704,31 +877,31 @@ private struct PostRecordingExportSheetView: View {
       Form {
         Picker("Codec", selection: $options.codec) {
           ForEach(PostRecordingExportCodec.allCases) { codec in
-            Text(menuTitle(for: codec)).tag(codec).disabled(isLocked(codec))
+            Text(menuTitle(for: codec)).tag(codec)
           }
         }
 
         Picker("Frame Rate", selection: $options.frameRate) {
           ForEach(PostRecordingExportFrameRate.allCases) { frameRate in
-            Text(menuTitle(for: frameRate)).tag(frameRate).disabled(isLocked(frameRate))
+            Text(menuTitle(for: frameRate)).tag(frameRate)
           }
         }
 
         Picker("Quality", selection: $options.quality) {
           ForEach(PostRecordingExportQuality.allCases) { quality in
-            Text(menuTitle(for: quality)).tag(quality).disabled(isLocked(quality))
+            Text(menuTitle(for: quality)).tag(quality)
           }
         }
 
         Picker("Scale", selection: $options.scale) {
           ForEach(PostRecordingExportScale.allCases) { scale in
-            Text(menuTitle(for: scale)).tag(scale).disabled(isLocked(scale))
+            Text(menuTitle(for: scale)).tag(scale)
           }
         }
 
         Picker("Bitrate", selection: $options.bitrate) {
           ForEach(PostRecordingExportBitratePreset.allCases) { bitrate in
-            Text(menuTitle(for: bitrate)).tag(bitrate).disabled(isLocked(bitrate))
+            Text(menuTitle(for: bitrate)).tag(bitrate)
           }
         }
       }
@@ -736,12 +909,16 @@ private struct PostRecordingExportSheetView: View {
       .fixedSize(horizontal: false, vertical: true)
 
       HStack {
+        Button(gifButtonTitle) {
+          onSaveGIF()
+        }
+
         Spacer()
         Button(LocalizedStringKey("Cancel")) {
           onCancel()
         }
         Button(LocalizedStringKey("Export")) {
-          onSave(options.normalizedForCurrentAccess(storeManager: storeManager))
+          onSave(options)
         }
         .keyboardShortcut(.defaultAction)
       }
@@ -752,44 +929,35 @@ private struct PostRecordingExportSheetView: View {
     .frame(width: 420)
   }
 
-  private func isLocked(_ codec: PostRecordingExportCodec) -> Bool {
-    codec == .hevc && !storeManager.hasPaidAccess
-  }
-
-  private func isLocked(_ frameRate: PostRecordingExportFrameRate) -> Bool {
-    frameRate != .fps30 && !storeManager.hasPaidAccess
-  }
-
-  private func isLocked(_ quality: PostRecordingExportQuality) -> Bool {
-    quality != .standard && !storeManager.hasPaidAccess
-  }
-
-  private func isLocked(_ scale: PostRecordingExportScale) -> Bool {
-    scale != .full && !storeManager.hasPaidAccess
-  }
-
-  private func isLocked(_ bitrate: PostRecordingExportBitratePreset) -> Bool {
-    bitrate != .standard && !storeManager.hasPaidAccess
+  private var gifButtonTitle: LocalizedStringKey {
+    storeManager.hasPaidAccess ? "Export GIF" : "Export GIF (Pro)"
   }
 
   private func menuTitle(for codec: PostRecordingExportCodec) -> String {
-    isLocked(codec) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), codec.title) : codec.title
+    codec == .hevc ? proMenuTitle(codec.title) : codec.title
   }
 
   private func menuTitle(for frameRate: PostRecordingExportFrameRate) -> String {
-    isLocked(frameRate) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), frameRate.title) : frameRate.title
+    frameRate != .fps30 ? proMenuTitle(frameRate.title) : frameRate.title
   }
 
   private func menuTitle(for quality: PostRecordingExportQuality) -> String {
-    isLocked(quality) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), quality.title) : quality.title
+    quality != .standard ? proMenuTitle(quality.title) : quality.title
   }
 
   private func menuTitle(for scale: PostRecordingExportScale) -> String {
-    isLocked(scale) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), scale.title) : scale.title
+    scale.title
   }
 
   private func menuTitle(for bitrate: PostRecordingExportBitratePreset) -> String {
-    isLocked(bitrate) ? String(format: String(localized: "%@ (Paid)", bundle: AppLocalizer.shared.bundle), bitrate.title) : bitrate.title
+    bitrate != .standard ? proMenuTitle(bitrate.title) : bitrate.title
+  }
+
+  private func proMenuTitle(_ title: String) -> String {
+    guard !storeManager.hasPaidAccess else {
+      return title
+    }
+    return String(format: String(localized: "%@ (Pro)", bundle: AppLocalizer.shared.bundle), title)
   }
 }
 

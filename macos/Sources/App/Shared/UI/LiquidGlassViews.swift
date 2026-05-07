@@ -68,6 +68,7 @@ struct HoverTooltipIconButton: View {
   let selectedStrokeOpacity: CGFloat
   var tintOverride: Color? = nil
   var showsInlineTooltip: Bool = true
+  var isLocked: Bool = false
   let action: () -> Void
 
   @State private var isHovered = false
@@ -78,9 +79,21 @@ struct HoverTooltipIconButton: View {
       symbolBounceToken += 1
       action()
     } label: {
-      symbolImage
-        .frame(width: size.width, height: size.height)
-        .contentShape(Rectangle())
+      ZStack(alignment: .bottomTrailing) {
+        symbolImage
+          .frame(width: size.width, height: size.height)
+
+        if isLocked {
+          Image(systemName: "lock.fill")
+            .font(.system(size: 7, weight: .bold))
+            .foregroundStyle(Color.white.opacity(0.9))
+            .padding(2)
+            .background(Color.black.opacity(0.62), in: Circle())
+            .offset(x: 2, y: 1)
+        }
+      }
+      .frame(width: size.width, height: size.height)
+      .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .disabled(isDisabled)

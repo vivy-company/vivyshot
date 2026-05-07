@@ -44,7 +44,7 @@ struct VivyShotStatisticsView: View {
 
   @ObservedObject private var storeManager = StoreManager.shared
   @StateObject private var viewModel = CaptureStatisticsViewModel()
-  private var hasStatisticsAccess: Bool {
+  private var hasFullStatisticsAccess: Bool {
   #if DEBUG
     storeManager.hasPaidAccess || viewModel.debugPreviewEnabled
   #else
@@ -63,19 +63,9 @@ struct VivyShotStatisticsView: View {
           viewModel: viewModel,
           storeManager: storeManager,
           accentColor: statisticsAccentColor,
-          presentation: presentation
-        )
-      }
-      .blur(radius: hasStatisticsAccess ? 0 : 8)
-      .opacity(hasStatisticsAccess ? 1 : 0.52)
-      .allowsHitTesting(hasStatisticsAccess)
-
-      if !hasStatisticsAccess {
-        StatisticsLockedOverlay(
-          totalCapturesSummary: previewSummary,
-          onUpgrade: { presentPaywallWindow() },
-          debugPreviewEnabled: $viewModel.debugPreviewEnabled,
-          hasPaidAccess: storeManager.hasPaidAccess
+          presentation: presentation,
+          hasFullAccess: hasFullStatisticsAccess,
+          onUpgrade: { presentPaywallWindow() }
         )
       }
     }
@@ -93,12 +83,6 @@ struct VivyShotStatisticsView: View {
       }
     }
   }
-
-  private var previewSummary: String {
-    let total = viewModel.dashboardData.summary.totalScreenshotsCaptured + viewModel.dashboardData.summary.totalRecordingsCompleted
-    if total == 0 { return "No captures tracked yet" }
-    return "\(total.formatted()) captures tracked locally"
-  }
 }
 
 // MARK: - Root List
@@ -108,6 +92,8 @@ private struct StatisticsRootView: View {
   @ObservedObject var storeManager: StoreManager
   let accentColor: Color
   let presentation: VivyShotStatisticsView.Presentation
+  let hasFullAccess: Bool
+  let onUpgrade: () -> Void
 
   private var hasAnyCaptureData: Bool {
     let s = viewModel.dashboardData.summary
@@ -128,21 +114,27 @@ private struct StatisticsRootView: View {
       }
     #endif
 
-      overviewSection
-      habitsSection
-      activitySection
-      breakdownSection
-      milestonesSection
+      if hasFullAccess {
+        overviewSection
+        habitsSection
+        activitySection
+        breakdownSection
+        milestonesSection
+      } else {
+        statsLiteDashboardSection
+        activitySection
+        historyInsightsSection
+      }
     }
     .formStyle(.grouped)
     .navigationTitle("Statistics")
-    .navigationSubtitle("Local capture totals, streaks, history, and milestones for this Mac.")
+    .navigationSubtitle(hasFullAccess ? "Local capture totals, streaks, history, and milestones for this Mac." : "Local capture totals and recent activity for this Mac.")
     .onAppear {
       guard presentation == .window else { return }
       DispatchQueue.main.async {
         guard let window = NSApp.keyWindow else { return }
         window.title = "Statistics"
-        window.subtitle = "Local capture totals, streaks, history, and milestones for this Mac."
+        window.subtitle = hasFullAccess ? "Local capture totals, streaks, history, and milestones for this Mac." : "Local capture totals and recent activity for this Mac."
         window.toolbarStyle = .unified
       }
     }
@@ -169,7 +161,7 @@ private struct StatisticsRootView: View {
             }
           }
 
-          Text("Local capture totals, streaks, history, and milestones for this Mac.")
+          Text(hasFullAccess ? "Local capture totals, streaks, history, and milestones for this Mac." : "Today, this week, and recent capture activity stored locally on this Mac.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -231,49 +223,80 @@ private struct StatisticsRootView: View {
   #endif
   }
 
+  private var statsLiteDashboardSection: some View {
+    Section {
+      StatisticsMetricRow(
+        title: "Today",
+        value: todayAggregate.totalCaptureCount.formatted(),
+        detail: captureMixLabel(todayAggregate),
+        systemImage: "sun.max",
+        recentValues: recentMetricValues(dayCount: 7) { Double($0.screenshotCount + $0.recordingCount) }
+      )
+      StatisticsMetricRow(
+        title: "This Week",
+        value: currentWeekAggregate.totalCaptureCount.formatted(),
+        detail: captureMixLabel(currentWeekAggregate),
+        systemImage: "calendar",
+        recentValues: recentMetricValues(dayCount: 7) { Double($0.screenshotCount + $0.recordingCount) }
+      )
+      StatisticsMetricRow(
+        title: "Current Streak",
+        value: dayCountLabel(viewModel.dashboardData.summary.currentCaptureStreakDays),
+        detail: "Consecutive active days",
+        systemImage: "flame"
+      )
+      StatisticsMetricRow(
+        title: "Active Days",
+        value: viewModel.dashboardData.summary.activeCaptureDays.formatted(),
+        detail: "Days with captures on this Mac",
+        systemImage: "checkmark.circle"
+      )
+    } header: {
+      Text("Current Snapshot")
+    } footer: {
+      Text("Recent statistics are free. Everything is computed from local events stored on this Mac.")
+    }
+  }
+
   // MARK: Overview
 
   private var overviewSection: some View {
     Section {
-      NavigationLink(value: StatisticsOverviewMetric.screenshots) {
-        StatisticsMetricRow(
-          title: "Total Screenshots",
-          value: viewModel.dashboardData.summary.totalScreenshotsCaptured.formatted(),
-          detail: "All-time captures",
-          systemImage: "camera",
-          recentValues: recentMetricValues { Double($0.screenshotCount) }
-        )
-      }
+      overviewMetricRow(
+        metric: .screenshots,
+        title: "Total Screenshots",
+        value: viewModel.dashboardData.summary.totalScreenshotsCaptured.formatted(),
+        detail: "All-time captures",
+        systemImage: "camera",
+        recentValues: recentMetricValues { Double($0.screenshotCount) }
+      )
 
-      NavigationLink(value: StatisticsOverviewMetric.recordings) {
-        StatisticsMetricRow(
-          title: "Total Recordings",
-          value: viewModel.dashboardData.summary.totalRecordingsCompleted.formatted(),
-          detail: "Completed recordings",
-          systemImage: "record.circle",
-          recentValues: recentMetricValues { Double($0.recordingCount) }
-        )
-      }
+      overviewMetricRow(
+        metric: .recordings,
+        title: "Total Recordings",
+        value: viewModel.dashboardData.summary.totalRecordingsCompleted.formatted(),
+        detail: "Completed recordings",
+        systemImage: "record.circle",
+        recentValues: recentMetricValues { Double($0.recordingCount) }
+      )
 
-      NavigationLink(value: StatisticsOverviewMetric.recordingTime) {
-        StatisticsMetricRow(
-          title: "Total Recording Time",
-          value: StatisticsFormatting.formatDuration(viewModel.dashboardData.summary.totalRecordedDurationMS),
-          detail: "Finished sessions only",
-          systemImage: "timer",
-          recentValues: recentMetricValues { Double($0.recordedDurationMS) }
-        )
-      }
+      overviewMetricRow(
+        metric: .recordingTime,
+        title: "Total Recording Time",
+        value: StatisticsFormatting.formatDuration(viewModel.dashboardData.summary.totalRecordedDurationMS),
+        detail: hasFullAccess ? "Finished sessions only" : "Full timing details require paid access",
+        systemImage: "timer",
+        recentValues: recentMetricValues { Double($0.recordedDurationMS) }
+      )
 
-      NavigationLink(value: StatisticsOverviewMetric.storage) {
-        StatisticsMetricRow(
-          title: "Storage Produced",
-          value: StatisticsFormatting.formatBytes(viewModel.dashboardData.summary.totalCaptureBytesProduced),
-          detail: "Primary output artifacts",
-          systemImage: "internaldrive",
-          recentValues: recentMetricValues { Double($0.captureBytesProduced) }
-        )
-      }
+      overviewMetricRow(
+        metric: .storage,
+        title: "Storage Produced",
+        value: StatisticsFormatting.formatBytes(viewModel.dashboardData.summary.totalCaptureBytesProduced),
+        detail: hasFullAccess ? "Primary output artifacts" : "Storage breakdown requires paid access",
+        systemImage: "internaldrive",
+        recentValues: recentMetricValues { Double($0.captureBytesProduced) }
+      )
     } header: {
       Text("Overview")
     } footer: {
@@ -285,6 +308,31 @@ private struct StatisticsRootView: View {
         dashboardData: viewModel.dashboardData,
         accentColor: accentColor
       )
+    }
+  }
+
+  @ViewBuilder
+  private func overviewMetricRow(
+    metric: StatisticsOverviewMetric,
+    title: String,
+    value: String,
+    detail: String,
+    systemImage: String,
+    recentValues: [Double]? = nil
+  ) -> some View {
+    let row = StatisticsMetricRow(
+      title: title,
+      value: value,
+      detail: detail,
+      systemImage: systemImage,
+      recentValues: recentValues
+    )
+    if hasFullAccess {
+      NavigationLink(value: metric) {
+        row
+      }
+    } else {
+      row
     }
   }
 
@@ -327,13 +375,17 @@ private struct StatisticsRootView: View {
 
   @State private var selectedRange: StatisticsGraphRange = .sixMonths
 
+  private var effectiveSelectedRange: StatisticsGraphRange {
+    hasFullAccess ? selectedRange : .sevenDays
+  }
+
   private var activitySection: some View {
     Section {
       activitySectionContent
     } header: {
       Text("Activity")
     } footer: {
-      Text(dayRangeDescription)
+      Text(hasFullAccess ? dayRangeDescription : "\(dayRangeDescription). Unlock full statistics for 3 months, 6 months, 1 year, and all-time history.")
     }
   }
 
@@ -346,24 +398,36 @@ private struct StatisticsRootView: View {
             .font(.subheadline.weight(.medium))
             .foregroundStyle(.secondary)
           Spacer(minLength: 0)
-          Picker("Range", selection: $selectedRange) {
-            ForEach(StatisticsGraphRange.allCases) { range in
-              Text(range.title).tag(range)
+          if hasFullAccess {
+            Picker("Range", selection: $selectedRange) {
+              ForEach(StatisticsGraphRange.allCases) { range in
+                Text(range.title).tag(range)
+              }
             }
+            .pickerStyle(.segmented)
+            .frame(width: 260)
+            .labelsHidden()
+          } else {
+            Text("Last 7 days")
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(.secondary)
           }
-          .pickerStyle(.segmented)
-          .frame(width: 220)
-          .labelsHidden()
         }
 
         if hasActivityInSelectedRange {
-          StatisticsContributionGraph(
-            weeks: makeGraphWeeks(range: selectedRange),
-            weekdaySymbols: orderedWeekdaySymbols(),
-            accentColor: accentColor
-          )
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.vertical, 4)
+          if effectiveSelectedRange == .sevenDays {
+            StatisticsRecentActivityBarChart(days: recentActivityDays(dayCount: 7), accentColor: accentColor)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.vertical, 4)
+          } else {
+            StatisticsContributionGraph(
+              weeks: makeGraphWeeks(range: effectiveSelectedRange),
+              weekdaySymbols: orderedWeekdaySymbols(),
+              accentColor: accentColor
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+          }
 
           StatisticsActivitySummaryRow(
             totalCaptures: selectedRangeAggregate.totalCaptureCount.formatted(),
@@ -375,7 +439,7 @@ private struct StatisticsRootView: View {
           ContentUnavailableView {
             Label("No activity in this range", systemImage: "calendar.badge.exclamationmark")
           } description: {
-            Text("Try a wider range to see older capture sessions on this Mac.")
+            Text(hasFullAccess ? "Try a wider range to see older capture sessions on this Mac." : "Older activity is still tracked locally. Unlock full statistics to browse longer history.")
           }
           .frame(maxWidth: .infinity).padding(.vertical, 18)
         }
@@ -388,6 +452,55 @@ private struct StatisticsRootView: View {
         Text("Take a screenshot or record a video, and your activity history will start building here.")
       }
       .frame(maxWidth: .infinity).padding(.vertical, 18)
+    }
+  }
+
+  // MARK: History & Insights
+
+  private var historyInsightsSection: some View {
+    Section {
+      VStack(alignment: .leading, spacing: 14) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: "chart.line.uptrend.xyaxis")
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(accentColor)
+            .frame(width: 28, height: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("History & Insights")
+              .font(.body.weight(.semibold))
+            Text("\(totalCaptureCount.formatted()) captures are already tracked locally. Unlock long-term trends, storage growth, timing, milestones, and metric drilldowns.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 0)
+        }
+
+        HStack(spacing: 10) {
+          StatisticsInsightPill(title: "Tracked", value: totalCaptureCount.formatted())
+          StatisticsInsightPill(title: "Active Days", value: viewModel.dashboardData.summary.activeCaptureDays.formatted())
+          StatisticsInsightPill(title: "Storage", value: StatisticsFormatting.formatBytes(viewModel.dashboardData.summary.totalCaptureBytesProduced))
+        }
+
+        HStack(spacing: 10) {
+          Button("Unlock Full Statistics", action: onUpgrade)
+            .buttonStyle(.borderedProminent)
+        #if DEBUG
+          Button(viewModel.debugPreviewEnabled ? "Hide Debug Preview" : "Show Debug Preview") {
+            viewModel.debugPreviewEnabled.toggle()
+          }
+          .buttonStyle(.bordered)
+        #endif
+          Spacer(minLength: 0)
+        }
+      }
+      .padding(.vertical, 4)
+    } header: {
+      Text("History & Insights")
+    } footer: {
+      Text("Included with Lifetime and Supporter. No subscription.")
     }
   }
 
@@ -451,8 +564,25 @@ private struct StatisticsRootView: View {
     return "\(StatisticsFormatting.formatDayKey(day)) \u{2022} score \(viewModel.dashboardData.summary.mostActiveDayScore)"
   }
 
+  private var totalCaptureCount: Int64 {
+    Int64(viewModel.dashboardData.summary.totalScreenshotsCaptured + viewModel.dashboardData.summary.totalRecordingsCompleted)
+  }
+
+  private var todayAggregate: StatisticsAggregate {
+    let today = Calendar.autoupdatingCurrent.startOfDay(for: Date())
+    return aggregateBuckets(in: StatisticsGraphBounds(startDate: today, endDate: today))
+  }
+
+  private var currentWeekAggregate: StatisticsAggregate {
+    let calendar = Calendar.autoupdatingCurrent
+    let interval = calendar.dateInterval(of: .weekOfYear, for: Date())
+    let start = calendar.startOfDay(for: interval?.start ?? Date())
+    let end = calendar.startOfDay(for: interval.flatMap { calendar.date(byAdding: .day, value: -1, to: $0.end) } ?? Date())
+    return aggregateBuckets(in: StatisticsGraphBounds(startDate: start, endDate: end))
+  }
+
   private var selectedRangeAggregate: StatisticsAggregate {
-    aggregateBuckets(in: graphRangeBounds(for: selectedRange))
+    aggregateBuckets(in: graphRangeBounds(for: effectiveSelectedRange))
   }
 
   private var hasActivityInSelectedRange: Bool {
@@ -461,7 +591,7 @@ private struct StatisticsRootView: View {
 
   private var selectedRangeActiveDayCount: Int {
     let calendar = Calendar.autoupdatingCurrent
-    let bounds = graphRangeBounds(for: selectedRange)
+    let bounds = graphRangeBounds(for: effectiveSelectedRange)
     return viewModel.dashboardData.dailyBuckets.reduce(into: 0) { count, bucket in
       guard bucket.activityScore > 0, let bucketDate = bucket.day.asDate(calendar: calendar) else { return }
       let normalized = calendar.startOfDay(for: bucketDate)
@@ -471,7 +601,7 @@ private struct StatisticsRootView: View {
 
   private var busiestDaySummary: String {
     let calendar = Calendar.autoupdatingCurrent
-    let bounds = graphRangeBounds(for: selectedRange)
+    let bounds = graphRangeBounds(for: effectiveSelectedRange)
     guard let bucket = viewModel.dashboardData.dailyBuckets
       .filter({ b in
         guard b.activityScore > 0, let d = b.day.asDate(calendar: calendar) else { return false }
@@ -488,12 +618,21 @@ private struct StatisticsRootView: View {
     guard hasAnyCaptureData else {
       return "Capture activity appears here after your first screenshot or recording."
     }
-    let bounds = graphRangeBounds(for: selectedRange)
+    let bounds = graphRangeBounds(for: effectiveSelectedRange)
     return "\(StatisticsFormatting.formatDate(bounds.startDate)) to \(StatisticsFormatting.formatDate(bounds.endDate))"
   }
 
   private func dayCountLabel(_ count: Int) -> String {
     count == 1 ? "1 day" : "\(count) days"
+  }
+
+  private func captureMixLabel(_ aggregate: StatisticsAggregate) -> String {
+    let screenshots = aggregate.screenshotCount
+    let recordings = aggregate.recordingCount
+    if screenshots == 0 && recordings == 0 {
+      return "No captures yet"
+    }
+    return "\(screenshots.formatted()) \(screenshots == 1 ? "screenshot" : "screenshots") \u{2022} \(recordings.formatted()) \(recordings == 1 ? "recording" : "recordings")"
   }
 
   private func recentMetricValues(dayCount: Int = 10, value: (RustStatsDailyBucket) -> Double) -> [Double] {
@@ -504,6 +643,23 @@ private struct StatisticsRootView: View {
       let date = calendar.date(byAdding: .day, value: i - (dayCount - 1), to: today) ?? today
       guard let bucket = byKey[StatisticsFormatting.dayKey(for: date, calendar: calendar)] else { return 0 }
       return value(bucket)
+    }
+  }
+
+  private func recentActivityDays(dayCount: Int = 7) -> [StatisticsRecentActivityDay] {
+    let calendar = Calendar.autoupdatingCurrent
+    let today = calendar.startOfDay(for: Date())
+    let byKey = Dictionary(uniqueKeysWithValues: viewModel.dashboardData.dailyBuckets.map { ($0.day.yyyyMMdd, $0) })
+    return (0..<dayCount).map { i in
+      let date = calendar.date(byAdding: .day, value: i - (dayCount - 1), to: today) ?? today
+      let bucket = byKey[StatisticsFormatting.dayKey(for: date, calendar: calendar)]
+      return StatisticsRecentActivityDay(
+        date: date,
+        screenshotCount: Int64(bucket?.screenshotCount ?? 0),
+        recordingCount: Int64(bucket?.recordingCount ?? 0),
+        recordedDurationMS: bucket?.recordedDurationMS ?? 0,
+        captureBytesProduced: bucket?.captureBytesProduced ?? 0
+      )
     }
   }
 
@@ -742,7 +898,7 @@ private struct StatisticsMetricDetailView: View {
             }
           }
           .pickerStyle(.segmented)
-          .frame(width: 220)
+          .frame(width: 260)
           .labelsHidden()
         }
 
@@ -817,6 +973,32 @@ private struct StatisticsMetricRow: View {
     }
     .padding(.vertical, 2)
     .contentShape(Rectangle())
+  }
+}
+
+private struct StatisticsInsightPill: View {
+  let title: String
+  let value: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(title)
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+      Text(value)
+        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+        .foregroundStyle(.primary)
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(
+      RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .fill(Color.secondary.opacity(0.08))
+    )
   }
 }
 
@@ -935,6 +1117,83 @@ private struct StatisticsMetricDetailSummaryRow: View {
 
 // MARK: - Activity Components
 
+private struct StatisticsRecentActivityDay: Identifiable {
+  let date: Date
+  let screenshotCount: Int64
+  let recordingCount: Int64
+  let recordedDurationMS: Int64
+  let captureBytesProduced: Int64
+
+  var id: Date { date }
+  var totalCaptureCount: Int64 { screenshotCount + recordingCount }
+}
+
+private struct StatisticsRecentActivityBarChart: View {
+  let days: [StatisticsRecentActivityDay]
+  let accentColor: Color
+
+  private var maxCaptures: Double {
+    max(Double(days.map(\.totalCaptureCount).max() ?? 0), 1)
+  }
+
+  var body: some View {
+    GeometryReader { proxy in
+      HStack(alignment: .bottom, spacing: 8) {
+        ForEach(days) { day in
+          VStack(spacing: 6) {
+            Text(day.totalCaptureCount.formatted())
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(day.totalCaptureCount > 0 ? .primary : .secondary)
+              .monospacedDigit()
+              .lineLimit(1)
+              .minimumScaleFactor(0.72)
+              .frame(height: 14)
+
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+              .fill(day.totalCaptureCount > 0 ? accentColor.opacity(0.74) : Color.secondary.opacity(0.12))
+              .frame(height: barHeight(for: day, availableHeight: proxy.size.height - 40))
+              .help(tooltip(for: day))
+
+            Text(weekdayLabel(for: day.date))
+              .font(.caption2.weight(.medium))
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .frame(height: 14)
+          }
+          .frame(maxWidth: .infinity)
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+    }
+    .frame(height: 150)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(accessibilitySummary)
+  }
+
+  private func barHeight(for day: StatisticsRecentActivityDay, availableHeight: CGFloat) -> CGFloat {
+    let value = Double(day.totalCaptureCount)
+    guard value > 0 else { return 5 }
+    return max(12, availableHeight * CGFloat(value / maxCaptures))
+  }
+
+  private func weekdayLabel(for date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = .autoupdatingCurrent
+    formatter.dateFormat = "EEE"
+    return formatter.string(from: date)
+  }
+
+  private func tooltip(for day: StatisticsRecentActivityDay) -> String {
+    let date = StatisticsFormatting.formatDate(day.date)
+    return "\(date)\nScreenshots: \(day.screenshotCount)\nRecordings: \(day.recordingCount)\nRecorded: \(StatisticsFormatting.formatDuration(day.recordedDurationMS))\nStorage: \(StatisticsFormatting.formatBytes(day.captureBytesProduced))"
+  }
+
+  private var accessibilitySummary: String {
+    let total = days.reduce(Int64(0)) { $0 + $1.totalCaptureCount }
+    return "Last 7 days activity, \(total.formatted()) total captures"
+  }
+}
+
 private struct StatisticsActivitySummaryRow: View {
   let totalCaptures: String
   let activeDays: String
@@ -1008,95 +1267,6 @@ private struct StatisticsBreakdownGrid: View {
         .frame(maxWidth: .infinity, alignment: .trailing)
       Text(allTime).font(.system(.subheadline, design: .monospaced))
         .frame(maxWidth: .infinity, alignment: .trailing)
-    }
-  }
-}
-
-// MARK: - Locked Overlay
-
-private struct StatisticsLockedOverlay: View {
-  let totalCapturesSummary: String
-  let onUpgrade: () -> Void
-  @Binding var debugPreviewEnabled: Bool
-  let hasPaidAccess: Bool
-
-  private let features: [(String, String, String)] = [
-    ("Longer History", "Browse your capture activity across weeks, months, and years.", "calendar.badge.clock"),
-    ("Timing", "See how long screenshots and recordings usually take.", "stopwatch"),
-    ("Storage", "Keep an eye on how much space your captures create.", "internaldrive"),
-    ("Milestones", "Spot first captures, busiest days, and progress over time.", "flag.2.crossed"),
-  ]
-
-  var body: some View {
-    ZStack {
-      Rectangle().fill(Color.black.opacity(0.16)).ignoresSafeArea()
-
-      VStack(alignment: .leading, spacing: 18) {
-        HStack(spacing: 12) {
-          ZStack {
-            Circle().fill(.thinMaterial).frame(width: 34, height: 34)
-            Image(systemName: "lock.fill")
-              .font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary)
-          }
-          Text("Unlock Statistics").font(.title3.weight(.semibold))
-        }
-
-        VStack(alignment: .leading, spacing: 8) {
-          Text("See your streaks, recording time, storage, and long-term capture habits in one place.")
-            .font(.subheadline).foregroundStyle(.primary)
-            .fixedSize(horizontal: false, vertical: true)
-          Text("Included with Lifetime and Supporter. Your captures are already being counted on this Mac.")
-            .font(.subheadline).foregroundStyle(Color.primary.opacity(0.72))
-            .fixedSize(horizontal: false, vertical: true)
-          Text(totalCapturesSummary)
-            .font(.caption).foregroundStyle(Color.primary.opacity(0.58))
-        }
-
-        VStack(alignment: .leading, spacing: 0) {
-          ForEach(features.indices, id: \.self) { i in
-            let (title, detail, icon) = features[i]
-            HStack(alignment: .top, spacing: 12) {
-              Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold)).foregroundStyle(.secondary)
-                .frame(width: 20, height: 20).padding(.top, 2)
-              VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.body.weight(.medium))
-                Text(detail).font(.caption).foregroundStyle(.secondary)
-                  .fixedSize(horizontal: false, vertical: true)
-              }
-            }
-            .padding(.vertical, 6)
-            if i < features.count - 1 { Divider() }
-          }
-        }
-        .padding(.vertical, 4)
-
-        HStack(spacing: 10) {
-          Button("Unlock Statistics", action: onUpgrade)
-            .buttonStyle(.borderedProminent)
-        #if DEBUG
-          Button(debugPreviewEnabled ? "Hide Debug Preview" : "Show Debug Preview") {
-            debugPreviewEnabled.toggle()
-          }
-          .buttonStyle(.bordered)
-        #endif
-        }
-
-        Text("One-time purchase. No subscription.")
-          .font(.caption).foregroundStyle(Color.primary.opacity(0.58))
-      }
-      .padding(26)
-      .frame(maxWidth: 620, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .fill(Color(nsColor: .windowBackgroundColor).opacity(0.96))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .strokeBorder(Color.white.opacity(0.05))
-      )
-      .shadow(color: .black.opacity(0.16), radius: 22, y: 12)
-      .padding(8)
     }
   }
 }
@@ -1232,8 +1402,8 @@ private struct StatisticsContributionGraph: View {
 
   private var graphHeight: CGFloat {
     switch weeks.count {
-    case ...16: return 380
-    case 17...32: return 220
+    case ...16: return 168
+    case 17...32: return 168
     case 33...56: return 156
     default: return 144
     }
@@ -1251,10 +1421,14 @@ private struct StatisticsContributionGraph: View {
     let gaps = CGFloat(max(wc - 1, 0))
     let minSpacing = minimumHorizontalSpacing(for: wc)
     let fitted = floor((width - gaps * minSpacing) / CGFloat(wc))
-    let cell = max(minimumCellSize(for: wc), fitted)
-    let remaining = max(width - CGFloat(wc) * cell, 0)
-    let spacing = gaps > 0 ? remaining / gaps : 0
-    return ContributionGraphLayout(cellSize: cell, horizontalSpacing: spacing, verticalSpacing: verticalSpacing, contentWidth: width)
+    let cell = min(maximumCellSize(for: wc), max(minimumCellSize(for: wc), fitted))
+    let contentWidth = CGFloat(wc) * cell + gaps * minSpacing
+    if contentWidth > width {
+      let compressedCell = min(cell, max(4, floor((width - gaps) / CGFloat(wc))))
+      let spacing = gaps > 0 ? max(1, (width - CGFloat(wc) * compressedCell) / gaps) : 0
+      return ContributionGraphLayout(cellSize: compressedCell, horizontalSpacing: spacing, verticalSpacing: verticalSpacing, contentWidth: width)
+    }
+    return ContributionGraphLayout(cellSize: cell, horizontalSpacing: minSpacing, verticalSpacing: verticalSpacing, contentWidth: contentWidth)
   }
 
   private func minimumCellSize(for wc: Int) -> CGFloat {
@@ -1263,6 +1437,15 @@ private struct StatisticsContributionGraph: View {
     case 17...32: return 12
     case 33...56: return 8
     default: return 6
+    }
+  }
+
+  private func maximumCellSize(for wc: Int) -> CGFloat {
+    switch wc {
+    case ...16: return 18
+    case ...32: return 14
+    case ...56: return 10
+    default: return 8
     }
   }
 
@@ -1328,6 +1511,9 @@ private func statisticsGraphBounds(
     .flatMap { calendar.date(byAdding: .day, value: -1, to: $0.end) } ?? today
 
   switch range {
+  case .sevenDays:
+    let start = calendar.date(byAdding: .day, value: -6, to: today) ?? today
+    return StatisticsGraphBounds(startDate: start, endDate: today)
   case .threeMonths:
     let start = calendar.date(byAdding: .month, value: -2, to: monthStart) ?? monthStart
     return StatisticsGraphBounds(startDate: start, endDate: monthEnd)

@@ -22,7 +22,11 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.photography</string>
-</dict>
+		<key>LSApplicationCategoryType</key>
+		<string>public.app-category.photography</string>
+		<key>NSCameraUsageDescription</key>
+		<string>VivyShot uses the camera when you enable the paid webcam overlay for screen recordings.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>VivyShot uses the microphone when you enable paid microphone audio for screen recordings.</string>
+	</dict>
 </plist>

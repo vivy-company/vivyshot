@@ -206,3 +206,49 @@ enum VideoWebcamOverlayShapeOption: Int, CaseIterable, Identifiable {
     }
   }
 }
+
+enum VideoKeystrokeOverlayStyleOption: Int, CaseIterable, Identifiable {
+  case compact = 0
+  case glass = 1
+
+  var id: Int { rawValue }
+
+  var title: String {
+    switch self {
+    case .compact:
+      return String(localized: "Compact", bundle: AppLocalizer.shared.bundle)
+    case .glass:
+      return String(localized: "Glass", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+}
+
+enum VideoKeystrokeOverlaySizeOption: Int, CaseIterable, Identifiable {
+  case small = 0
+  case medium = 1
+  case large = 2
+
+  var id: Int { rawValue }
+
+  var title: String {
+    switch self {
+    case .small:
+      return String(localized: "Small", bundle: AppLocalizer.shared.bundle)
+    case .medium:
+      return String(localized: "Medium", bundle: AppLocalizer.shared.bundle)
+    case .large:
+      return String(localized: "Large", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+
+  var normalizedSize: CGSize {
+    switch self {
+    case .small:
+      return CGSize(width: 0.32, height: 0.10)
+    case .medium:
+      return CGSize(width: 0.40, height: 0.12)
+    case .large:
+      return CGSize(width: 0.48, height: 0.14)
+    }
+  }
+}

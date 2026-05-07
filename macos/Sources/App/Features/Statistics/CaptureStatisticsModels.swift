@@ -36,6 +36,7 @@ extension CaptureStatisticsDashboardData {
 }
 
 enum StatisticsGraphRange: String, CaseIterable, Identifiable {
+  case sevenDays
   case threeMonths
   case sixMonths
   case oneYear
@@ -45,6 +46,8 @@ enum StatisticsGraphRange: String, CaseIterable, Identifiable {
 
   var title: String {
     switch self {
+    case .sevenDays:
+      return "7D"
     case .threeMonths:
       return "3M"
     case .sixMonths:
@@ -58,6 +61,8 @@ enum StatisticsGraphRange: String, CaseIterable, Identifiable {
 
   var rollingDayCount: Int? {
     switch self {
+    case .sevenDays:
+      return 7
     case .threeMonths:
       return 90
     case .sixMonths:

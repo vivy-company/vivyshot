@@ -83,9 +83,20 @@ final class AppSettings: ObservableObject {
   @Published private(set) var videoWebcamDeviceID: String
   @Published private(set) var videoWebcamOverlaySize: VideoWebcamOverlaySizeOption
   @Published private(set) var videoWebcamOverlayShape: VideoWebcamOverlayShapeOption
+  @Published private(set) var videoWebcamOverlayNormalizedX: Double
+  @Published private(set) var videoWebcamOverlayNormalizedY: Double
+  @Published private(set) var videoWebcamOverlayNormalizedWidth: Double
+  @Published private(set) var videoWebcamOverlayNormalizedHeight: Double
   @Published private(set) var videoHighlightMouseClicks: Bool
   @Published private(set) var videoHighlightKeystrokes: Bool
+  @Published private(set) var videoKeystrokeOverlayStyle: VideoKeystrokeOverlayStyleOption
+  @Published private(set) var videoKeystrokeOverlaySize: VideoKeystrokeOverlaySizeOption
+  @Published private(set) var videoKeystrokeOverlayNormalizedX: Double
+  @Published private(set) var videoKeystrokeOverlayNormalizedY: Double
+  @Published private(set) var videoKeystrokeOverlayNormalizedWidth: Double
+  @Published private(set) var videoKeystrokeOverlayNormalizedHeight: Double
   @Published private(set) var videoHideNotificationsBestEffort: Bool
+  @Published private(set) var proExportTrialConsumedAt: Date?
 
   var toolbarAccentColor: NSColor {
     NSColor(
@@ -136,6 +147,24 @@ final class AppSettings: ObservableObject {
     videoToolOrder.filter { !hiddenVideoTools.contains($0) }
   }
 
+  var videoWebcamOverlayNormalizedFrame: CGRect {
+    CGRect(
+      x: videoWebcamOverlayNormalizedX,
+      y: videoWebcamOverlayNormalizedY,
+      width: videoWebcamOverlayNormalizedWidth,
+      height: videoWebcamOverlayNormalizedHeight
+    )
+  }
+
+  var videoKeystrokeOverlayNormalizedFrame: CGRect {
+    CGRect(
+      x: videoKeystrokeOverlayNormalizedX,
+      y: videoKeystrokeOverlayNormalizedY,
+      width: videoKeystrokeOverlayNormalizedWidth,
+      height: videoKeystrokeOverlayNormalizedHeight
+    )
+  }
+
   private let defaults: UserDefaults
 
   private enum Keys {
@@ -182,9 +211,20 @@ final class AppSettings: ObservableObject {
     static let videoWebcamDeviceID = "settings.video.webcam.deviceID"
     static let videoWebcamOverlaySize = "settings.video.webcam.overlaySize"
     static let videoWebcamOverlayShape = "settings.video.webcam.overlayShape"
+    static let videoWebcamOverlayNormalizedX = "settings.video.webcam.overlay.normalizedX"
+    static let videoWebcamOverlayNormalizedY = "settings.video.webcam.overlay.normalizedY"
+    static let videoWebcamOverlayNormalizedWidth = "settings.video.webcam.overlay.normalizedWidth"
+    static let videoWebcamOverlayNormalizedHeight = "settings.video.webcam.overlay.normalizedHeight"
     static let videoHighlightMouseClicks = "settings.video.highlightMouseClicks"
     static let videoHighlightKeystrokes = "settings.video.highlightKeystrokes"
+    static let videoKeystrokeOverlayStyle = "settings.video.keystroke.overlay.style"
+    static let videoKeystrokeOverlaySize = "settings.video.keystroke.overlay.size"
+    static let videoKeystrokeOverlayNormalizedX = "settings.video.keystroke.overlay.normalizedX"
+    static let videoKeystrokeOverlayNormalizedY = "settings.video.keystroke.overlay.normalizedY"
+    static let videoKeystrokeOverlayNormalizedWidth = "settings.video.keystroke.overlay.normalizedWidth"
+    static let videoKeystrokeOverlayNormalizedHeight = "settings.video.keystroke.overlay.normalizedHeight"
     static let videoHideNotificationsBestEffort = "settings.video.hideNotificationsBestEffort"
+    static let proExportTrialConsumedAt = "settings.proExportTrial.consumedAt"
   }
 
   private init(defaults: UserDefaults = .standard) {
@@ -304,6 +344,12 @@ final class AppSettings: ObservableObject {
     let storedWebcamShape = defaults.object(forKey: Keys.videoWebcamOverlayShape) as? Int
     videoWebcamOverlayShape = VideoWebcamOverlayShapeOption(rawValue: storedWebcamShape ?? VideoWebcamOverlayShapeOption.roundedRect.rawValue) ?? .roundedRect
 
+    let defaultWebcamFrame = Self.defaultVideoWebcamOverlayNormalizedFrame
+    videoWebcamOverlayNormalizedX = Self.clampedNormalizedOrigin(defaults.object(forKey: Keys.videoWebcamOverlayNormalizedX) as? Double ?? defaultWebcamFrame.minX)
+    videoWebcamOverlayNormalizedY = Self.clampedNormalizedOrigin(defaults.object(forKey: Keys.videoWebcamOverlayNormalizedY) as? Double ?? defaultWebcamFrame.minY)
+    videoWebcamOverlayNormalizedWidth = Self.clampedNormalizedDimension(defaults.object(forKey: Keys.videoWebcamOverlayNormalizedWidth) as? Double ?? defaultWebcamFrame.width)
+    videoWebcamOverlayNormalizedHeight = Self.clampedNormalizedDimension(defaults.object(forKey: Keys.videoWebcamOverlayNormalizedHeight) as? Double ?? defaultWebcamFrame.height)
+
     if defaults.object(forKey: Keys.videoHighlightMouseClicks) == nil {
       videoHighlightMouseClicks = true
     } else {
@@ -312,11 +358,25 @@ final class AppSettings: ObservableObject {
 
     videoHighlightKeystrokes = defaults.bool(forKey: Keys.videoHighlightKeystrokes)
 
+    let storedKeystrokeStyle = defaults.object(forKey: Keys.videoKeystrokeOverlayStyle) as? Int
+    videoKeystrokeOverlayStyle = VideoKeystrokeOverlayStyleOption(rawValue: storedKeystrokeStyle ?? VideoKeystrokeOverlayStyleOption.glass.rawValue) ?? .glass
+
+    let storedKeystrokeSize = defaults.object(forKey: Keys.videoKeystrokeOverlaySize) as? Int
+    videoKeystrokeOverlaySize = VideoKeystrokeOverlaySizeOption(rawValue: storedKeystrokeSize ?? VideoKeystrokeOverlaySizeOption.medium.rawValue) ?? .medium
+
+    let defaultKeystrokeFrame = Self.defaultVideoKeystrokeOverlayNormalizedFrame
+    videoKeystrokeOverlayNormalizedX = Self.clampedNormalizedOrigin(defaults.object(forKey: Keys.videoKeystrokeOverlayNormalizedX) as? Double ?? defaultKeystrokeFrame.minX)
+    videoKeystrokeOverlayNormalizedY = Self.clampedNormalizedOrigin(defaults.object(forKey: Keys.videoKeystrokeOverlayNormalizedY) as? Double ?? defaultKeystrokeFrame.minY)
+    videoKeystrokeOverlayNormalizedWidth = Self.clampedNormalizedDimension(defaults.object(forKey: Keys.videoKeystrokeOverlayNormalizedWidth) as? Double ?? defaultKeystrokeFrame.width)
+    videoKeystrokeOverlayNormalizedHeight = Self.clampedNormalizedDimension(defaults.object(forKey: Keys.videoKeystrokeOverlayNormalizedHeight) as? Double ?? defaultKeystrokeFrame.height)
+
     if defaults.object(forKey: Keys.videoHideNotificationsBestEffort) == nil {
       videoHideNotificationsBestEffort = true
     } else {
       videoHideNotificationsBestEffort = defaults.bool(forKey: Keys.videoHideNotificationsBestEffort)
     }
+
+    proExportTrialConsumedAt = defaults.object(forKey: Keys.proExportTrialConsumedAt) as? Date
 
     AppLocalizer.shared.update(language: appLanguage)
     persistAll(notify: false)
@@ -549,6 +609,17 @@ final class AppSettings: ObservableObject {
       return
     }
     videoWebcamOverlaySize = size
+    let current = videoWebcamOverlayNormalizedFrame
+    let dimension = size.widthFraction
+    let resized = Self.resizedNormalizedOverlayFrame(
+      current,
+      width: dimension,
+      height: dimension
+    )
+    videoWebcamOverlayNormalizedX = resized.minX
+    videoWebcamOverlayNormalizedY = resized.minY
+    videoWebcamOverlayNormalizedWidth = resized.width
+    videoWebcamOverlayNormalizedHeight = resized.height
     persistVideoCaptureSettings()
   }
 
@@ -558,6 +629,26 @@ final class AppSettings: ObservableObject {
     }
     videoWebcamOverlayShape = shape
     persistVideoCaptureSettings()
+  }
+
+  func setVideoWebcamOverlayNormalizedFrame(_ frame: CGRect) {
+    let normalized = Self.normalizedOverlayFrame(frame, fallback: Self.defaultVideoWebcamOverlayNormalizedFrame)
+    let changed = abs(videoWebcamOverlayNormalizedX - normalized.minX) > .ulpOfOne
+      || abs(videoWebcamOverlayNormalizedY - normalized.minY) > .ulpOfOne
+      || abs(videoWebcamOverlayNormalizedWidth - normalized.width) > .ulpOfOne
+      || abs(videoWebcamOverlayNormalizedHeight - normalized.height) > .ulpOfOne
+    guard changed else {
+      return
+    }
+    videoWebcamOverlayNormalizedX = normalized.minX
+    videoWebcamOverlayNormalizedY = normalized.minY
+    videoWebcamOverlayNormalizedWidth = normalized.width
+    videoWebcamOverlayNormalizedHeight = normalized.height
+    persistVideoCaptureSettings()
+  }
+
+  func resetVideoWebcamOverlayPlacement() {
+    setVideoWebcamOverlayNormalizedFrame(Self.defaultVideoWebcamOverlayNormalizedFrame)
   }
 
   func setVideoHighlightMouseClicks(_ enabled: Bool) {
@@ -574,6 +665,52 @@ final class AppSettings: ObservableObject {
     }
     videoHighlightKeystrokes = enabled
     persistVideoCaptureSettings()
+  }
+
+  func setVideoKeystrokeOverlayStyle(_ style: VideoKeystrokeOverlayStyleOption) {
+    guard videoKeystrokeOverlayStyle != style else {
+      return
+    }
+    videoKeystrokeOverlayStyle = style
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoKeystrokeOverlaySize(_ size: VideoKeystrokeOverlaySizeOption) {
+    guard videoKeystrokeOverlaySize != size else {
+      return
+    }
+    videoKeystrokeOverlaySize = size
+    let current = videoKeystrokeOverlayNormalizedFrame
+    let resized = Self.resizedNormalizedOverlayFrame(
+      current,
+      width: size.normalizedSize.width,
+      height: size.normalizedSize.height
+    )
+    videoKeystrokeOverlayNormalizedX = resized.minX
+    videoKeystrokeOverlayNormalizedY = resized.minY
+    videoKeystrokeOverlayNormalizedWidth = resized.width
+    videoKeystrokeOverlayNormalizedHeight = resized.height
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoKeystrokeOverlayNormalizedFrame(_ frame: CGRect) {
+    let normalized = Self.normalizedOverlayFrame(frame, fallback: Self.defaultVideoKeystrokeOverlayNormalizedFrame)
+    let changed = abs(videoKeystrokeOverlayNormalizedX - normalized.minX) > .ulpOfOne
+      || abs(videoKeystrokeOverlayNormalizedY - normalized.minY) > .ulpOfOne
+      || abs(videoKeystrokeOverlayNormalizedWidth - normalized.width) > .ulpOfOne
+      || abs(videoKeystrokeOverlayNormalizedHeight - normalized.height) > .ulpOfOne
+    guard changed else {
+      return
+    }
+    videoKeystrokeOverlayNormalizedX = normalized.minX
+    videoKeystrokeOverlayNormalizedY = normalized.minY
+    videoKeystrokeOverlayNormalizedWidth = normalized.width
+    videoKeystrokeOverlayNormalizedHeight = normalized.height
+    persistVideoCaptureSettings()
+  }
+
+  func resetVideoKeystrokeOverlayPlacement() {
+    setVideoKeystrokeOverlayNormalizedFrame(Self.defaultVideoKeystrokeOverlayNormalizedFrame)
   }
 
   func setVideoHideNotificationsBestEffort(_ enabled: Bool) {
@@ -600,8 +737,20 @@ final class AppSettings: ObservableObject {
     videoWebcamDeviceID = ""
     videoWebcamOverlaySize = .medium
     videoWebcamOverlayShape = .roundedRect
+    let defaultWebcamFrame = Self.defaultVideoWebcamOverlayNormalizedFrame
+    videoWebcamOverlayNormalizedX = defaultWebcamFrame.minX
+    videoWebcamOverlayNormalizedY = defaultWebcamFrame.minY
+    videoWebcamOverlayNormalizedWidth = defaultWebcamFrame.width
+    videoWebcamOverlayNormalizedHeight = defaultWebcamFrame.height
     videoHighlightMouseClicks = true
     videoHighlightKeystrokes = false
+    videoKeystrokeOverlayStyle = .glass
+    videoKeystrokeOverlaySize = .medium
+    let defaultKeystrokeFrame = Self.defaultVideoKeystrokeOverlayNormalizedFrame
+    videoKeystrokeOverlayNormalizedX = defaultKeystrokeFrame.minX
+    videoKeystrokeOverlayNormalizedY = defaultKeystrokeFrame.minY
+    videoKeystrokeOverlayNormalizedWidth = defaultKeystrokeFrame.width
+    videoKeystrokeOverlayNormalizedHeight = defaultKeystrokeFrame.height
     videoHideNotificationsBestEffort = true
     persistVideoCaptureSettings()
   }
@@ -831,6 +980,26 @@ final class AppSettings: ObservableObject {
     persistCaptureTransitionSettings()
   }
 
+  var isProExportTrialAvailable: Bool {
+    proExportTrialConsumedAt == nil
+  }
+
+  func markProExportTrialConsumed(at date: Date = Date()) {
+    guard proExportTrialConsumedAt == nil else {
+      return
+    }
+    proExportTrialConsumedAt = date
+    persistProExportTrial()
+  }
+
+  func resetProExportTrial() {
+    guard proExportTrialConsumedAt != nil else {
+      return
+    }
+    proExportTrialConsumedAt = nil
+    persistProExportTrial()
+  }
+
   static func availableTextFontFamilyNames() -> [String] {
     let families = NSFontManager.shared.availableFontFamilies
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -993,11 +1162,45 @@ final class AppSettings: ObservableObject {
   }
 
   private static func clampedCaptureTransitionSpeed(_ value: Double) -> Double {
-    max(0.8, min(2.4, value))
+    max(0.5, min(2.4, value))
   }
 
   private static func clampedCaptureTransitionIntensity(_ value: Double) -> Double {
     max(0.2, min(1, value))
+  }
+
+  private static var defaultVideoWebcamOverlayNormalizedFrame: CGRect {
+    CGRect(x: 0.74, y: 0.68, width: 0.22, height: 0.22)
+  }
+
+  private static var defaultVideoKeystrokeOverlayNormalizedFrame: CGRect {
+    CGRect(x: 0.30, y: 0.08, width: 0.40, height: 0.12)
+  }
+
+  private static func clampedNormalizedOrigin(_ value: Double) -> Double {
+    max(0, min(1, value))
+  }
+
+  private static func clampedNormalizedDimension(_ value: Double) -> Double {
+    max(0.04, min(1, value))
+  }
+
+  private static func normalizedOverlayFrame(_ frame: CGRect, fallback: CGRect) -> CGRect {
+    let source = frame.isNull || frame.isEmpty ? fallback : frame.standardized
+    let width = clampedNormalizedDimension(source.width)
+    let height = clampedNormalizedDimension(source.height)
+    let x = max(0, min(1 - width, source.minX))
+    let y = max(0, min(1 - height, source.minY))
+    return CGRect(x: x, y: y, width: width, height: height)
+  }
+
+  private static func resizedNormalizedOverlayFrame(_ frame: CGRect, width: CGFloat, height: CGFloat) -> CGRect {
+    let source = normalizedOverlayFrame(frame, fallback: CGRect(x: 0, y: 0, width: width, height: height))
+    let normalizedWidth = clampedNormalizedDimension(width)
+    let normalizedHeight = clampedNormalizedDimension(height)
+    let x = max(0, min(1 - normalizedWidth, source.midX - normalizedWidth * 0.5))
+    let y = max(0, min(1 - normalizedHeight, source.midY - normalizedHeight * 0.5))
+    return CGRect(x: x, y: y, width: normalizedWidth, height: normalizedHeight)
   }
 
   private static func clampedUnit(_ value: Double) -> Double {
@@ -1141,6 +1344,15 @@ final class AppSettings: ObservableObject {
     notifySettingsChanged()
   }
 
+  private func persistProExportTrial() {
+    if let proExportTrialConsumedAt {
+      defaults.set(proExportTrialConsumedAt, forKey: Keys.proExportTrialConsumedAt)
+    } else {
+      defaults.removeObject(forKey: Keys.proExportTrialConsumedAt)
+    }
+    notifySettingsChanged()
+  }
+
   private func persistVideoCaptureSettings() {
     defaults.set(defaultCaptureType.rawValue, forKey: Keys.defaultCaptureType)
     defaults.set(videoCodec.rawValue, forKey: Keys.videoCodec)
@@ -1157,8 +1369,18 @@ final class AppSettings: ObservableObject {
     defaults.set(videoWebcamDeviceID, forKey: Keys.videoWebcamDeviceID)
     defaults.set(videoWebcamOverlaySize.rawValue, forKey: Keys.videoWebcamOverlaySize)
     defaults.set(videoWebcamOverlayShape.rawValue, forKey: Keys.videoWebcamOverlayShape)
+    defaults.set(videoWebcamOverlayNormalizedX, forKey: Keys.videoWebcamOverlayNormalizedX)
+    defaults.set(videoWebcamOverlayNormalizedY, forKey: Keys.videoWebcamOverlayNormalizedY)
+    defaults.set(videoWebcamOverlayNormalizedWidth, forKey: Keys.videoWebcamOverlayNormalizedWidth)
+    defaults.set(videoWebcamOverlayNormalizedHeight, forKey: Keys.videoWebcamOverlayNormalizedHeight)
     defaults.set(videoHighlightMouseClicks, forKey: Keys.videoHighlightMouseClicks)
     defaults.set(videoHighlightKeystrokes, forKey: Keys.videoHighlightKeystrokes)
+    defaults.set(videoKeystrokeOverlayStyle.rawValue, forKey: Keys.videoKeystrokeOverlayStyle)
+    defaults.set(videoKeystrokeOverlaySize.rawValue, forKey: Keys.videoKeystrokeOverlaySize)
+    defaults.set(videoKeystrokeOverlayNormalizedX, forKey: Keys.videoKeystrokeOverlayNormalizedX)
+    defaults.set(videoKeystrokeOverlayNormalizedY, forKey: Keys.videoKeystrokeOverlayNormalizedY)
+    defaults.set(videoKeystrokeOverlayNormalizedWidth, forKey: Keys.videoKeystrokeOverlayNormalizedWidth)
+    defaults.set(videoKeystrokeOverlayNormalizedHeight, forKey: Keys.videoKeystrokeOverlayNormalizedHeight)
     defaults.set(videoHideNotificationsBestEffort, forKey: Keys.videoHideNotificationsBestEffort)
     notifySettingsChanged()
   }
@@ -1202,9 +1424,24 @@ final class AppSettings: ObservableObject {
     defaults.set(videoWebcamDeviceID, forKey: Keys.videoWebcamDeviceID)
     defaults.set(videoWebcamOverlaySize.rawValue, forKey: Keys.videoWebcamOverlaySize)
     defaults.set(videoWebcamOverlayShape.rawValue, forKey: Keys.videoWebcamOverlayShape)
+    defaults.set(videoWebcamOverlayNormalizedX, forKey: Keys.videoWebcamOverlayNormalizedX)
+    defaults.set(videoWebcamOverlayNormalizedY, forKey: Keys.videoWebcamOverlayNormalizedY)
+    defaults.set(videoWebcamOverlayNormalizedWidth, forKey: Keys.videoWebcamOverlayNormalizedWidth)
+    defaults.set(videoWebcamOverlayNormalizedHeight, forKey: Keys.videoWebcamOverlayNormalizedHeight)
     defaults.set(videoHighlightMouseClicks, forKey: Keys.videoHighlightMouseClicks)
     defaults.set(videoHighlightKeystrokes, forKey: Keys.videoHighlightKeystrokes)
+    defaults.set(videoKeystrokeOverlayStyle.rawValue, forKey: Keys.videoKeystrokeOverlayStyle)
+    defaults.set(videoKeystrokeOverlaySize.rawValue, forKey: Keys.videoKeystrokeOverlaySize)
+    defaults.set(videoKeystrokeOverlayNormalizedX, forKey: Keys.videoKeystrokeOverlayNormalizedX)
+    defaults.set(videoKeystrokeOverlayNormalizedY, forKey: Keys.videoKeystrokeOverlayNormalizedY)
+    defaults.set(videoKeystrokeOverlayNormalizedWidth, forKey: Keys.videoKeystrokeOverlayNormalizedWidth)
+    defaults.set(videoKeystrokeOverlayNormalizedHeight, forKey: Keys.videoKeystrokeOverlayNormalizedHeight)
     defaults.set(videoHideNotificationsBestEffort, forKey: Keys.videoHideNotificationsBestEffort)
+    if let proExportTrialConsumedAt {
+      defaults.set(proExportTrialConsumedAt, forKey: Keys.proExportTrialConsumedAt)
+    } else {
+      defaults.removeObject(forKey: Keys.proExportTrialConsumedAt)
+    }
 
     if notify {
       notifySettingsChanged()

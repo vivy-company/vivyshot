@@ -21,6 +21,35 @@ enum VivyShotProducts {
   static let allProductIDs = [lifetime, supporter]
 }
 
+enum VivyShotPaidFeature: CaseIterable {
+  case captureTransitions
+  case microphone
+  case webcamOverlay
+  case keystrokeOverlay
+  case gifExport
+  case advancedExport
+  case statistics
+
+  var title: String {
+    switch self {
+    case .captureTransitions:
+      return String(localized: "Capture transitions", bundle: AppLocalizer.shared.bundle)
+    case .microphone:
+      return String(localized: "Microphone recording", bundle: AppLocalizer.shared.bundle)
+    case .webcamOverlay:
+      return String(localized: "Webcam overlay", bundle: AppLocalizer.shared.bundle)
+    case .keystrokeOverlay:
+      return String(localized: "Keystroke overlay", bundle: AppLocalizer.shared.bundle)
+    case .gifExport:
+      return String(localized: "GIF export", bundle: AppLocalizer.shared.bundle)
+    case .advancedExport:
+      return String(localized: "Advanced export", bundle: AppLocalizer.shared.bundle)
+    case .statistics:
+      return String(localized: "Statistics", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+}
+
 struct StoreEntitlement: Equatable {
   let hasLifetimeUnlock: Bool
   let hasSupporterBadge: Bool
@@ -41,6 +70,19 @@ struct StoreEntitlement: Equatable {
 
   var tierTitle: String {
     badgeTitle ?? String(localized: "Free", bundle: AppLocalizer.shared.bundle)
+  }
+
+  func canUse(_ feature: VivyShotPaidFeature) -> Bool {
+    switch feature {
+    case .captureTransitions,
+         .microphone,
+         .webcamOverlay,
+         .keystrokeOverlay,
+         .gifExport,
+         .advancedExport,
+         .statistics:
+      return hasPaidAccess
+    }
   }
 
   static let free = StoreEntitlement(hasLifetimeUnlock: false, hasSupporterBadge: false)

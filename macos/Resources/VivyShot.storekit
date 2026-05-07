@@ -10,7 +10,7 @@
       "internalID" : "VIVYSHOT_LIFETIME_001",
       "localizations" : [
         {
-          "description" : "A one-time unlock for the full VivyShot tool.",
+          "description" : "Unlock capture statistics, HEVC, 60 fps, and high-bitrate exports.",
           "displayName" : "Lifetime",
           "locale" : "en_US"
         }
@@ -25,7 +25,7 @@
       "internalID" : "VIVYSHOT_SUPPORTER_001",
       "localizations" : [
         {
-          "description" : "Same full app as Lifetime, plus an in-app supporter badge.",
+          "description" : "Everything in Lifetime, plus a supporter badge and extra support for independent development.",
           "displayName" : "Supporter",
           "locale" : "en_US"
         }

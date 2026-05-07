@@ -85,6 +85,7 @@ extension RegionSelectionView {
       highlightMouseClicks: settings.videoHighlightMouseClicks,
       highlightKeystrokes: videoKeystrokesFeatureVisible && settings.videoHighlightKeystrokes,
       toolOrder: availableVideoToolbarTools,
+      lockedTools: lockedVideoToolbarTools,
       accentColor: Color(settings.toolbarAccentColor),
       isRecordingActive: videoRecordingActive,
       isRecordingPending: videoRecordingStartPending,
@@ -140,6 +141,10 @@ extension RegionSelectionView {
     }
   }
 
+  var lockedVideoToolbarTools: Set<VideoToolbarTool> {
+    []
+  }
+
   func setSelectedCaptureType(_ type: CaptureContentType) {
     guard !videoRecordingActive, !videoRecordingStartPending else {
       return
@@ -192,7 +197,8 @@ extension RegionSelectionView {
     videoRecordingStartPending = true
     refreshToolbar()
     settings.setDefaultCaptureType(.video)
-    onStartVideoRequested?(selection) { [weak self] started in
+    videoWebcamPlacementView.stopWebcamPreview()
+    onStartVideoRequested?(selection, currentVideoCaptureOverlayState()) { [weak self] started in
       guard let self else {
         return
       }
@@ -200,6 +206,13 @@ extension RegionSelectionView {
       self.videoRecordingActive = started
       self.refreshToolbar()
     }
+  }
+
+  func currentVideoCaptureOverlayState() -> VideoCaptureOverlayState {
+    VideoCaptureOverlayState(
+      webcamFrame: settings.videoWebcamOverlayNormalizedFrame,
+      keystrokeFrame: settings.videoKeystrokeOverlayNormalizedFrame
+    )
   }
 
   func stopVideoRecordingFromEditor() {

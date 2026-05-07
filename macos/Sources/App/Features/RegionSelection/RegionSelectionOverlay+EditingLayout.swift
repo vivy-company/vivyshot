@@ -111,6 +111,9 @@ extension RegionSelectionView {
       canvasView.isHidden = true
       toolbarHost.isHidden = true
       editingMaskView.isHidden = true
+      videoWebcamPlacementView.stopWebcamPreview()
+      videoWebcamPlacementView.isHidden = true
+      videoKeystrokePlacementView.isHidden = true
       setResizeHandlesHidden(true)
       return
     }
@@ -119,6 +122,9 @@ extension RegionSelectionView {
       canvasView.isHidden = true
       editingMaskView.isHidden = true
       toolbarHost.isHidden = true
+      videoWebcamPlacementView.stopWebcamPreview()
+      videoWebcamPlacementView.isHidden = true
+      videoKeystrokePlacementView.isHidden = true
       setResizeHandlesHidden(true)
       return
     }
@@ -217,6 +223,82 @@ extension RegionSelectionView {
     } else if let selection {
       layoutResizeHandles(for: selection)
     }
+
+    layoutVideoOverlayPlacementViews(selection: selection)
+  }
+
+  func layoutVideoOverlayPlacementViews(selection: CGRect?) {
+    guard mode == .editing,
+          selectedCaptureType == .video,
+          selectedCaptureMode == .selection,
+          let selection,
+          selection.width >= 2,
+          selection.height >= 2,
+          !windowCapturePickPending,
+          !screenCapturePickPending,
+          !stitchPassThroughOverlayActive
+    else {
+      videoWebcamPlacementView.stopWebcamPreview()
+      videoWebcamPlacementView.isHidden = true
+      videoKeystrokePlacementView.isHidden = true
+      return
+    }
+
+    if settings.videoShowWebcam {
+      videoWebcamPlacementView.containerFrame = selection
+      videoWebcamPlacementView.webcamShape = settings.videoWebcamOverlayShape
+      videoWebcamPlacementView.frame = resolvedOverlayFrame(settings.videoWebcamOverlayNormalizedFrame, in: selection)
+      videoWebcamPlacementView.updateWebcamPreview(preferredDeviceID: settings.videoWebcamDeviceID)
+      videoWebcamPlacementView.isHidden = false
+    } else {
+      videoWebcamPlacementView.stopWebcamPreview()
+      videoWebcamPlacementView.isHidden = true
+    }
+
+    if settings.videoHighlightKeystrokes {
+      videoKeystrokePlacementView.containerFrame = selection
+      videoKeystrokePlacementView.keystrokeStyle = settings.videoKeystrokeOverlayStyle
+      videoKeystrokePlacementView.frame = resolvedOverlayFrame(settings.videoKeystrokeOverlayNormalizedFrame, in: selection)
+      videoKeystrokePlacementView.isHidden = false
+    } else {
+      videoKeystrokePlacementView.isHidden = true
+    }
+  }
+
+  func resolvedOverlayFrame(_ normalized: CGRect, in container: CGRect) -> CGRect {
+    let source = normalized.standardized
+    let width = min(max(container.width * source.width, 36), container.width)
+    let height = min(max(container.height * source.height, 28), container.height)
+    let x = min(max(container.minX, container.minX + container.width * source.minX), container.maxX - width)
+    let y = min(max(container.minY, container.minY + container.height * source.minY), container.maxY - height)
+    return CGRect(x: x, y: y, width: width, height: height).integral
+  }
+
+  func normalizedOverlayFrame(_ frame: CGRect, in container: CGRect) -> CGRect {
+    guard container.width > 0, container.height > 0 else {
+      return .zero
+    }
+    let standardized = frame.standardized
+    return CGRect(
+      x: (standardized.minX - container.minX) / container.width,
+      y: (standardized.minY - container.minY) / container.height,
+      width: standardized.width / container.width,
+      height: standardized.height / container.height
+    )
+  }
+
+  func persistVideoOverlayFrame(_ frame: CGRect, kind: CaptureOverlayPlacementKind) {
+    guard let selection = committedSelectionRect?.standardized, selection.width > 0, selection.height > 0 else {
+      return
+    }
+    let normalized = normalizedOverlayFrame(frame, in: selection)
+    switch kind {
+    case .webcam:
+      settings.setVideoWebcamOverlayNormalizedFrame(normalized)
+    case .keystroke:
+      settings.setVideoKeystrokeOverlayNormalizedFrame(normalized)
+    }
+    needsLayout = true
   }
 
   func captureSurfaceBottomInset() -> CGFloat {

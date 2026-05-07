@@ -13,6 +13,20 @@ extension RegionSelectionView {
     editingMaskView.isHidden = true
     addSubview(editingMaskView)
 
+    videoWebcamPlacementView.translatesAutoresizingMaskIntoConstraints = true
+    videoWebcamPlacementView.isHidden = true
+    videoWebcamPlacementView.onFrameChanged = { [weak self] frame in
+      self?.persistVideoOverlayFrame(frame, kind: .webcam)
+    }
+    addSubview(videoWebcamPlacementView)
+
+    videoKeystrokePlacementView.translatesAutoresizingMaskIntoConstraints = true
+    videoKeystrokePlacementView.isHidden = true
+    videoKeystrokePlacementView.onFrameChanged = { [weak self] frame in
+      self?.persistVideoOverlayFrame(frame, kind: .keystroke)
+    }
+    addSubview(videoKeystrokePlacementView)
+
     selectingHintHost.translatesAutoresizingMaskIntoConstraints = true
     selectingHintHost.alphaValue = 0
     selectingHintHost.isHidden = true

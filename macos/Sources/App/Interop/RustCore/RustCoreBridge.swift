@@ -778,8 +778,6 @@ final class RustCoreBridge {
       return 0
     case .fps60:
       return 1
-    case .fps120:
-      return 2
     }
   }
 

@@ -21,6 +21,10 @@ final class StoreManager: ObservableObject {
   var badgeTitle: String? { entitlement.badgeTitle }
   var tierTitle: String { entitlement.tierTitle }
 
+  func canUse(_ feature: VivyShotPaidFeature) -> Bool {
+    entitlement.canUse(feature)
+  }
+
   var lifetimeProduct: Product? {
     products.first { $0.id == VivyShotProducts.lifetime }
   }

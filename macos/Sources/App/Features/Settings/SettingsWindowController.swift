@@ -45,14 +45,10 @@ struct VivyShotSettingsView: View {
   @State private var webcamDevices: [WebcamDeviceOption] = []
   @State private var draggingScreenshotTool: AnnotationTool?
   @State private var draggingVideoTool: VideoToolbarTool?
-  // TODO(vivyshot): Re-enable capture transition settings once enter/exit effects are stable.
-  private let captureTransitionEffectsVisible = false
-  // TODO(vivyshot): Re-enable microphone capture settings once video recording support is production-ready.
-  private let videoMicrophoneFeatureVisible = false
-  // TODO(vivyshot): Re-enable webcam settings once video recording support is production-ready.
-  private let videoWebcamFeatureVisible = false
-  // TODO(vivyshot): Re-enable keystroke highlight settings once video recording support is production-ready.
-  private let videoKeystrokesFeatureVisible = false
+  private var captureTransitionEffectsVisible: Bool { true }
+  private var videoMicrophoneFeatureVisible: Bool { true }
+  private var videoWebcamFeatureVisible: Bool { true }
+  private var videoKeystrokesFeatureVisible: Bool { true }
 
   private var appVersion: String {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1"
@@ -92,6 +88,13 @@ struct VivyShotSettingsView: View {
 
       settingsContainer {
         videoCaptureSection
+        if videoWebcamFeatureVisible {
+          videoWebcamSection
+        }
+        videoMouseClickSection
+        if videoKeystrokesFeatureVisible {
+          videoKeystrokeSection
+        }
         videoToolbarSection
       }
       .tabItem { Label(SettingsTab.video.title, systemImage: "record.circle") }
@@ -484,6 +487,20 @@ struct VivyShotSettingsView: View {
         Toggle("Record microphone", isOn: videoRecordMicrophoneBinding)
           .toggleStyle(.switch)
       }
+      Toggle("Hide notifications (best effort)", isOn: videoHideNotificationsBestEffortBinding)
+        .toggleStyle(.switch)
+
+      HStack {
+        Spacer()
+        Button("Reset Video") {
+          settings.resetVideoCaptureSettings()
+        }
+      }
+    }
+  }
+
+  private var videoWebcamSection: some View {
+    Section {
       if videoWebcamFeatureVisible {
         Toggle("Show webcam", isOn: videoShowWebcamBinding)
           .toggleStyle(.switch)
@@ -536,27 +553,74 @@ struct VivyShotSettingsView: View {
           .pickerStyle(.menu)
           .frame(width: 190, alignment: .trailing)
         }
+
+        HStack {
+          Spacer()
+          Button("Reset Webcam Placement") {
+            settings.resetVideoWebcamOverlayPlacement()
+          }
+        }
       }
+    } header: {
+      Text("Webcam Overlay")
+    } footer: {
+      Text("Webcam overlays require camera permission.")
+    }
+  }
+
+  private var videoMouseClickSection: some View {
+    Section("Mouse Click Highlights") {
       Toggle("Highlight mouse clicks", isOn: videoHighlightMouseClicksBinding)
         .toggleStyle(.switch)
+    }
+  }
+
+  private var videoKeystrokeSection: some View {
+    Section {
       if videoKeystrokesFeatureVisible {
         Toggle("Highlight keystrokes", isOn: videoHighlightKeystrokesBinding)
           .toggleStyle(.switch)
-      }
-      Toggle("Hide notifications (best effort)", isOn: videoHideNotificationsBestEffortBinding)
-        .toggleStyle(.switch)
+        if settings.videoHighlightKeystrokes {
+          HStack(spacing: 10) {
+            Text("Key Style")
+              .frame(width: 78, alignment: .leading)
+            Spacer(minLength: 0)
+            Picker("Keystroke Overlay Style", selection: videoKeystrokeOverlayStyleBinding) {
+              ForEach(VideoKeystrokeOverlayStyleOption.allCases) { style in
+                Text(style.title).tag(style)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 190, alignment: .trailing)
+          }
 
-      HStack {
-        if videoWebcamFeatureVisible || videoKeystrokesFeatureVisible {
-          Text(permissionOverlaySummary)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        Spacer()
-        Button("Reset Video") {
-          settings.resetVideoCaptureSettings()
+          HStack(spacing: 10) {
+            Text("Key Size")
+              .frame(width: 78, alignment: .leading)
+            Spacer(minLength: 0)
+            Picker("Keystroke Overlay Size", selection: videoKeystrokeOverlaySizeBinding) {
+              ForEach(VideoKeystrokeOverlaySizeOption.allCases) { size in
+                Text(size.title).tag(size)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 190, alignment: .trailing)
+          }
+
+          HStack {
+            Spacer()
+            Button("Reset Key Placement") {
+              settings.resetVideoKeystrokeOverlayPlacement()
+            }
+          }
         }
       }
+    } header: {
+      Text("Keystroke Overlay")
+    } footer: {
+      Text("Keystroke overlays require accessibility permission.")
     }
   }
 
@@ -685,7 +749,7 @@ struct VivyShotSettingsView: View {
         HStack(spacing: 10) {
           Slider(
             value: captureTransitionSpeedBinding,
-            in: 0.8 ... 2.4,
+            in: 0.5 ... 2.4,
             step: 0.05
           )
           .disabled(settings.captureTransitionStyle == .none)
@@ -710,15 +774,26 @@ struct VivyShotSettingsView: View {
       }
 
       HStack {
-        Text("Applied on capture enter and exit.")
+        Text(captureTransitionHelperText)
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
+        Button("Preview") {
+          previewCaptureTransition()
+        }
+        .disabled(settings.captureTransitionStyle == .none)
         Button("Reset Effects") {
           settings.resetCaptureTransitionSettings()
         }
       }
     }
+  }
+
+  private var captureTransitionHelperText: String {
+    if storeManager.hasPaidAccess {
+      return String(localized: "Applied on capture enter and exit.", bundle: AppLocalizer.shared.bundle)
+    }
+    return String(localized: "Preview is available. Real capture transitions require Pro.", bundle: AppLocalizer.shared.bundle)
   }
 
   private func visibilityBinding(for tool: AnnotationTool) -> Binding<Bool> {
@@ -750,19 +825,6 @@ struct VivyShotSettingsView: View {
     default:
       return true
     }
-  }
-
-  private var permissionOverlaySummary: String {
-    if videoWebcamFeatureVisible && videoKeystrokesFeatureVisible {
-      return "Webcam and keystroke overlays require additional permissions."
-    }
-    if videoWebcamFeatureVisible {
-      return "Webcam overlays require additional permissions."
-    }
-    if videoKeystrokesFeatureVisible {
-      return "Keystroke overlays require additional permissions."
-    }
-    return ""
   }
 
   @ViewBuilder
@@ -972,6 +1034,20 @@ struct VivyShotSettingsView: View {
     )
   }
 
+  private var videoKeystrokeOverlayStyleBinding: Binding<VideoKeystrokeOverlayStyleOption> {
+    Binding(
+      get: { settings.videoKeystrokeOverlayStyle },
+      set: { settings.setVideoKeystrokeOverlayStyle($0) }
+    )
+  }
+
+  private var videoKeystrokeOverlaySizeBinding: Binding<VideoKeystrokeOverlaySizeOption> {
+    Binding(
+      get: { settings.videoKeystrokeOverlaySize },
+      set: { settings.setVideoKeystrokeOverlaySize($0) }
+    )
+  }
+
   private var videoHideNotificationsBestEffortBinding: Binding<Bool> {
     Binding(
       get: { settings.videoHideNotificationsBestEffort },
@@ -980,23 +1056,23 @@ struct VivyShotSettingsView: View {
   }
 
   private var availableExportCodecs: [PostRecordingExportCodec] {
-    storeManager.hasPaidAccess ? PostRecordingExportCodec.allCases : [.h264]
+    PostRecordingExportCodec.allCases
   }
 
   private var availableExportFrameRates: [PostRecordingExportFrameRate] {
-    storeManager.hasPaidAccess ? PostRecordingExportFrameRate.allCases : [.fps30]
+    PostRecordingExportFrameRate.allCases
   }
 
   private var availableExportQualities: [PostRecordingExportQuality] {
-    storeManager.hasPaidAccess ? PostRecordingExportQuality.allCases : [.standard]
+    PostRecordingExportQuality.allCases
   }
 
   private var availableExportScales: [PostRecordingExportScale] {
-    storeManager.hasPaidAccess ? PostRecordingExportScale.allCases : [.full]
+    PostRecordingExportScale.allCases
   }
 
   private var availableExportBitrates: [PostRecordingExportBitratePreset] {
-    storeManager.hasPaidAccess ? PostRecordingExportBitratePreset.allCases : [.standard]
+    PostRecordingExportBitratePreset.allCases
   }
 
   private var defaultSaveDirectoryDisplay: String {
@@ -1051,6 +1127,10 @@ struct VivyShotSettingsView: View {
     webcamDevices = discovery.devices
       .map { WebcamDeviceOption(id: $0.uniqueID, name: $0.localizedName) }
       .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+  }
+
+  private func previewCaptureTransition() {
+    CaptureTransitionPreviewCoordinator.shared.preview()
   }
 }
 

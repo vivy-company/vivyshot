@@ -5,23 +5,25 @@ import SwiftUI
 final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
   static let shared = PaywallWindowController()
   private static let titleItemIdentifier = NSToolbarItem.Identifier("VivyShotPaywallTitleItem")
+  private static let toolbarTitle = String(localized: "Unlock VivyShot", bundle: AppLocalizer.shared.bundle)
+  private static let toolbarSubtitle = String(localized: "Advanced export controls and local capture statistics", bundle: AppLocalizer.shared.bundle)
 
   private init() {
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 720, height: 660),
+      contentRect: NSRect(x: 0, y: 0, width: 520, height: 720),
       styleMask: [.titled, .closable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
-    window.title = String(localized: "VivyShot License", bundle: AppLocalizer.shared.bundle)
-    window.subtitle = String(localized: "Lifetime access or support the project", bundle: AppLocalizer.shared.bundle)
+    window.title = Self.toolbarTitle
+    window.subtitle = Self.toolbarSubtitle
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
     window.toolbarStyle = .unified
     window.backgroundColor = .windowBackgroundColor
     window.isReleasedWhenClosed = false
     window.center()
-    window.setContentSize(NSSize(width: 720, height: 660))
+    window.setContentSize(NSSize(width: 520, height: 720))
     window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView()))
 
     super.init(window: window)
@@ -41,9 +43,10 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
     } else {
       window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView()))
     }
-    window.title = String(localized: "VivyShot License", bundle: AppLocalizer.shared.bundle)
-    window.subtitle = String(localized: "Lifetime access or support the project", bundle: AppLocalizer.shared.bundle)
+    window.title = Self.toolbarTitle
+    window.subtitle = Self.toolbarSubtitle
     window.toolbar = makeToolbar()
+    window.setContentSize(NSSize(width: 520, height: 720))
     window.center()
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
@@ -94,12 +97,12 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
   }
 
   private func titleToolbarView() -> NSView {
-    let titleLabel = NSTextField(labelWithString: String(localized: "VivyShot License", bundle: AppLocalizer.shared.bundle))
+    let titleLabel = NSTextField(labelWithString: Self.toolbarTitle)
     titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
     titleLabel.alignment = .left
     titleLabel.textColor = .labelColor
 
-    let subtitleLabel = NSTextField(labelWithString: String(localized: "Lifetime access or support the project", bundle: AppLocalizer.shared.bundle))
+    let subtitleLabel = NSTextField(labelWithString: Self.toolbarSubtitle)
     subtitleLabel.font = .systemFont(ofSize: 11)
     subtitleLabel.alignment = .left
     subtitleLabel.textColor = .secondaryLabelColor
@@ -111,7 +114,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
     stack.spacing = 0
     stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 
-    let container = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 32))
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 32))
     stack.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(stack)
 
