@@ -802,7 +802,7 @@ private struct PostRecordingOverlayPreviewLayer: View {
   private func viewRect(for renderRect: CGRect, videoRect: CGRect) -> CGRect {
     CGRect(
       x: videoRect.minX + renderRect.minX,
-      y: videoRect.minY + renderRect.minY,
+      y: videoRect.minY + videoRect.height - renderRect.maxY,
       width: renderRect.width,
       height: renderRect.height
     ).integral

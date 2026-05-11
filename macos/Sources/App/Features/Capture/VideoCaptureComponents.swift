@@ -2011,7 +2011,7 @@ private enum PostRecordingProjectExporter {
     renderSize: CGSize,
     item: RustVideoRenderItem
   ) {
-    let rect = coreGraphicsRect(fromTopLeft: item.rect, renderSize: renderSize)
+    let rect = coreGraphicsRect(fromBottomLeft: item.rect)
     guard rect.width > 0, rect.height > 0 else {
       return
     }
@@ -2046,7 +2046,7 @@ private enum PostRecordingProjectExporter {
     item: RustVideoRenderItem
   ) {
     let text = item.text.isEmpty ? "⌘K" : item.text
-    var rect = coreGraphicsRect(fromTopLeft: item.rect, renderSize: renderSize).integral
+    var rect = coreGraphicsRect(fromBottomLeft: item.rect).integral
     guard rect.width > 0, rect.height > 0 else {
       return
     }
@@ -2054,7 +2054,7 @@ private enum PostRecordingProjectExporter {
     if rect.width <= 4 || rect.height <= 4, let fallbackLayout {
       rect = CGRect(
         x: (renderSize.width - fallbackLayout.width) * 0.5,
-        y: renderSize.height - fallbackLayout.y - fallbackLayout.height,
+        y: fallbackLayout.y,
         width: fallbackLayout.width,
         height: fallbackLayout.height
       ).integral
@@ -2127,10 +2127,10 @@ private enum PostRecordingProjectExporter {
     context.restoreGState()
   }
 
-  private static func coreGraphicsRect(fromTopLeft rect: CGRect, renderSize: CGSize) -> CGRect {
+  private static func coreGraphicsRect(fromBottomLeft rect: CGRect) -> CGRect {
     CGRect(
       x: rect.minX,
-      y: renderSize.height - rect.maxY,
+      y: rect.minY,
       width: rect.width,
       height: rect.height
     )

@@ -142,7 +142,7 @@ pub struct VideoRenderPlanQuery {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VideoRenderItem {
     pub kind: u8,
-    /// Pixel-space rectangle in render target coordinates, with x/y measured from the top-left.
+    /// Pixel-space rectangle in render target coordinates, with x/y measured from the bottom-left.
     pub x: f32,
     pub y: f32,
     pub width: f32,
