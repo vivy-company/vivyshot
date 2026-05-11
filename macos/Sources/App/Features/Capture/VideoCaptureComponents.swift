@@ -30,6 +30,7 @@ final class VideoCaptureCoordinator {
   private var webcamPlacementChanges: [VideoOverlayPlacementChange] = []
   private var keystrokePlacementChanges: [VideoOverlayPlacementChange] = []
   private var keystrokeOverlayEnabledInSession = false
+  private var isStoppingRecording = false
   var onRecordingStateChanged: ((Bool) -> Void)?
 
   private(set) var isRecordingActive = false {
@@ -207,6 +208,10 @@ final class VideoCaptureCoordinator {
   }
 
   private func stopRecordingAndOpenEditor() {
+    guard !isStoppingRecording else {
+      return
+    }
+    isStoppingRecording = true
     isRecordingActive = false
     hudController?.close()
     hudController = nil
@@ -219,6 +224,15 @@ final class VideoCaptureCoordinator {
       return
     }
     recorder = nil
+    let activeWebcamRecorder = webcamRecorder
+    webcamRecorder = nil
+    let webcamTimeOffsetSeconds = Self.webcamTimeOffsetSeconds(
+      screenStartUptime: recordingStartUptime,
+      webcamStartUptime: activeWebcamRecorder?.recordingStartUptime
+    )
+    let webcamStopTask = Task { @MainActor [activeWebcamRecorder] in
+      await Self.stopWebcamRecorder(activeWebcamRecorder)
+    }
 
     Task { [weak self] in
       guard let self else {
@@ -226,26 +240,27 @@ final class VideoCaptureCoordinator {
       }
 
       do {
+        defer {
+          isStoppingRecording = false
+        }
         let monitorResult = inputMonitor?.stop() ?? RecordingInputResult(keyEvents: [], clickEvents: [])
         inputMonitor = nil
 
-        let outputURL = try await activeRecorder.stop()
-        let activeWebcamRecorder = webcamRecorder
-        webcamRecorder = nil
-        let webcamTimeOffsetSeconds = Self.webcamTimeOffsetSeconds(
-          screenStartUptime: recordingStartUptime,
-          webcamStartUptime: activeWebcamRecorder?.recordingStartUptime
-        )
+        let outputURL: URL
+        do {
+          outputURL = try await activeRecorder.stop()
+        } catch {
+          _ = await webcamStopTask.value
+          throw error
+        }
+
         let webcamURL: URL?
-        if let activeWebcamRecorder {
-          do {
-            webcamURL = try await activeWebcamRecorder.stop()
-          } catch {
-            webcamURL = nil
-            TransientToast.show("Webcam recording unavailable: \(error.localizedDescription)", duration: 2.8)
-          }
-        } else {
+        switch await webcamStopTask.value {
+        case .success(let stoppedURL):
+          webcamURL = stoppedURL
+        case .failure(let error):
           webcamURL = nil
+          TransientToast.show("Webcam recording unavailable: \(error.localizedDescription)", duration: 2.8)
         }
 
         let recordingDetails = PostRecordingDetails(
@@ -283,6 +298,7 @@ final class VideoCaptureCoordinator {
           thumbnail: assetInfo.thumbnail
         )
       } catch {
+        self.isStoppingRecording = false
         self.isRecordingActive = false
         cleanupRecordingSession()
         onError?("Failed to stop recording: \(error.localizedDescription)")
@@ -532,6 +548,7 @@ final class VideoCaptureCoordinator {
     webcamPlacementChanges = []
     keystrokePlacementChanges = []
     keystrokeOverlayEnabledInSession = false
+    isStoppingRecording = false
   }
 
   private func makeRustVideoProject(
@@ -621,6 +638,19 @@ final class VideoCaptureCoordinator {
       return 0
     }
     return max(0, screenStartUptime - webcamStartUptime)
+  }
+
+  private static func stopWebcamRecorder(_ recorder: WebcamRecorder?) async -> Result<URL?, Error> {
+    guard let recorder else {
+      return .success(nil)
+    }
+
+    do {
+      return .success(try await recorder.stop())
+    } catch {
+      recorder.cancel()
+      return .failure(error)
+    }
   }
 
   private static func normalizedWebcamFrameForRecording(
@@ -1093,6 +1123,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
   )
   private let movieOutput = AVCaptureMovieFileOutput()
   private var stopContinuation: CheckedContinuation<URL, Error>?
+  private var stopTimeoutTask: Task<Void, Never>?
   private var recordingDidStart = false
   private var lastRecordingError: Error?
   private(set) var recordingStartUptime: TimeInterval?
@@ -1133,6 +1164,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
 
     return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
       stopContinuation = continuation
+      scheduleStopTimeout()
       movieOutput.stopRecording()
     }
   }
@@ -1147,11 +1179,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
     if movieOutput.isRecording {
       movieOutput.stopRecording()
     }
-    sessionRunner.stopDetached()
-    if let stopContinuation {
-      self.stopContinuation = nil
-      stopContinuation.resume(throwing: CancellationError())
-    }
+    finishStopContinuation(.failure(CancellationError()))
   }
 
   nonisolated func fileOutput(
@@ -1179,6 +1207,8 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
 
       self.sessionRunner.stopDetached()
       self.recordingDidStart = false
+      self.stopTimeoutTask?.cancel()
+      self.stopTimeoutTask = nil
 
       guard let continuation = self.stopContinuation else {
         if let error {
@@ -1203,6 +1233,43 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
           continuation.resume(throwing: error)
         }
       }
+    }
+  }
+
+  private func scheduleStopTimeout(timeoutSeconds: Double = 4.0) {
+    stopTimeoutTask?.cancel()
+    stopTimeoutTask = Task { @MainActor [weak self] in
+      let nanoseconds = UInt64(max(0.25, timeoutSeconds) * 1_000_000_000)
+      try? await Task.sleep(nanoseconds: nanoseconds)
+      guard !Task.isCancelled else {
+        return
+      }
+      self?.finishStopContinuation(
+        .failure(
+          NSError(
+            domain: "com.vivyshot.video",
+            code: -78,
+            userInfo: [NSLocalizedDescriptionKey: "Webcam recording did not finish in time."]
+          )
+        )
+      )
+    }
+  }
+
+  private func finishStopContinuation(_ result: Result<URL, Error>) {
+    stopTimeoutTask?.cancel()
+    stopTimeoutTask = nil
+    sessionRunner.stopDetached()
+    recordingDidStart = false
+    guard let continuation = stopContinuation else {
+      return
+    }
+    stopContinuation = nil
+    switch result {
+    case .success(let url):
+      continuation.resume(returning: url)
+    case .failure(let error):
+      continuation.resume(throwing: error)
     }
   }
 
