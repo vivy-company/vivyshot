@@ -209,9 +209,23 @@ extension RegionSelectionView {
   }
 
   func currentVideoCaptureOverlayState() -> VideoCaptureOverlayState {
-    VideoCaptureOverlayState(
-      webcamFrame: settings.videoWebcamOverlayNormalizedFrame,
-      keystrokeFrame: settings.videoKeystrokeOverlayNormalizedFrame
+    guard let selection = committedSelectionRect?.standardized,
+          selection.width > 0,
+          selection.height > 0
+    else {
+      return VideoCaptureOverlayState(
+        webcamFrame: settings.videoWebcamOverlayNormalizedFrame,
+        keystrokeFrame: settings.videoKeystrokeOverlayNormalizedFrame
+      )
+    }
+
+    return VideoCaptureOverlayState(
+      webcamFrame: videoWebcamPlacementView.isHidden
+        ? settings.videoWebcamOverlayNormalizedFrame
+        : normalizedOverlayFrame(videoWebcamPlacementView.frame, in: selection),
+      keystrokeFrame: videoKeystrokePlacementView.isHidden
+        ? settings.videoKeystrokeOverlayNormalizedFrame
+        : normalizedOverlayFrame(videoKeystrokePlacementView.frame, in: selection)
     )
   }
 

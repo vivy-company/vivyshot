@@ -95,8 +95,15 @@ final class CrashReporter {
 
     try? fileManager.removeItem(at: sessionMarkerURL)
 
+    let sessionStartedAt = isoFormatter.date(from: marker.startedAtISO8601)
+    guard let crashReportPath = latestSystemCrashReportPath(
+      executable: marker.executable,
+      after: sessionStartedAt
+    ) else {
+      return
+    }
+
     let recoveredAt = isoFormatter.string(from: Date())
-    let crashReportPath = latestSystemCrashReportPath(executable: marker.executable)
     let details = makeAnonymousCrashDetails(marker: marker, crashReportPath: crashReportPath)
 
     let fileName = "recovered-crash-\(safeTimestamp()).log"
@@ -153,7 +160,7 @@ final class CrashReporter {
     try? body.data(using: .utf8)?.write(to: logURL, options: .atomic)
   }
 
-  private func latestSystemCrashReportPath(executable: String) -> String? {
+  private func latestSystemCrashReportPath(executable: String, after startedAt: Date?) -> String? {
     let reportsDirectory = URL(fileURLWithPath: NSHomeDirectory())
       .appendingPathComponent("Library/Logs/DiagnosticReports", isDirectory: true)
     guard let files = try? fileManager.contentsOfDirectory(
@@ -165,21 +172,27 @@ final class CrashReporter {
     }
 
     let name = executable.lowercased()
-    let candidates = files.filter { url in
+    let candidates = files.compactMap { url -> (url: URL, modifiedAt: Date)? in
       let lower = url.lastPathComponent.lowercased()
       guard lower.hasPrefix(name) else {
-        return false
+        return nil
       }
-      return lower.hasSuffix(".crash") || lower.hasSuffix(".ips")
+      guard lower.hasSuffix(".crash") || lower.hasSuffix(".ips") else {
+        return nil
+      }
+      let modifiedAt = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
+        ?? .distantPast
+      if let startedAt, modifiedAt < startedAt.addingTimeInterval(-5) {
+        return nil
+      }
+      return (url, modifiedAt)
     }
 
     let newest = candidates.max { lhs, rhs in
-      let leftDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-      let rightDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-      return leftDate < rightDate
+      lhs.modifiedAt < rhs.modifiedAt
     }
 
-    return newest?.path
+    return newest?.url.path
   }
 
   private func safeTimestamp() -> String {

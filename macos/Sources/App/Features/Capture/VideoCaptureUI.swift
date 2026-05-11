@@ -193,7 +193,7 @@ struct ProExportRequirement: Equatable {
     if project.overlayConfiguration.webcamURL != nil {
       reasons.append(.webcamOverlay)
     }
-    if !project.overlayConfiguration.keyEvents.isEmpty {
+    if project.overlayConfiguration.keystrokeOverlayEnabled {
       reasons.append(.keystrokeOverlay)
     }
     if target == .video, project.details.microphoneEnabled {
@@ -867,21 +867,21 @@ private struct PostRecordingOverlayPreviewLayer: View {
   }
 
   private func keystrokeOverlay(at seconds: Double) -> (text: String, frame: CGRect)? {
+    guard project.overlayConfiguration.keystrokeOverlayEnabled else {
+      return nil
+    }
+
     let visibleEvents = project.overlayConfiguration.keyEvents
       .filter { event in
         let eventSeconds = Double(event.timestampNS) / 1_000_000_000.0
         return eventSeconds <= seconds && seconds - eventSeconds <= 1.35
       }
       .suffix(3)
-    let text = visibleEvents.map(\.displayToken).joined(separator: "  ")
-    guard !text.isEmpty else {
-      return nil
-    }
-
-    let referenceSeconds = Double(visibleEvents.last?.timestampNS ?? 0) / 1_000_000_000.0
+    let eventText = visibleEvents.map(\.displayToken).joined(separator: "  ")
+    let text = eventText.isEmpty ? "⌘K" : eventText
     return (
       text,
-      placementFrame(at: referenceSeconds, changes: project.overlayConfiguration.keystrokePlacementChanges)
+      placementFrame(at: seconds, changes: project.overlayConfiguration.keystrokePlacementChanges)
     )
   }
 

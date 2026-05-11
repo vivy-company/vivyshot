@@ -30,7 +30,7 @@ final class VideoCaptureCoordinator {
   private var recordingStartUptime: TimeInterval = 0
   private var webcamPlacementChanges: [VideoOverlayPlacementChange] = []
   private var keystrokePlacementChanges: [VideoOverlayPlacementChange] = []
-  private var capturedKeystrokesInSession = false
+  private var keystrokeOverlayEnabledInSession = false
   var onRecordingStateChanged: ((Bool) -> Void)?
 
   private(set) var isRecordingActive = false {
@@ -104,7 +104,7 @@ final class VideoCaptureCoordinator {
 
         let capturesKeystrokes = keystrokesEnabled && isAccessibilityTrusted(promptIfNeeded: false)
         if keystrokesEnabled && !capturesKeystrokes {
-          TransientToast.show("Accessibility permission required for keystroke overlays.", duration: 1.8)
+          TransientToast.show("Keystroke overlay visible. Enable Accessibility to show real keys.", duration: 2.4)
         }
 
         if webcamEnabled {
@@ -113,8 +113,8 @@ final class VideoCaptureCoordinator {
             outputURL: webcamOutputURL,
             preferredDeviceID: settings.videoWebcamDeviceID
           )
-          try await webcamRecorder.start()
           self.webcamRecorder = webcamRecorder
+          try await webcamRecorder.start()
         }
 
         try await recorder.start()
@@ -134,16 +134,16 @@ final class VideoCaptureCoordinator {
         )
         monitor.start()
         inputMonitor = monitor
-        capturedKeystrokesInSession = capturesKeystrokes
+        keystrokeOverlayEnabledInSession = keystrokesEnabled
 
-        if webcamEnabled || capturesKeystrokes {
+        if webcamEnabled || keystrokesEnabled {
           let overlayController = RecordingOverlayController(
             captureRectInScreen: recordingRect,
             webcamPreviewLayer: webcamEnabled ? self.webcamRecorder?.makePreviewLayer() : nil,
             webcamFrame: initialOverlayState.webcamFrame,
             webcamShape: settings.videoWebcamOverlayShape,
             webcamAspectRatio: settings.videoWebcamOverlayAspectRatio,
-            showKeystrokeOverlay: capturesKeystrokes,
+            showKeystrokeOverlay: keystrokesEnabled,
             keystrokeFrame: initialOverlayState.keystrokeFrame,
             keystrokeStyle: settings.videoKeystrokeOverlayStyle,
             keystrokeSize: settings.videoKeystrokeOverlaySize,
@@ -259,7 +259,7 @@ final class VideoCaptureCoordinator {
           microphoneEnabled: effectiveCaptureMicrophoneEnabled,
           webcamEnabled: effectiveShowWebcamEnabled && webcamURL != nil,
           mouseClicksEnabled: settings.videoHighlightMouseClicks,
-          keystrokesEnabled: capturedKeystrokesInSession,
+          keystrokesEnabled: keystrokeOverlayEnabledInSession,
           keyEventCount: monitorResult.keyEvents.count,
           clickEventCount: monitorResult.clickEvents.count
         )
@@ -283,6 +283,7 @@ final class VideoCaptureCoordinator {
             webcamOverlaySize: settings.videoWebcamOverlaySize,
             webcamOverlayAspectRatio: settings.videoWebcamOverlayAspectRatio,
             webcamPlacementChanges: sanitizedPlacementChanges(webcamPlacementChanges),
+            keystrokeOverlayEnabled: keystrokeOverlayEnabledInSession,
             keystrokeOverlayStyle: settings.videoKeystrokeOverlayStyle,
             keystrokeOverlaySize: settings.videoKeystrokeOverlaySize,
             keystrokePlacementChanges: sanitizedPlacementChanges(keystrokePlacementChanges),
@@ -534,6 +535,7 @@ final class VideoCaptureCoordinator {
     hudController?.close()
     hudController = nil
     recorder = nil
+    webcamRecorder?.cancel()
     webcamRecorder = nil
     inputMonitor = nil
     rustVideoSession = nil
@@ -542,7 +544,7 @@ final class VideoCaptureCoordinator {
     recordingStartUptime = 0
     webcamPlacementChanges = []
     keystrokePlacementChanges = []
-    capturedKeystrokesInSession = false
+    keystrokeOverlayEnabledInSession = false
   }
 
   private func recordWebcamPlacementChange(_ frame: CGRect) {
@@ -601,11 +603,7 @@ final class VideoCaptureCoordinator {
     }
 
     if effectiveHighlightKeystrokesEnabled, !isAccessibilityTrusted(promptIfNeeded: true) {
-      throw NSError(
-        domain: "com.vivyshot.video",
-        code: -56,
-        userInfo: [NSLocalizedDescriptionKey: "Accessibility permission is required for keystroke overlays."]
-      )
+      return
     }
   }
 
@@ -729,13 +727,14 @@ struct VideoExportOverlayConfiguration {
   let webcamOverlaySize: VideoWebcamOverlaySizeOption
   let webcamOverlayAspectRatio: VideoWebcamOverlayAspectRatioOption
   let webcamPlacementChanges: [VideoOverlayPlacementChange]
+  let keystrokeOverlayEnabled: Bool
   let keystrokeOverlayStyle: VideoKeystrokeOverlayStyleOption
   let keystrokeOverlaySize: VideoKeystrokeOverlaySizeOption
   let keystrokePlacementChanges: [VideoOverlayPlacementChange]
   let textOverlays: [VideoTextOverlayClip]
 
   var hasCompositedOverlays: Bool {
-    webcamURL != nil || !keyEvents.isEmpty || !textOverlays.isEmpty
+    webcamURL != nil || keystrokeOverlayEnabled || !textOverlays.isEmpty
   }
 }
 
@@ -1001,7 +1000,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
       if let lastRecordingError {
         throw lastRecordingError
       }
-      try validateOutputFile(outputURL)
+      try await waitForValidOutputFile(outputURL)
       return outputURL
     }
 
@@ -1015,6 +1014,19 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
     let layer = AVCaptureVideoPreviewLayer(session: session)
     layer.videoGravity = .resizeAspectFill
     return layer
+  }
+
+  func cancel() {
+    if movieOutput.isRecording {
+      movieOutput.stopRecording()
+    }
+    if session.isRunning {
+      session.stopRunning()
+    }
+    if let stopContinuation {
+      self.stopContinuation = nil
+      stopContinuation.resume(throwing: CancellationError())
+    }
   }
 
   nonisolated func fileOutput(
@@ -1054,12 +1066,12 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
       }
       self.stopContinuation = nil
 
-      if let error {
+      if let error, !self.isSuccessfullyFinishedRecordingError(error) {
         self.lastRecordingError = error
         continuation.resume(throwing: error)
       } else {
         do {
-          try self.validateOutputFile(outputFileURL)
+          try await self.waitForValidOutputFile(outputFileURL)
           self.lastRecordingError = nil
           continuation.resume(returning: outputFileURL)
         } catch {
@@ -1070,7 +1082,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
     }
   }
 
-  private func waitForRecordingToStart(timeoutSeconds: Double = 2.0) async throws {
+  private func waitForRecordingToStart(timeoutSeconds: Double = 5.0) async throws {
     let deadline = Date().addingTimeInterval(timeoutSeconds)
 
     while !recordingDidStart {
@@ -1106,6 +1118,32 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
         userInfo: [NSLocalizedDescriptionKey: "Webcam recording is empty."]
       )
     }
+  }
+
+  private func waitForValidOutputFile(_ url: URL, timeoutSeconds: Double = 1.5) async throws {
+    let deadline = Date().addingTimeInterval(timeoutSeconds)
+    var latestError: Error?
+
+    repeat {
+      do {
+        try validateOutputFile(url)
+        return
+      } catch {
+        latestError = error
+        try? await Task.sleep(nanoseconds: 50_000_000)
+      }
+    } while Date() < deadline
+
+    throw latestError ?? NSError(
+      domain: "com.vivyshot.video",
+      code: -76,
+      userInfo: [NSLocalizedDescriptionKey: "Webcam recording file is unavailable."]
+    )
+  }
+
+  private func isSuccessfullyFinishedRecordingError(_ error: Error) -> Bool {
+    let nsError = error as NSError
+    return (nsError.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool) == true
   }
 
   private func configureSession() throws {
@@ -1985,22 +2023,20 @@ private enum PostRecordingProjectExporter {
     seconds: Double,
     configuration: VideoExportOverlayConfiguration
   ) {
+    guard configuration.keystrokeOverlayEnabled else {
+      return
+    }
+
     let visibleEvents = configuration.keyEvents
       .filter { event in
         let eventSeconds = Double(event.timestampNS) / 1_000_000_000.0
         return eventSeconds <= seconds && seconds - eventSeconds <= 1.35
       }
       .suffix(3)
-    guard !visibleEvents.isEmpty else {
-      return
-    }
 
-    let text = visibleEvents.map(\.displayToken).joined(separator: "  ")
-    guard !text.isEmpty else {
-      return
-    }
-    let referenceSeconds = Double(visibleEvents.last?.timestampNS ?? 0) / 1_000_000_000.0
-    let normalized = placementFrame(at: referenceSeconds, changes: configuration.keystrokePlacementChanges)
+    let eventText = visibleEvents.map(\.displayToken).joined(separator: "  ")
+    let text = eventText.isEmpty ? "⌘K" : eventText
+    let normalized = placementFrame(at: seconds, changes: configuration.keystrokePlacementChanges)
     var rect = denormalized(normalized, in: renderSize).integral
     let fallbackLayout = RustCoreBridge.keyOverlayLabelLayoutPortable(renderSize: renderSize, charCount: text.count)
     if rect.width <= 4 || rect.height <= 4, let fallbackLayout {

@@ -33,7 +33,34 @@ if [ -z "${APP_SOURCE_PATH:-}" ] || [ ! -d "$APP_SOURCE_PATH" ]; then
 fi
 
 echo "==> Installing to $INSTALL_APP_PATH..."
-pkill -x VivyShot >/dev/null 2>&1 || true
+if pgrep -x VivyShot >/dev/null 2>&1; then
+  echo "==> Stopping running VivyShot..."
+  osascript -e 'tell application id "com.vivyshot" to quit' >/dev/null 2>&1 \
+    || osascript -e 'tell application "VivyShot" to quit' >/dev/null 2>&1 \
+    || true
+
+  for _ in {1..50}; do
+    if ! pgrep -x VivyShot >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.1
+  done
+
+  if pgrep -x VivyShot >/dev/null 2>&1; then
+    pkill -TERM -x VivyShot >/dev/null 2>&1 || true
+  fi
+
+  for _ in {1..20}; do
+    if ! pgrep -x VivyShot >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.1
+  done
+
+  if pgrep -x VivyShot >/dev/null 2>&1; then
+    pkill -KILL -x VivyShot >/dev/null 2>&1 || true
+  fi
+fi
 
 rm -rf "$INSTALL_APP_PATH" 2>/dev/null || true
 if ! ditto "$APP_SOURCE_PATH" "$INSTALL_APP_PATH"; then
