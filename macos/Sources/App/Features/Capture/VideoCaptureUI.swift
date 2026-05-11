@@ -907,7 +907,12 @@ private struct PostRecordingOverlayPreviewLayer: View {
           switch item.kind {
           case .webcam:
             if let webcamURL = project.webcamURL {
-              webcamOverlay(url: webcamURL, rect: itemRect, shape: webcamShape(for: item))
+              webcamOverlay(
+                url: webcamURL,
+                seconds: playbackState.currentSeconds + project.webcamTimeOffsetSeconds,
+                rect: itemRect,
+                shape: webcamShape(for: item)
+              )
             }
           case .keystroke:
             PostRecordingKeystrokeOverlayPreview(
@@ -950,10 +955,15 @@ private struct PostRecordingOverlayPreviewLayer: View {
   }
 
   @ViewBuilder
-  private func webcamOverlay(url: URL, rect: CGRect, shape: VideoWebcamOverlayShapeOption) -> some View {
+  private func webcamOverlay(
+    url: URL,
+    seconds: Double,
+    rect: CGRect,
+    shape: VideoWebcamOverlayShapeOption
+  ) -> some View {
     let preview = PostRecordingWebcamOverlayPreview(
       url: url,
-      seconds: playbackState.currentSeconds,
+      seconds: seconds,
       isPlaying: playbackState.isPlaying
     )
     .frame(width: rect.width, height: rect.height)

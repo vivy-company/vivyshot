@@ -1122,6 +1122,7 @@ final class CaptureOverlayPlacementView: NSView {
   private var dragStartLocation: CGPoint = .zero
   private var activeInteraction: OverlayFrameInteraction = .move
   private var previewSession: AVCaptureSession?
+  private var previewSessionRunner: CaptureSessionRunner?
   private var previewLayer: AVCaptureVideoPreviewLayer?
   private var previewDeviceID: String?
   private var previewAccessRequestActive = false
@@ -1240,14 +1241,26 @@ final class CaptureOverlayPlacementView: NSView {
   }
 
   func stopWebcamPreview() {
+    let runner = clearWebcamPreview()
+    runner?.stopDetached()
+  }
+
+  func stopWebcamPreviewForRecordingStart() async {
+    let runner = clearWebcamPreview()
+    if let runner {
+      await runner.stop()
+    }
+  }
+
+  private func clearWebcamPreview() -> CaptureSessionRunner? {
     previewLayer?.removeFromSuperlayer()
     previewLayer = nil
-    if let previewSession, previewSession.isRunning {
-      previewSession.stopRunning()
-    }
+    let runner = previewSessionRunner
     previewSession = nil
+    previewSessionRunner = nil
     previewDeviceID = nil
     needsDisplay = true
+    return runner
   }
 
   override func draw(_ dirtyRect: NSRect) {
@@ -1475,12 +1488,17 @@ final class CaptureOverlayPlacementView: NSView {
 
     let layer = AVCaptureVideoPreviewLayer(session: session)
     layer.videoGravity = .resizeAspectFill
+    let runner = CaptureSessionRunner(
+      session: session,
+      label: "com.vivyshot.webcam-placement-preview.session"
+    )
     self.layer?.insertSublayer(layer, at: 0)
     previewSession = session
+    previewSessionRunner = runner
     previewLayer = layer
     previewDeviceID = preferredDeviceID
     needsDisplay = true
     needsLayout = true
-    session.startRunning()
+    runner.startDetached()
   }
 }

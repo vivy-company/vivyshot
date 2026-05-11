@@ -26,7 +26,7 @@ final class VideoCaptureCoordinator {
   private var onDone: (() -> Void)?
   private var onError: ((String) -> Void)?
   private var recordingRect: CGRect = .zero
-  private var recordingStartUptime: TimeInterval = 0
+  private var recordingStartUptime: TimeInterval?
   private var webcamPlacementChanges: [VideoOverlayPlacementChange] = []
   private var keystrokePlacementChanges: [VideoOverlayPlacementChange] = []
   private var keystrokeOverlayEnabledInSession = false
@@ -48,7 +48,7 @@ final class VideoCaptureCoordinator {
     selectionRectInScreen: CGRect,
     overlayState: VideoCaptureOverlayState? = nil,
     showFloatingHUD: Bool = true,
-    onBeforeWebcamCaptureStart: (() -> Void)? = nil,
+    onBeforeWebcamCaptureStart: (() async -> Void)? = nil,
     onStarted: (() -> Void)? = nil,
     onDone: @escaping () -> Void,
     onError: @escaping (String) -> Void
@@ -105,8 +105,7 @@ final class VideoCaptureCoordinator {
         }
 
         if webcamEnabled {
-          onBeforeWebcamCaptureStart?()
-          try await Task.sleep(nanoseconds: 120_000_000)
+          await onBeforeWebcamCaptureStart?()
 
           let webcamOutputURL = makeTemporaryWebcamURL()
           let webcamRecorder = try WebcamRecorder(
@@ -119,7 +118,6 @@ final class VideoCaptureCoordinator {
         }
 
         if webcamEnabled || keystrokesEnabled {
-          self.recordingStartUptime = ProcessInfo.processInfo.systemUptime
           let overlayController = RecordingOverlayController(
             captureRectInScreen: recordingRect,
             webcamPreviewLayer: webcamPreviewLayer,
@@ -148,9 +146,7 @@ final class VideoCaptureCoordinator {
 
         try await recorder.start()
         self.recorder = recorder
-        if recordingOverlayController == nil {
-          self.recordingStartUptime = ProcessInfo.processInfo.systemUptime
-        }
+        self.recordingStartUptime = ProcessInfo.processInfo.systemUptime
 
         let monitor = RecordingInputMonitor(
           captureRectInScreen: recordingRect,
@@ -236,6 +232,10 @@ final class VideoCaptureCoordinator {
         let outputURL = try await activeRecorder.stop()
         let activeWebcamRecorder = webcamRecorder
         webcamRecorder = nil
+        let webcamTimeOffsetSeconds = Self.webcamTimeOffsetSeconds(
+          screenStartUptime: recordingStartUptime,
+          webcamStartUptime: activeWebcamRecorder?.recordingStartUptime
+        )
         let webcamURL: URL?
         if let activeWebcamRecorder {
           do {
@@ -271,6 +271,7 @@ final class VideoCaptureCoordinator {
         let project = PostRecordingProject(
           inputURL: outputURL,
           webcamURL: webcamURL,
+          webcamTimeOffsetSeconds: webcamURL == nil ? 0 : webcamTimeOffsetSeconds,
           rustProject: rustProject,
           details: recordingDetails,
           durationSeconds: assetInfo.durationSeconds,
@@ -527,7 +528,7 @@ final class VideoCaptureCoordinator {
     inputMonitor = nil
     recordingOverlayController?.close()
     recordingOverlayController = nil
-    recordingStartUptime = 0
+    recordingStartUptime = nil
     webcamPlacementChanges = []
     keystrokePlacementChanges = []
     keystrokeOverlayEnabledInSession = false
@@ -612,6 +613,16 @@ final class VideoCaptureCoordinator {
     UInt32(min(UInt64(UInt32.max), nanoseconds / 1_000_000))
   }
 
+  private static func webcamTimeOffsetSeconds(
+    screenStartUptime: TimeInterval?,
+    webcamStartUptime: TimeInterval?
+  ) -> Double {
+    guard let screenStartUptime, let webcamStartUptime else {
+      return 0
+    }
+    return max(0, screenStartUptime - webcamStartUptime)
+  }
+
   private static func normalizedWebcamFrameForRecording(
     _ frame: CGRect,
     shape: VideoWebcamOverlayShapeOption,
@@ -643,15 +654,22 @@ final class VideoCaptureCoordinator {
   }
 
   private func recordWebcamPlacementChange(_ frame: CGRect) {
-    let timestamp = max(0, ProcessInfo.processInfo.systemUptime - recordingStartUptime)
+    let timestamp = currentRecordingOverlayTimestamp()
     settings.setVideoWebcamOverlayNormalizedFrame(frame)
     webcamPlacementChanges.append(VideoOverlayPlacementChange(timestampSeconds: timestamp, normalizedFrame: frame))
   }
 
   private func recordKeystrokePlacementChange(_ frame: CGRect) {
-    let timestamp = max(0, ProcessInfo.processInfo.systemUptime - recordingStartUptime)
+    let timestamp = currentRecordingOverlayTimestamp()
     settings.setVideoKeystrokeOverlayNormalizedFrame(frame)
     keystrokePlacementChanges.append(VideoOverlayPlacementChange(timestampSeconds: timestamp, normalizedFrame: frame))
+  }
+
+  private func currentRecordingOverlayTimestamp() -> TimeInterval {
+    guard let recordingStartUptime else {
+      return 0
+    }
+    return max(0, ProcessInfo.processInfo.systemUptime - recordingStartUptime)
   }
 
   private func makeTemporaryRecordingURL() -> URL {
@@ -777,6 +795,7 @@ struct VideoOverlayPlacementChange: Equatable {
 struct PostRecordingProject {
   let inputURL: URL
   let webcamURL: URL?
+  let webcamTimeOffsetSeconds: Double
   let rustProject: RustVideoProjectSession
   let details: PostRecordingDetails
   let durationSeconds: Double
@@ -1015,15 +1034,68 @@ final class RecordingInputMonitor {
   }
 }
 
+final class CaptureSessionRunner: @unchecked Sendable {
+  private let session: AVCaptureSession
+  private let queue: DispatchQueue
+
+  init(session: AVCaptureSession, label: String) {
+    self.session = session
+    queue = DispatchQueue(label: label, qos: .userInitiated)
+  }
+
+  func start() async {
+    await withCheckedContinuation { continuation in
+      queue.async { [self] in
+        if !session.isRunning {
+          session.startRunning()
+        }
+        continuation.resume()
+      }
+    }
+  }
+
+  func startDetached() {
+    queue.async { [self] in
+      if !session.isRunning {
+        session.startRunning()
+      }
+    }
+  }
+
+  func stop() async {
+    await withCheckedContinuation { continuation in
+      queue.async { [self] in
+        if session.isRunning {
+          session.stopRunning()
+        }
+        continuation.resume()
+      }
+    }
+  }
+
+  func stopDetached() {
+    queue.async { [self] in
+      if session.isRunning {
+        session.stopRunning()
+      }
+    }
+  }
+}
+
 @MainActor
 final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
   private let outputURL: URL
   private let preferredDeviceID: String
   private let session = AVCaptureSession()
+  private lazy var sessionRunner = CaptureSessionRunner(
+    session: session,
+    label: "com.vivyshot.webcam-recorder.session"
+  )
   private let movieOutput = AVCaptureMovieFileOutput()
   private var stopContinuation: CheckedContinuation<URL, Error>?
   private var recordingDidStart = false
   private var lastRecordingError: Error?
+  private(set) var recordingStartUptime: TimeInterval?
 
   init(outputURL: URL, preferredDeviceID: String) throws {
     self.outputURL = outputURL
@@ -1040,9 +1112,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
       try FileManager.default.removeItem(at: outputURL)
     }
 
-    if !session.isRunning {
-      session.startRunning()
-    }
+    await sessionRunner.start()
 
     if !movieOutput.isRecording {
       movieOutput.startRecording(to: outputURL, recordingDelegate: self)
@@ -1053,9 +1123,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
 
   func stop() async throws -> URL {
     guard movieOutput.isRecording else {
-      if session.isRunning {
-        session.stopRunning()
-      }
+      await sessionRunner.stop()
       if let lastRecordingError {
         throw lastRecordingError
       }
@@ -1079,9 +1147,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
     if movieOutput.isRecording {
       movieOutput.stopRecording()
     }
-    if session.isRunning {
-      session.stopRunning()
-    }
+    sessionRunner.stopDetached()
     if let stopContinuation {
       self.stopContinuation = nil
       stopContinuation.resume(throwing: CancellationError())
@@ -1095,6 +1161,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
   ) {
     Task { @MainActor [weak self] in
       self?.recordingDidStart = true
+      self?.recordingStartUptime = ProcessInfo.processInfo.systemUptime
       self?.lastRecordingError = nil
     }
   }
@@ -1110,9 +1177,7 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
         return
       }
 
-      if self.session.isRunning {
-        self.session.stopRunning()
-      }
+      self.sessionRunner.stopDetached()
       self.recordingDidStart = false
 
       guard let continuation = self.stopContinuation else {
@@ -2017,6 +2082,10 @@ private enum PostRecordingProjectExporter {
       target: .export
     )
     var cachedWebcamImage: CGImage?
+    let webcamTime = CMTime(
+      seconds: max(0, seconds + project.webcamTimeOffsetSeconds),
+      preferredTimescale: 600
+    )
 
     for item in renderPlan?.items ?? [] {
       switch item.kind {
@@ -2027,7 +2096,7 @@ private enum PostRecordingProjectExporter {
         if cachedWebcamImage == nil {
           do {
             nonisolated(unsafe) let unsafeWebcamGenerator = webcamGenerator
-            let (webcamImage, _) = try await unsafeWebcamGenerator.image(at: time)
+            let (webcamImage, _) = try await unsafeWebcamGenerator.image(at: webcamTime)
             cachedWebcamImage = webcamImage
           } catch {
             // If the webcam file ends before the screen recording, keep the screen frame instead of failing the whole export.

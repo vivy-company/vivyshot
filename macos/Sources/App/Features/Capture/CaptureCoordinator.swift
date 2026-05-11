@@ -93,7 +93,10 @@ final class CaptureCoordinator: CaptureCoordinating {
                 overlayState: overlayState,
                 showFloatingHUD: true,
                 onBeforeWebcamCaptureStart: { [weak self] in
-                  self?.selectionOverlay.stopVideoWebcamPreviewForRecordingStart()
+                  guard let self else {
+                    return
+                  }
+                  await self.selectionOverlay.stopVideoWebcamPreviewForRecordingStart()
                 },
                 onStarted: { [weak self] in
                   started = true

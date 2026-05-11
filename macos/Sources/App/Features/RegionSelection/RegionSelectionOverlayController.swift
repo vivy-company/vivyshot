@@ -296,8 +296,10 @@ final class RegionSelectionOverlayController {
     closeWindow(animated: animated, completion: completion)
   }
 
-  func stopVideoWebcamPreviewForRecordingStart() {
-    selectionView?.stopVideoWebcamPreviewForRecordingStart()
+  func stopVideoWebcamPreviewForRecordingStart() async {
+    if let selectionView {
+      await selectionView.stopVideoWebcamPreviewForRecordingStart()
+    }
   }
 
   private func closeTransitionPreview(animated: Bool) {

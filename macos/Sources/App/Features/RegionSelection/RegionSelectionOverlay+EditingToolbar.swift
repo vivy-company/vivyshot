@@ -210,8 +210,8 @@ extension RegionSelectionView {
     }
   }
 
-  func stopVideoWebcamPreviewForRecordingStart() {
-    videoWebcamPlacementView.stopWebcamPreview()
+  func stopVideoWebcamPreviewForRecordingStart() async {
+    await videoWebcamPlacementView.stopWebcamPreviewForRecordingStart()
   }
 
   func currentVideoCaptureOverlayState() -> VideoCaptureOverlayState {
