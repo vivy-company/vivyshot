@@ -81,20 +81,14 @@ private struct MenuBarMenuContent: View {
       Divider()
 
       if storeManager.hasPaidAccess {
-        HStack {
-          Text("Plan")
-          Spacer()
-          if let badgeTitle = storeManager.badgeTitle {
-            StoreBadgeChip(
-              title: badgeTitle,
-              prominence: badgeTitle == "Supporter" ? .supporter : .lifetime
-            )
-          } else {
-            Text(storeManager.tierTitle)
-              .foregroundStyle(.secondary)
-          }
+        Button {
+          presentPaywallWindow()
+        } label: {
+          Label(
+            "Plan: \(storeManager.badgeTitle ?? storeManager.tierTitle)",
+            systemImage: storeManager.hasSupporterBadge ? "heart.circle.fill" : "checkmark.seal.fill"
+          )
         }
-        .padding(.vertical, 2)
       } else {
         Button {
           presentPaywallWindow()
@@ -102,6 +96,8 @@ private struct MenuBarMenuContent: View {
           Label("Purchase License", systemImage: "sparkles")
         }
       }
+
+      Divider()
 
       Button {
         openStatisticsWindow()

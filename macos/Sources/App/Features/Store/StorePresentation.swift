@@ -4,25 +4,30 @@ import SwiftUI
 @MainActor
 final class PaywallWindowController: NSWindowController, NSWindowDelegate {
   static let shared = PaywallWindowController()
-  private static let toolbarTitle = String(localized: "Unlock VivyShot", bundle: AppLocalizer.shared.bundle)
-  private static let toolbarSubtitle = String(localized: "Advanced export controls and local capture statistics", bundle: AppLocalizer.shared.bundle)
+
+  private struct ToolbarCopy {
+    let title: String
+    let subtitle: String
+  }
 
   private init() {
+    let copy = Self.toolbarCopy
+    let contentSize = Self.contentSize
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 520, height: 720),
+      contentRect: NSRect(x: 0, y: 0, width: contentSize.width, height: contentSize.height),
       styleMask: [.titled, .closable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
-    window.title = Self.toolbarTitle
-    window.subtitle = Self.toolbarSubtitle
+    window.title = copy.title
+    window.subtitle = copy.subtitle
     window.titleVisibility = .visible
     window.toolbarStyle = .unified
     window.backgroundColor = .windowBackgroundColor
     window.isReleasedWhenClosed = false
     window.center()
-    window.setContentSize(NSSize(width: 520, height: 720))
-    window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView()))
+    window.setContentSize(contentSize)
+    window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView(copy: copy)))
 
     super.init(window: window)
     window.toolbar = makeToolbar()
@@ -36,15 +41,17 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
 
   func show() {
     guard let window else { return }
+    let copy = Self.toolbarCopy
+    let contentSize = Self.contentSize
     if let hostingView = window.contentView as? NSHostingView<AnyView> {
-      hostingView.rootView = AnyView(Self.makePaywallView())
+      hostingView.rootView = AnyView(Self.makePaywallView(copy: copy))
     } else {
-      window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView()))
+      window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView(copy: copy)))
     }
-    window.title = Self.toolbarTitle
-    window.subtitle = Self.toolbarSubtitle
+    window.title = copy.title
+    window.subtitle = copy.subtitle
     window.toolbar = makeToolbar()
-    window.setContentSize(NSSize(width: 520, height: 720))
+    window.setContentSize(contentSize)
     window.center()
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
@@ -56,18 +63,44 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
     return toolbar
   }
 
-  private static func makePaywallView() -> some View {
+  private static var contentSize: NSSize {
+    StoreManager.shared.hasSupporterBadge
+      ? NSSize(width: 520, height: 360)
+      : NSSize(width: 520, height: 720)
+  }
+
+  private static var toolbarCopy: ToolbarCopy {
+    let storeManager = StoreManager.shared
+    if storeManager.hasSupporterBadge {
+      return ToolbarCopy(
+        title: String(localized: "License Details", bundle: AppLocalizer.shared.bundle),
+        subtitle: String(localized: "Supporter and paid access are already active on this Mac.", bundle: AppLocalizer.shared.bundle)
+      )
+    }
+    if storeManager.hasLifetimeUnlock {
+      return ToolbarCopy(
+        title: String(localized: "License Options", bundle: AppLocalizer.shared.bundle),
+        subtitle: String(localized: "Lifetime access is unlocked.", bundle: AppLocalizer.shared.bundle)
+      )
+    }
+    return ToolbarCopy(
+      title: String(localized: "Unlock VivyShot", bundle: AppLocalizer.shared.bundle),
+      subtitle: String(localized: "Advanced export controls and local capture statistics", bundle: AppLocalizer.shared.bundle)
+    )
+  }
+
+  private static func makePaywallView(copy: ToolbarCopy) -> some View {
     NavigationStack {
       VivyShotPaywallView()
-        .navigationTitle(Self.toolbarTitle)
-        .navigationSubtitle(Self.toolbarSubtitle)
+        .navigationTitle(copy.title)
+        .navigationSubtitle(copy.subtitle)
     }
       .environment(\.locale, AppLocalizer.shared.locale)
       .onAppear {
         DispatchQueue.main.async {
           guard let window = NSApp.keyWindow else { return }
-          window.title = Self.toolbarTitle
-          window.subtitle = Self.toolbarSubtitle
+          window.title = copy.title
+          window.subtitle = copy.subtitle
           window.toolbarStyle = .unified
         }
       }

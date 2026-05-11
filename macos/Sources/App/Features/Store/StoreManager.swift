@@ -59,6 +59,11 @@ final class StoreManager: ObservableObject {
   }
 
   func purchase(_ product: Product) async {
+    guard !isProductAlreadyActive(product.id) else {
+      purchaseState = .failed(String(localized: "Already Owned", bundle: AppLocalizer.shared.bundle))
+      return
+    }
+
     purchaseState = .purchasing
     lastPurchasedProductID = nil
     logger.info("Purchasing \(product.id)")
@@ -160,6 +165,17 @@ final class StoreManager: ObservableObject {
       return safe
     case .unverified:
       throw StoreError.verificationFailed
+    }
+  }
+
+  private func isProductAlreadyActive(_ productID: String) -> Bool {
+    switch productID {
+    case VivyShotProducts.lifetime:
+      return hasLifetimeUnlock || hasSupporterBadge
+    case VivyShotProducts.supporter:
+      return hasSupporterBadge
+    default:
+      return false
     }
   }
 
