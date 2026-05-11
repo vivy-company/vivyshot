@@ -142,6 +142,7 @@ pub struct VideoRenderPlanQuery {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VideoRenderItem {
     pub kind: u8,
+    /// Pixel-space rectangle in render target coordinates, with x/y measured from the top-left.
     pub x: f32,
     pub y: f32,
     pub width: f32,
@@ -617,9 +618,10 @@ fn denormalize_rect(
     render_width: f32,
     render_height: f32,
 ) -> VideoPixelRect {
+    let top_y = (1.0 - rect.y - rect.height).clamp(0.0, 1.0);
     VideoPixelRect {
         x: rect.x * render_width,
-        y: rect.y * render_height,
+        y: top_y * render_height,
         width: rect.width * render_width,
         height: rect.height * render_height,
     }
@@ -1201,9 +1203,15 @@ mod tests {
         assert_eq!(webcam.kind, VIDEO_RENDER_ITEM_WEBCAM);
         assert_eq!(webcam.asset_id, 7);
         assert!((webcam.width - webcam.height).abs() < 0.001);
+        assert!((webcam.x - 1_344.0).abs() < 0.001);
+        assert!((webcam.y - 696.0).abs() < 0.001);
 
         let key = &plan.items[1];
         assert_eq!(key.kind, VIDEO_RENDER_ITEM_KEYSTROKE);
+        assert!((key.x - 480.0).abs() < 0.001);
+        assert!((key.y - 140.4).abs() < 0.001);
+        assert!((key.width - 960.0).abs() < 0.001);
+        assert!((key.height - 129.6).abs() < 0.001);
         let text = std::str::from_utf8(
             &plan.text_bytes[key.text_offset as usize..(key.text_offset + key.text_len) as usize],
         )

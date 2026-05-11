@@ -366,7 +366,13 @@ fn video_project_lifecycle_render_plan_and_snapshot_round_trip() {
         );
         assert_eq!(items[0].kind, 1);
         assert!((items[0].width - items[0].height).abs() < 0.001);
+        assert!(approx_eq(items[0].x, 1_344.0, 0.001));
+        assert!(approx_eq(items[0].y, 696.0, 0.001));
         assert_eq!(items[1].kind, 2);
+        assert!(approx_eq(items[1].x, 480.0, 0.001));
+        assert!(approx_eq(items[1].y, 140.4, 0.001));
+        assert!(approx_eq(items[1].width, 960.0, 0.001));
+        assert!(approx_eq(items[1].height, 129.6, 0.001));
 
         let mut text_written = 0u32;
         assert_eq!(
