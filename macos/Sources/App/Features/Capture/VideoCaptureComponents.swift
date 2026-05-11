@@ -63,8 +63,14 @@ final class VideoCaptureCoordinator {
       }
       do {
         let initialOverlayState = overlayState ?? VideoCaptureOverlayState.from(settings: settings)
+        let initialWebcamFrame = Self.normalizedWebcamFrameForRecording(
+          initialOverlayState.webcamFrame,
+          shape: settings.videoWebcamOverlayShape,
+          aspectRatio: settings.videoWebcamOverlayAspectRatio,
+          in: recordingRect.size
+        )
         webcamPlacementChanges = [
-          VideoOverlayPlacementChange(timestampSeconds: 0, normalizedFrame: initialOverlayState.webcamFrame)
+          VideoOverlayPlacementChange(timestampSeconds: 0, normalizedFrame: initialWebcamFrame)
         ]
         keystrokePlacementChanges = [
           VideoOverlayPlacementChange(timestampSeconds: 0, normalizedFrame: initialOverlayState.keystrokeFrame)
@@ -91,6 +97,8 @@ final class VideoCaptureCoordinator {
           config: recordingConfig,
           outputURL: outputURL
         )
+        var webcamPreviewLayer: AVCaptureVideoPreviewLayer?
+        var pendingWebcamRecorder: WebcamRecorder?
         let capturesKeystrokes = keystrokesEnabled && isAccessibilityTrusted(promptIfNeeded: false)
         if keystrokesEnabled && !capturesKeystrokes {
           TransientToast.show("Keystroke overlay visible. Enable Accessibility to show real keys.", duration: 2.4)
@@ -106,32 +114,16 @@ final class VideoCaptureCoordinator {
             preferredDeviceID: settings.videoWebcamDeviceID
           )
           self.webcamRecorder = webcamRecorder
-          try await webcamRecorder.start()
+          webcamPreviewLayer = webcamRecorder.makePreviewLayer()
+          pendingWebcamRecorder = webcamRecorder
         }
 
-        try await recorder.start()
-        self.recorder = recorder
-        self.recordingStartUptime = ProcessInfo.processInfo.systemUptime
-
-        let monitor = RecordingInputMonitor(
-          captureRectInScreen: recordingRect,
-          captureKeystrokes: capturesKeystrokes,
-          captureMouseClicks: settings.videoHighlightMouseClicks,
-          onKeyEvent: { [weak self] event in
-            Task { @MainActor [weak self] in
-              self?.recordingOverlayController?.showKeystroke(event.displayToken)
-            }
-          }
-        )
-        monitor.start()
-        inputMonitor = monitor
-        keystrokeOverlayEnabledInSession = keystrokesEnabled
-
         if webcamEnabled || keystrokesEnabled {
+          self.recordingStartUptime = ProcessInfo.processInfo.systemUptime
           let overlayController = RecordingOverlayController(
             captureRectInScreen: recordingRect,
-            webcamPreviewLayer: webcamEnabled ? self.webcamRecorder?.makePreviewLayer() : nil,
-            webcamFrame: initialOverlayState.webcamFrame,
+            webcamPreviewLayer: webcamPreviewLayer,
+            webcamFrame: initialWebcamFrame,
             webcamShape: settings.videoWebcamOverlayShape,
             webcamAspectRatio: settings.videoWebcamOverlayAspectRatio,
             showKeystrokeOverlay: keystrokesEnabled,
@@ -148,6 +140,31 @@ final class VideoCaptureCoordinator {
           overlayController.show()
           recordingOverlayController = overlayController
         }
+
+        if let pendingWebcamRecorder {
+          await Task.yield()
+          try await pendingWebcamRecorder.start()
+        }
+
+        try await recorder.start()
+        self.recorder = recorder
+        if recordingOverlayController == nil {
+          self.recordingStartUptime = ProcessInfo.processInfo.systemUptime
+        }
+
+        let monitor = RecordingInputMonitor(
+          captureRectInScreen: recordingRect,
+          captureKeystrokes: capturesKeystrokes,
+          captureMouseClicks: settings.videoHighlightMouseClicks,
+          onKeyEvent: { [weak self] event in
+            Task { @MainActor [weak self] in
+              self?.recordingOverlayController?.showKeystroke(event.displayToken)
+            }
+          }
+        )
+        monitor.start()
+        inputMonitor = monitor
+        keystrokeOverlayEnabledInSession = keystrokesEnabled
 
         onStarted?()
         self.isRecordingActive = true
@@ -593,6 +610,36 @@ final class VideoCaptureCoordinator {
 
   private static func milliseconds(fromNanoseconds nanoseconds: UInt64) -> UInt32 {
     UInt32(min(UInt64(UInt32.max), nanoseconds / 1_000_000))
+  }
+
+  private static func normalizedWebcamFrameForRecording(
+    _ frame: CGRect,
+    shape: VideoWebcamOverlayShapeOption,
+    aspectRatio: VideoWebcamOverlayAspectRatioOption,
+    in recordingSize: CGSize
+  ) -> CGRect {
+    let normalized = VideoCaptureOverlayState.normalizedFrame(frame)
+    guard recordingSize.width > 0, recordingSize.height > 0 else {
+      return normalized
+    }
+
+    let bounds = CGRect(origin: .zero, size: recordingSize)
+    let denormalized = CGRect(
+      x: bounds.minX + normalized.minX * bounds.width,
+      y: bounds.minY + normalized.minY * bounds.height,
+      width: normalized.width * bounds.width,
+      height: normalized.height * bounds.height
+    ).integral
+    let constrained = (shape == .circle ? VideoWebcamOverlayAspectRatioOption.square : aspectRatio)
+      .constrainedFrame(denormalized, in: bounds, minimumSize: CGSize(width: 84, height: 84))
+    return VideoCaptureOverlayState.normalizedFrame(
+      CGRect(
+        x: (constrained.minX - bounds.minX) / bounds.width,
+        y: (constrained.minY - bounds.minY) / bounds.height,
+        width: constrained.width / bounds.width,
+        height: constrained.height / bounds.height
+      )
+    )
   }
 
   private func recordWebcamPlacementChange(_ frame: CGRect) {
@@ -1242,7 +1289,7 @@ private final class RecordingOverlayController: NSWindowController {
       defer: false
     )
     panel.isReleasedWhenClosed = false
-    panel.level = .statusBar
+    panel.level = .screenSaver
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
     panel.hidesOnDeactivate = false
     panel.isOpaque = false

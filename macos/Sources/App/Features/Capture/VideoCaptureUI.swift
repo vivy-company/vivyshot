@@ -718,13 +718,21 @@ private struct PostRecordingActionView: View {
       Color.black
 
       if FileManager.default.fileExists(atPath: project.inputURL.path) {
-        ZStack {
-          PostRecordingPlayerPreview(url: project.inputURL, playbackState: playbackState)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+          ZStack {
+            PostRecordingPlayerPreview(url: project.inputURL, playbackState: playbackState)
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-          PostRecordingOverlayPreviewLayer(project: project, playbackState: playbackState)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .allowsHitTesting(false)
+            PostRecordingOverlayPreviewLayer(project: project, playbackState: playbackState)
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
+              .allowsHitTesting(false)
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+          PostRecordingPlaybackControls(playbackState: playbackState)
+        }
+        .onAppear {
+          playbackState.durationSeconds = project.durationSeconds
         }
       } else if let thumbnail {
         Image(nsImage: thumbnail)
@@ -744,7 +752,140 @@ private struct PostRecordingActionView: View {
 
 private final class PostRecordingPreviewPlaybackState: ObservableObject {
   @Published var currentSeconds: Double = 0
+  @Published var durationSeconds: Double = 0
   @Published var isPlaying = false
+
+  weak var player: AVPlayer?
+
+  func attach(player: AVPlayer) {
+    self.player = player
+  }
+
+  func detach(player: AVPlayer?) {
+    guard self.player === player else {
+      return
+    }
+    self.player = nil
+    isPlaying = false
+  }
+
+  func togglePlayback() {
+    guard let player else {
+      return
+    }
+    if isPlaying {
+      player.pause()
+      isPlaying = false
+      return
+    }
+    if durationSeconds > 0, currentSeconds >= durationSeconds - 0.05 {
+      seek(to: 0)
+    }
+    player.play()
+    isPlaying = true
+  }
+
+  func seek(to seconds: Double) {
+    let clamped = max(0, min(durationSeconds > 0 ? durationSeconds : seconds, seconds))
+    currentSeconds = clamped
+    player?.seek(
+      to: CMTime(seconds: clamped, preferredTimescale: 600),
+      toleranceBefore: .zero,
+      toleranceAfter: .zero
+    )
+  }
+
+  func skip(by deltaSeconds: Double) {
+    seek(to: currentSeconds + deltaSeconds)
+  }
+}
+
+private struct PostRecordingPlaybackControls: View {
+  @ObservedObject var playbackState: PostRecordingPreviewPlaybackState
+  @State private var isScrubbing = false
+  @State private var scrubSeconds = 0.0
+
+  private var duration: Double {
+    max(0.1, playbackState.durationSeconds)
+  }
+
+  private var displayedSeconds: Double {
+    isScrubbing ? scrubSeconds : playbackState.currentSeconds
+  }
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Button {
+        playbackState.skip(by: -5)
+      } label: {
+        Image(systemName: "gobackward.5")
+      }
+      .help("Back 5 seconds")
+
+      Button {
+        playbackState.togglePlayback()
+      } label: {
+        Image(systemName: playbackState.isPlaying ? "pause.fill" : "play.fill")
+          .font(.system(size: 16, weight: .semibold))
+          .frame(width: 28, height: 28)
+      }
+      .help(playbackState.isPlaying ? "Pause" : "Play")
+
+      Button {
+        playbackState.skip(by: 5)
+      } label: {
+        Image(systemName: "goforward.5")
+      }
+      .help("Forward 5 seconds")
+
+      Text(Self.formatTime(displayedSeconds))
+        .font(.system(size: 12, weight: .medium, design: .monospaced))
+        .foregroundStyle(.white.opacity(0.78))
+        .frame(width: 46, alignment: .trailing)
+
+      Slider(
+        value: Binding(
+          get: {
+            min(duration, max(0, displayedSeconds))
+          },
+          set: { value in
+            scrubSeconds = value
+            if !isScrubbing {
+              playbackState.seek(to: value)
+            }
+          }
+        ),
+        in: 0...duration,
+        onEditingChanged: { editing in
+          isScrubbing = editing
+          if editing {
+            scrubSeconds = playbackState.currentSeconds
+          } else {
+            playbackState.seek(to: scrubSeconds)
+          }
+        }
+      )
+      .disabled(playbackState.durationSeconds <= 0)
+
+      Text(Self.formatTime(playbackState.durationSeconds))
+        .font(.system(size: 12, weight: .medium, design: .monospaced))
+        .foregroundStyle(.white.opacity(0.55))
+        .frame(width: 46, alignment: .leading)
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(.white.opacity(0.86))
+    .padding(.horizontal, 16)
+    .frame(height: 48)
+    .background(Color.black)
+  }
+
+  private static func formatTime(_ seconds: Double) -> String {
+    guard seconds.isFinite, seconds > 0 else {
+      return "00:00"
+    }
+    let total = Int(seconds.rounded(.down))
+    return String(format: "%02d:%02d", total / 60, total % 60)
+  }
 }
 
 private struct PostRecordingOverlayPreviewLayer: View {
@@ -1192,7 +1333,7 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
 
   func makeNSView(context: Context) -> AVPlayerView {
     let view = AVPlayerView()
-    view.controlsStyle = .floating
+    view.controlsStyle = .none
     view.videoGravity = .resizeAspect
     view.showsFullScreenToggleButton = false
     context.coordinator.playbackState = playbackState
@@ -1201,6 +1342,7 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
     player.actionAtItemEnd = .pause
     view.player = player
     context.coordinator.player = player
+    playbackState.attach(player: player)
     context.coordinator.installTimeObserver(on: player)
     return view
   }
@@ -1212,6 +1354,7 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
       player.actionAtItemEnd = .pause
       nsView.player = player
       context.coordinator.player = player
+      playbackState.attach(player: player)
       context.coordinator.installTimeObserver(on: player)
       return
     }
@@ -1225,11 +1368,13 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
     player.actionAtItemEnd = .pause
     nsView.player = player
     context.coordinator.player = player
+    playbackState.attach(player: player)
     context.coordinator.installTimeObserver(on: player)
   }
 
   static func dismantleNSView(_ nsView: AVPlayerView, coordinator: Coordinator) {
     nsView.player?.pause()
+    coordinator.playbackState?.detach(player: coordinator.player)
     coordinator.removeTimeObserver()
     nsView.player = nil
     coordinator.player = nil

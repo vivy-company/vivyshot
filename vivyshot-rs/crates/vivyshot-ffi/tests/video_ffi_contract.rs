@@ -194,7 +194,10 @@ fn video_project_contract_covers_render_export_pro_and_snapshot() {
             0
         );
         assert_eq!(items[0].kind, 1);
-        assert!((items[0].width - items[0].height).abs() < 0.001);
+        assert!((items[0].x - 1_344.0).abs() < 0.001);
+        assert!((items[0].y - 108.0).abs() < 0.001);
+        assert!((items[0].width - 384.0).abs() < 0.001);
+        assert!((items[0].height - 129.6).abs() < 0.001);
         assert_eq!(items[1].kind, 2);
 
         let mut text_written = 0u32;

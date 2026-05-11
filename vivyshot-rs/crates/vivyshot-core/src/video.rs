@@ -359,15 +359,20 @@ impl VideoProject {
                     height: 0.22,
                 },
             );
-            let rect = constrain_webcam_rect(
-                denormalize_rect(placement, render_width, render_height),
-                render_width,
-                render_height,
-                self.overlays.webcam.shape,
-                self.overlays.webcam.aspect_ratio,
-                2.0,
-                2.0,
-            );
+            let mut rect = denormalize_rect(placement, render_width, render_height);
+            if self.overlays.webcam.placement.is_empty() {
+                // Recorded placements already include the host-side webcam aspect clamp.
+                // Re-clamping them here makes preview/export drift from the live overlay.
+                rect = constrain_webcam_rect(
+                    rect,
+                    render_width,
+                    render_height,
+                    self.overlays.webcam.shape,
+                    self.overlays.webcam.aspect_ratio,
+                    2.0,
+                    2.0,
+                );
+            }
             if rect.width > 0.0 && rect.height > 0.0 {
                 plan.items.push(VideoRenderItem {
                     kind: VIDEO_RENDER_ITEM_WEBCAM,
@@ -1187,7 +1192,7 @@ mod tests {
     }
 
     #[test]
-    fn video_project_render_plan_is_shape_aware_and_time_based() {
+    fn video_project_render_plan_uses_recorded_overlay_placement() {
         let project = sample_project();
         let plan = project
             .render_plan(VideoRenderPlanQuery {
@@ -1201,9 +1206,10 @@ mod tests {
         let webcam = &plan.items[0];
         assert_eq!(webcam.kind, VIDEO_RENDER_ITEM_WEBCAM);
         assert_eq!(webcam.asset_id, 7);
-        assert!((webcam.width - webcam.height).abs() < 0.001);
         assert!((webcam.x - 1_344.0).abs() < 0.001);
-        assert!((webcam.y - 0.0).abs() < 0.001);
+        assert!((webcam.y - 108.0).abs() < 0.001);
+        assert!((webcam.width - 384.0).abs() < 0.001);
+        assert!((webcam.height - 129.6).abs() < 0.001);
 
         let key = &plan.items[1];
         assert_eq!(key.kind, VIDEO_RENDER_ITEM_KEYSTROKE);

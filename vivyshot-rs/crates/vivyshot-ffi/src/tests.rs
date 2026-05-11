@@ -365,9 +365,10 @@ fn video_project_lifecycle_render_plan_and_snapshot_round_trip() {
             VS_STATUS_OK
         );
         assert_eq!(items[0].kind, 1);
-        assert!((items[0].width - items[0].height).abs() < 0.001);
         assert!(approx_eq(items[0].x, 1_344.0, 0.001));
-        assert!(approx_eq(items[0].y, 0.0, 0.001));
+        assert!(approx_eq(items[0].y, 108.0, 0.001));
+        assert!(approx_eq(items[0].width, 384.0, 0.001));
+        assert!(approx_eq(items[0].height, 129.6, 0.001));
         assert_eq!(items[1].kind, 2);
         assert!(approx_eq(items[1].x, 480.0, 0.001));
         assert!(approx_eq(items[1].y, 810.0, 0.001));
