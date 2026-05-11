@@ -115,10 +115,10 @@ private struct StatisticsRootView: View {
     #endif
 
       if hasFullAccess {
-        overviewSection
-        habitsSection
+        statsLiteDashboardSection
         activitySection
-        breakdownSection
+        habitsSection
+        metricDetailSections
         milestonesSection
       } else {
         statsLiteDashboardSection
@@ -258,84 +258,6 @@ private struct StatisticsRootView: View {
     }
   }
 
-  // MARK: Overview
-
-  private var overviewSection: some View {
-    Section {
-      overviewMetricRow(
-        metric: .screenshots,
-        title: "Total Screenshots",
-        value: viewModel.dashboardData.summary.totalScreenshotsCaptured.formatted(),
-        detail: "All-time captures",
-        systemImage: "camera",
-        recentValues: recentMetricValues { Double($0.screenshotCount) }
-      )
-
-      overviewMetricRow(
-        metric: .recordings,
-        title: "Total Recordings",
-        value: viewModel.dashboardData.summary.totalRecordingsCompleted.formatted(),
-        detail: "Completed recordings",
-        systemImage: "record.circle",
-        recentValues: recentMetricValues { Double($0.recordingCount) }
-      )
-
-      overviewMetricRow(
-        metric: .recordingTime,
-        title: "Total Recording Time",
-        value: StatisticsFormatting.formatDuration(viewModel.dashboardData.summary.totalRecordedDurationMS),
-        detail: hasFullAccess ? "Finished sessions only" : "Full timing details require paid access",
-        systemImage: "timer",
-        recentValues: recentMetricValues { Double($0.recordedDurationMS) }
-      )
-
-      overviewMetricRow(
-        metric: .storage,
-        title: "Storage Produced",
-        value: StatisticsFormatting.formatBytes(viewModel.dashboardData.summary.totalCaptureBytesProduced),
-        detail: hasFullAccess ? "Primary output artifacts" : "Storage breakdown requires paid access",
-        systemImage: "internaldrive",
-        recentValues: recentMetricValues { Double($0.captureBytesProduced) }
-      )
-    } header: {
-      Text("Overview")
-    } footer: {
-      Text("All statistics are computed from local capture events and stored on this Mac.")
-    }
-    .navigationDestination(for: StatisticsOverviewMetric.self) { metric in
-      StatisticsMetricDetailView(
-        metric: metric,
-        dashboardData: viewModel.dashboardData,
-        accentColor: accentColor
-      )
-    }
-  }
-
-  @ViewBuilder
-  private func overviewMetricRow(
-    metric: StatisticsOverviewMetric,
-    title: String,
-    value: String,
-    detail: String,
-    systemImage: String,
-    recentValues: [Double]? = nil
-  ) -> some View {
-    let row = StatisticsMetricRow(
-      title: title,
-      value: value,
-      detail: detail,
-      systemImage: systemImage,
-      recentValues: recentValues
-    )
-    if hasFullAccess {
-      NavigationLink(value: metric) {
-        row
-      }
-    } else {
-      row
-    }
-  }
-
   // MARK: Habits
 
   private var habitsSection: some View {
@@ -374,6 +296,7 @@ private struct StatisticsRootView: View {
   // MARK: Activity
 
   @State private var selectedRange: StatisticsGraphRange = .sixMonths
+  @State private var selectedDetailRange: StatisticsGraphRange = .sixMonths
 
   private var effectiveSelectedRange: StatisticsGraphRange {
     hasFullAccess ? selectedRange : .sevenDays
@@ -383,9 +306,29 @@ private struct StatisticsRootView: View {
     Section {
       activitySectionContent
     } header: {
-      Text("Activity")
+      activitySectionHeader
     } footer: {
       Text(hasFullAccess ? dayRangeDescription : "\(dayRangeDescription). Unlock full statistics for 3 months, 6 months, 1 year, and all-time history.")
+    }
+  }
+
+  private var activitySectionHeader: some View {
+    HStack {
+      Text("Activity")
+      Spacer(minLength: 12)
+      if hasFullAccess {
+        Picker("Activity Range", selection: $selectedRange) {
+          ForEach(StatisticsGraphRange.allCases) { range in
+            Text(range.title).tag(range)
+          }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+      } else {
+        Text("Last 7 days")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
     }
   }
 
@@ -393,27 +336,6 @@ private struct StatisticsRootView: View {
   private var activitySectionContent: some View {
     if hasAnyCaptureData {
       VStack(alignment: .leading, spacing: 12) {
-        HStack(alignment: .center, spacing: 12) {
-          Text("Range")
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(.secondary)
-          Spacer(minLength: 0)
-          if hasFullAccess {
-            Picker("Range", selection: $selectedRange) {
-              ForEach(StatisticsGraphRange.allCases) { range in
-                Text(range.title).tag(range)
-              }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 260)
-            .labelsHidden()
-          } else {
-            Text("Last 7 days")
-              .font(.subheadline.weight(.semibold))
-              .foregroundStyle(.secondary)
-          }
-        }
-
         if hasActivityInSelectedRange {
           if effectiveSelectedRange == .sevenDays {
             StatisticsRecentActivityBarChart(days: recentActivityDays(dayCount: 7), accentColor: accentColor)
@@ -452,6 +374,46 @@ private struct StatisticsRootView: View {
         Text("Take a screenshot or record a video, and your activity history will start building here.")
       }
       .frame(maxWidth: .infinity).padding(.vertical, 18)
+    }
+  }
+
+  // MARK: Metric Details
+
+  @ViewBuilder
+  private var metricDetailSections: some View {
+    metricDetailSection(.screenshots)
+    metricDetailSection(.recordings)
+    metricDetailSection(.recordingTime)
+    metricDetailSection(.storage)
+  }
+
+  private func metricDetailSection(_ metric: StatisticsOverviewMetric) -> some View {
+    Section {
+      StatisticsMetricDetailPanel(
+        metric: metric,
+        dashboardData: viewModel.dashboardData,
+        selectedRange: selectedDetailRange,
+        accentColor: accentColor
+      )
+    } header: {
+      metricDetailSectionHeader(metric)
+    } footer: {
+      let bounds = statisticsGraphBounds(for: selectedDetailRange, dashboardData: viewModel.dashboardData)
+      Text("\(StatisticsFormatting.formatDate(bounds.startDate)) to \(StatisticsFormatting.formatDate(bounds.endDate))")
+    }
+  }
+
+  private func metricDetailSectionHeader(_ metric: StatisticsOverviewMetric) -> some View {
+    HStack {
+      Text(metric.sectionTitle)
+      Spacer(minLength: 12)
+      Picker("\(metric.menuTitle) Range", selection: $selectedDetailRange) {
+        ForEach(StatisticsGraphRange.allCases) { range in
+          Text(range.title).tag(range)
+        }
+      }
+      .pickerStyle(.menu)
+      .labelsHidden()
     }
   }
 
@@ -501,41 +463,6 @@ private struct StatisticsRootView: View {
       Text("History & Insights")
     } footer: {
       Text("Included with Lifetime and Supporter. No subscription.")
-    }
-  }
-
-  // MARK: Breakdown
-
-  @ViewBuilder
-  private var breakdownSection: some View {
-    Section {
-      if hasAnyCaptureData {
-        StatisticsBreakdownGrid(
-          screenshotWeek: metricBreakdown(\.screenshotCount).week.formatted(),
-          screenshotMonth: metricBreakdown(\.screenshotCount).month.formatted(),
-          screenshotAllTime: viewModel.dashboardData.summary.totalScreenshotsCaptured.formatted(),
-          recordingWeek: metricBreakdown(\.recordingCount).week.formatted(),
-          recordingMonth: metricBreakdown(\.recordingCount).month.formatted(),
-          recordingAllTime: viewModel.dashboardData.summary.totalRecordingsCompleted.formatted(),
-          durationWeek: StatisticsFormatting.formatDuration(metricBreakdown(\.recordedDurationMS).week),
-          durationMonth: StatisticsFormatting.formatDuration(metricBreakdown(\.recordedDurationMS).month),
-          durationAllTime: StatisticsFormatting.formatDuration(viewModel.dashboardData.summary.totalRecordedDurationMS),
-          storageWeek: StatisticsFormatting.formatBytes(metricBreakdown(\.captureBytesProduced).week),
-          storageMonth: StatisticsFormatting.formatBytes(metricBreakdown(\.captureBytesProduced).month),
-          storageAllTime: StatisticsFormatting.formatBytes(viewModel.dashboardData.summary.totalCaptureBytesProduced)
-        )
-      } else {
-        ContentUnavailableView {
-          Label("No totals yet", systemImage: "sum")
-        } description: {
-          Text("Weekly, monthly, and all-time totals appear after your first capture.")
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 18)
-      }
-    } header: {
-      Text("Breakdown")
-    } footer: {
-      Text("This week, this month, and lifetime totals.")
     }
   }
 
@@ -663,19 +590,6 @@ private struct StatisticsRootView: View {
     }
   }
 
-  private func metricBreakdown(_ keyPath: KeyPath<StatisticsAggregate, Int64>) -> (week: Int64, month: Int64) {
-    let calendar = Calendar.autoupdatingCurrent
-    let weekInterval = calendar.dateInterval(of: .weekOfYear, for: Date())
-    let monthInterval = calendar.dateInterval(of: .month, for: Date())
-    let weekStart = weekInterval?.start ?? Date()
-    let weekEnd = weekInterval.flatMap { calendar.date(byAdding: .day, value: -1, to: $0.end) } ?? Date()
-    let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
-    let monthEnd = monthInterval.flatMap { calendar.date(byAdding: .day, value: -1, to: $0.end) } ?? Date()
-    let w = aggregateBuckets(in: StatisticsGraphBounds(startDate: calendar.startOfDay(for: weekStart), endDate: calendar.startOfDay(for: weekEnd)))
-    let m = aggregateBuckets(in: StatisticsGraphBounds(startDate: calendar.startOfDay(for: monthStart), endDate: calendar.startOfDay(for: monthEnd)))
-    return (w[keyPath: keyPath], m[keyPath: keyPath])
-  }
-
   private func graphRangeBounds(for range: StatisticsGraphRange) -> StatisticsGraphBounds {
     statisticsGraphBounds(for: range, dashboardData: viewModel.dashboardData)
   }
@@ -756,9 +670,9 @@ private struct StatisticsRootView: View {
   }
 }
 
-// MARK: - Metric Detail View (NavigationStack destination)
+// MARK: - Metric Detail Components
 
-enum StatisticsOverviewMetric: String, Identifiable, Hashable {
+enum StatisticsOverviewMetric: String, CaseIterable, Identifiable, Hashable {
   case screenshots
   case recordings
   case recordingTime
@@ -772,6 +686,24 @@ enum StatisticsOverviewMetric: String, Identifiable, Hashable {
     case .recordings: return "Total Recordings"
     case .recordingTime: return "Total Recording Time"
     case .storage: return "Storage Produced"
+    }
+  }
+
+  var menuTitle: String {
+    switch self {
+    case .screenshots: return "Screenshots"
+    case .recordings: return "Recordings"
+    case .recordingTime: return "Recording Time"
+    case .storage: return "Storage"
+    }
+  }
+
+  var sectionTitle: String {
+    switch self {
+    case .screenshots: return "Screenshots"
+    case .recordings: return "Recordings"
+    case .recordingTime: return "Recording Time"
+    case .storage: return "Storage"
     }
   }
 
@@ -851,12 +783,11 @@ enum StatisticsOverviewMetric: String, Identifiable, Hashable {
   }
 }
 
-private struct StatisticsMetricDetailView: View {
+private struct StatisticsMetricDetailPanel: View {
   let metric: StatisticsOverviewMetric
   let dashboardData: CaptureStatisticsDashboardData
+  let selectedRange: StatisticsGraphRange
   let accentColor: Color
-
-  @State private var selectedRange: StatisticsGraphRange = .sixMonths
 
   private var bounds: StatisticsGraphBounds {
     statisticsGraphBounds(for: selectedRange, dashboardData: dashboardData)
@@ -885,49 +816,27 @@ private struct StatisticsMetricDetailView: View {
   }
 
   var body: some View {
-    Form {
-      Section {
-        HStack(alignment: .center, spacing: 12) {
-          Text("Range")
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(.secondary)
-          Spacer(minLength: 0)
-          Picker("Range", selection: $selectedRange) {
-            ForEach(StatisticsGraphRange.allCases) { range in
-              Text(range.title).tag(range)
-            }
-          }
-          .pickerStyle(.segmented)
-          .frame(width: 260)
-          .labelsHidden()
-        }
+    VStack(alignment: .leading, spacing: 12) {
+      if hasData {
+        StatisticsMetricDetailChart(metric: metric, points: points, accentColor: accentColor)
 
-        if hasData {
-          StatisticsMetricDetailChart(metric: metric, points: points, accentColor: accentColor)
-            .padding(.top, 8)
-
-          StatisticsMetricDetailSummaryRow(
-            totalTitle: metric.totalLabel,
-            totalValue: metric.formatValue(totalValue),
-            activeDays: activeDays.formatted(),
-            peakTitle: metric.peakLabel,
-            peakValue: peakPoint.map { metric.peakSummary(for: $0) } ?? "No activity yet"
-          )
-        } else {
-          ContentUnavailableView {
-            Label("No data in this range", systemImage: metric.systemImage)
-          } description: {
-            Text("Try a wider range or create a few more captures to build this chart.")
-          }
-          .frame(maxWidth: .infinity).padding(.vertical, 18)
+        StatisticsMetricDetailSummaryRow(
+          totalTitle: metric.totalLabel,
+          totalValue: metric.formatValue(totalValue),
+          activeDays: activeDays.formatted(),
+          peakTitle: metric.peakLabel,
+          peakValue: peakPoint.map { metric.peakSummary(for: $0) } ?? "No activity yet"
+        )
+      } else {
+        ContentUnavailableView {
+          Label("No data in this range", systemImage: metric.systemImage)
+        } description: {
+          Text("Try a wider range or create a few more captures to build this chart.")
         }
-      } footer: {
-        Text("\(StatisticsFormatting.formatDate(bounds.startDate)) to \(StatisticsFormatting.formatDate(bounds.endDate))")
+        .frame(maxWidth: .infinity).padding(.vertical, 18)
       }
     }
-    .formStyle(.grouped)
-    .navigationTitle(metric.title)
-    .navigationSubtitle(metric.subtitle)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -1034,7 +943,7 @@ private struct StatisticsMetricDetailChart: View {
   let accentColor: Color
 
   private var chartWidth: CGFloat {
-    max(640, CGFloat(points.count) * pointWidth)
+    max(560, CGFloat(points.count) * pointWidth)
   }
 
   private var pointWidth: CGFloat {
@@ -1077,10 +986,10 @@ private struct StatisticsMetricDetailChart: View {
             .background(Color.secondary.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .frame(width: max(proxy.size.width, chartWidth), height: 240)
+        .frame(width: max(proxy.size.width, chartWidth), height: 180)
       }
     }
-    .frame(height: 240)
+    .frame(height: 180)
   }
 }
 
@@ -1221,53 +1130,6 @@ private struct StatisticsActivitySummaryRow: View {
       RoundedRectangle(cornerRadius: 10, style: .continuous)
         .fill(Color.secondary.opacity(0.08))
     )
-  }
-}
-
-// MARK: - Breakdown Grid
-
-private struct StatisticsBreakdownGrid: View {
-  let screenshotWeek, screenshotMonth, screenshotAllTime: String
-  let recordingWeek, recordingMonth, recordingAllTime: String
-  let durationWeek, durationMonth, durationAllTime: String
-  let storageWeek, storageMonth, storageAllTime: String
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      breakdownHeader
-      breakdownRow("Screenshots", screenshotWeek, screenshotMonth, screenshotAllTime)
-      breakdownRow("Recordings", recordingWeek, recordingMonth, recordingAllTime)
-      breakdownRow("Recording Time", durationWeek, durationMonth, durationAllTime)
-      breakdownRow("Storage Produced", storageWeek, storageMonth, storageAllTime)
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.vertical, 4)
-  }
-
-  private var breakdownHeader: some View {
-    HStack(spacing: 18) {
-      Text("Metric").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      Text("Week").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-      Text("Month").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-      Text("All Time").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-    }
-  }
-
-  private func breakdownRow(_ title: String, _ week: String, _ month: String, _ allTime: String) -> some View {
-    HStack(spacing: 18) {
-      Text(title).font(.subheadline.weight(.medium))
-        .frame(maxWidth: .infinity, alignment: .leading)
-      Text(week).font(.system(.subheadline, design: .monospaced))
-        .frame(maxWidth: .infinity, alignment: .trailing)
-      Text(month).font(.system(.subheadline, design: .monospaced))
-        .frame(maxWidth: .infinity, alignment: .trailing)
-      Text(allTime).font(.system(.subheadline, design: .monospaced))
-        .frame(maxWidth: .infinity, alignment: .trailing)
-    }
   }
 }
 
