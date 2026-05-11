@@ -83,6 +83,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var videoWebcamDeviceID: String
   @Published private(set) var videoWebcamOverlaySize: VideoWebcamOverlaySizeOption
   @Published private(set) var videoWebcamOverlayShape: VideoWebcamOverlayShapeOption
+  @Published private(set) var videoWebcamOverlayAspectRatio: VideoWebcamOverlayAspectRatioOption
   @Published private(set) var videoWebcamOverlayNormalizedX: Double
   @Published private(set) var videoWebcamOverlayNormalizedY: Double
   @Published private(set) var videoWebcamOverlayNormalizedWidth: Double
@@ -211,6 +212,7 @@ final class AppSettings: ObservableObject {
     static let videoWebcamDeviceID = "settings.video.webcam.deviceID"
     static let videoWebcamOverlaySize = "settings.video.webcam.overlaySize"
     static let videoWebcamOverlayShape = "settings.video.webcam.overlayShape"
+    static let videoWebcamOverlayAspectRatio = "settings.video.webcam.overlayAspectRatio"
     static let videoWebcamOverlayNormalizedX = "settings.video.webcam.overlay.normalizedX"
     static let videoWebcamOverlayNormalizedY = "settings.video.webcam.overlay.normalizedY"
     static let videoWebcamOverlayNormalizedWidth = "settings.video.webcam.overlay.normalizedWidth"
@@ -342,7 +344,16 @@ final class AppSettings: ObservableObject {
     videoWebcamOverlaySize = VideoWebcamOverlaySizeOption(rawValue: storedWebcamSize ?? VideoWebcamOverlaySizeOption.medium.rawValue) ?? .medium
 
     let storedWebcamShape = defaults.object(forKey: Keys.videoWebcamOverlayShape) as? Int
-    videoWebcamOverlayShape = VideoWebcamOverlayShapeOption(rawValue: storedWebcamShape ?? VideoWebcamOverlayShapeOption.roundedRect.rawValue) ?? .roundedRect
+    let initialWebcamShape = VideoWebcamOverlayShapeOption(
+      rawValue: storedWebcamShape ?? VideoWebcamOverlayShapeOption.roundedRect.rawValue
+    ) ?? .roundedRect
+    videoWebcamOverlayShape = initialWebcamShape
+
+    let storedWebcamAspectRatio = defaults.object(forKey: Keys.videoWebcamOverlayAspectRatio) as? Int
+    let storedAspectRatio = VideoWebcamOverlayAspectRatioOption(
+      rawValue: storedWebcamAspectRatio ?? VideoWebcamOverlayAspectRatioOption.square.rawValue
+    ) ?? .square
+    videoWebcamOverlayAspectRatio = initialWebcamShape == .circle ? .square : storedAspectRatio
 
     let defaultWebcamFrame = Self.defaultVideoWebcamOverlayNormalizedFrame
     videoWebcamOverlayNormalizedX = Self.clampedNormalizedOrigin(defaults.object(forKey: Keys.videoWebcamOverlayNormalizedX) as? Double ?? defaultWebcamFrame.minX)
@@ -628,11 +639,30 @@ final class AppSettings: ObservableObject {
       return
     }
     videoWebcamOverlayShape = shape
+    if shape == .circle {
+      videoWebcamOverlayAspectRatio = .square
+    }
+    persistVideoCaptureSettings()
+  }
+
+  func setVideoWebcamOverlayAspectRatio(_ aspectRatio: VideoWebcamOverlayAspectRatioOption) {
+    let normalized = videoWebcamOverlayShape == .circle ? .square : aspectRatio
+    guard videoWebcamOverlayAspectRatio != normalized else {
+      return
+    }
+    videoWebcamOverlayAspectRatio = normalized
     persistVideoCaptureSettings()
   }
 
   func setVideoWebcamOverlayNormalizedFrame(_ frame: CGRect) {
-    let normalized = Self.normalizedOverlayFrame(frame, fallback: Self.defaultVideoWebcamOverlayNormalizedFrame)
+    let source = Self.normalizedOverlayFrame(frame, fallback: Self.defaultVideoWebcamOverlayNormalizedFrame)
+    let width = Self.clampedVideoWebcamOverlayWidth(Double(source.width))
+    let height = Self.clampedVideoWebcamOverlayHeight(Double(source.height))
+    let normalized = Self.resizedNormalizedOverlayFrame(
+      source,
+      width: CGFloat(width),
+      height: CGFloat(height)
+    )
     let changed = abs(videoWebcamOverlayNormalizedX - normalized.minX) > .ulpOfOne
       || abs(videoWebcamOverlayNormalizedY - normalized.minY) > .ulpOfOne
       || abs(videoWebcamOverlayNormalizedWidth - normalized.width) > .ulpOfOne
@@ -645,6 +675,32 @@ final class AppSettings: ObservableObject {
     videoWebcamOverlayNormalizedWidth = normalized.width
     videoWebcamOverlayNormalizedHeight = normalized.height
     persistVideoCaptureSettings()
+  }
+
+  func setVideoWebcamOverlayNormalizedWidth(_ width: Double) {
+    let current = videoWebcamOverlayNormalizedFrame
+    let normalizedWidth = Self.clampedVideoWebcamOverlayWidth(width)
+    setVideoWebcamOverlayNormalizedFrame(
+      CGRect(
+        x: current.midX - normalizedWidth * 0.5,
+        y: current.minY,
+        width: normalizedWidth,
+        height: current.height
+      )
+    )
+  }
+
+  func setVideoWebcamOverlayNormalizedHeight(_ height: Double) {
+    let current = videoWebcamOverlayNormalizedFrame
+    let normalizedHeight = Self.clampedVideoWebcamOverlayHeight(height)
+    setVideoWebcamOverlayNormalizedFrame(
+      CGRect(
+        x: current.minX,
+        y: current.midY - normalizedHeight * 0.5,
+        width: current.width,
+        height: normalizedHeight
+      )
+    )
   }
 
   func resetVideoWebcamOverlayPlacement() {
@@ -694,7 +750,12 @@ final class AppSettings: ObservableObject {
   }
 
   func setVideoKeystrokeOverlayNormalizedFrame(_ frame: CGRect) {
-    let normalized = Self.normalizedOverlayFrame(frame, fallback: Self.defaultVideoKeystrokeOverlayNormalizedFrame)
+    let source = Self.normalizedOverlayFrame(frame, fallback: Self.defaultVideoKeystrokeOverlayNormalizedFrame)
+    let normalized = Self.resizedNormalizedOverlayFrame(
+      source,
+      width: CGFloat(Self.clampedVideoKeystrokeOverlayWidth(Double(source.width))),
+      height: CGFloat(Self.clampedVideoKeystrokeOverlayHeight(Double(source.height)))
+    )
     let changed = abs(videoKeystrokeOverlayNormalizedX - normalized.minX) > .ulpOfOne
       || abs(videoKeystrokeOverlayNormalizedY - normalized.minY) > .ulpOfOne
       || abs(videoKeystrokeOverlayNormalizedWidth - normalized.width) > .ulpOfOne
@@ -707,6 +768,32 @@ final class AppSettings: ObservableObject {
     videoKeystrokeOverlayNormalizedWidth = normalized.width
     videoKeystrokeOverlayNormalizedHeight = normalized.height
     persistVideoCaptureSettings()
+  }
+
+  func setVideoKeystrokeOverlayNormalizedWidth(_ width: Double) {
+    let current = videoKeystrokeOverlayNormalizedFrame
+    let normalizedWidth = Self.clampedVideoKeystrokeOverlayWidth(width)
+    setVideoKeystrokeOverlayNormalizedFrame(
+      CGRect(
+        x: current.midX - normalizedWidth * 0.5,
+        y: current.minY,
+        width: normalizedWidth,
+        height: current.height
+      )
+    )
+  }
+
+  func setVideoKeystrokeOverlayNormalizedHeight(_ height: Double) {
+    let current = videoKeystrokeOverlayNormalizedFrame
+    let normalizedHeight = Self.clampedVideoKeystrokeOverlayHeight(height)
+    setVideoKeystrokeOverlayNormalizedFrame(
+      CGRect(
+        x: current.minX,
+        y: current.midY - normalizedHeight * 0.5,
+        width: current.width,
+        height: normalizedHeight
+      )
+    )
   }
 
   func resetVideoKeystrokeOverlayPlacement() {
@@ -737,6 +824,7 @@ final class AppSettings: ObservableObject {
     videoWebcamDeviceID = ""
     videoWebcamOverlaySize = .medium
     videoWebcamOverlayShape = .roundedRect
+    videoWebcamOverlayAspectRatio = .square
     let defaultWebcamFrame = Self.defaultVideoWebcamOverlayNormalizedFrame
     videoWebcamOverlayNormalizedX = defaultWebcamFrame.minX
     videoWebcamOverlayNormalizedY = defaultWebcamFrame.minY
@@ -1185,6 +1273,22 @@ final class AppSettings: ObservableObject {
     max(0.04, min(1, value))
   }
 
+  static func clampedVideoWebcamOverlayWidth(_ value: Double) -> Double {
+    max(0.12, min(0.50, value))
+  }
+
+  static func clampedVideoWebcamOverlayHeight(_ value: Double) -> Double {
+    max(0.04, min(0.90, value))
+  }
+
+  static func clampedVideoKeystrokeOverlayWidth(_ value: Double) -> Double {
+    max(0.20, min(0.72, value))
+  }
+
+  static func clampedVideoKeystrokeOverlayHeight(_ value: Double) -> Double {
+    max(0.07, min(0.28, value))
+  }
+
   private static func normalizedOverlayFrame(_ frame: CGRect, fallback: CGRect) -> CGRect {
     let source = frame.isNull || frame.isEmpty ? fallback : frame.standardized
     let width = clampedNormalizedDimension(source.width)
@@ -1369,6 +1473,7 @@ final class AppSettings: ObservableObject {
     defaults.set(videoWebcamDeviceID, forKey: Keys.videoWebcamDeviceID)
     defaults.set(videoWebcamOverlaySize.rawValue, forKey: Keys.videoWebcamOverlaySize)
     defaults.set(videoWebcamOverlayShape.rawValue, forKey: Keys.videoWebcamOverlayShape)
+    defaults.set(videoWebcamOverlayAspectRatio.rawValue, forKey: Keys.videoWebcamOverlayAspectRatio)
     defaults.set(videoWebcamOverlayNormalizedX, forKey: Keys.videoWebcamOverlayNormalizedX)
     defaults.set(videoWebcamOverlayNormalizedY, forKey: Keys.videoWebcamOverlayNormalizedY)
     defaults.set(videoWebcamOverlayNormalizedWidth, forKey: Keys.videoWebcamOverlayNormalizedWidth)
@@ -1424,6 +1529,7 @@ final class AppSettings: ObservableObject {
     defaults.set(videoWebcamDeviceID, forKey: Keys.videoWebcamDeviceID)
     defaults.set(videoWebcamOverlaySize.rawValue, forKey: Keys.videoWebcamOverlaySize)
     defaults.set(videoWebcamOverlayShape.rawValue, forKey: Keys.videoWebcamOverlayShape)
+    defaults.set(videoWebcamOverlayAspectRatio.rawValue, forKey: Keys.videoWebcamOverlayAspectRatio)
     defaults.set(videoWebcamOverlayNormalizedX, forKey: Keys.videoWebcamOverlayNormalizedX)
     defaults.set(videoWebcamOverlayNormalizedY, forKey: Keys.videoWebcamOverlayNormalizedY)
     defaults.set(videoWebcamOverlayNormalizedWidth, forKey: Keys.videoWebcamOverlayNormalizedWidth)

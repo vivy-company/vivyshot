@@ -1645,6 +1645,26 @@ fn input_normalization_helpers_are_deterministic() {
     let token = std::str::from_utf8(&token_bytes[..written as usize]).unwrap();
     assert_eq!(token, "⌘⇧K");
 
+    let delete_char = [0x7fu8];
+    written = 0;
+    // SAFETY: pointers are valid for the duration of each FFI call.
+    unsafe {
+        assert_eq!(
+            vs_normalize_key_token(
+                51,
+                0,
+                delete_char.as_ptr(),
+                delete_char.len() as u32,
+                token_bytes.as_mut_ptr(),
+                token_bytes.len() as u32,
+                &mut written,
+            ),
+            0
+        );
+    }
+    let token = std::str::from_utf8(&token_bytes[..written as usize]).unwrap();
+    assert_eq!(token, "⌫");
+
     // SAFETY: pointers are valid and lengths are bounded by local buffers.
     let duplicate = unsafe {
         vs_key_event_is_duplicate(

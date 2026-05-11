@@ -458,7 +458,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     panel.subtitle = subtitle
 
     let actionView = PostRecordingActionView(
-      inputURL: inputURL,
+      project: project,
       thumbnail: thumbnail
     )
     panel.contentView = NSHostingView(rootView: actionView)
@@ -729,14 +729,15 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 }
 
 private struct PostRecordingActionView: View {
-  let inputURL: URL
+  let project: PostRecordingProject
   let thumbnail: NSImage?
+  @StateObject private var playbackState = PostRecordingPreviewPlaybackState()
 
   init(
-    inputURL: URL,
+    project: PostRecordingProject,
     thumbnail: NSImage?
   ) {
-    self.inputURL = inputURL
+    self.project = project
     self.thumbnail = thumbnail
   }
 
@@ -744,9 +745,17 @@ private struct PostRecordingActionView: View {
     ZStack {
       Color.black
 
-      if FileManager.default.fileExists(atPath: inputURL.path) {
-        PostRecordingPlayerPreview(url: inputURL)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      if FileManager.default.fileExists(atPath: project.inputURL.path) {
+        ZStack {
+          PostRecordingPlayerPreview(url: project.inputURL, playbackState: playbackState)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+          if project.overlayConfiguration.hasCompositedOverlays {
+            PostRecordingOverlayPreviewLayer(project: project, playbackState: playbackState)
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
+              .allowsHitTesting(false)
+          }
+        }
       } else if let thumbnail {
         Image(nsImage: thumbnail)
           .resizable()
@@ -760,6 +769,247 @@ private struct PostRecordingActionView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Color.black)
+  }
+}
+
+private final class PostRecordingPreviewPlaybackState: ObservableObject {
+  @Published var currentSeconds: Double = 0
+  @Published var isPlaying = false
+}
+
+private struct PostRecordingOverlayPreviewLayer: View {
+  let project: PostRecordingProject
+  @ObservedObject var playbackState: PostRecordingPreviewPlaybackState
+
+  var body: some View {
+    GeometryReader { proxy in
+      let videoRect = aspectFitVideoRect(in: proxy.size)
+
+      ZStack(alignment: .topLeading) {
+        if let webcamURL = project.overlayConfiguration.webcamURL,
+           let webcamRect = webcamOverlayRect(
+            for: placementFrame(
+              at: playbackState.currentSeconds,
+              changes: project.overlayConfiguration.webcamPlacementChanges
+            ),
+            videoRect: videoRect
+           )
+        {
+          webcamOverlay(url: webcamURL, rect: webcamRect)
+        }
+
+        if let keyOverlay = keystrokeOverlay(at: playbackState.currentSeconds),
+           let keyRect = overlayRect(for: keyOverlay.frame, videoRect: videoRect)
+        {
+          PostRecordingKeystrokeOverlayPreview(
+            text: keyOverlay.text,
+            style: project.overlayConfiguration.keystrokeOverlayStyle,
+            size: project.overlayConfiguration.keystrokeOverlaySize
+          )
+          .frame(width: keyRect.width, height: keyRect.height)
+          .position(x: keyRect.midX, y: keyRect.midY)
+        }
+      }
+      .frame(width: proxy.size.width, height: proxy.size.height)
+    }
+  }
+
+  private func aspectFitVideoRect(in container: CGSize) -> CGRect {
+    let source = project.videoSize ?? container
+    guard container.width > 0, container.height > 0, source.width > 0, source.height > 0 else {
+      return CGRect(origin: .zero, size: container)
+    }
+
+    let scale = min(container.width / source.width, container.height / source.height)
+    let size = CGSize(width: source.width * scale, height: source.height * scale)
+    return CGRect(
+      x: (container.width - size.width) * 0.5,
+      y: (container.height - size.height) * 0.5,
+      width: size.width,
+      height: size.height
+    )
+  }
+
+  private func overlayRect(for normalized: CGRect, videoRect: CGRect) -> CGRect? {
+    let frame = VideoCaptureOverlayState.normalizedFrame(normalized)
+    guard frame.width > 0, frame.height > 0, videoRect.width > 0, videoRect.height > 0 else {
+      return nil
+    }
+
+    return CGRect(
+      x: videoRect.minX + frame.minX * videoRect.width,
+      y: videoRect.minY + (1 - frame.maxY) * videoRect.height,
+      width: frame.width * videoRect.width,
+      height: frame.height * videoRect.height
+    ).integral
+  }
+
+  private func webcamOverlayRect(for normalized: CGRect, videoRect: CGRect) -> CGRect? {
+    guard let rect = overlayRect(for: normalized, videoRect: videoRect) else {
+      return nil
+    }
+    return project.overlayConfiguration.webcamOverlayAspectRatio.constrainedFrame(
+      rect,
+      in: videoRect,
+      minimumSize: CGSize(width: 2, height: 2)
+    )
+  }
+
+  private func placementFrame(at seconds: Double, changes: [VideoOverlayPlacementChange]) -> CGRect {
+    guard !changes.isEmpty else {
+      return .zero
+    }
+    var frame = changes[0].normalizedFrame
+    for change in changes where change.timestampSeconds <= seconds {
+      frame = change.normalizedFrame
+    }
+    return frame
+  }
+
+  private func keystrokeOverlay(at seconds: Double) -> (text: String, frame: CGRect)? {
+    let visibleEvents = project.overlayConfiguration.keyEvents
+      .filter { event in
+        let eventSeconds = Double(event.timestampNS) / 1_000_000_000.0
+        return eventSeconds <= seconds && seconds - eventSeconds <= 1.35
+      }
+      .suffix(3)
+    let text = visibleEvents.map(\.displayToken).joined(separator: "  ")
+    guard !text.isEmpty else {
+      return nil
+    }
+
+    let referenceSeconds = Double(visibleEvents.last?.timestampNS ?? 0) / 1_000_000_000.0
+    return (
+      text,
+      placementFrame(at: referenceSeconds, changes: project.overlayConfiguration.keystrokePlacementChanges)
+    )
+  }
+
+  @ViewBuilder
+  private func webcamOverlay(url: URL, rect: CGRect) -> some View {
+    let preview = PostRecordingWebcamOverlayPreview(
+      url: url,
+      seconds: playbackState.currentSeconds,
+      isPlaying: playbackState.isPlaying
+    )
+    .frame(width: rect.width, height: rect.height)
+
+    switch project.overlayConfiguration.webcamOverlayShape {
+    case .circle:
+      preview
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Color.white.opacity(0.55), lineWidth: 1))
+        .position(x: rect.midX, y: rect.midY)
+    case .roundedRect:
+      preview
+        .clipShape(RoundedRectangle(cornerRadius: min(rect.height * 0.18, 18), style: .continuous))
+        .overlay(
+          RoundedRectangle(cornerRadius: min(rect.height * 0.18, 18), style: .continuous)
+            .stroke(Color.white.opacity(0.55), lineWidth: 1)
+        )
+        .position(x: rect.midX, y: rect.midY)
+    }
+  }
+}
+
+private struct PostRecordingKeystrokeOverlayPreview: View {
+  let text: String
+  let style: VideoKeystrokeOverlayStyleOption
+  let size: VideoKeystrokeOverlaySizeOption
+
+  var body: some View {
+    KeystrokeOverlayGlassCapsule(
+      text: text,
+      style: style,
+      size: size,
+      showsResizeGrip: false
+    )
+  }
+}
+
+private struct PostRecordingWebcamOverlayPreview: NSViewRepresentable {
+  let url: URL
+  let seconds: Double
+  let isPlaying: Bool
+
+  final class Coordinator: @unchecked Sendable {
+    var player: AVPlayer?
+    var url: URL?
+  }
+
+  final class PlayerLayerView: NSView {
+    let playerLayer = AVPlayerLayer()
+
+    override init(frame frameRect: NSRect) {
+      super.init(frame: frameRect)
+      wantsLayer = true
+      playerLayer.videoGravity = .resizeAspectFill
+      layer?.addSublayer(playerLayer)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+      nil
+    }
+
+    override func layout() {
+      super.layout()
+      playerLayer.frame = bounds
+    }
+  }
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator()
+  }
+
+  func makeNSView(context: Context) -> PlayerLayerView {
+    let view = PlayerLayerView()
+    configurePlayerIfNeeded(in: view, coordinator: context.coordinator)
+    return view
+  }
+
+  func updateNSView(_ nsView: PlayerLayerView, context: Context) {
+    configurePlayerIfNeeded(in: nsView, coordinator: context.coordinator)
+    guard let player = context.coordinator.player else {
+      return
+    }
+
+    let current = CMTimeGetSeconds(player.currentTime())
+    if current.isFinite, abs(current - seconds) > (isPlaying ? 0.35 : 0.05) {
+      player.seek(
+        to: CMTime(seconds: max(0, seconds), preferredTimescale: 600),
+        toleranceBefore: .zero,
+        toleranceAfter: .zero
+      )
+    }
+
+    if isPlaying {
+      if player.rate == 0 {
+        player.play()
+      }
+    } else {
+      player.pause()
+    }
+  }
+
+  static func dismantleNSView(_ nsView: PlayerLayerView, coordinator: Coordinator) {
+    coordinator.player?.pause()
+    nsView.playerLayer.player = nil
+    coordinator.player = nil
+    coordinator.url = nil
+  }
+
+  private func configurePlayerIfNeeded(in view: PlayerLayerView, coordinator: Coordinator) {
+    guard coordinator.url != url else {
+      return
+    }
+
+    let player = AVPlayer(url: url)
+    player.isMuted = true
+    player.actionAtItemEnd = .pause
+    view.playerLayer.player = player
+    coordinator.player = player
+    coordinator.url = url
   }
 }
 
@@ -968,9 +1218,34 @@ private extension NSToolbarItem.Identifier {
 
 private struct PostRecordingPlayerPreview: NSViewRepresentable {
   let url: URL
+  @ObservedObject var playbackState: PostRecordingPreviewPlaybackState
 
-  final class Coordinator {
+  final class Coordinator: @unchecked Sendable {
     var player: AVPlayer?
+    var timeObserver: Any?
+    weak var playbackState: PostRecordingPreviewPlaybackState?
+
+    func installTimeObserver(on player: AVPlayer) {
+      removeTimeObserver()
+      timeObserver = player.addPeriodicTimeObserver(
+        forInterval: CMTime(seconds: 0.05, preferredTimescale: 600),
+        queue: .main
+      ) { [weak self, weak player] time in
+        guard let self, let playbackState = self.playbackState else {
+          return
+        }
+        let seconds = CMTimeGetSeconds(time)
+        playbackState.currentSeconds = seconds.isFinite ? max(0, seconds) : 0
+        playbackState.isPlaying = (player?.rate ?? 0) != 0
+      }
+    }
+
+    func removeTimeObserver() {
+      if let timeObserver, let player {
+        player.removeTimeObserver(timeObserver)
+      }
+      timeObserver = nil
+    }
   }
 
   func makeCoordinator() -> Coordinator {
@@ -982,20 +1257,24 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
     view.controlsStyle = .floating
     view.videoGravity = .resizeAspect
     view.showsFullScreenToggleButton = false
+    context.coordinator.playbackState = playbackState
 
     let player = AVPlayer(url: url)
     player.actionAtItemEnd = .pause
     view.player = player
     context.coordinator.player = player
+    context.coordinator.installTimeObserver(on: player)
     return view
   }
 
   func updateNSView(_ nsView: AVPlayerView, context: Context) {
+    context.coordinator.playbackState = playbackState
     guard let currentURL = (nsView.player?.currentItem?.asset as? AVURLAsset)?.url else {
       let player = AVPlayer(url: url)
       player.actionAtItemEnd = .pause
       nsView.player = player
       context.coordinator.player = player
+      context.coordinator.installTimeObserver(on: player)
       return
     }
 
@@ -1008,10 +1287,12 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
     player.actionAtItemEnd = .pause
     nsView.player = player
     context.coordinator.player = player
+    context.coordinator.installTimeObserver(on: player)
   }
 
   static func dismantleNSView(_ nsView: AVPlayerView, coordinator: Coordinator) {
     nsView.player?.pause()
+    coordinator.removeTimeObserver()
     nsView.player = nil
     coordinator.player = nil
   }

@@ -142,6 +142,7 @@ final class VideoCaptureCoordinator {
             webcamPreviewLayer: webcamEnabled ? self.webcamRecorder?.makePreviewLayer() : nil,
             webcamFrame: initialOverlayState.webcamFrame,
             webcamShape: settings.videoWebcamOverlayShape,
+            webcamAspectRatio: settings.videoWebcamOverlayAspectRatio,
             showKeystrokeOverlay: capturesKeystrokes,
             keystrokeFrame: initialOverlayState.keystrokeFrame,
             keystrokeStyle: settings.videoKeystrokeOverlayStyle,
@@ -280,6 +281,7 @@ final class VideoCaptureCoordinator {
             clickEvents: monitorResult.clickEvents,
             webcamOverlayShape: settings.videoWebcamOverlayShape,
             webcamOverlaySize: settings.videoWebcamOverlaySize,
+            webcamOverlayAspectRatio: settings.videoWebcamOverlayAspectRatio,
             webcamPlacementChanges: sanitizedPlacementChanges(webcamPlacementChanges),
             keystrokeOverlayStyle: settings.videoKeystrokeOverlayStyle,
             keystrokeOverlaySize: settings.videoKeystrokeOverlaySize,
@@ -725,6 +727,7 @@ struct VideoExportOverlayConfiguration {
   let clickEvents: [RecordedMouseClickEvent]
   let webcamOverlayShape: VideoWebcamOverlayShapeOption
   let webcamOverlaySize: VideoWebcamOverlaySizeOption
+  let webcamOverlayAspectRatio: VideoWebcamOverlayAspectRatioOption
   let webcamPlacementChanges: [VideoOverlayPlacementChange]
   let keystrokeOverlayStyle: VideoKeystrokeOverlayStyleOption
   let keystrokeOverlaySize: VideoKeystrokeOverlaySizeOption
@@ -1172,6 +1175,7 @@ private final class RecordingOverlayController: NSWindowController {
     webcamPreviewLayer: AVCaptureVideoPreviewLayer?,
     webcamFrame: CGRect,
     webcamShape: VideoWebcamOverlayShapeOption,
+    webcamAspectRatio: VideoWebcamOverlayAspectRatioOption,
     showKeystrokeOverlay: Bool,
     keystrokeFrame: CGRect,
     keystrokeStyle: VideoKeystrokeOverlayStyleOption,
@@ -1205,9 +1209,14 @@ private final class RecordingOverlayController: NSWindowController {
       let view = RecordingWebcamOverlayView(
         normalizedFrame: VideoCaptureOverlayState.normalizedFrame(webcamFrame),
         previewLayer: webcamPreviewLayer,
-        shape: webcamShape
+        shape: webcamShape,
+        aspectRatio: webcamAspectRatio
       )
-      view.frame = Self.denormalizedFrame(view.normalizedFrame, in: container.bounds)
+      view.frame = Self.denormalizedWebcamFrame(
+        view.normalizedFrame,
+        aspectRatio: webcamAspectRatio,
+        in: container.bounds
+      )
       view.onNormalizedFrameChanged = onWebcamFrameChanged
       container.addSubview(view)
       webcamOverlayView = view
@@ -1257,6 +1266,18 @@ private final class RecordingOverlayController: NSWindowController {
       height: normalized.height * bounds.height
     ).integral
   }
+
+  private static func denormalizedWebcamFrame(
+    _ normalized: CGRect,
+    aspectRatio: VideoWebcamOverlayAspectRatioOption,
+    in bounds: CGRect
+  ) -> CGRect {
+    aspectRatio.constrainedFrame(
+      denormalizedFrame(normalized, in: bounds),
+      in: bounds,
+      minimumSize: CGSize(width: 84, height: 84)
+    )
+  }
 }
 
 @MainActor
@@ -1270,7 +1291,17 @@ private class RecordingDraggableOverlayView: NSView {
   var onNormalizedFrameChanged: ((CGRect) -> Void)?
 
   private var dragStartPoint: CGPoint?
-  private var dragStartOrigin: CGPoint?
+  private var dragStartFrame: CGRect = .zero
+  private var activeInteraction: OverlayFrameInteraction = .move
+
+  var allowsResizing: Bool { false }
+  var minimumFrameSize: CGSize { CGSize(width: 80, height: 80) }
+  var fixedAspectRatio: VideoWebcamOverlayAspectRatioOption? { nil }
+
+  private enum OverlayFrameInteraction {
+    case move
+    case resize(ResizeCorner)
+  }
 
   init(normalizedFrame: CGRect) {
     self.normalizedFrame = VideoCaptureOverlayState.normalizedFrame(normalizedFrame)
@@ -1283,35 +1314,122 @@ private class RecordingDraggableOverlayView: NSView {
     nil
   }
 
+  override func resetCursorRects() {
+    addCursorRect(bounds, cursor: .openHand)
+  }
+
   override func mouseDown(with event: NSEvent) {
     guard let superview else {
       return
     }
     dragStartPoint = superview.convert(event.locationInWindow, from: nil)
-    dragStartOrigin = frame.origin
+    dragStartFrame = frame
+    let localPoint = convert(event.locationInWindow, from: nil)
+    activeInteraction = resizeCorner(at: localPoint).map(OverlayFrameInteraction.resize) ?? .move
+    NSCursor.closedHand.set()
   }
 
   override func mouseDragged(with event: NSEvent) {
-    guard let superview, let dragStartPoint, let dragStartOrigin else {
+    guard let superview, let dragStartPoint else {
       return
     }
 
     let point = superview.convert(event.locationInWindow, from: nil)
     let dx = point.x - dragStartPoint.x
     let dy = point.y - dragStartPoint.y
-    let bounds = superview.bounds.insetBy(dx: 8, dy: 8)
-    var next = frame
-    next.origin = CGPoint(x: dragStartOrigin.x + dx, y: dragStartOrigin.y + dy)
-    next.origin.x = min(max(bounds.minX, next.origin.x), bounds.maxX - next.width)
-    next.origin.y = min(max(bounds.minY, next.origin.y), bounds.maxY - next.height)
-    frame = next.integral
+    let proposed: CGRect
+    switch activeInteraction {
+    case .move:
+      proposed = dragStartFrame.offsetBy(dx: dx, dy: dy)
+    case .resize(let corner):
+      proposed = resizedFrame(from: dragStartFrame, corner: corner, delta: CGSize(width: dx, height: dy))
+    }
+    frame = clampedFrame(proposed, in: superview.bounds).integral
     normalizedFrame = Self.normalizedFrame(for: frame, in: superview.bounds)
     onNormalizedFrameChanged?(normalizedFrame)
+    needsDisplay = true
   }
 
   override func mouseUp(with event: NSEvent) {
     dragStartPoint = nil
-    dragStartOrigin = nil
+    activeInteraction = .move
+    NSCursor.openHand.set()
+    guard let superview else {
+      return
+    }
+    normalizedFrame = Self.normalizedFrame(for: frame, in: superview.bounds)
+    onNormalizedFrameChanged?(normalizedFrame)
+  }
+
+  private func resizeCorner(at point: CGPoint) -> ResizeCorner? {
+    guard allowsResizing else {
+      return nil
+    }
+    let hitSlop: CGFloat = 14
+    let nearLeft = point.x <= hitSlop
+    let nearRight = point.x >= bounds.maxX - hitSlop
+    let nearBottom = point.y <= hitSlop
+    let nearTop = point.y >= bounds.maxY - hitSlop
+
+    switch (nearLeft, nearRight, nearBottom, nearTop) {
+    case (true, false, false, true): return .topLeft
+    case (false, true, false, true): return .topRight
+    case (true, false, true, false): return .bottomLeft
+    case (false, true, true, false): return .bottomRight
+    case (true, false, false, false): return .left
+    case (false, true, false, false): return .right
+    case (false, false, true, false): return .bottom
+    case (false, false, false, true): return .top
+    default: return nil
+    }
+  }
+
+  private func resizedFrame(from start: CGRect, corner: ResizeCorner, delta: CGSize) -> CGRect {
+    var rect = start.standardized
+    let minSize = minimumFrameSize
+
+    switch corner {
+    case .topLeft, .left, .bottomLeft:
+      let maxX = rect.maxX
+      rect.origin.x = min(maxX - minSize.width, rect.minX + delta.width)
+      rect.size.width = maxX - rect.minX
+    case .topRight, .right, .bottomRight:
+      rect.size.width = max(minSize.width, rect.width + delta.width)
+    case .top, .bottom:
+      break
+    }
+
+    switch corner {
+    case .bottomLeft, .bottom, .bottomRight:
+      let maxY = rect.maxY
+      rect.origin.y = min(maxY - minSize.height, rect.minY + delta.height)
+      rect.size.height = maxY - rect.minY
+    case .topLeft, .top, .topRight:
+      rect.size.height = max(minSize.height, rect.height + delta.height)
+    case .left, .right:
+      break
+    }
+
+    return rect
+  }
+
+  private func clampedFrame(_ proposed: CGRect, in superviewBounds: CGRect) -> CGRect {
+    let bounds = superviewBounds.insetBy(dx: 8, dy: 8)
+    let minWidth = min(minimumFrameSize.width, bounds.width)
+    let minHeight = min(minimumFrameSize.height, bounds.height)
+    if let fixedAspectRatio {
+      return fixedAspectRatio.constrainedFrame(
+        proposed,
+        in: bounds,
+        minimumSize: CGSize(width: minWidth, height: minHeight)
+      )
+    }
+
+    let width = max(minWidth, min(proposed.width, bounds.width))
+    let height = max(minHeight, min(proposed.height, bounds.height))
+    let x = min(max(bounds.minX, proposed.minX), bounds.maxX - width)
+    let y = min(max(bounds.minY, proposed.minY), bounds.maxY - height)
+    return CGRect(x: x, y: y, width: width, height: height)
   }
 
   private static func normalizedFrame(for frame: CGRect, in bounds: CGRect) -> CGRect {
@@ -1333,20 +1451,33 @@ private class RecordingDraggableOverlayView: NSView {
 private final class RecordingWebcamOverlayView: RecordingDraggableOverlayView {
   private let previewLayer: AVCaptureVideoPreviewLayer
   private let shape: VideoWebcamOverlayShapeOption
+  private let aspectRatio: VideoWebcamOverlayAspectRatioOption
+  private let resizeGripLayer = CAShapeLayer()
+
+  override var allowsResizing: Bool { true }
+  override var minimumFrameSize: CGSize { CGSize(width: 84, height: 84) }
+  override var fixedAspectRatio: VideoWebcamOverlayAspectRatioOption? { aspectRatio }
 
   init(
     normalizedFrame: CGRect,
     previewLayer: AVCaptureVideoPreviewLayer,
-    shape: VideoWebcamOverlayShapeOption
+    shape: VideoWebcamOverlayShapeOption,
+    aspectRatio: VideoWebcamOverlayAspectRatioOption
   ) {
     self.previewLayer = previewLayer
     self.shape = shape
+    self.aspectRatio = shape == .circle ? .square : aspectRatio
     super.init(normalizedFrame: normalizedFrame)
     layer?.backgroundColor = NSColor.black.withAlphaComponent(0.45).cgColor
     layer?.borderColor = NSColor.white.withAlphaComponent(0.7).cgColor
     layer?.borderWidth = 1
     layer?.masksToBounds = true
     layer?.addSublayer(previewLayer)
+    resizeGripLayer.fillColor = nil
+    resizeGripLayer.strokeColor = NSColor.white.withAlphaComponent(0.50).cgColor
+    resizeGripLayer.lineWidth = 1.2
+    resizeGripLayer.lineCap = .round
+    layer?.addSublayer(resizeGripLayer)
   }
 
   override func layout() {
@@ -1355,7 +1486,19 @@ private final class RecordingWebcamOverlayView: RecordingDraggableOverlayView {
     CATransaction.setDisableActions(true)
     previewLayer.frame = bounds
     layer?.cornerRadius = shape == .circle ? min(bounds.width, bounds.height) * 0.5 : 14
+    resizeGripLayer.frame = bounds
+    resizeGripLayer.path = Self.resizeGripPath(in: bounds)
     CATransaction.commit()
+  }
+
+  private static func resizeGripPath(in bounds: CGRect) -> CGPath {
+    let grip = CGRect(x: bounds.maxX - 20, y: bounds.maxY - 18, width: 12, height: 12)
+    let path = CGMutablePath()
+    for offset in stride(from: CGFloat(4), through: CGFloat(12), by: CGFloat(4)) {
+      path.move(to: CGPoint(x: grip.maxX - offset, y: grip.maxY))
+      path.addLine(to: CGPoint(x: grip.maxX, y: grip.maxY - offset))
+    }
+    return path
   }
 }
 
@@ -1363,8 +1506,12 @@ private final class RecordingWebcamOverlayView: RecordingDraggableOverlayView {
 private final class RecordingKeystrokeOverlayView: RecordingDraggableOverlayView {
   private let style: VideoKeystrokeOverlayStyleOption
   private let size: VideoKeystrokeOverlaySizeOption
+  private let hostingView: NSHostingView<KeystrokeOverlayGlassCapsule>
   private var currentToken = "⌘K"
   private var restoreTimer: Timer?
+
+  override var allowsResizing: Bool { true }
+  override var minimumFrameSize: CGSize { CGSize(width: 112, height: 42) }
 
   init(
     normalizedFrame: CGRect,
@@ -1373,59 +1520,45 @@ private final class RecordingKeystrokeOverlayView: RecordingDraggableOverlayView
   ) {
     self.style = style
     self.size = size
+    hostingView = NSHostingView(
+      rootView: KeystrokeOverlayGlassCapsule(
+        text: "⌘K",
+        style: style,
+        size: size,
+        showsResizeGrip: true
+      )
+    )
     super.init(normalizedFrame: normalizedFrame)
     layer?.masksToBounds = false
+    hostingView.translatesAutoresizingMaskIntoConstraints = true
+    hostingView.wantsLayer = true
+    hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+    addSubview(hostingView)
   }
 
   func showToken(_ token: String) {
     currentToken = token.isEmpty ? "Key" : token
-    needsDisplay = true
+    refreshHostedView()
     restoreTimer?.invalidate()
     restoreTimer = Timer.scheduledTimer(withTimeInterval: 1.35, repeats: false) { [weak self] _ in
       MainActor.assumeIsolated {
         self?.currentToken = "⌘K"
-        self?.needsDisplay = true
+        self?.refreshHostedView()
       }
     }
   }
 
-  override func draw(_ dirtyRect: NSRect) {
-    super.draw(dirtyRect)
+  override func layout() {
+    super.layout()
+    hostingView.frame = bounds
+  }
 
-    let rect = bounds.insetBy(dx: 2, dy: 2)
-    let radius = min(rect.height * 0.5, 18)
-    let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-    switch style {
-    case .compact:
-      NSColor.black.withAlphaComponent(0.74).setFill()
-    case .glass:
-      NSColor.controlBackgroundColor.withAlphaComponent(0.34).setFill()
-    }
-    path.fill()
-    NSColor.white.withAlphaComponent(style == .glass ? 0.28 : 0.18).setStroke()
-    path.lineWidth = 1
-    path.stroke()
-
-    let fontSize: CGFloat
-    switch size {
-    case .small:
-      fontSize = max(12, rect.height * 0.30)
-    case .medium:
-      fontSize = max(14, rect.height * 0.36)
-    case .large:
-      fontSize = max(16, rect.height * 0.42)
-    }
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .semibold),
-      .foregroundColor: NSColor.white
-    ]
-    let attributed = NSAttributedString(string: currentToken, attributes: attributes)
-    let textSize = attributed.size()
-    attributed.draw(
-      at: CGPoint(
-        x: rect.midX - textSize.width * 0.5,
-        y: rect.midY - textSize.height * 0.5
-      )
+  private func refreshHostedView() {
+    hostingView.rootView = KeystrokeOverlayGlassCapsule(
+      text: currentToken,
+      style: style,
+      size: size,
+      showsResizeGrip: true
     )
   }
 }
@@ -1816,7 +1949,12 @@ private enum PostRecordingProjectExporter {
     guard normalized.width > 0, normalized.height > 0 else {
       return
     }
-    let rect = denormalized(normalized, in: renderSize).integral
+    let renderRect = CGRect(origin: .zero, size: renderSize)
+    let rect = configuration.webcamOverlayAspectRatio.constrainedFrame(
+      denormalized(normalized, in: renderSize),
+      in: renderRect,
+      minimumSize: CGSize(width: 2, height: 2)
+    )
     context.saveGState()
     switch configuration.webcamOverlayShape {
     case .circle:
@@ -1876,11 +2014,36 @@ private enum PostRecordingProjectExporter {
 
     context.saveGState()
     let radius = min(rect.height * 0.5, 22)
-    let backgroundAlpha: CGFloat = configuration.keystrokeOverlayStyle == .glass ? 0.42 : 0.78
-    context.setFillColor(NSColor.black.withAlphaComponent(backgroundAlpha).cgColor)
-    context.addPath(CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil))
-    context.fillPath()
-    context.setStrokeColor(NSColor.white.withAlphaComponent(configuration.keystrokeOverlayStyle == .glass ? 0.28 : 0.16).cgColor)
+    let backgroundPath = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    if configuration.keystrokeOverlayStyle == .glass {
+      context.saveGState()
+      context.addPath(backgroundPath)
+      context.clip()
+      let colors = [
+        NSColor.white.withAlphaComponent(0.30).cgColor,
+        NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor,
+        NSColor.black.withAlphaComponent(0.34).cgColor
+      ] as CFArray
+      let locations: [CGFloat] = [0, 0.45, 1]
+      if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) {
+        context.drawLinearGradient(
+          gradient,
+          start: CGPoint(x: rect.midX, y: rect.maxY),
+          end: CGPoint(x: rect.midX, y: rect.minY),
+          options: []
+        )
+      } else {
+        context.setFillColor(NSColor.black.withAlphaComponent(0.42).cgColor)
+        context.fill(rect)
+      }
+      context.restoreGState()
+    } else {
+      context.setFillColor(NSColor.black.withAlphaComponent(0.78).cgColor)
+      context.addPath(backgroundPath)
+      context.fillPath()
+    }
+
+    context.setStrokeColor(NSColor.white.withAlphaComponent(configuration.keystrokeOverlayStyle == .glass ? 0.42 : 0.16).cgColor)
     context.setLineWidth(1)
     context.addPath(CGPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), cornerWidth: radius, cornerHeight: radius, transform: nil))
     context.strokePath()

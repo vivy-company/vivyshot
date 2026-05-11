@@ -247,7 +247,8 @@ extension RegionSelectionView {
     if settings.videoShowWebcam {
       videoWebcamPlacementView.containerFrame = selection
       videoWebcamPlacementView.webcamShape = settings.videoWebcamOverlayShape
-      videoWebcamPlacementView.frame = resolvedOverlayFrame(settings.videoWebcamOverlayNormalizedFrame, in: selection)
+      videoWebcamPlacementView.webcamAspectRatio = settings.videoWebcamOverlayAspectRatio
+      videoWebcamPlacementView.frame = resolvedWebcamOverlayFrame(settings.videoWebcamOverlayNormalizedFrame, in: selection)
       videoWebcamPlacementView.updateWebcamPreview(preferredDeviceID: settings.videoWebcamDeviceID)
       videoWebcamPlacementView.isHidden = false
     } else {
@@ -258,6 +259,7 @@ extension RegionSelectionView {
     if settings.videoHighlightKeystrokes {
       videoKeystrokePlacementView.containerFrame = selection
       videoKeystrokePlacementView.keystrokeStyle = settings.videoKeystrokeOverlayStyle
+      videoKeystrokePlacementView.keystrokeSize = settings.videoKeystrokeOverlaySize
       videoKeystrokePlacementView.frame = resolvedOverlayFrame(settings.videoKeystrokeOverlayNormalizedFrame, in: selection)
       videoKeystrokePlacementView.isHidden = false
     } else {
@@ -272,6 +274,14 @@ extension RegionSelectionView {
     let x = min(max(container.minX, container.minX + container.width * source.minX), container.maxX - width)
     let y = min(max(container.minY, container.minY + container.height * source.minY), container.maxY - height)
     return CGRect(x: x, y: y, width: width, height: height).integral
+  }
+
+  func resolvedWebcamOverlayFrame(_ normalized: CGRect, in container: CGRect) -> CGRect {
+    let frame = resolvedOverlayFrame(normalized, in: container)
+    let aspectRatio = settings.videoWebcamOverlayShape == .circle
+      ? VideoWebcamOverlayAspectRatioOption.square
+      : settings.videoWebcamOverlayAspectRatio
+    return aspectRatio.constrainedFrame(frame, in: container, minimumSize: CGSize(width: 84, height: 84))
   }
 
   func normalizedOverlayFrame(_ frame: CGRect, in container: CGRect) -> CGRect {

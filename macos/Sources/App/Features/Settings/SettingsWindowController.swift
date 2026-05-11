@@ -554,6 +554,34 @@ struct VivyShotSettingsView: View {
           .frame(width: 190, alignment: .trailing)
         }
 
+        HStack(spacing: 10) {
+          Text("Aspect Ratio")
+            .frame(width: 78, alignment: .leading)
+          Spacer(minLength: 0)
+          Picker("Webcam Aspect Ratio", selection: videoWebcamOverlayAspectRatioBinding) {
+            ForEach(VideoWebcamOverlayAspectRatioOption.allCases) { aspectRatio in
+              Text(aspectRatio.title).tag(aspectRatio)
+            }
+          }
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .frame(width: 190, alignment: .trailing)
+          .disabled(settings.videoWebcamOverlayShape == .circle)
+        }
+
+        LabeledContent("Size") {
+          HStack(spacing: 10) {
+            Slider(
+              value: videoWebcamOverlayWidthBinding,
+              in: 0.12 ... 0.50,
+              step: 0.01
+            )
+            Text(String(format: "%.0f%%", settings.videoWebcamOverlayNormalizedWidth * 100))
+              .font(.system(.callout, design: .monospaced).weight(.semibold))
+              .frame(width: 46, alignment: .trailing)
+          }
+        }
+
         HStack {
           Spacer()
           Button("Reset Webcam Placement") {
@@ -607,6 +635,32 @@ struct VivyShotSettingsView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(width: 190, alignment: .trailing)
+          }
+
+          LabeledContent("Width") {
+            HStack(spacing: 10) {
+              Slider(
+                value: videoKeystrokeOverlayWidthBinding,
+                in: 0.20 ... 0.72,
+                step: 0.01
+              )
+              Text(String(format: "%.0f%%", settings.videoKeystrokeOverlayNormalizedWidth * 100))
+                .font(.system(.callout, design: .monospaced).weight(.semibold))
+                .frame(width: 46, alignment: .trailing)
+            }
+          }
+
+          LabeledContent("Height") {
+            HStack(spacing: 10) {
+              Slider(
+                value: videoKeystrokeOverlayHeightBinding,
+                in: 0.07 ... 0.28,
+                step: 0.01
+              )
+              Text(String(format: "%.0f%%", settings.videoKeystrokeOverlayNormalizedHeight * 100))
+                .font(.system(.callout, design: .monospaced).weight(.semibold))
+                .frame(width: 46, alignment: .trailing)
+            }
           }
 
           HStack {
@@ -1020,6 +1074,20 @@ struct VivyShotSettingsView: View {
     )
   }
 
+  private var videoWebcamOverlayAspectRatioBinding: Binding<VideoWebcamOverlayAspectRatioOption> {
+    Binding(
+      get: { settings.videoWebcamOverlayAspectRatio },
+      set: { settings.setVideoWebcamOverlayAspectRatio($0) }
+    )
+  }
+
+  private var videoWebcamOverlayWidthBinding: Binding<Double> {
+    Binding(
+      get: { settings.videoWebcamOverlayNormalizedWidth },
+      set: { settings.setVideoWebcamOverlayNormalizedWidth($0) }
+    )
+  }
+
   private var videoHighlightMouseClicksBinding: Binding<Bool> {
     Binding(
       get: { settings.videoHighlightMouseClicks },
@@ -1045,6 +1113,20 @@ struct VivyShotSettingsView: View {
     Binding(
       get: { settings.videoKeystrokeOverlaySize },
       set: { settings.setVideoKeystrokeOverlaySize($0) }
+    )
+  }
+
+  private var videoKeystrokeOverlayWidthBinding: Binding<Double> {
+    Binding(
+      get: { settings.videoKeystrokeOverlayNormalizedWidth },
+      set: { settings.setVideoKeystrokeOverlayNormalizedWidth($0) }
+    )
+  }
+
+  private var videoKeystrokeOverlayHeightBinding: Binding<Double> {
+    Binding(
+      get: { settings.videoKeystrokeOverlayNormalizedHeight },
+      set: { settings.setVideoKeystrokeOverlayNormalizedHeight($0) }
     )
   }
 

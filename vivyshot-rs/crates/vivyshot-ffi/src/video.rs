@@ -548,8 +548,9 @@ fn fallback_key_label(key_code: u16) -> &'static str {
         36 => "Return",
         48 => "Tab",
         49 => "Space",
-        51 => "Delete",
+        51 => "⌫",
         53 => "Esc",
+        117 => "Del",
         123 => "←",
         124 => "→",
         125 => "↓",
@@ -588,8 +589,13 @@ fn normalize_key_token_inner(key_code: u16, modifiers: u32, chars: Option<&str>)
     let key_label = match chars {
         Some(raw) => {
             let trimmed = raw.trim();
-            if !trimmed.is_empty() && trimmed.chars().count() == 1 {
-                trimmed.to_uppercase()
+            let mut chars = trimmed.chars();
+            if let Some(ch) = chars.next() {
+                if chars.next().is_none() && !ch.is_control() {
+                    ch.to_uppercase().collect()
+                } else {
+                    fallback_key_label(key_code).to_string()
+                }
             } else {
                 fallback_key_label(key_code).to_string()
             }

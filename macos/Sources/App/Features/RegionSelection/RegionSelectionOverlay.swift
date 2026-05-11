@@ -1102,16 +1102,34 @@ final class CaptureOverlayPlacementView: NSView {
   var webcamShape: VideoWebcamOverlayShapeOption = .roundedRect {
     didSet { needsDisplay = true }
   }
+  var webcamAspectRatio: VideoWebcamOverlayAspectRatioOption = .square {
+    didSet { needsLayout = true }
+  }
   var keystrokeStyle: VideoKeystrokeOverlayStyleOption = .glass {
-    didSet { needsDisplay = true }
+    didSet {
+      updateKeystrokeHostingView()
+      needsDisplay = true
+    }
+  }
+  var keystrokeSize: VideoKeystrokeOverlaySizeOption = .medium {
+    didSet {
+      updateKeystrokeHostingView()
+    }
   }
 
   private var dragStartFrame: CGRect = .zero
   private var dragStartLocation: CGPoint = .zero
+  private var activeInteraction: OverlayFrameInteraction = .move
   private var previewSession: AVCaptureSession?
   private var previewLayer: AVCaptureVideoPreviewLayer?
   private var previewDeviceID: String?
   private var previewAccessRequestActive = false
+  private var keystrokeHostingView: NSHostingView<KeystrokeOverlayGlassCapsule>?
+
+  private enum OverlayFrameInteraction {
+    case move
+    case resize(ResizeCorner)
+  }
 
   init(kind: CaptureOverlayPlacementKind) {
     self.kind = kind
@@ -1123,6 +1141,21 @@ final class CaptureOverlayPlacementView: NSView {
     layer?.shadowOpacity = 0.22
     layer?.shadowRadius = 10
     layer?.shadowOffset = CGSize(width: 0, height: -2)
+    if kind == .keystroke {
+      let host = NSHostingView(
+        rootView: KeystrokeOverlayGlassCapsule(
+          text: "⌘K",
+          style: keystrokeStyle,
+          size: keystrokeSize,
+          showsResizeGrip: true
+        )
+      )
+      host.translatesAutoresizingMaskIntoConstraints = true
+      host.wantsLayer = true
+      host.layer?.backgroundColor = NSColor.clear.cgColor
+      addSubview(host)
+      keystrokeHostingView = host
+    }
   }
 
   @available(*, unavailable)
@@ -1137,13 +1170,22 @@ final class CaptureOverlayPlacementView: NSView {
   override func mouseDown(with event: NSEvent) {
     dragStartFrame = frame
     dragStartLocation = window?.convertPoint(toScreen: event.locationInWindow) ?? .zero
+    let localPoint = convert(event.locationInWindow, from: nil)
+    activeInteraction = resizeCorner(at: localPoint).map(OverlayFrameInteraction.resize) ?? .move
     NSCursor.closedHand.set()
   }
 
   override func mouseDragged(with event: NSEvent) {
     let location = window?.convertPoint(toScreen: event.locationInWindow) ?? .zero
     let delta = CGSize(width: location.x - dragStartLocation.x, height: location.y - dragStartLocation.y)
-    frame = clampedFrame(dragStartFrame.offsetBy(dx: delta.width, dy: delta.height))
+    let proposed: CGRect
+    switch activeInteraction {
+    case .move:
+      proposed = dragStartFrame.offsetBy(dx: delta.width, dy: delta.height)
+    case .resize(let corner):
+      proposed = resizedFrame(from: dragStartFrame, corner: corner, delta: delta)
+    }
+    frame = clampedFrame(proposed)
     onFrameChanged?(frame)
   }
 
@@ -1159,6 +1201,7 @@ final class CaptureOverlayPlacementView: NSView {
     previewLayer?.frame = bounds
     layer?.cornerRadius = kind == .webcam && webcamShape == .circle ? min(bounds.width, bounds.height) * 0.5 : (kind == .webcam ? 18 : 14)
     CATransaction.commit()
+    keystrokeHostingView?.frame = bounds
   }
 
   func updateWebcamPreview(preferredDeviceID: String) {
@@ -1208,6 +1251,10 @@ final class CaptureOverlayPlacementView: NSView {
 
   override func draw(_ dirtyRect: NSRect) {
     super.draw(dirtyRect)
+    if kind == .keystroke, keystrokeHostingView != nil {
+      return
+    }
+
     let rect = bounds.insetBy(dx: 1, dy: 1)
     let path: NSBezierPath
     switch kind {
@@ -1222,11 +1269,20 @@ final class CaptureOverlayPlacementView: NSView {
     }
 
     let fillAlpha: CGFloat = kind == .keystroke && keystrokeStyle == .compact ? 0.68 : 0.46
-    NSColor.black.withAlphaComponent(fillAlpha).setFill()
-    path.fill()
-    NSColor.white.withAlphaComponent(0.34).setStroke()
+    if kind == .keystroke && keystrokeStyle == .glass {
+      drawGlassFill(in: rect, clippedTo: path)
+    } else {
+      NSColor.black.withAlphaComponent(fillAlpha).setFill()
+      path.fill()
+    }
+
+    NSColor.white.withAlphaComponent(kind == .keystroke && keystrokeStyle == .glass ? 0.42 : 0.34).setStroke()
     path.lineWidth = 1
     path.stroke()
+
+    if kind == .webcam || kind == .keystroke {
+      drawResizeGrip(in: rect)
+    }
 
     if kind == .webcam, previewLayer != nil {
       return
@@ -1266,15 +1322,116 @@ final class CaptureOverlayPlacementView: NSView {
     )
   }
 
+  private func drawGlassFill(in rect: CGRect, clippedTo path: NSBezierPath) {
+    NSGraphicsContext.saveGraphicsState()
+    path.addClip()
+    let gradient = NSGradient(colors: [
+      NSColor.white.withAlphaComponent(0.30),
+      NSColor.controlAccentColor.withAlphaComponent(0.18),
+      NSColor.black.withAlphaComponent(0.30)
+    ])
+    gradient?.draw(in: rect, angle: -90)
+    NSGraphicsContext.restoreGraphicsState()
+
+    let shine = NSBezierPath(roundedRect: rect.insetBy(dx: 2.5, dy: 2.5), xRadius: min(rect.height * 0.5, 14), yRadius: min(rect.height * 0.5, 14))
+    NSColor.white.withAlphaComponent(0.08).setStroke()
+    shine.lineWidth = 1
+    shine.stroke()
+  }
+
+  private func drawResizeGrip(in rect: CGRect) {
+    let grip = CGRect(x: rect.maxX - 18, y: rect.minY + 5, width: 12, height: 12)
+    let path = NSBezierPath()
+    for offset in stride(from: CGFloat(4), through: CGFloat(12), by: CGFloat(4)) {
+      path.move(to: CGPoint(x: grip.maxX - offset, y: grip.minY))
+      path.line(to: CGPoint(x: grip.maxX, y: grip.minY + offset))
+    }
+    NSColor.white.withAlphaComponent(0.42).setStroke()
+    path.lineWidth = 1.2
+    path.stroke()
+  }
+
+  private func resizeCorner(at point: CGPoint) -> ResizeCorner? {
+    let hitSlop: CGFloat = 14
+    let nearLeft = point.x <= hitSlop
+    let nearRight = point.x >= bounds.maxX - hitSlop
+    let nearBottom = point.y <= hitSlop
+    let nearTop = point.y >= bounds.maxY - hitSlop
+
+    switch (nearLeft, nearRight, nearBottom, nearTop) {
+    case (true, false, false, true): return .topLeft
+    case (false, true, false, true): return .topRight
+    case (true, false, true, false): return .bottomLeft
+    case (false, true, true, false): return .bottomRight
+    case (true, false, false, false): return .left
+    case (false, true, false, false): return .right
+    case (false, false, true, false): return .bottom
+    case (false, false, false, true): return .top
+    default: return nil
+    }
+  }
+
+  private func resizedFrame(from start: CGRect, corner: ResizeCorner, delta: CGSize) -> CGRect {
+    var rect = start.standardized
+    let minSize = minimumFrameSize
+
+    switch corner {
+    case .topLeft, .left, .bottomLeft:
+      let maxX = rect.maxX
+      rect.origin.x = min(maxX - minSize.width, rect.minX + delta.width)
+      rect.size.width = maxX - rect.minX
+    case .topRight, .right, .bottomRight:
+      rect.size.width = max(minSize.width, rect.width + delta.width)
+    case .top, .bottom:
+      break
+    }
+
+    switch corner {
+    case .bottomLeft, .bottom, .bottomRight:
+      let maxY = rect.maxY
+      rect.origin.y = min(maxY - minSize.height, rect.minY + delta.height)
+      rect.size.height = maxY - rect.minY
+    case .topLeft, .top, .topRight:
+      rect.size.height = max(minSize.height, rect.height + delta.height)
+    case .left, .right:
+      break
+    }
+
+    return rect
+  }
+
+  private var minimumFrameSize: CGSize {
+    switch kind {
+    case .webcam:
+      return CGSize(width: 84, height: 84)
+    case .keystroke:
+      return CGSize(width: 112, height: 42)
+    }
+  }
+
   private func clampedFrame(_ proposed: CGRect) -> CGRect {
     guard !containerFrame.isNull, !containerFrame.isEmpty else {
       return proposed
     }
-    let width = min(proposed.width, containerFrame.width)
-    let height = min(proposed.height, containerFrame.height)
+    let minimum = minimumFrameSize
+    if kind == .webcam {
+      let aspectRatio = webcamShape == .circle ? VideoWebcamOverlayAspectRatioOption.square : webcamAspectRatio
+      return aspectRatio.constrainedFrame(proposed, in: containerFrame, minimumSize: minimum)
+    }
+    let width = max(min(minimum.width, containerFrame.width), min(proposed.width, containerFrame.width))
+    let height = max(min(minimum.height, containerFrame.height), min(proposed.height, containerFrame.height))
     let x = min(max(containerFrame.minX, proposed.minX), containerFrame.maxX - width)
     let y = min(max(containerFrame.minY, proposed.minY), containerFrame.maxY - height)
     return CGRect(x: x, y: y, width: width, height: height).integral
+  }
+
+  private func updateKeystrokeHostingView() {
+    keystrokeHostingView?.rootView = KeystrokeOverlayGlassCapsule(
+      text: "⌘K",
+      style: keystrokeStyle,
+      size: keystrokeSize,
+      showsResizeGrip: true
+    )
   }
 
   private func configureWebcamPreview(preferredDeviceID: String) {

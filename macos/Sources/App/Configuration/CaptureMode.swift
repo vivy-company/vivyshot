@@ -191,6 +191,67 @@ enum VideoWebcamOverlaySizeOption: Int, CaseIterable, Identifiable {
   }
 }
 
+enum VideoWebcamOverlayAspectRatioOption: Int, CaseIterable, Identifiable {
+  case square = 0
+  case fourThree = 1
+  case sixteenNine = 2
+
+  var id: Int { rawValue }
+
+  var title: String {
+    switch self {
+    case .square:
+      return "1:1"
+    case .fourThree:
+      return "4:3"
+    case .sixteenNine:
+      return "16:9"
+    }
+  }
+
+  var widthToHeight: CGFloat {
+    switch self {
+    case .square:
+      return 1
+    case .fourThree:
+      return 4.0 / 3.0
+    case .sixteenNine:
+      return 16.0 / 9.0
+    }
+  }
+
+  func constrainedFrame(_ frame: CGRect, in container: CGRect, minimumSize: CGSize) -> CGRect {
+    guard !container.isNull, !container.isEmpty, widthToHeight > 0 else {
+      return frame.standardized
+    }
+
+    let source = frame.standardized
+    let minWidth = min(max(1, minimumSize.width), container.width)
+    let minHeight = min(max(1, minimumSize.height), container.height)
+    var width = max(minWidth, min(source.width, container.width))
+    var height = width / widthToHeight
+
+    if height < minHeight {
+      height = minHeight
+      width = height * widthToHeight
+    }
+
+    if height > container.height {
+      height = container.height
+      width = height * widthToHeight
+    }
+
+    if width > container.width {
+      width = container.width
+      height = width / widthToHeight
+    }
+
+    let x = min(max(container.minX, source.midX - width * 0.5), container.maxX - width)
+    let y = min(max(container.minY, source.midY - height * 0.5), container.maxY - height)
+    return CGRect(x: x, y: y, width: width, height: height).integral
+  }
+}
+
 enum VideoWebcamOverlayShapeOption: Int, CaseIterable, Identifiable {
   case roundedRect = 0
   case circle = 1

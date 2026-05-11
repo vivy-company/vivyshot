@@ -185,6 +185,10 @@ extension RegionSelectionView {
     }
 
     refreshToolbar()
+    needsLayout = true
+    if mode == .editing {
+      layoutEditorChrome()
+    }
     updateSelectingHintVisibility(animated: false)
   }
 

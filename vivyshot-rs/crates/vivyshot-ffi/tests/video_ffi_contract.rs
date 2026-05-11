@@ -367,6 +367,26 @@ fn key_and_click_normalization_helpers_are_consistent() {
     let token = std::str::from_utf8(&out[..written as usize]).unwrap();
     assert_eq!(token, "⌘⇧K");
 
+    let delete_char = [0x7fu8];
+    written = 0;
+    // SAFETY: pointers are valid local buffers.
+    unsafe {
+        assert_eq!(
+            vs_normalize_key_token(
+                51,
+                0,
+                delete_char.as_ptr(),
+                delete_char.len() as u32,
+                out.as_mut_ptr(),
+                out.len() as u32,
+                &mut written,
+            ),
+            0
+        );
+    }
+    let token = std::str::from_utf8(&out[..written as usize]).unwrap();
+    assert_eq!(token, "⌫");
+
     // SAFETY: pointers are valid and lengths are bounded.
     let dup =
         unsafe { vs_key_event_is_duplicate(77, out.as_ptr(), written, 77, out.as_ptr(), written) };
