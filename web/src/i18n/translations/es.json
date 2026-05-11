@@ -91,30 +91,38 @@
     "subtitle": "Free, Lifetime y Supporter. Sin suscripción.",
     "free": {
       "name": "Free",
-      "description": "El flujo principal sigue siendo gratis para siempre",
+      "description": "El flujo principal de captura sigue siendo gratis para siempre",
+      "price": "$0",
+      "period": "",
       "features": [
-        "Captura básica de pantalla",
-        "Herramientas básicas de anotación",
-        "Exportación limpia",
-        "Flujo rápido para el día a día",
+        "Captura de pantalla",
+        "Herramientas de anotación",
+        "Grabación de pantalla",
+        "Grabación de audio del sistema",
+        "Exportaciones H.264 estándar",
+        "Datos solo locales",
         "Gratis para siempre",
-        "Suficiente para evaluar si encaja"
+        "La primera exportación Pro es gratis"
       ],
       "cta": "Descargar gratis"
     },
     "pro": {
       "name": "Lifetime",
-      "description": "Un pago único para desbloquear toda la herramienta",
+      "description": "Desbloquea efectos de captura, overlays, GIF, estadísticas, HEVC, 60 fps y exportaciones de alta tasa de bits",
       "monthly": {
+        "price": "$9.99",
         "period": "pago único"
       },
       "features": [
         "Todo lo de Free",
-        "Captura y anotación completas",
-        "Flujo de grabación",
-        "Herramientas diarias más pulidas",
-        "Mejores opciones de exportación",
-        "Futuras mejoras importantes",
+        "Transiciones de captura",
+        "Exportación de audio de micrófono",
+        "Exportación de overlay de webcam",
+        "Exportación de overlay de teclas",
+        "Exportación GIF",
+        "Vídeo H.264 + HEVC",
+        "30/60 fps, exportaciones de alta tasa de bits",
+        "Estadísticas de captura",
         "Sin suscripción"
       ],
       "ctaMonthly": "Obtener Lifetime",
@@ -122,13 +130,14 @@
     },
     "lifetime": {
       "name": "Supporter",
-      "description": "La misma app completa que Lifetime, más una pequeña insignia de supporter dentro de la app",
-      "badge": "Opcional",
+      "description": "Todo lo de Lifetime, más una insignia de supporter y apoyo extra al desarrollo independiente",
+      "price": "$24.99",
+      "badge": "Supporter",
       "features": [
-        "El mismo desbloqueo completo que Lifetime",
-        "Compra integrada opcional",
+        "Todo lo de Lifetime",
         "Insignia de supporter en Ajustes",
-        "Apoyo extra para el proyecto"
+        "Apoyo extra al desarrollo independiente",
+        "Compra única opcional"
       ],
       "cta": "Hazte supporter",
       "guarantee": "Lifetime cuesta $9.99. Supporter cuesta $24.99."

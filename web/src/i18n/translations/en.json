@@ -102,54 +102,53 @@
     "subtitle": "Free, Lifetime, and Supporter. No subscription.",
     "free": {
       "name": "Free",
-      "description": "Free forever for the core workflow",
+      "description": "Free forever for the core capture workflow",
       "price": "$0",
       "period": "",
       "features": [
-        "Core screenshot capture",
-        "Basic annotation tools",
-        "Clean export",
-        "Fast everyday workflow",
+        "Screenshot capture",
+        "Annotation tools",
+        "Screen recording",
+        "System audio recording",
+        "Standard H.264 exports",
+        "Local-only data",
         "Free forever",
-        "Enough to evaluate fit"
+        "First Pro export is free"
       ],
       "cta": "Download free"
     },
     "pro": {
       "name": "Lifetime",
-      "description": "A one-time unlock for the full tool",
+      "description": "Unlock capture effects, overlays, GIF, statistics, HEVC, 60 fps, and high-bitrate exports",
       "monthly": {
         "price": "$9.99",
         "period": "one-time"
       },
-      "yearly": {
-        "price": "Planned",
-        "period": "",
-        "save": ""
-      },
       "features": [
         "Everything in Free",
-        "Full capture and annotation",
-        "Recording workflow",
-        "More polished daily tools",
-        "Better export options",
-        "Future major improvements",
+        "Capture transitions",
+        "Microphone audio export",
+        "Webcam overlay export",
+        "Keystroke overlay export",
+        "GIF export",
+        "H.264 + HEVC video",
+        "30/60 fps, high-bitrate exports",
+        "Capture statistics",
         "No subscription"
       ],
       "ctaMonthly": "Get lifetime",
-      "ctaYearly": "Get lifetime",
       "note": "Refunds are handled by the App Store."
     },
     "lifetime": {
       "name": "Supporter",
-      "description": "Same full app, plus a small in-app supporter badge",
+      "description": "Everything in Lifetime, plus a supporter badge and extra support for independent development",
       "price": "$24.99",
-      "badge": "Nice to have",
+      "badge": "Supporter",
       "features": [
-        "Same full unlock as Lifetime",
-        "Optional in-app purchase",
+        "Everything in Lifetime",
         "Supporter badge in Settings",
-        "Extra support for the project"
+        "Extra support for independent development",
+        "Optional one-time purchase"
       ],
       "cta": "Become a supporter",
       "guarantee": "Lifetime is $9.99. Supporter is $24.99."

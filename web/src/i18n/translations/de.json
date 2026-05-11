@@ -91,30 +91,38 @@
     "subtitle": "Free, Lifetime und Supporter. Kein Abo.",
     "free": {
       "name": "Free",
-      "description": "Der Kern-Workflow bleibt dauerhaft kostenlos",
+      "description": "Der zentrale Capture-Workflow bleibt dauerhaft kostenlos",
+      "price": "$0",
+      "period": "",
       "features": [
-        "Grundlegende Screenshot-Erfassung",
-        "Basis-Annotationen",
-        "Sauberer Export",
-        "Schneller Workflow für den Alltag",
+        "Screenshot-Erfassung",
+        "Annotationswerkzeuge",
+        "Bildschirmaufnahme",
+        "Systemaudio-Aufnahme",
+        "Standardexporte mit H.264",
+        "Nur lokale Daten",
         "Dauerhaft kostenlos",
-        "Genug, um zu sehen, ob es passt"
+        "Erster Pro-Export ist kostenlos"
       ],
       "cta": "Kostenlos laden"
     },
     "pro": {
       "name": "Lifetime",
-      "description": "Einmalig die ganze App freischalten",
+      "description": "Schaltet Capture-Effekte, Overlays, GIF, Statistiken, HEVC, 60 fps und Exporte mit hoher Bitrate frei",
       "monthly": {
+        "price": "$9.99",
         "period": "einmalig"
       },
       "features": [
         "Alles aus Free",
-        "Vollständige Aufnahme und Annotation",
-        "Recording-Workflow",
-        "Mehr ausgefeilte Werkzeuge für jeden Tag",
-        "Bessere Exportoptionen",
-        "Künftige größere Verbesserungen",
+        "Capture-Transitions",
+        "Mikrofonaudio-Export",
+        "Webcam-Overlay-Export",
+        "Tasten-Overlay-Export",
+        "GIF-Export",
+        "H.264 + HEVC-Video",
+        "30/60 fps, Exporte mit hoher Bitrate",
+        "Capture-Statistiken",
         "Kein Abo"
       ],
       "ctaMonthly": "Lifetime holen",
@@ -122,13 +130,14 @@
     },
     "lifetime": {
       "name": "Supporter",
-      "description": "Gleiche volle App wie Lifetime, plus ein kleines Supporter-Abzeichen in der App",
-      "badge": "Optional",
+      "description": "Alles aus Lifetime, plus Supporter-Abzeichen und zusätzliche Unterstützung für unabhängige Entwicklung",
+      "price": "$24.99",
+      "badge": "Supporter",
       "features": [
-        "Gleiche Freischaltung wie Lifetime",
-        "Optionale In-App-Kaufstufe",
+        "Alles aus Lifetime",
         "Supporter-Abzeichen in den Einstellungen",
-        "Zusätzliche Unterstützung für das Projekt"
+        "Zusätzliche Unterstützung für unabhängige Entwicklung",
+        "Optionaler Einmalkauf"
       ],
       "cta": "Supporter werden",
       "guarantee": "Lifetime kostet $9.99. Supporter kostet $24.99."
