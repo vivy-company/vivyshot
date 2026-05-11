@@ -36,7 +36,7 @@
 
 #define VS_CORE_ABI_VERSION_MAJOR 1
 
-#define VS_CORE_ABI_VERSION_MINOR 1
+#define VS_CORE_ABI_VERSION_MINOR 2
 
 #define VS_CORE_ABI_VERSION_PATCH 0
 
@@ -171,85 +171,6 @@ typedef struct vs_dirty_rect {
   int32_t height;
 } vs_dirty_rect;
 
-typedef struct vs_video_session_config {
-  uint32_t frame_rate;
-  bool capture_system_audio;
-  bool capture_microphone;
-  bool show_webcam;
-  bool highlight_mouse_clicks;
-  bool highlight_keystrokes;
-} vs_video_session_config;
-
-typedef struct vs_video_key_event {
-  uint64_t timestamp_ns;
-  const uint8_t *token_ptr;
-  uintptr_t token_len;
-} vs_video_key_event;
-
-typedef struct vs_video_click_event {
-  uint64_t timestamp_ns;
-  float normalized_x;
-  float normalized_y;
-  uint32_t button;
-} vs_video_click_event;
-
-typedef struct vs_video_export_context {
-  bool source_has_audio;
-  bool source_has_webcam_asset;
-  bool audio_track_visible;
-  bool webcam_track_visible;
-  uint32_t text_overlay_count;
-} vs_video_export_context;
-
-typedef struct vs_video_export_plan {
-  uint32_t trim_start_ms;
-  uint32_t trim_end_ms;
-  uint32_t key_event_count;
-  uint32_t click_event_count;
-  uint8_t plan_mode;
-  bool include_audio;
-  bool include_webcam;
-  uint32_t text_overlay_count;
-  uint32_t overlay_item_count;
-  bool requires_intermediate_for_gif;
-  bool needs_custom_compositor;
-} vs_video_export_plan;
-
-typedef struct vs_video_export_decision {
-  bool use_custom_compositor;
-  bool requires_intermediate_for_gif;
-  bool include_audio;
-  bool include_webcam;
-} vs_video_export_decision;
-
-typedef struct vs_affine_transform {
-  float a;
-  float b;
-  float c;
-  float d;
-  float tx;
-  float ty;
-} vs_affine_transform;
-
-typedef struct vs_video_post_recording_composition_plan {
-  uint32_t render_width;
-  uint32_t render_height;
-  struct vs_affine_transform transform;
-} vs_video_post_recording_composition_plan;
-
-typedef struct vs_video_overlay_label_layout {
-  float width;
-  float height;
-  float y;
-  float font_size;
-} vs_video_overlay_label_layout;
-
-typedef struct vs_video_overlay_clip_window {
-  double start_seconds;
-  double end_seconds;
-  double fade_duration_seconds;
-} vs_video_overlay_clip_window;
-
 typedef struct vs_stats_event {
   uint8_t event_type;
   uint8_t reserved0[3];
@@ -351,6 +272,118 @@ typedef struct vs_stitch_delta {
   float score;
 } vs_stitch_delta;
 
+typedef struct vs_video_export_context {
+  bool source_has_audio;
+  bool source_has_webcam_asset;
+  bool audio_track_visible;
+  bool webcam_track_visible;
+  uint32_t text_overlay_count;
+} vs_video_export_context;
+
+typedef struct vs_video_export_plan {
+  uint32_t trim_start_ms;
+  uint32_t trim_end_ms;
+  uint32_t key_event_count;
+  uint32_t click_event_count;
+  uint8_t plan_mode;
+  bool include_audio;
+  bool include_webcam;
+  uint32_t text_overlay_count;
+  uint32_t overlay_item_count;
+  bool requires_intermediate_for_gif;
+  bool needs_custom_compositor;
+} vs_video_export_plan;
+
+typedef struct vs_video_export_decision {
+  bool use_custom_compositor;
+  bool requires_intermediate_for_gif;
+  bool include_audio;
+  bool include_webcam;
+} vs_video_export_decision;
+
+typedef struct vs_affine_transform {
+  float a;
+  float b;
+  float c;
+  float d;
+  float tx;
+  float ty;
+} vs_affine_transform;
+
+typedef struct vs_video_post_recording_composition_plan {
+  uint32_t render_width;
+  uint32_t render_height;
+  struct vs_affine_transform transform;
+} vs_video_post_recording_composition_plan;
+
+typedef struct vs_video_overlay_label_layout {
+  float width;
+  float height;
+  float y;
+  float font_size;
+} vs_video_overlay_label_layout;
+
+typedef struct vs_video_overlay_clip_window {
+  double start_seconds;
+  double end_seconds;
+  double fade_duration_seconds;
+} vs_video_overlay_clip_window;
+
+typedef struct vs_video_project_recording_info {
+  uint32_t duration_ms;
+  uint32_t width;
+  uint32_t height;
+  uint32_t frame_rate;
+  bool has_audio;
+  bool has_webcam_asset;
+  bool has_microphone_audio;
+} vs_video_project_recording_info;
+
+typedef struct vs_video_project_rect {
+  float x;
+  float y;
+  float width;
+  float height;
+} vs_video_project_rect;
+
+typedef struct vs_video_project_render_plan_query {
+  uint32_t time_ms;
+  uint32_t render_width;
+  uint32_t render_height;
+  uint8_t target;
+} vs_video_project_render_plan_query;
+
+typedef struct vs_video_project_render_item {
+  uint8_t kind;
+  float x;
+  float y;
+  float width;
+  float height;
+  float opacity;
+  uint32_t style_flags;
+  uint32_t text_offset;
+  uint32_t text_len;
+  uint32_t asset_id;
+} vs_video_project_render_item;
+
+typedef struct vs_video_project_export_options {
+  uint8_t target;
+  uint8_t codec;
+  uint8_t frame_rate;
+  uint8_t quality;
+  uint8_t bitrate;
+  bool includes_baked_transition;
+} vs_video_project_export_options;
+
+typedef struct vs_video_project_pro_requirement_result {
+  uint32_t reasons_mask;
+} vs_video_project_pro_requirement_result;
+
+typedef struct vs_encoded_bytes {
+  uint8_t *ptr;
+  uintptr_t len;
+} vs_encoded_bytes;
+
 typedef struct vs_f32_rect {
   float x;
   float y;
@@ -376,11 +409,6 @@ typedef struct vs_rgba8 {
   uint8_t b;
   uint8_t a;
 } vs_rgba8;
-
-typedef struct vs_encoded_bytes {
-  uint8_t *ptr;
-  uintptr_t len;
-} vs_encoded_bytes;
 
 typedef struct vs_timeline_track_info {
   uint8_t kind;
@@ -487,110 +515,6 @@ int32_t vs_render_dirty(void *doc,
                         uintptr_t dirty_rects_cap,
                         uintptr_t *dirty_rects_written_ptr);
 
-void *vs_video_session_create(struct vs_video_session_config config);
-
-int32_t vs_video_session_add_key_event(void *session, struct vs_video_key_event event);
-
-int32_t vs_video_session_add_click_event(void *session, struct vs_video_click_event event);
-
-int32_t vs_video_session_set_trim(void *session, uint32_t start_ms, uint32_t end_ms);
-
-int32_t vs_video_session_set_export_context(void *session, struct vs_video_export_context context);
-
-int32_t vs_video_compute_export_plan(uint32_t trim_start_ms,
-                                     uint32_t trim_end_ms,
-                                     uint32_t key_event_count,
-                                     uint32_t click_event_count,
-                                     struct vs_video_export_context context,
-                                     struct vs_video_export_plan *out_plan);
-
-int32_t vs_video_derive_export_decision(uint8_t target,
-                                        struct vs_video_export_plan plan,
-                                        struct vs_video_export_decision *out_decision);
-
-int32_t vs_video_preferred_save_container(uint8_t codec, uint8_t *out_container);
-
-int32_t vs_video_best_save_container(uint8_t codec,
-                                     bool supports_mp4,
-                                     bool supports_mov,
-                                     uint8_t *out_container);
-
-int32_t vs_video_best_export_preset(uint8_t codec,
-                                    uint8_t quality,
-                                    uint32_t compatible_mask,
-                                    uint8_t *out_preset);
-
-int32_t vs_video_estimated_file_length_limit(double duration_seconds,
-                                             uint8_t codec,
-                                             uint8_t frame_rate,
-                                             uint8_t quality,
-                                             uint8_t scale,
-                                             uint8_t bitrate,
-                                             int64_t *out_limit);
-
-int32_t vs_video_post_recording_video_composition_plan(float natural_width,
-                                                       float natural_height,
-                                                       struct vs_affine_transform preferred_transform,
-                                                       uint8_t scale,
-                                                       struct vs_video_post_recording_composition_plan *out_plan);
-
-int32_t vs_video_key_overlay_label_layout(float render_width,
-                                          float render_height,
-                                          uint32_t char_count,
-                                          struct vs_video_overlay_label_layout *out_layout);
-
-int32_t vs_video_text_overlay_label_layout(float render_width,
-                                           float render_height,
-                                           uint32_t char_count,
-                                           struct vs_video_overlay_label_layout *out_layout);
-
-int32_t vs_video_compute_overlay_clip_window(double clip_start_seconds,
-                                             double clip_end_seconds,
-                                             double trim_start_seconds,
-                                             double min_visible_seconds,
-                                             struct vs_video_overlay_clip_window *out_window);
-
-int32_t vs_video_session_get_export_plan(void *session, struct vs_video_export_plan *out_plan);
-
-void vs_video_session_destroy(void *session);
-
-int32_t vs_normalize_key_token(uint16_t key_code,
-                               uint32_t modifiers,
-                               const uint8_t *chars_ptr,
-                               uint32_t chars_len,
-                               uint8_t *out_ptr,
-                               uint32_t out_cap,
-                               uint32_t *out_written);
-
-bool vs_key_event_is_duplicate(uint64_t last_timestamp_ns,
-                               const uint8_t *last_token_ptr,
-                               uint32_t last_token_len,
-                               uint64_t timestamp_ns,
-                               const uint8_t *token_ptr,
-                               uint32_t token_len);
-
-int32_t vs_normalize_click_point(float normalized_x,
-                                 float normalized_y,
-                                 float *out_x,
-                                 float *out_y);
-
-bool vs_click_event_is_duplicate(uint64_t last_timestamp_ns,
-                                 uint32_t last_button,
-                                 float last_x,
-                                 float last_y,
-                                 uint64_t timestamp_ns,
-                                 uint32_t button,
-                                 float x,
-                                 float y,
-                                 float epsilon);
-
-int32_t vs_video_session_serialize_json(const void *session,
-                                        uint8_t *out_ptr,
-                                        uint32_t out_cap,
-                                        uint32_t *out_written);
-
-void *vs_video_session_deserialize_json(const uint8_t *json_ptr, uint32_t json_len);
-
 void *vs_stats_session_create(void);
 
 void vs_stats_session_destroy(void *handle);
@@ -686,6 +610,157 @@ int32_t vs_bgra_crop(struct vs_bgra_image_view source,
                      uint32_t height,
                      struct vs_bgra_owned_image *out_image);
 
+int32_t vs_video_compute_export_plan(uint32_t trim_start_ms,
+                                     uint32_t trim_end_ms,
+                                     uint32_t key_event_count,
+                                     uint32_t click_event_count,
+                                     struct vs_video_export_context context,
+                                     struct vs_video_export_plan *out_plan);
+
+int32_t vs_video_derive_export_decision(uint8_t target,
+                                        struct vs_video_export_plan plan,
+                                        struct vs_video_export_decision *out_decision);
+
+int32_t vs_video_preferred_save_container(uint8_t codec, uint8_t *out_container);
+
+int32_t vs_video_best_save_container(uint8_t codec,
+                                     bool supports_mp4,
+                                     bool supports_mov,
+                                     uint8_t *out_container);
+
+int32_t vs_video_best_export_preset(uint8_t codec,
+                                    uint8_t quality,
+                                    uint32_t compatible_mask,
+                                    uint8_t *out_preset);
+
+int32_t vs_video_estimated_file_length_limit(double duration_seconds,
+                                             uint8_t codec,
+                                             uint8_t frame_rate,
+                                             uint8_t quality,
+                                             uint8_t scale,
+                                             uint8_t bitrate,
+                                             int64_t *out_limit);
+
+int32_t vs_video_post_recording_video_composition_plan(float natural_width,
+                                                       float natural_height,
+                                                       struct vs_affine_transform preferred_transform,
+                                                       uint8_t scale,
+                                                       struct vs_video_post_recording_composition_plan *out_plan);
+
+int32_t vs_video_key_overlay_label_layout(float render_width,
+                                          float render_height,
+                                          uint32_t char_count,
+                                          struct vs_video_overlay_label_layout *out_layout);
+
+int32_t vs_video_text_overlay_label_layout(float render_width,
+                                           float render_height,
+                                           uint32_t char_count,
+                                           struct vs_video_overlay_label_layout *out_layout);
+
+int32_t vs_video_compute_overlay_clip_window(double clip_start_seconds,
+                                             double clip_end_seconds,
+                                             double trim_start_seconds,
+                                             double min_visible_seconds,
+                                             struct vs_video_overlay_clip_window *out_window);
+
+int32_t vs_normalize_key_token(uint16_t key_code,
+                               uint32_t modifiers,
+                               const uint8_t *chars_ptr,
+                               uint32_t chars_len,
+                               uint8_t *out_ptr,
+                               uint32_t out_cap,
+                               uint32_t *out_written);
+
+bool vs_key_event_is_duplicate(uint64_t last_timestamp_ns,
+                               const uint8_t *last_token_ptr,
+                               uint32_t last_token_len,
+                               uint64_t timestamp_ns,
+                               const uint8_t *token_ptr,
+                               uint32_t token_len);
+
+int32_t vs_normalize_click_point(float normalized_x,
+                                 float normalized_y,
+                                 float *out_x,
+                                 float *out_y);
+
+bool vs_click_event_is_duplicate(uint64_t last_timestamp_ns,
+                                 uint32_t last_button,
+                                 float last_x,
+                                 float last_y,
+                                 uint64_t timestamp_ns,
+                                 uint32_t button,
+                                 float x,
+                                 float y,
+                                 float epsilon);
+
+void *vs_video_project_create_from_recording(struct vs_video_project_recording_info info);
+
+void vs_video_project_destroy(void *handle);
+
+int32_t vs_video_project_add_key_event(void *handle,
+                                       uint32_t timestamp_ms,
+                                       const uint8_t *token_ptr,
+                                       uint32_t token_len);
+
+int32_t vs_video_project_add_click_event(void *handle,
+                                         uint32_t timestamp_ms,
+                                         float normalized_x,
+                                         float normalized_y,
+                                         uint32_t button);
+
+int32_t vs_video_project_set_webcam_overlay(void *handle,
+                                            bool enabled,
+                                            uint8_t shape,
+                                            uint8_t aspect_ratio,
+                                            uint32_t asset_id);
+
+int32_t vs_video_project_push_webcam_placement(void *handle,
+                                               uint32_t timestamp_ms,
+                                               struct vs_video_project_rect frame);
+
+int32_t vs_video_project_set_keystroke_overlay(void *handle,
+                                               bool enabled,
+                                               uint8_t style,
+                                               uint8_t size);
+
+int32_t vs_video_project_push_keystroke_placement(void *handle,
+                                                  uint32_t timestamp_ms,
+                                                  struct vs_video_project_rect frame);
+
+int32_t vs_video_project_render_plan(const void *handle,
+                                     struct vs_video_project_render_plan_query query,
+                                     struct vs_video_project_render_item *out_items,
+                                     uint32_t out_cap,
+                                     uint32_t *out_written);
+
+int32_t vs_video_project_render_plan_text(const void *handle,
+                                          struct vs_video_project_render_plan_query query,
+                                          uint8_t *out_ptr,
+                                          uint32_t out_cap,
+                                          uint32_t *out_written);
+
+int32_t vs_video_project_export_plan(const void *handle, struct vs_video_export_plan *out_plan);
+
+int32_t vs_video_project_pro_requirement(const void *handle,
+                                         struct vs_video_project_export_options options,
+                                         struct vs_video_project_pro_requirement_result *out_requirement);
+
+int32_t vs_video_project_serialize_json(const void *handle,
+                                        uint8_t *out_ptr,
+                                        uint32_t out_cap,
+                                        uint32_t *out_written);
+
+void *vs_video_project_deserialize_json(const uint8_t *json_ptr, uint32_t json_len);
+
+int32_t vs_encode_bgra_image(struct vs_bgra_image_view source,
+                             uint8_t format,
+                             uint8_t jpeg_quality,
+                             struct vs_encoded_bytes *out_bytes);
+
+void vs_encoded_bytes_destroy(struct vs_encoded_bytes *bytes);
+
+void vs_bgra_owned_image_destroy(struct vs_bgra_owned_image *image);
+
 int32_t vs_view_rect_to_image_rect(struct vs_f32_rect view_rect,
                                    struct vs_f32_rect destination_rect,
                                    uint32_t image_width,
@@ -750,15 +825,6 @@ int32_t vs_selection_resize_rect(struct vs_f32_rect start,
                                  float min_width,
                                  float min_height,
                                  struct vs_f32_rect *out_rect);
-
-int32_t vs_encode_bgra_image(struct vs_bgra_image_view source,
-                             uint8_t format,
-                             uint8_t jpeg_quality,
-                             struct vs_encoded_bytes *out_bytes);
-
-void vs_encoded_bytes_destroy(struct vs_encoded_bytes *bytes);
-
-void vs_bgra_owned_image_destroy(struct vs_bgra_owned_image *image);
 
 void *vs_timeline_create(uint32_t duration_ms, uint32_t width, uint32_t height);
 

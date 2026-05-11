@@ -1,30 +1,23 @@
-use serde_json::Value;
 use vivyshot_core::{
     vs_click_event_is_duplicate, vs_core_abi_version, vs_key_event_is_duplicate,
     vs_normalize_click_point, vs_normalize_key_token, vs_video_best_export_preset,
-    vs_video_best_save_container, vs_video_click_event, vs_video_compute_export_plan,
+    vs_video_best_save_container, vs_video_compute_export_plan,
     vs_video_compute_overlay_clip_window, vs_video_derive_export_decision, vs_video_export_context,
-    vs_video_export_decision, vs_video_export_plan, vs_video_key_event,
-    vs_video_key_overlay_label_layout, vs_video_overlay_clip_window, vs_video_overlay_label_layout,
-    vs_video_session_add_click_event, vs_video_session_add_key_event, vs_video_session_config,
-    vs_video_session_create, vs_video_session_deserialize_json, vs_video_session_destroy,
-    vs_video_session_get_export_plan, vs_video_session_serialize_json,
-    vs_video_session_set_export_context, vs_video_session_set_trim,
+    vs_video_export_decision, vs_video_export_plan, vs_video_key_overlay_label_layout,
+    vs_video_overlay_clip_window, vs_video_overlay_label_layout, vs_video_project_add_click_event,
+    vs_video_project_add_key_event, vs_video_project_create_from_recording,
+    vs_video_project_deserialize_json, vs_video_project_destroy, vs_video_project_export_options,
+    vs_video_project_export_plan, vs_video_project_pro_requirement,
+    vs_video_project_pro_requirement_result, vs_video_project_push_keystroke_placement,
+    vs_video_project_push_webcam_placement, vs_video_project_recording_info, vs_video_project_rect,
+    vs_video_project_render_item, vs_video_project_render_plan, vs_video_project_render_plan_query,
+    vs_video_project_render_plan_text, vs_video_project_serialize_json,
+    vs_video_project_set_keystroke_overlay, vs_video_project_set_webcam_overlay,
     vs_video_text_overlay_label_layout, VS_CORE_ABI_VERSION_MAJOR, VS_CORE_ABI_VERSION_MINOR,
-    VS_CORE_ABI_VERSION_PATCH, VS_STATUS_INVALID_ARGUMENT, VS_STATUS_NULL_POINTER,
-    VS_VIDEO_EXPORT_TARGET_GIF, VS_VIDEO_EXPORT_TARGET_MP4, VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS,
+    VS_CORE_ABI_VERSION_PATCH, VS_STATUS_BUFFER_TOO_SMALL, VS_STATUS_INVALID_ARGUMENT,
+    VS_STATUS_NULL_POINTER, VS_VIDEO_EXPORT_TARGET_GIF, VS_VIDEO_EXPORT_TARGET_MP4,
+    VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS,
 };
-
-fn sample_config() -> vs_video_session_config {
-    vs_video_session_config {
-        frame_rate: 60,
-        capture_system_audio: true,
-        capture_microphone: false,
-        show_webcam: true,
-        highlight_mouse_clicks: true,
-        highlight_keystrokes: true,
-    }
-}
 
 fn blank_plan() -> vs_video_export_plan {
     vs_video_export_plan {
@@ -120,120 +113,169 @@ fn video_export_decision_contract_validates_target_and_pointer() {
 }
 
 #[test]
-fn video_session_serialization_roundtrip_preserves_plan() {
-    let session = vs_video_session_create(sample_config());
-    assert!(!session.is_null());
+fn video_project_contract_covers_render_export_pro_and_snapshot() {
+    let project = vs_video_project_create_from_recording(vs_video_project_recording_info {
+        duration_ms: 5_000,
+        width: 1_920,
+        height: 1_080,
+        frame_rate: 30,
+        has_audio: true,
+        has_webcam_asset: true,
+        has_microphone_audio: true,
+    });
+    assert!(!project.is_null());
 
-    let key = b"CmdK";
-    // SAFETY: pointers remain valid during calls and session handle is valid.
     unsafe {
         assert_eq!(
-            vs_video_session_add_key_event(
-                session,
-                vs_video_key_event {
-                    timestamp_ns: 10,
-                    token_ptr: key.as_ptr(),
-                    token_len: key.len(),
-                },
-            ),
+            vs_video_project_set_webcam_overlay(project, true, 1, 2, 5),
             0
         );
-
         assert_eq!(
-            vs_video_session_add_click_event(
-                session,
-                vs_video_click_event {
-                    timestamp_ns: 22,
-                    normalized_x: 0.35,
-                    normalized_y: 0.65,
-                    button: 1,
+            vs_video_project_push_webcam_placement(
+                project,
+                0,
+                vs_video_project_rect {
+                    x: 0.70,
+                    y: 0.10,
+                    width: 0.20,
+                    height: 0.12,
                 },
             ),
             0
         );
-
-        assert_eq!(vs_video_session_set_trim(session, 120, 980), 0);
         assert_eq!(
-            vs_video_session_set_export_context(
-                session,
-                vs_video_export_context {
-                    source_has_audio: true,
-                    source_has_webcam_asset: true,
-                    audio_track_visible: false,
-                    webcam_track_visible: true,
-                    text_overlay_count: 2,
+            vs_video_project_set_keystroke_overlay(project, true, 1, 1),
+            0
+        );
+        assert_eq!(
+            vs_video_project_push_keystroke_placement(
+                project,
+                0,
+                vs_video_project_rect {
+                    x: 0.25,
+                    y: 0.75,
+                    width: 0.50,
+                    height: 0.12,
                 },
             ),
             0
         );
+        let key = "⌘K".as_bytes();
+        assert_eq!(
+            vs_video_project_add_key_event(project, 1_000, key.as_ptr(), key.len() as u32),
+            0
+        );
+        assert_eq!(
+            vs_video_project_add_click_event(project, 1_000, 1.2, -1.0, 0),
+            0
+        );
 
-        let mut expected = blank_plan();
-        assert_eq!(vs_video_session_get_export_plan(session, &mut expected), 0);
-        assert_eq!(expected.key_event_count, 1);
-        assert_eq!(expected.click_event_count, 1);
-        assert_eq!(expected.overlay_item_count, 3);
-        assert!(expected.needs_custom_compositor);
-
-        let mut json = vec![0u8; 4096];
+        let query = vs_video_project_render_plan_query {
+            time_ms: 1_000,
+            render_width: 1_920,
+            render_height: 1_080,
+            target: 1,
+        };
         let mut written = 0u32;
         assert_eq!(
-            vs_video_session_serialize_json(
-                session,
-                json.as_mut_ptr(),
-                json.len() as u32,
+            vs_video_project_render_plan(project, query, std::ptr::null_mut(), 0, &mut written),
+            VS_STATUS_BUFFER_TOO_SMALL
+        );
+        assert_eq!(written, 2);
+        let mut items = vec![vs_video_project_render_item::default(); written as usize];
+        assert_eq!(
+            vs_video_project_render_plan(
+                project,
+                query,
+                items.as_mut_ptr(),
+                items.len() as u32,
                 &mut written,
             ),
             0
         );
-        assert!(written > 0);
+        assert_eq!(items[0].kind, 1);
+        assert!((items[0].width - items[0].height).abs() < 0.001);
+        assert_eq!(items[1].kind, 2);
 
-        let restored = vs_video_session_deserialize_json(json.as_ptr(), written);
+        let mut text_written = 0u32;
+        assert_eq!(
+            vs_video_project_render_plan_text(
+                project,
+                query,
+                std::ptr::null_mut(),
+                0,
+                &mut text_written,
+            ),
+            VS_STATUS_BUFFER_TOO_SMALL
+        );
+        let mut text = vec![0u8; text_written as usize];
+        assert_eq!(
+            vs_video_project_render_plan_text(
+                project,
+                query,
+                text.as_mut_ptr(),
+                text.len() as u32,
+                &mut text_written,
+            ),
+            0
+        );
+        assert_eq!(std::str::from_utf8(&text).unwrap(), "⌘K");
+
+        let mut plan = blank_plan();
+        assert_eq!(vs_video_project_export_plan(project, &mut plan), 0);
+        assert!(plan.needs_custom_compositor);
+        assert_eq!(plan.key_event_count, 1);
+        assert_eq!(plan.click_event_count, 1);
+
+        let mut requirement = vs_video_project_pro_requirement_result::default();
+        assert_eq!(
+            vs_video_project_pro_requirement(
+                project,
+                vs_video_project_export_options {
+                    target: VS_VIDEO_EXPORT_TARGET_MP4,
+                    codec: 1,
+                    frame_rate: 1,
+                    quality: 1,
+                    bitrate: 2,
+                    includes_baked_transition: false,
+                },
+                &mut requirement,
+            ),
+            0
+        );
+        assert_ne!(requirement.reasons_mask & (1 << 0), 0);
+        assert_ne!(requirement.reasons_mask & (1 << 1), 0);
+        assert_ne!(requirement.reasons_mask & (1 << 2), 0);
+
+        let mut json_written = 0u32;
+        assert_eq!(
+            vs_video_project_serialize_json(project, std::ptr::null_mut(), 0, &mut json_written),
+            VS_STATUS_BUFFER_TOO_SMALL
+        );
+        let mut json = vec![0u8; json_written as usize];
+        assert_eq!(
+            vs_video_project_serialize_json(
+                project,
+                json.as_mut_ptr(),
+                json.len() as u32,
+                &mut json_written,
+            ),
+            0
+        );
+        let restored = vs_video_project_deserialize_json(json.as_ptr(), json_written);
         assert!(!restored.is_null());
+        vs_video_project_destroy(restored);
 
-        let mut restored_plan = blank_plan();
         assert_eq!(
-            vs_video_session_get_export_plan(restored, &mut restored_plan),
-            0
+            vs_video_project_set_keystroke_overlay(project, true, 255, 0),
+            VS_STATUS_INVALID_ARGUMENT
         );
-        assert_eq!(restored_plan.trim_start_ms, expected.trim_start_ms);
-        assert_eq!(restored_plan.trim_end_ms, expected.trim_end_ms);
         assert_eq!(
-            restored_plan.overlay_item_count,
-            expected.overlay_item_count
-        );
-        assert_eq!(restored_plan.plan_mode, expected.plan_mode);
-
-        vs_video_session_destroy(restored);
-        vs_video_session_destroy(session);
-    }
-}
-
-#[test]
-fn video_session_deserialize_rejects_unknown_snapshot_version() {
-    let session = vs_video_session_create(sample_config());
-    assert!(!session.is_null());
-
-    // SAFETY: valid handle, buffer and pointers are provided for call duration.
-    unsafe {
-        let mut json = vec![0u8; 1024];
-        let mut written = 0u32;
-        assert_eq!(
-            vs_video_session_serialize_json(
-                session,
-                json.as_mut_ptr(),
-                json.len() as u32,
-                &mut written,
-            ),
-            0
+            vs_video_project_export_plan(std::ptr::null(), &mut plan),
+            VS_STATUS_NULL_POINTER
         );
 
-        let mut value: Value = serde_json::from_slice(&json[..written as usize]).unwrap();
-        value["version"] = Value::from(999u32);
-        let encoded = serde_json::to_vec(&value).unwrap();
-        let restored = vs_video_session_deserialize_json(encoded.as_ptr(), encoded.len() as u32);
-        assert!(restored.is_null());
-
-        vs_video_session_destroy(session);
+        vs_video_project_destroy(project);
     }
 }
 
@@ -282,21 +324,6 @@ fn video_compute_export_plan_validates_trim_bounds() {
     assert_eq!(plan.key_event_count, 2);
     assert_eq!(plan.click_event_count, 1);
     assert_eq!(plan.plan_mode, 1);
-}
-
-#[test]
-fn stale_video_session_handle_is_rejected_after_destroy() {
-    let session = vs_video_session_create(sample_config());
-    assert!(!session.is_null());
-
-    // SAFETY: handle is valid for destroy; subsequent call verifies stale handle rejection.
-    unsafe {
-        vs_video_session_destroy(session);
-        assert_eq!(
-            vs_video_session_set_trim(session, 10, 100),
-            VS_STATUS_INVALID_ARGUMENT
-        );
-    }
 }
 
 #[test]

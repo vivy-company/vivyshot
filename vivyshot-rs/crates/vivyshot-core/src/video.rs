@@ -1,8 +1,10 @@
+use crate::timeline::Timeline;
 use crate::types::{
     AffineTransform, TimelineTrackSummary, VideoExportBitratePreset, VideoExportCodec,
     VideoExportContainer, VideoExportFrameRate, VideoExportPreset, VideoExportQuality,
     VideoExportScale, VideoPostRecordingCompositionPlan,
 };
+use serde::{Deserialize, Serialize};
 
 pub use crate::types::{
     VideoExportContext, VideoExportDecision, VideoExportPlan, VideoOverlayClipWindow,
@@ -12,6 +14,681 @@ pub use crate::types::{
     VIDEO_TEXT_OVERLAY_FADE_HOLD_KEYTIME, VIDEO_TEXT_OVERLAY_FADE_IN_KEYTIME,
     VIDEO_TEXT_OVERLAY_MIN_FADE_DURATION_SECONDS, VIDEO_TEXT_OVERLAY_MIN_VISIBLE_SECONDS,
 };
+
+pub const VIDEO_PROJECT_SNAPSHOT_VERSION: u32 = 1;
+pub const VIDEO_RENDER_TARGET_PREVIEW: u8 = 0;
+pub const VIDEO_RENDER_TARGET_EXPORT: u8 = 1;
+pub const VIDEO_RENDER_ITEM_WEBCAM: u8 = 1;
+pub const VIDEO_RENDER_ITEM_KEYSTROKE: u8 = 2;
+pub const VIDEO_WEBCAM_SHAPE_ROUNDED_RECT: u8 = 0;
+pub const VIDEO_WEBCAM_SHAPE_CIRCLE: u8 = 1;
+pub const VIDEO_WEBCAM_ASPECT_SQUARE: u8 = 0;
+pub const VIDEO_WEBCAM_ASPECT_FOUR_THREE: u8 = 1;
+pub const VIDEO_WEBCAM_ASPECT_SIXTEEN_NINE: u8 = 2;
+pub const VIDEO_KEYSTROKE_STYLE_COMPACT: u8 = 0;
+pub const VIDEO_KEYSTROKE_STYLE_GLASS: u8 = 1;
+pub const VIDEO_KEYSTROKE_SIZE_SMALL: u8 = 0;
+pub const VIDEO_KEYSTROKE_SIZE_MEDIUM: u8 = 1;
+pub const VIDEO_KEYSTROKE_SIZE_LARGE: u8 = 2;
+pub const VIDEO_PRO_REASON_WEBCAM_OVERLAY: u32 = 1 << 0;
+pub const VIDEO_PRO_REASON_KEYSTROKE_OVERLAY: u32 = 1 << 1;
+pub const VIDEO_PRO_REASON_MICROPHONE_AUDIO: u32 = 1 << 2;
+pub const VIDEO_PRO_REASON_GIF_EXPORT: u32 = 1 << 3;
+pub const VIDEO_PRO_REASON_HEVC_EXPORT: u32 = 1 << 4;
+pub const VIDEO_PRO_REASON_SIXTY_FPS: u32 = 1 << 5;
+pub const VIDEO_PRO_REASON_HIGH_QUALITY: u32 = 1 << 6;
+pub const VIDEO_PRO_REASON_HIGH_BITRATE: u32 = 1 << 7;
+pub const VIDEO_PRO_REASON_BAKED_TRANSITION: u32 = 1 << 8;
+
+const VIDEO_KEYSTROKE_VISIBLE_WINDOW_MS: u32 = 1_350;
+const VIDEO_KEYSTROKE_VISIBLE_LIMIT: usize = 3;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct VideoNormalizedRect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VideoSourceMetadata {
+    pub duration_ms: u32,
+    pub width: u32,
+    pub height: u32,
+    pub frame_rate: u32,
+    pub has_audio: bool,
+    pub has_webcam_asset: bool,
+    pub has_microphone_audio: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VideoKeyOverlayEvent {
+    pub timestamp_ms: u32,
+    pub token: String,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct VideoClickOverlayEvent {
+    pub timestamp_ms: u32,
+    pub normalized_x: f32,
+    pub normalized_y: f32,
+    pub button: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct VideoOverlayPlacementKeyframe {
+    pub timestamp_ms: u32,
+    pub frame: VideoNormalizedRect,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct VideoWebcamOverlay {
+    pub enabled: bool,
+    pub shape: u8,
+    pub aspect_ratio: u8,
+    pub asset_id: u32,
+    pub placement: Vec<VideoOverlayPlacementKeyframe>,
+}
+
+impl Default for VideoWebcamOverlay {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            shape: VIDEO_WEBCAM_SHAPE_ROUNDED_RECT,
+            aspect_ratio: VIDEO_WEBCAM_ASPECT_SQUARE,
+            asset_id: 1,
+            placement: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct VideoKeystrokeOverlay {
+    pub enabled: bool,
+    pub style: u8,
+    pub size: u8,
+    pub placement: Vec<VideoOverlayPlacementKeyframe>,
+}
+
+impl Default for VideoKeystrokeOverlay {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            style: VIDEO_KEYSTROKE_STYLE_COMPACT,
+            size: VIDEO_KEYSTROKE_SIZE_MEDIUM,
+            placement: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct VideoOverlaySet {
+    pub key_events: Vec<VideoKeyOverlayEvent>,
+    pub click_events: Vec<VideoClickOverlayEvent>,
+    pub webcam: VideoWebcamOverlay,
+    pub keystroke: VideoKeystrokeOverlay,
+    pub text_overlay_count: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VideoRenderPlanQuery {
+    pub time_ms: u32,
+    pub render_width: u32,
+    pub render_height: u32,
+    pub target: u8,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct VideoRenderItem {
+    pub kind: u8,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub opacity: f32,
+    pub style_flags: u32,
+    pub text_offset: u32,
+    pub text_len: u32,
+    pub asset_id: u32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct VideoRenderPlan {
+    pub items: Vec<VideoRenderItem>,
+    pub text_bytes: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VideoProjectExportOptions {
+    pub target: u8,
+    pub codec: u8,
+    pub frame_rate: u8,
+    pub quality: u8,
+    pub bitrate: u8,
+    pub includes_baked_transition: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VideoProjectProRequirement {
+    pub reasons_mask: u32,
+}
+
+pub struct VideoProject {
+    source: VideoSourceMetadata,
+    timeline: Timeline,
+    overlays: VideoOverlaySet,
+}
+
+#[derive(Serialize, Deserialize)]
+struct VideoProjectSnapshot {
+    version: u32,
+    source: VideoSourceMetadata,
+    overlays: VideoOverlaySet,
+}
+
+impl VideoProject {
+    pub fn new(source: VideoSourceMetadata) -> Option<Self> {
+        if source.duration_ms == 0 || source.width == 0 || source.height == 0 {
+            return None;
+        }
+        let mut timeline = Timeline::new(source.duration_ms, source.width, source.height)?;
+        timeline.bootstrap_capture_tracks(source.has_audio, source.has_webcam_asset);
+        Some(Self {
+            source,
+            timeline,
+            overlays: VideoOverlaySet::default(),
+        })
+    }
+
+    pub fn source(&self) -> VideoSourceMetadata {
+        self.source
+    }
+
+    pub fn overlays(&self) -> &VideoOverlaySet {
+        &self.overlays
+    }
+
+    pub fn set_webcam_overlay(
+        &mut self,
+        enabled: bool,
+        shape: u8,
+        aspect_ratio: u8,
+        asset_id: u32,
+    ) -> bool {
+        if !matches!(
+            shape,
+            VIDEO_WEBCAM_SHAPE_ROUNDED_RECT | VIDEO_WEBCAM_SHAPE_CIRCLE
+        ) || !matches!(
+            aspect_ratio,
+            VIDEO_WEBCAM_ASPECT_SQUARE
+                | VIDEO_WEBCAM_ASPECT_FOUR_THREE
+                | VIDEO_WEBCAM_ASPECT_SIXTEEN_NINE
+        ) {
+            return false;
+        }
+        self.overlays.webcam.enabled = enabled;
+        self.overlays.webcam.shape = shape;
+        self.overlays.webcam.aspect_ratio = aspect_ratio;
+        self.overlays.webcam.asset_id = asset_id;
+        true
+    }
+
+    pub fn set_keystroke_overlay(&mut self, enabled: bool, style: u8, size: u8) -> bool {
+        if !matches!(
+            style,
+            VIDEO_KEYSTROKE_STYLE_COMPACT | VIDEO_KEYSTROKE_STYLE_GLASS
+        ) || !matches!(
+            size,
+            VIDEO_KEYSTROKE_SIZE_SMALL | VIDEO_KEYSTROKE_SIZE_MEDIUM | VIDEO_KEYSTROKE_SIZE_LARGE
+        ) {
+            return false;
+        }
+        self.overlays.keystroke.enabled = enabled;
+        self.overlays.keystroke.style = style;
+        self.overlays.keystroke.size = size;
+        true
+    }
+
+    pub fn push_webcam_placement(&mut self, timestamp_ms: u32, frame: VideoNormalizedRect) {
+        push_placement(
+            &mut self.overlays.webcam.placement,
+            timestamp_ms,
+            normalize_video_rect(frame),
+        );
+    }
+
+    pub fn push_keystroke_placement(&mut self, timestamp_ms: u32, frame: VideoNormalizedRect) {
+        push_placement(
+            &mut self.overlays.keystroke.placement,
+            timestamp_ms,
+            normalize_video_rect(frame),
+        );
+    }
+
+    pub fn add_key_event(&mut self, timestamp_ms: u32, token: &str) -> bool {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+        let token: String = trimmed.chars().take(64).collect();
+        self.overlays.key_events.push(VideoKeyOverlayEvent {
+            timestamp_ms,
+            token,
+        });
+        self.overlays
+            .key_events
+            .sort_by_key(|event| event.timestamp_ms);
+        true
+    }
+
+    pub fn add_click_event(
+        &mut self,
+        timestamp_ms: u32,
+        normalized_x: f32,
+        normalized_y: f32,
+        button: u32,
+    ) -> bool {
+        let Some((x, y)) = normalize_click_point(normalized_x, normalized_y) else {
+            return false;
+        };
+        if let Some(last) = self.overlays.click_events.last() {
+            if click_event_is_duplicate(
+                last.timestamp_ms as u64,
+                last.button,
+                last.normalized_x,
+                last.normalized_y,
+                timestamp_ms as u64,
+                button,
+                x,
+                y,
+                0.0001,
+            ) {
+                return false;
+            }
+        }
+        self.overlays.click_events.push(VideoClickOverlayEvent {
+            timestamp_ms,
+            normalized_x: x,
+            normalized_y: y,
+            button,
+        });
+        true
+    }
+
+    pub fn export_plan(&self) -> Option<VideoExportPlan> {
+        let key_count = if self.overlays.keystroke.enabled {
+            self.overlays.key_events.len().max(1).min(u32::MAX as usize) as u32
+        } else {
+            0
+        };
+        let click_count = self.overlays.click_events.len().min(u32::MAX as usize) as u32;
+        compute_video_export_plan(
+            0,
+            self.source.duration_ms,
+            key_count,
+            click_count,
+            self.export_context(),
+        )
+    }
+
+    pub fn render_plan(&self, query: VideoRenderPlanQuery) -> Option<VideoRenderPlan> {
+        if query.render_width == 0 || query.render_height == 0 {
+            return None;
+        }
+        if !matches!(
+            query.target,
+            VIDEO_RENDER_TARGET_PREVIEW | VIDEO_RENDER_TARGET_EXPORT
+        ) {
+            return None;
+        }
+
+        let mut plan = VideoRenderPlan::default();
+        let render_width = query.render_width as f32;
+        let render_height = query.render_height as f32;
+
+        if self.source.has_webcam_asset && self.overlays.webcam.enabled {
+            let placement = placement_at(
+                &self.overlays.webcam.placement,
+                query.time_ms,
+                VideoNormalizedRect {
+                    x: 0.72,
+                    y: 0.07,
+                    width: 0.22,
+                    height: 0.22,
+                },
+            );
+            let rect = constrain_webcam_rect(
+                denormalize_rect(placement, render_width, render_height),
+                render_width,
+                render_height,
+                self.overlays.webcam.shape,
+                self.overlays.webcam.aspect_ratio,
+                2.0,
+                2.0,
+            );
+            if rect.width > 0.0 && rect.height > 0.0 {
+                plan.items.push(VideoRenderItem {
+                    kind: VIDEO_RENDER_ITEM_WEBCAM,
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                    opacity: 1.0,
+                    style_flags: webcam_style_flags(
+                        self.overlays.webcam.shape,
+                        self.overlays.webcam.aspect_ratio,
+                    ),
+                    text_offset: 0,
+                    text_len: 0,
+                    asset_id: self.overlays.webcam.asset_id,
+                });
+            }
+        }
+
+        if self.overlays.keystroke.enabled {
+            let text = self.visible_keystroke_text(query.time_ms);
+            let placement = placement_at(
+                &self.overlays.keystroke.placement,
+                query.time_ms,
+                VideoNormalizedRect {
+                    x: 0.30,
+                    y: 0.07,
+                    width: 0.40,
+                    height: 0.12,
+                },
+            );
+            let mut rect = denormalize_rect(placement, render_width, render_height);
+            if rect.width <= 4.0 || rect.height <= 4.0 {
+                if let Some(layout) = derive_key_overlay_label_layout(
+                    render_width,
+                    render_height,
+                    text.chars().count() as u32,
+                ) {
+                    rect = VideoPixelRect {
+                        x: (render_width - layout.width) * 0.5,
+                        y: layout.y,
+                        width: layout.width,
+                        height: layout.height,
+                    };
+                }
+            }
+            if rect.width > 0.0 && rect.height > 0.0 {
+                let offset = plan.text_bytes.len().min(u32::MAX as usize) as u32;
+                plan.text_bytes.extend_from_slice(text.as_bytes());
+                let len = text.len().min(u32::MAX as usize) as u32;
+                plan.items.push(VideoRenderItem {
+                    kind: VIDEO_RENDER_ITEM_KEYSTROKE,
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                    opacity: 1.0,
+                    style_flags: keystroke_style_flags(
+                        self.overlays.keystroke.style,
+                        self.overlays.keystroke.size,
+                    ),
+                    text_offset: offset,
+                    text_len: len,
+                    asset_id: 0,
+                });
+            }
+        }
+
+        Some(plan)
+    }
+
+    pub fn pro_requirement(
+        &self,
+        options: VideoProjectExportOptions,
+    ) -> Option<VideoProjectProRequirement> {
+        if !matches!(
+            options.target,
+            VIDEO_EXPORT_TARGET_MP4 | VIDEO_EXPORT_TARGET_GIF
+        ) {
+            return None;
+        }
+        let mut mask = 0u32;
+        if self.source.has_webcam_asset && self.overlays.webcam.enabled {
+            mask |= VIDEO_PRO_REASON_WEBCAM_OVERLAY;
+        }
+        if self.overlays.keystroke.enabled {
+            mask |= VIDEO_PRO_REASON_KEYSTROKE_OVERLAY;
+        }
+        if options.target == VIDEO_EXPORT_TARGET_MP4 && self.source.has_microphone_audio {
+            mask |= VIDEO_PRO_REASON_MICROPHONE_AUDIO;
+        }
+        if options.target == VIDEO_EXPORT_TARGET_GIF {
+            mask |= VIDEO_PRO_REASON_GIF_EXPORT;
+        }
+        if options.target == VIDEO_EXPORT_TARGET_MP4 {
+            if options.codec == 1 {
+                mask |= VIDEO_PRO_REASON_HEVC_EXPORT;
+            }
+            if options.frame_rate != 0 {
+                mask |= VIDEO_PRO_REASON_SIXTY_FPS;
+            }
+            if options.quality != 0 {
+                mask |= VIDEO_PRO_REASON_HIGH_QUALITY;
+            }
+            if options.bitrate != 0 {
+                mask |= VIDEO_PRO_REASON_HIGH_BITRATE;
+            }
+        }
+        if options.includes_baked_transition {
+            mask |= VIDEO_PRO_REASON_BAKED_TRANSITION;
+        }
+        Some(VideoProjectProRequirement { reasons_mask: mask })
+    }
+
+    pub fn serialize_snapshot_json(&self) -> Result<Vec<u8>, serde_json::Error> {
+        let snapshot = VideoProjectSnapshot {
+            version: VIDEO_PROJECT_SNAPSHOT_VERSION,
+            source: self.source,
+            overlays: self.overlays.clone(),
+        };
+        serde_json::to_vec(&snapshot)
+    }
+
+    pub fn deserialize_snapshot_json(json: &[u8]) -> Option<Self> {
+        let snapshot: VideoProjectSnapshot = serde_json::from_slice(json).ok()?;
+        if snapshot.version != VIDEO_PROJECT_SNAPSHOT_VERSION {
+            return None;
+        }
+        let mut project = Self::new(snapshot.source)?;
+        project.overlays = snapshot.overlays;
+        Some(project)
+    }
+
+    fn export_context(&self) -> VideoExportContext {
+        let summaries: Vec<TimelineTrackSummary> = self
+            .timeline
+            .tracks()
+            .iter()
+            .map(|track| TimelineTrackSummary {
+                kind: track.kind,
+                visible: track.visible,
+                clip_count: track.clips.len().min(u32::MAX as usize) as u32,
+            })
+            .collect();
+        derive_video_export_context(
+            self.source.has_audio,
+            self.source.has_webcam_asset && self.overlays.webcam.enabled,
+            &summaries,
+        )
+    }
+
+    fn visible_keystroke_text(&self, time_ms: u32) -> String {
+        let visible: Vec<&VideoKeyOverlayEvent> = self
+            .overlays
+            .key_events
+            .iter()
+            .filter(|event| {
+                event.timestamp_ms <= time_ms
+                    && time_ms.saturating_sub(event.timestamp_ms)
+                        <= VIDEO_KEYSTROKE_VISIBLE_WINDOW_MS
+            })
+            .rev()
+            .take(VIDEO_KEYSTROKE_VISIBLE_LIMIT)
+            .collect();
+        if visible.is_empty() {
+            return "⌘K".to_string();
+        }
+        visible
+            .into_iter()
+            .rev()
+            .map(|event| event.token.as_str())
+            .collect::<Vec<_>>()
+            .join("  ")
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct VideoPixelRect {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+}
+
+pub fn normalize_video_rect(frame: VideoNormalizedRect) -> VideoNormalizedRect {
+    let source = if !frame.x.is_finite()
+        || !frame.y.is_finite()
+        || !frame.width.is_finite()
+        || !frame.height.is_finite()
+        || frame.width <= 0.0
+        || frame.height <= 0.0
+    {
+        VideoNormalizedRect {
+            x: 0.0,
+            y: 0.0,
+            width: 0.2,
+            height: 0.2,
+        }
+    } else {
+        frame
+    };
+    let width = source.width.clamp(0.04, 1.0);
+    let height = source.height.clamp(0.04, 1.0);
+    let x = source.x.clamp(0.0, 1.0 - width);
+    let y = source.y.clamp(0.0, 1.0 - height);
+    VideoNormalizedRect {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
+fn push_placement(
+    placements: &mut Vec<VideoOverlayPlacementKeyframe>,
+    timestamp_ms: u32,
+    frame: VideoNormalizedRect,
+) {
+    let entry = VideoOverlayPlacementKeyframe {
+        timestamp_ms,
+        frame,
+    };
+    placements.push(entry);
+    placements.sort_by_key(|placement| placement.timestamp_ms);
+    placements.dedup_by(|left, right| {
+        left.timestamp_ms == right.timestamp_ms && left.frame == right.frame
+    });
+}
+
+fn placement_at(
+    placements: &[VideoOverlayPlacementKeyframe],
+    time_ms: u32,
+    fallback: VideoNormalizedRect,
+) -> VideoNormalizedRect {
+    let mut frame = normalize_video_rect(fallback);
+    for placement in placements {
+        if placement.timestamp_ms <= time_ms {
+            frame = normalize_video_rect(placement.frame);
+        } else {
+            break;
+        }
+    }
+    frame
+}
+
+fn denormalize_rect(
+    rect: VideoNormalizedRect,
+    render_width: f32,
+    render_height: f32,
+) -> VideoPixelRect {
+    VideoPixelRect {
+        x: rect.x * render_width,
+        y: rect.y * render_height,
+        width: rect.width * render_width,
+        height: rect.height * render_height,
+    }
+}
+
+fn constrain_webcam_rect(
+    source: VideoPixelRect,
+    render_width: f32,
+    render_height: f32,
+    shape: u8,
+    aspect_ratio: u8,
+    min_width: f32,
+    min_height: f32,
+) -> VideoPixelRect {
+    if render_width <= 0.0 || render_height <= 0.0 {
+        return VideoPixelRect::default();
+    }
+
+    let ratio = if shape == VIDEO_WEBCAM_SHAPE_CIRCLE {
+        1.0
+    } else {
+        webcam_aspect_ratio_value(aspect_ratio)
+    };
+    let min_width = min_width.clamp(1.0, render_width);
+    let min_height = min_height.clamp(1.0, render_height);
+    let mut width = source.width.clamp(min_width, render_width);
+    let mut height = width / ratio;
+
+    if height < min_height {
+        height = min_height;
+        width = height * ratio;
+    }
+    if height > render_height {
+        height = render_height;
+        width = height * ratio;
+    }
+    if width > render_width {
+        width = render_width;
+        height = width / ratio;
+    }
+
+    let source_mid_x = source.x + source.width * 0.5;
+    let source_mid_y = source.y + source.height * 0.5;
+    let x = (source_mid_x - width * 0.5).clamp(0.0, render_width - width);
+    let y = (source_mid_y - height * 0.5).clamp(0.0, render_height - height);
+
+    VideoPixelRect {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
+fn webcam_aspect_ratio_value(aspect_ratio: u8) -> f32 {
+    match aspect_ratio {
+        VIDEO_WEBCAM_ASPECT_FOUR_THREE => 4.0 / 3.0,
+        VIDEO_WEBCAM_ASPECT_SIXTEEN_NINE => 16.0 / 9.0,
+        _ => 1.0,
+    }
+}
+
+fn webcam_style_flags(shape: u8, aspect_ratio: u8) -> u32 {
+    shape as u32 | ((aspect_ratio as u32) << 8)
+}
+
+fn keystroke_style_flags(style: u8, size: u8) -> u32 {
+    style as u32 | ((size as u32) << 8)
+}
 
 pub fn compute_video_export_plan(
     trim_start_ms: u32,
@@ -437,4 +1114,147 @@ fn rounded_even_dimension(value: f32) -> u32 {
     }
     let rounded = value.abs().round().max(2.0) as u32;
     rounded & !1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_project() -> VideoProject {
+        let mut project = VideoProject::new(VideoSourceMetadata {
+            duration_ms: 5_000,
+            width: 1_920,
+            height: 1_080,
+            frame_rate: 30,
+            has_audio: true,
+            has_webcam_asset: true,
+            has_microphone_audio: true,
+        })
+        .unwrap();
+        assert!(project.set_webcam_overlay(
+            true,
+            VIDEO_WEBCAM_SHAPE_CIRCLE,
+            VIDEO_WEBCAM_ASPECT_SIXTEEN_NINE,
+            7
+        ));
+        project.push_webcam_placement(
+            0,
+            VideoNormalizedRect {
+                x: 0.70,
+                y: 0.10,
+                width: 0.20,
+                height: 0.12,
+            },
+        );
+        assert!(project.set_keystroke_overlay(
+            true,
+            VIDEO_KEYSTROKE_STYLE_GLASS,
+            VIDEO_KEYSTROKE_SIZE_MEDIUM
+        ));
+        project.push_keystroke_placement(
+            0,
+            VideoNormalizedRect {
+                x: 0.25,
+                y: 0.75,
+                width: 0.50,
+                height: 0.12,
+            },
+        );
+        assert!(project.add_key_event(900, "⌘K"));
+        assert!(project.add_key_event(1_700, "A"));
+        assert!(project.add_click_event(1_000, 1.2, -1.0, 0));
+        project
+    }
+
+    #[test]
+    fn video_project_normalizes_overlay_frames() {
+        let rect = normalize_video_rect(VideoNormalizedRect {
+            x: 2.0,
+            y: -1.0,
+            width: f32::NAN,
+            height: 0.0,
+        });
+        assert_eq!(
+            rect,
+            VideoNormalizedRect {
+                x: 0.0,
+                y: 0.0,
+                width: 0.2,
+                height: 0.2,
+            }
+        );
+    }
+
+    #[test]
+    fn video_project_render_plan_is_shape_aware_and_time_based() {
+        let project = sample_project();
+        let plan = project
+            .render_plan(VideoRenderPlanQuery {
+                time_ms: 1_700,
+                render_width: 1_920,
+                render_height: 1_080,
+                target: VIDEO_RENDER_TARGET_EXPORT,
+            })
+            .unwrap();
+        assert_eq!(plan.items.len(), 2);
+        let webcam = &plan.items[0];
+        assert_eq!(webcam.kind, VIDEO_RENDER_ITEM_WEBCAM);
+        assert_eq!(webcam.asset_id, 7);
+        assert!((webcam.width - webcam.height).abs() < 0.001);
+
+        let key = &plan.items[1];
+        assert_eq!(key.kind, VIDEO_RENDER_ITEM_KEYSTROKE);
+        let text = std::str::from_utf8(
+            &plan.text_bytes[key.text_offset as usize..(key.text_offset + key.text_len) as usize],
+        )
+        .unwrap();
+        assert_eq!(text, "⌘K  A");
+    }
+
+    #[test]
+    fn video_project_export_and_pro_requirement_are_core_owned() {
+        let project = sample_project();
+        let plan = project.export_plan().unwrap();
+        assert!(plan.needs_custom_compositor);
+        assert!(plan.include_webcam);
+        assert_eq!(plan.key_event_count, 2);
+        assert_eq!(plan.click_event_count, 1);
+
+        let requirement = project
+            .pro_requirement(VideoProjectExportOptions {
+                target: VIDEO_EXPORT_TARGET_MP4,
+                codec: 1,
+                frame_rate: 1,
+                quality: 1,
+                bitrate: 2,
+                includes_baked_transition: false,
+            })
+            .unwrap();
+        assert_ne!(
+            requirement.reasons_mask & VIDEO_PRO_REASON_WEBCAM_OVERLAY,
+            0
+        );
+        assert_ne!(
+            requirement.reasons_mask & VIDEO_PRO_REASON_KEYSTROKE_OVERLAY,
+            0
+        );
+        assert_ne!(
+            requirement.reasons_mask & VIDEO_PRO_REASON_MICROPHONE_AUDIO,
+            0
+        );
+        assert_ne!(requirement.reasons_mask & VIDEO_PRO_REASON_HEVC_EXPORT, 0);
+        assert_ne!(requirement.reasons_mask & VIDEO_PRO_REASON_SIXTY_FPS, 0);
+        assert_ne!(requirement.reasons_mask & VIDEO_PRO_REASON_HIGH_QUALITY, 0);
+        assert_ne!(requirement.reasons_mask & VIDEO_PRO_REASON_HIGH_BITRATE, 0);
+    }
+
+    #[test]
+    fn video_project_snapshot_round_trips() {
+        let project = sample_project();
+        let json = project.serialize_snapshot_json().unwrap();
+        let restored = VideoProject::deserialize_snapshot_json(&json).unwrap();
+        assert_eq!(restored.source(), project.source());
+        assert_eq!(restored.overlays(), project.overlays());
+        assert!(VideoProject::deserialize_snapshot_json(b"{\"version\":999}").is_none());
+    }
 }

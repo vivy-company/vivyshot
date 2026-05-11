@@ -20,7 +20,6 @@ final class VideoCaptureCoordinator {
   private var recorder: ScreenRegionRecorder?
   private var webcamRecorder: WebcamRecorder?
   private var inputMonitor: RecordingInputMonitor?
-  private var rustVideoSession: RustVideoSession?
   private var hudController: VideoRecordingHUDController?
   private var recordingOverlayController: RecordingOverlayController?
   private var postRecordingPanels: [PostRecordingActionPanel] = []
@@ -49,6 +48,7 @@ final class VideoCaptureCoordinator {
     selectionRectInScreen: CGRect,
     overlayState: VideoCaptureOverlayState? = nil,
     showFloatingHUD: Bool = true,
+    onBeforeWebcamCaptureStart: (() -> Void)? = nil,
     onStarted: (() -> Void)? = nil,
     onDone: @escaping () -> Void,
     onError: @escaping (String) -> Void
@@ -91,23 +91,15 @@ final class VideoCaptureCoordinator {
           config: recordingConfig,
           outputURL: outputURL
         )
-        let rustSession = RustCoreBridge.shared.makeVideoSession(
-          config: RustVideoSessionConfig(
-            frameRate: settings.videoFrameRate.rawValue,
-            captureSystemAudio: settings.videoRecordSystemAudio,
-            captureMicrophone: microphoneEnabled,
-            showWebcam: webcamEnabled,
-            highlightMouseClicks: settings.videoHighlightMouseClicks,
-            highlightKeystrokes: keystrokesEnabled
-          )
-        )
-
         let capturesKeystrokes = keystrokesEnabled && isAccessibilityTrusted(promptIfNeeded: false)
         if keystrokesEnabled && !capturesKeystrokes {
           TransientToast.show("Keystroke overlay visible. Enable Accessibility to show real keys.", duration: 2.4)
         }
 
         if webcamEnabled {
+          onBeforeWebcamCaptureStart?()
+          try await Task.sleep(nanoseconds: 120_000_000)
+
           let webcamOutputURL = makeTemporaryWebcamURL()
           let webcamRecorder = try WebcamRecorder(
             outputURL: webcamOutputURL,
@@ -119,7 +111,6 @@ final class VideoCaptureCoordinator {
 
         try await recorder.start()
         self.recorder = recorder
-        self.rustVideoSession = rustSession
         self.recordingStartUptime = ProcessInfo.processInfo.systemUptime
 
         let monitor = RecordingInputMonitor(
@@ -240,19 +231,6 @@ final class VideoCaptureCoordinator {
           webcamURL = nil
         }
 
-        for keyEvent in monitorResult.keyEvents {
-          _ = rustVideoSession?.addKeyEvent(timestampNS: keyEvent.timestampNS, token: keyEvent.displayToken)
-        }
-
-        for clickEvent in monitorResult.clickEvents {
-          _ = rustVideoSession?.addClickEvent(
-            timestampNS: clickEvent.timestampNS,
-            normalizedX: clickEvent.normalizedX,
-            normalizedY: clickEvent.normalizedY,
-            button: clickEvent.button
-          )
-        }
-
         let recordingDetails = PostRecordingDetails(
           frameRate: settings.videoFrameRate.rawValue,
           systemAudioEnabled: settings.videoRecordSystemAudio,
@@ -266,29 +244,20 @@ final class VideoCaptureCoordinator {
 
         // Recording is fully stopped: allow a new capture flow immediately.
         markCaptureFlowFinished()
-        rustVideoSession = nil
 
         let assetInfo = await PostRecordingActionPanel.loadAssetInfo(url: outputURL)
+        let rustProject = makeRustVideoProject(
+          assetInfo: assetInfo,
+          webcamURL: webcamURL,
+          monitorResult: monitorResult
+        )
         let project = PostRecordingProject(
           inputURL: outputURL,
           webcamURL: webcamURL,
+          rustProject: rustProject,
           details: recordingDetails,
           durationSeconds: assetInfo.durationSeconds,
-          videoSize: assetInfo.videoSize,
-          overlayConfiguration: VideoExportOverlayConfiguration(
-            webcamURL: webcamURL,
-            keyEvents: monitorResult.keyEvents,
-            clickEvents: monitorResult.clickEvents,
-            webcamOverlayShape: settings.videoWebcamOverlayShape,
-            webcamOverlaySize: settings.videoWebcamOverlaySize,
-            webcamOverlayAspectRatio: settings.videoWebcamOverlayAspectRatio,
-            webcamPlacementChanges: sanitizedPlacementChanges(webcamPlacementChanges),
-            keystrokeOverlayEnabled: keystrokeOverlayEnabledInSession,
-            keystrokeOverlayStyle: settings.videoKeystrokeOverlayStyle,
-            keystrokeOverlaySize: settings.videoKeystrokeOverlaySize,
-            keystrokePlacementChanges: sanitizedPlacementChanges(keystrokePlacementChanges),
-            textOverlays: []
-          )
+          videoSize: assetInfo.videoSize
         )
 
         await self.presentPostRecordingDialog(
@@ -372,7 +341,8 @@ final class VideoCaptureCoordinator {
 
     Task {
       do {
-        if project.overlayConfiguration.hasCompositedOverlays {
+        let exportPlan = project.rustProject.exportPlan()
+        if exportPlan?.needsCustomCompositor ?? project.hasNativeCompositedOverlays {
           try await PostRecordingProjectExporter.exportCompositedVideo(
             project: project,
             options: options,
@@ -538,13 +508,91 @@ final class VideoCaptureCoordinator {
     webcamRecorder?.cancel()
     webcamRecorder = nil
     inputMonitor = nil
-    rustVideoSession = nil
     recordingOverlayController?.close()
     recordingOverlayController = nil
     recordingStartUptime = 0
     webcamPlacementChanges = []
     keystrokePlacementChanges = []
     keystrokeOverlayEnabledInSession = false
+  }
+
+  private func makeRustVideoProject(
+    assetInfo: (durationSeconds: Double, thumbnail: NSImage?, videoSize: CGSize?),
+    webcamURL: URL?,
+    monitorResult: RecordingInputResult
+  ) -> RustVideoProjectSession {
+    let fallbackSize = recordingRect.size
+    let videoSize = assetInfo.videoSize ?? fallbackSize
+    let durationMS = UInt32(max(1, min(Double(UInt32.max), (assetInfo.durationSeconds * 1000).rounded())))
+    let rustProject = RustVideoProjectSession(
+      recordingInfo: RustVideoProjectRecordingInfo(
+        durationMS: durationMS,
+        width: UInt32(max(1, Int(videoSize.width.rounded()))),
+        height: UInt32(max(1, Int(videoSize.height.rounded()))),
+        frameRate: UInt32(max(1, settings.videoFrameRate.rawValue)),
+        hasAudio: settings.videoRecordSystemAudio || effectiveCaptureMicrophoneEnabled,
+        hasWebcamAsset: webcamURL != nil,
+        hasMicrophoneAudio: effectiveCaptureMicrophoneEnabled
+      )
+    )
+
+    guard let rustProject else {
+      // The recording has a valid fallback size/duration above, so this should not fail.
+      preconditionFailure("Unable to create Rust video project")
+    }
+
+    _ = rustProject.setWebcamOverlay(
+      enabled: webcamURL != nil,
+      shape: settings.videoWebcamOverlayShape,
+      aspectRatio: settings.videoWebcamOverlayAspectRatio
+    )
+    for change in webcamPlacementChanges.sorted(by: { $0.timestampSeconds < $1.timestampSeconds }) {
+      _ = rustProject.pushWebcamPlacement(
+        timestampMS: Self.milliseconds(fromSeconds: change.timestampSeconds),
+        frame: change.normalizedFrame
+      )
+    }
+
+    _ = rustProject.setKeystrokeOverlay(
+      enabled: keystrokeOverlayEnabledInSession,
+      style: settings.videoKeystrokeOverlayStyle,
+      size: settings.videoKeystrokeOverlaySize
+    )
+    for change in keystrokePlacementChanges.sorted(by: { $0.timestampSeconds < $1.timestampSeconds }) {
+      _ = rustProject.pushKeystrokePlacement(
+        timestampMS: Self.milliseconds(fromSeconds: change.timestampSeconds),
+        frame: change.normalizedFrame
+      )
+    }
+
+    for keyEvent in monitorResult.keyEvents {
+      _ = rustProject.addKeyEvent(
+        timestampMS: Self.milliseconds(fromNanoseconds: keyEvent.timestampNS),
+        token: keyEvent.displayToken
+      )
+    }
+
+    for clickEvent in monitorResult.clickEvents {
+      _ = rustProject.addClickEvent(
+        timestampMS: Self.milliseconds(fromNanoseconds: clickEvent.timestampNS),
+        normalizedX: clickEvent.normalizedX,
+        normalizedY: clickEvent.normalizedY,
+        button: clickEvent.button
+      )
+    }
+
+    return rustProject
+  }
+
+  private static func milliseconds(fromSeconds seconds: Double) -> UInt32 {
+    guard seconds.isFinite, seconds > 0 else {
+      return 0
+    }
+    return UInt32(min(Double(UInt32.max), (seconds * 1000).rounded()))
+  }
+
+  private static func milliseconds(fromNanoseconds nanoseconds: UInt64) -> UInt32 {
+    UInt32(min(UInt64(UInt32.max), nanoseconds / 1_000_000))
   }
 
   private func recordWebcamPlacementChange(_ frame: CGRect) {
@@ -557,20 +605,6 @@ final class VideoCaptureCoordinator {
     let timestamp = max(0, ProcessInfo.processInfo.systemUptime - recordingStartUptime)
     settings.setVideoKeystrokeOverlayNormalizedFrame(frame)
     keystrokePlacementChanges.append(VideoOverlayPlacementChange(timestampSeconds: timestamp, normalizedFrame: frame))
-  }
-
-  private func sanitizedPlacementChanges(_ changes: [VideoOverlayPlacementChange]) -> [VideoOverlayPlacementChange] {
-    var result: [VideoOverlayPlacementChange] = []
-    for change in changes.sorted(by: { $0.timestampSeconds < $1.timestampSeconds }) {
-      let normalized = VideoCaptureOverlayState.normalizedFrame(change.normalizedFrame)
-      if result.last?.normalizedFrame == normalized {
-        continue
-      }
-      result.append(VideoOverlayPlacementChange(timestampSeconds: max(0, change.timestampSeconds), normalizedFrame: normalized))
-    }
-    return result.isEmpty
-      ? [VideoOverlayPlacementChange(timestampSeconds: 0, normalizedFrame: .zero)]
-      : result
   }
 
   private func makeTemporaryRecordingURL() -> URL {
@@ -696,10 +730,14 @@ struct VideoOverlayPlacementChange: Equatable {
 struct PostRecordingProject {
   let inputURL: URL
   let webcamURL: URL?
+  let rustProject: RustVideoProjectSession
   let details: PostRecordingDetails
   let durationSeconds: Double
   let videoSize: CGSize?
-  let overlayConfiguration: VideoExportOverlayConfiguration
+
+  var hasNativeCompositedOverlays: Bool {
+    webcamURL != nil
+  }
 }
 
 struct RecordedKeystrokeEvent {
@@ -717,32 +755,6 @@ struct RecordedMouseClickEvent {
 struct RecordingInputResult {
   let keyEvents: [RecordedKeystrokeEvent]
   let clickEvents: [RecordedMouseClickEvent]
-}
-
-struct VideoExportOverlayConfiguration {
-  let webcamURL: URL?
-  let keyEvents: [RecordedKeystrokeEvent]
-  let clickEvents: [RecordedMouseClickEvent]
-  let webcamOverlayShape: VideoWebcamOverlayShapeOption
-  let webcamOverlaySize: VideoWebcamOverlaySizeOption
-  let webcamOverlayAspectRatio: VideoWebcamOverlayAspectRatioOption
-  let webcamPlacementChanges: [VideoOverlayPlacementChange]
-  let keystrokeOverlayEnabled: Bool
-  let keystrokeOverlayStyle: VideoKeystrokeOverlayStyleOption
-  let keystrokeOverlaySize: VideoKeystrokeOverlaySizeOption
-  let keystrokePlacementChanges: [VideoOverlayPlacementChange]
-  let textOverlays: [VideoTextOverlayClip]
-
-  var hasCompositedOverlays: Bool {
-    webcamURL != nil || keystrokeOverlayEnabled || !textOverlays.isEmpty
-  }
-}
-
-struct VideoTextOverlayClip: Identifiable, Equatable {
-  let id: UUID
-  var text: String
-  var startSeconds: Double
-  var endSeconds: Double
 }
 
 final class RecordingInputMonitor {
@@ -1952,49 +1964,60 @@ private enum PostRecordingProjectExporter {
     let (screenImage, _) = try await unsafeScreenGenerator.image(at: time)
     context.draw(screenImage, in: renderRect)
 
-    if let webcamGenerator {
-      do {
-        nonisolated(unsafe) let unsafeWebcamGenerator = webcamGenerator
-        let (webcamImage, _) = try await unsafeWebcamGenerator.image(at: time)
-        drawWebcamOverlay(
-          image: webcamImage,
+    let renderPlan = project.rustProject.renderPlan(
+      timeSeconds: seconds,
+      renderSize: renderSize,
+      target: .export
+    )
+    var cachedWebcamImage: CGImage?
+
+    for item in renderPlan?.items ?? [] {
+      switch item.kind {
+      case .webcam:
+        guard let webcamGenerator else {
+          continue
+        }
+        if cachedWebcamImage == nil {
+          do {
+            nonisolated(unsafe) let unsafeWebcamGenerator = webcamGenerator
+            let (webcamImage, _) = try await unsafeWebcamGenerator.image(at: time)
+            cachedWebcamImage = webcamImage
+          } catch {
+            // If the webcam file ends before the screen recording, keep the screen frame instead of failing the whole export.
+            continue
+          }
+        }
+        if let cachedWebcamImage {
+          drawWebcamOverlay(
+            image: cachedWebcamImage,
+            context: context,
+            renderSize: renderSize,
+            item: item
+          )
+        }
+      case .keystroke:
+        drawKeystrokeOverlay(
           context: context,
           renderSize: renderSize,
-          seconds: seconds,
-          configuration: project.overlayConfiguration
+          item: item
         )
-      } catch {
-        // If the webcam file ends before the screen recording, keep the screen frame instead of failing the whole export.
       }
     }
-
-    drawKeystrokeOverlay(
-      context: context,
-      renderSize: renderSize,
-      seconds: seconds,
-      configuration: project.overlayConfiguration
-    )
   }
 
   private static func drawWebcamOverlay(
     image: CGImage,
     context: CGContext,
     renderSize: CGSize,
-    seconds: Double,
-    configuration: VideoExportOverlayConfiguration
+    item: RustVideoRenderItem
   ) {
-    let normalized = placementFrame(at: seconds, changes: configuration.webcamPlacementChanges)
-    guard normalized.width > 0, normalized.height > 0 else {
+    let rect = coreGraphicsRect(fromTopLeft: item.rect, renderSize: renderSize)
+    guard rect.width > 0, rect.height > 0 else {
       return
     }
-    let renderRect = CGRect(origin: .zero, size: renderSize)
-    let rect = configuration.webcamOverlayAspectRatio.constrainedFrame(
-      denormalized(normalized, in: renderSize),
-      in: renderRect,
-      minimumSize: CGSize(width: 2, height: 2)
-    )
+    let shape = VideoWebcamOverlayShapeOption(rawValue: Int(item.webcamShapeCode)) ?? .roundedRect
     context.saveGState()
-    switch configuration.webcamOverlayShape {
+    switch shape {
     case .circle:
       context.addEllipse(in: rect)
     case .roundedRect:
@@ -2007,7 +2030,7 @@ private enum PostRecordingProjectExporter {
     context.saveGState()
     context.setStrokeColor(NSColor.white.withAlphaComponent(0.55).cgColor)
     context.setLineWidth(max(1, min(renderSize.width, renderSize.height) * 0.0016))
-    switch configuration.webcamOverlayShape {
+    switch shape {
     case .circle:
       context.strokeEllipse(in: rect.insetBy(dx: 1, dy: 1))
     case .roundedRect:
@@ -2020,38 +2043,29 @@ private enum PostRecordingProjectExporter {
   private static func drawKeystrokeOverlay(
     context: CGContext,
     renderSize: CGSize,
-    seconds: Double,
-    configuration: VideoExportOverlayConfiguration
+    item: RustVideoRenderItem
   ) {
-    guard configuration.keystrokeOverlayEnabled else {
+    let text = item.text.isEmpty ? "⌘K" : item.text
+    var rect = coreGraphicsRect(fromTopLeft: item.rect, renderSize: renderSize).integral
+    guard rect.width > 0, rect.height > 0 else {
       return
     }
-
-    let visibleEvents = configuration.keyEvents
-      .filter { event in
-        let eventSeconds = Double(event.timestampNS) / 1_000_000_000.0
-        return eventSeconds <= seconds && seconds - eventSeconds <= 1.35
-      }
-      .suffix(3)
-
-    let eventText = visibleEvents.map(\.displayToken).joined(separator: "  ")
-    let text = eventText.isEmpty ? "⌘K" : eventText
-    let normalized = placementFrame(at: seconds, changes: configuration.keystrokePlacementChanges)
-    var rect = denormalized(normalized, in: renderSize).integral
     let fallbackLayout = RustCoreBridge.keyOverlayLabelLayoutPortable(renderSize: renderSize, charCount: text.count)
     if rect.width <= 4 || rect.height <= 4, let fallbackLayout {
       rect = CGRect(
         x: (renderSize.width - fallbackLayout.width) * 0.5,
-        y: fallbackLayout.y,
+        y: renderSize.height - fallbackLayout.y - fallbackLayout.height,
         width: fallbackLayout.width,
         height: fallbackLayout.height
       ).integral
     }
 
+    let style = VideoKeystrokeOverlayStyleOption(rawValue: Int(item.keystrokeStyleCode)) ?? .compact
+    let size = VideoKeystrokeOverlaySizeOption(rawValue: Int(item.keystrokeSizeCode)) ?? .medium
     context.saveGState()
     let radius = min(rect.height * 0.5, 22)
     let backgroundPath = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
-    if configuration.keystrokeOverlayStyle == .glass {
+    if style == .glass {
       context.saveGState()
       context.addPath(backgroundPath)
       context.clip()
@@ -2079,13 +2093,13 @@ private enum PostRecordingProjectExporter {
       context.fillPath()
     }
 
-    context.setStrokeColor(NSColor.white.withAlphaComponent(configuration.keystrokeOverlayStyle == .glass ? 0.42 : 0.16).cgColor)
+    context.setStrokeColor(NSColor.white.withAlphaComponent(style == .glass ? 0.42 : 0.16).cgColor)
     context.setLineWidth(1)
     context.addPath(CGPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), cornerWidth: radius, cornerHeight: radius, transform: nil))
     context.strokePath()
 
     let fontScale: CGFloat
-    switch configuration.keystrokeOverlaySize {
+    switch size {
     case .small:
       fontScale = 0.30
     case .medium:
@@ -2113,23 +2127,12 @@ private enum PostRecordingProjectExporter {
     context.restoreGState()
   }
 
-  private static func placementFrame(at seconds: Double, changes: [VideoOverlayPlacementChange]) -> CGRect {
-    guard !changes.isEmpty else {
-      return .zero
-    }
-    var frame = changes[0].normalizedFrame
-    for change in changes where change.timestampSeconds <= seconds {
-      frame = change.normalizedFrame
-    }
-    return VideoCaptureOverlayState.normalizedFrame(frame)
-  }
-
-  private static func denormalized(_ normalized: CGRect, in renderSize: CGSize) -> CGRect {
+  private static func coreGraphicsRect(fromTopLeft rect: CGRect, renderSize: CGSize) -> CGRect {
     CGRect(
-      x: normalized.minX * renderSize.width,
-      y: normalized.minY * renderSize.height,
-      width: normalized.width * renderSize.width,
-      height: normalized.height * renderSize.height
+      x: rect.minX,
+      y: renderSize.height - rect.maxY,
+      width: rect.width,
+      height: rect.height
     )
   }
 

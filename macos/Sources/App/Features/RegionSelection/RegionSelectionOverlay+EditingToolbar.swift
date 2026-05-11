@@ -197,15 +197,21 @@ extension RegionSelectionView {
     videoRecordingStartPending = true
     refreshToolbar()
     settings.setDefaultCaptureType(.video)
-    videoWebcamPlacementView.stopWebcamPreview()
     onStartVideoRequested?(selection, currentVideoCaptureOverlayState()) { [weak self] started in
       guard let self else {
         return
       }
       self.videoRecordingStartPending = false
       self.videoRecordingActive = started
+      if !started {
+        self.layoutVideoOverlayPlacementViews(selection: self.committedSelectionRect?.standardized)
+      }
       self.refreshToolbar()
     }
+  }
+
+  func stopVideoWebcamPreviewForRecordingStart() {
+    videoWebcamPlacementView.stopWebcamPreview()
   }
 
   func currentVideoCaptureOverlayState() -> VideoCaptureOverlayState {

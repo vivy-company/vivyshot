@@ -239,13 +239,19 @@ impl From<DocumentPathStyle> for vs_path_style {
 
 impl From<vs_point_i32> for CorePoint {
     fn from(value: vs_point_i32) -> Self {
-        Self { x: value.x, y: value.y }
+        Self {
+            x: value.x,
+            y: value.y,
+        }
     }
 }
 
 impl From<CorePoint> for vs_point_i32 {
     fn from(value: CorePoint) -> Self {
-        Self { x: value.x, y: value.y }
+        Self {
+            x: value.x,
+            y: value.y,
+        }
     }
 }
 
@@ -844,30 +850,71 @@ fn draw_command(
     clip: Option<RectI>,
 ) {
     match cmd {
-        VsCommand::Rect(rect) => {
-            draw_rect(buf, image_width, image_height, stride, (*rect).into(), false, clip)
+        VsCommand::Rect(rect) => draw_rect(
+            buf,
+            image_width,
+            image_height,
+            stride,
+            (*rect).into(),
+            false,
+            clip,
+        ),
+        VsCommand::FilledRect(rect) => draw_rect(
+            buf,
+            image_width,
+            image_height,
+            stride,
+            (*rect).into(),
+            true,
+            clip,
+        ),
+        VsCommand::Ellipse(cmd) => draw_ellipse(
+            buf,
+            image_width,
+            image_height,
+            stride,
+            (*cmd).into(),
+            false,
+            clip,
+        ),
+        VsCommand::FilledEllipse(cmd) => draw_ellipse(
+            buf,
+            image_width,
+            image_height,
+            stride,
+            (*cmd).into(),
+            true,
+            clip,
+        ),
+        VsCommand::Line(line) => {
+            draw_line(buf, image_width, image_height, stride, (*line).into(), clip)
         }
-        VsCommand::FilledRect(rect) => {
-            draw_rect(buf, image_width, image_height, stride, (*rect).into(), true, clip)
-        }
-        VsCommand::Ellipse(cmd) => {
-            draw_ellipse(buf, image_width, image_height, stride, (*cmd).into(), false, clip)
-        }
-        VsCommand::FilledEllipse(cmd) => {
-            draw_ellipse(buf, image_width, image_height, stride, (*cmd).into(), true, clip)
-        }
-        VsCommand::Line(line) => draw_line(buf, image_width, image_height, stride, (*line).into(), clip),
-        VsCommand::Arrow(arrow) => draw_arrow(buf, image_width, image_height, stride, (*arrow).into(), clip),
+        VsCommand::Arrow(arrow) => draw_arrow(
+            buf,
+            image_width,
+            image_height,
+            stride,
+            (*arrow).into(),
+            clip,
+        ),
         VsCommand::Path { points, style } => {
             draw_path(buf, image_width, image_height, stride, points, *style, clip)
         }
-        VsCommand::Text { text, cmd } => {
-            draw_text(buf, image_width, image_height, stride, text, (*cmd).into(), clip)
-        }
+        VsCommand::Text { text, cmd } => draw_text(
+            buf,
+            image_width,
+            image_height,
+            stride,
+            text,
+            (*cmd).into(),
+            clip,
+        ),
         VsCommand::Pixelate(cmd) => {
             draw_pixelate(buf, image_width, image_height, stride, (*cmd).into(), clip)
         }
-        VsCommand::Blur(cmd) => draw_blur(buf, image_width, image_height, stride, (*cmd).into(), clip),
+        VsCommand::Blur(cmd) => {
+            draw_blur(buf, image_width, image_height, stride, (*cmd).into(), clip)
+        }
     }
 }
 

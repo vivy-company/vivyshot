@@ -14,7 +14,6 @@ use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::{ColorType, ImageEncoder};
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::ffi::c_void;
 use std::fs;
@@ -39,8 +38,8 @@ use vivyshot_domain::{
     BgraImageOwned as DomainBgraImageOwned, BgraImageView as DomainBgraImageView,
     CaptureStatisticsEvent as DomainCaptureStatisticsEvent,
     CaptureStatisticsEventType as DomainCaptureStatisticsEventType,
-    CaptureStatisticsSession as DomainCaptureStatisticsSession,
-    CaptureStatisticsSummary, DailyCaptureStats, StatsDayKey as DomainStatsDayKey,
+    CaptureStatisticsSession as DomainCaptureStatisticsSession, CaptureStatisticsSummary,
+    DailyCaptureStats, StatsDayKey as DomainStatsDayKey,
     STITCH_SIDE_BOTTOM as DOMAIN_STITCH_SIDE_BOTTOM, STITCH_SIDE_TOP as DOMAIN_STITCH_SIDE_TOP,
 };
 
@@ -54,6 +53,7 @@ use ffi::domain::{
     to_domain_f32_rect, to_domain_gif_plan, to_domain_stitch_autoscroll_state,
     to_domain_trim_handle, to_domain_video_export_plan, to_ffi_gif_plan, to_ffi_i32_rect,
     to_ffi_rgba8, to_ffi_stitch_autoscroll_state, to_ffi_video_export_decision,
+    to_ffi_video_export_plan,
 };
 use ffi::encode as ffi_encode;
 use ffi::geometry as ffi_geometry;
@@ -64,12 +64,13 @@ mod abi;
 mod common;
 pub(crate) use common::{register_handle, unregister_handle, validate_handle};
 mod document;
-mod video;
 mod stats;
 mod stitch;
+mod video;
+mod video_project;
 pub(crate) use stitch::{bgra_view_slice, zero_bgra_owned_image};
-mod geometry;
 mod encode;
+mod geometry;
 mod timeline;
 
 #[cfg(test)]
@@ -84,11 +85,12 @@ pub use stats::*;
 pub use stitch::*;
 pub use timeline::*;
 pub use video::*;
+pub use video_project::*;
 
 static VERSION: &[u8] = b"0.1.0\0";
 static SYSTEM_FONTS: OnceLock<Vec<fontdue::Font>> = OnceLock::new();
 static DOCUMENT_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
-static VIDEO_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
+static VIDEO_PROJECT_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 static STITCH_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 static TIMELINE_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 static STATS_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
@@ -97,7 +99,7 @@ static STATS_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 pub(crate) fn live_handle_counts() -> (usize, usize, usize, usize, usize) {
     (
         common::handle_count(&DOCUMENT_HANDLES),
-        common::handle_count(&VIDEO_SESSION_HANDLES),
+        common::handle_count(&VIDEO_PROJECT_HANDLES),
         common::handle_count(&STITCH_SESSION_HANDLES),
         common::handle_count(&TIMELINE_HANDLES),
         common::handle_count(&STATS_SESSION_HANDLES),
@@ -143,9 +145,8 @@ pub const VS_STATS_EVENT_SCREENSHOT_SESSION_COMPLETED: u8 = 1;
 pub const VS_STATS_EVENT_RECORDING_COMPLETED: u8 = 2;
 
 pub const VS_CORE_ABI_VERSION_MAJOR: u32 = 1;
-pub const VS_CORE_ABI_VERSION_MINOR: u32 = 1;
+pub const VS_CORE_ABI_VERSION_MINOR: u32 = 2;
 pub const VS_CORE_ABI_VERSION_PATCH: u32 = 0;
-const VS_VIDEO_SESSION_SNAPSHOT_VERSION: u32 = 1;
 pub const VS_VIDEO_TEXT_MIN_VISIBLE_SECONDS: f64 = 0.05;
 pub const VS_VIDEO_TEXT_MIN_FADE_DURATION_SECONDS: f64 = 0.10;
 pub const VS_VIDEO_KEY_FADE_DURATION_SECONDS: f32 = 0.95;

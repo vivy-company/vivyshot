@@ -9,9 +9,8 @@ use vivyshot_core::{
     vs_timeline_get_visible_clips_at, vs_timeline_move_clip, vs_timeline_redo,
     vs_timeline_remove_clip, vs_timeline_remove_track, vs_timeline_reorder_track,
     vs_timeline_resize_clip, vs_timeline_set_clip_text, vs_timeline_set_clip_text_style,
-    vs_timeline_split_clip,
-    vs_timeline_set_clip_zoom_scale, vs_timeline_set_track_visible, vs_timeline_undo,
-    vs_video_export_context, VS_STATUS_INVALID_ARGUMENT,
+    vs_timeline_set_clip_zoom_scale, vs_timeline_set_track_visible, vs_timeline_split_clip,
+    vs_timeline_undo, vs_video_export_context, VS_STATUS_INVALID_ARGUMENT,
 };
 
 #[test]
@@ -243,7 +242,13 @@ fn timeline_split_clip_produces_two_clips_and_undoes() {
         let mut clips = [zero_clip_info(); 4];
         let mut clip_written = 0u32;
         assert_eq!(
-            vs_timeline_get_clips(tl, 0, clips.as_mut_ptr(), clips.len() as u32, &mut clip_written),
+            vs_timeline_get_clips(
+                tl,
+                0,
+                clips.as_mut_ptr(),
+                clips.len() as u32,
+                &mut clip_written
+            ),
             0
         );
         assert_eq!(clip_written, 2);
@@ -260,7 +265,13 @@ fn timeline_split_clip_produces_two_clips_and_undoes() {
         assert_eq!(vs_timeline_undo(tl), 0);
         clip_written = 0;
         assert_eq!(
-            vs_timeline_get_clips(tl, 0, clips.as_mut_ptr(), clips.len() as u32, &mut clip_written),
+            vs_timeline_get_clips(
+                tl,
+                0,
+                clips.as_mut_ptr(),
+                clips.len() as u32,
+                &mut clip_written
+            ),
             0
         );
         assert_eq!(clip_written, 1);
@@ -272,7 +283,13 @@ fn timeline_split_clip_produces_two_clips_and_undoes() {
         assert_eq!(vs_timeline_redo(tl), 0);
         clip_written = 0;
         assert_eq!(
-            vs_timeline_get_clips(tl, 0, clips.as_mut_ptr(), clips.len() as u32, &mut clip_written),
+            vs_timeline_get_clips(
+                tl,
+                0,
+                clips.as_mut_ptr(),
+                clips.len() as u32,
+                &mut clip_written
+            ),
             0
         );
         assert_eq!(clip_written, 2);

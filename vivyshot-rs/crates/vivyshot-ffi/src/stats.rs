@@ -12,7 +12,9 @@ unsafe fn stats_session_from_handle_mut<'a>(
     Ok(unsafe { &mut *handle.cast::<vs_stats_session>() })
 }
 
-unsafe fn stats_session_from_handle<'a>(handle: *const c_void) -> Result<&'a vs_stats_session, i32> {
+unsafe fn stats_session_from_handle<'a>(
+    handle: *const c_void,
+) -> Result<&'a vs_stats_session, i32> {
     validate_handle(&STATS_SESSION_HANDLES, handle)?;
     Ok(unsafe { &*handle.cast::<vs_stats_session>() })
 }
@@ -226,8 +228,8 @@ fn write_daily_buckets(
 }
 
 fn to_domain_stats_event(event: vs_stats_event) -> Result<DomainCaptureStatisticsEvent, i32> {
-    let event_type =
-        DomainCaptureStatisticsEventType::try_from(event.event_type).map_err(|_| VS_STATUS_INVALID_ARGUMENT)?;
+    let event_type = DomainCaptureStatisticsEventType::try_from(event.event_type)
+        .map_err(|_| VS_STATUS_INVALID_ARGUMENT)?;
     let event_key = parse_utf8_field(event.event_key_ptr, event.event_key_len)?;
     let capture_id = parse_utf8_field(event.capture_id_ptr, event.capture_id_len)?;
     let duration_ms = if event.duration_ms >= 0 {

@@ -1,5 +1,3 @@
-use super::*;
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct vs_rect_command {
@@ -126,34 +124,6 @@ pub struct vs_annotation_info {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct vs_video_session_config {
-    pub frame_rate: u32,
-    pub capture_system_audio: bool,
-    pub capture_microphone: bool,
-    pub show_webcam: bool,
-    pub highlight_mouse_clicks: bool,
-    pub highlight_keystrokes: bool,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct vs_video_key_event {
-    pub timestamp_ns: u64,
-    pub token_ptr: *const u8,
-    pub token_len: usize,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct vs_video_click_event {
-    pub timestamp_ns: u64,
-    pub normalized_x: f32,
-    pub normalized_y: f32,
-    pub button: u32,
-}
-
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct vs_video_export_plan {
     pub trim_start_ms: u32,
@@ -222,6 +192,68 @@ pub struct vs_video_export_context {
     pub audio_track_visible: bool,
     pub webcam_track_visible: bool,
     pub text_overlay_count: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_project_recording_info {
+    pub duration_ms: u32,
+    pub width: u32,
+    pub height: u32,
+    pub frame_rate: u32,
+    pub has_audio: bool,
+    pub has_webcam_asset: bool,
+    pub has_microphone_audio: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_project_rect {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_project_render_plan_query {
+    pub time_ms: u32,
+    pub render_width: u32,
+    pub render_height: u32,
+    pub target: u8,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_project_render_item {
+    pub kind: u8,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub opacity: f32,
+    pub style_flags: u32,
+    pub text_offset: u32,
+    pub text_len: u32,
+    pub asset_id: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_project_export_options {
+    pub target: u8,
+    pub codec: u8,
+    pub frame_rate: u8,
+    pub quality: u8,
+    pub bitrate: u8,
+    pub includes_baked_transition: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_video_project_pro_requirement_result {
+    pub reasons_mask: u32,
 }
 
 #[repr(C)]

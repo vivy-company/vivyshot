@@ -48,7 +48,7 @@
 		9C4C7D814F877934A4E717CB /* RustStatsSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F06808DFC2A9B2168A2EEEC /* RustStatsSession.swift */; };
 		A434ADF704A473DD005EFB3C /* CaptureStatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7697C5A2052E74A30F23621F /* CaptureStatisticsView.swift */; };
 		A923E7D83C4835F94A398D18 /* AnnotationCanvasView+Input.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69CF860107CA75A6D80F692 /* AnnotationCanvasView+Input.swift */; };
-		AD78622235775470AE526D12 /* RustVideoSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED06405596D45D6EDA73C8E9 /* RustVideoSession.swift */; };
+		AD78622235775470AE526D12 /* RustVideoProjectSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED06405596D45D6EDA73C8E9 /* RustVideoProjectSession.swift */; };
 		B28514244922F18049B63FBC /* RegionSelectionOverlay+EditingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E4EA737BCAD29F3EE51FFA /* RegionSelectionOverlay+EditingToolbar.swift */; };
 		BC23BDFB3C7EB7B99002B696 /* RegionSelectionOverlay+EditingTargetPicking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 641321862D64BC5E2FF0A90C /* RegionSelectionOverlay+EditingTargetPicking.swift */; };
 		BDF3574C70F231FF5D8EB4F7 /* CaptureStatisticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 680A0C8DE033BA248B369772 /* CaptureStatisticsStore.swift */; };
@@ -149,7 +149,7 @@
 		E9691E54D1A8568CA2DBD761 /* UITestHarnessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHarnessView.swift; sourceTree = "<group>"; };
 		EA17DB09C430A0ED8B3F7FDB /* VivyShotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VivyShotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ECAAB5FA3ACCCC7F511ED16F /* EditorTextStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTextStyle.swift; sourceTree = "<group>"; };
-		ED06405596D45D6EDA73C8E9 /* RustVideoSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustVideoSession.swift; sourceTree = "<group>"; };
+		ED06405596D45D6EDA73C8E9 /* RustVideoProjectSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustVideoProjectSession.swift; sourceTree = "<group>"; };
 		FAB28816CC8084D1B183EAB1 /* CaptureCoordinatorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinatorProtocol.swift; sourceTree = "<group>"; };
 		FE1B3110B1F8C2C38DBFB271 /* StatisticsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsPresentation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -337,7 +337,7 @@
 				9F06808DFC2A9B2168A2EEEC /* RustStatsSession.swift */,
 				C038AE6E32EFCE1AADEDD4BB /* RustStitchSession.swift */,
 				816DD48AE89ABD30828BF4E0 /* RustTimelineSession.swift */,
-				ED06405596D45D6EDA73C8E9 /* RustVideoSession.swift */,
+				ED06405596D45D6EDA73C8E9 /* RustVideoProjectSession.swift */,
 			);
 			path = RustCore;
 			sourceTree = "<group>";
@@ -551,7 +551,7 @@
 				9C4C7D814F877934A4E717CB /* RustStatsSession.swift in Sources */,
 				C635AB4660A298B2F6073092 /* RustStitchSession.swift in Sources */,
 				3DC7D7055455F7D3EFA549DF /* RustTimelineSession.swift in Sources */,
-				AD78622235775470AE526D12 /* RustVideoSession.swift in Sources */,
+				AD78622235775470AE526D12 /* RustVideoProjectSession.swift in Sources */,
 				8704CA1314A3BED7679C8A27 /* SettingsWindowController.swift in Sources */,
 				2BD91F13A3D88C9D11E37267 /* StatisticsPresentation.swift in Sources */,
 				CD16DB22FB35D744AED9F9ED /* StatusItemController.swift in Sources */,

@@ -2,18 +2,17 @@ use crate::{
     vs_f32_point, vs_f32_rect, vs_gif_export_plan, vs_i32_rect, vs_rgba8,
     vs_stitch_autoscroll_state, vs_video_export_context, vs_video_export_decision,
     vs_video_export_plan, vs_video_post_recording_composition_plan, VS_RESIZE_CORNER_BOTTOM,
-    VS_RESIZE_CORNER_BOTTOM_LEFT,
-    VS_RESIZE_CORNER_BOTTOM_RIGHT, VS_RESIZE_CORNER_LEFT, VS_RESIZE_CORNER_RIGHT,
-    VS_RESIZE_CORNER_TOP, VS_RESIZE_CORNER_TOP_LEFT, VS_RESIZE_CORNER_TOP_RIGHT,
-    VS_VIDEO_EXPORT_CONTAINER_MOV, VS_VIDEO_EXPORT_CONTAINER_MP4,
-    VS_VIDEO_EXPORT_PRESET_1280X720, VS_VIDEO_EXPORT_PRESET_1920X1080,
-    VS_VIDEO_EXPORT_PRESET_HEVC_1920X1080, VS_VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY,
-    VS_VIDEO_EXPORT_PRESET_HIGHEST_QUALITY, VS_VIDEO_EXPORT_PRESET_MEDIUM_QUALITY,
-    VS_TRIM_HANDLE_END, VS_TRIM_HANDLE_START, VS_TRIM_HANDLE_UNKNOWN,
+    VS_RESIZE_CORNER_BOTTOM_LEFT, VS_RESIZE_CORNER_BOTTOM_RIGHT, VS_RESIZE_CORNER_LEFT,
+    VS_RESIZE_CORNER_RIGHT, VS_RESIZE_CORNER_TOP, VS_RESIZE_CORNER_TOP_LEFT,
+    VS_RESIZE_CORNER_TOP_RIGHT, VS_TRIM_HANDLE_END, VS_TRIM_HANDLE_START, VS_TRIM_HANDLE_UNKNOWN,
+    VS_VIDEO_EXPORT_CONTAINER_MOV, VS_VIDEO_EXPORT_CONTAINER_MP4, VS_VIDEO_EXPORT_PRESET_1280X720,
+    VS_VIDEO_EXPORT_PRESET_1920X1080, VS_VIDEO_EXPORT_PRESET_HEVC_1920X1080,
+    VS_VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY, VS_VIDEO_EXPORT_PRESET_HIGHEST_QUALITY,
+    VS_VIDEO_EXPORT_PRESET_MEDIUM_QUALITY,
 };
 use vivyshot_domain::{
-    AffineTransform as DomainAffineTransform, F32Point as DomainF32Point,
-    F32Rect as DomainF32Rect, GifExportPlan as DomainGifExportPlan, I32Rect as DomainI32Rect,
+    AffineTransform as DomainAffineTransform, F32Point as DomainF32Point, F32Rect as DomainF32Rect,
+    GifExportPlan as DomainGifExportPlan, I32Rect as DomainI32Rect,
     ResizeCorner as DomainResizeCorner, Rgba8 as DomainRgba8,
     StitchAutoscrollState as DomainStitchAutoscrollState, TrimHandle as DomainTrimHandle,
     VideoExportBitratePreset as DomainVideoExportBitratePreset,
@@ -203,9 +202,7 @@ pub(crate) fn to_ffi_video_export_preset(preset: DomainVideoExportPreset) -> u8 
         DomainVideoExportPreset::Resolution1280x720 => VS_VIDEO_EXPORT_PRESET_1280X720,
         DomainVideoExportPreset::MediumQuality => VS_VIDEO_EXPORT_PRESET_MEDIUM_QUALITY,
         DomainVideoExportPreset::HevcResolution1920x1080 => VS_VIDEO_EXPORT_PRESET_HEVC_1920X1080,
-        DomainVideoExportPreset::HevcHighestQuality => {
-            VS_VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY
-        }
+        DomainVideoExportPreset::HevcHighestQuality => VS_VIDEO_EXPORT_PRESET_HEVC_HIGHEST_QUALITY,
     }
 }
 
@@ -226,7 +223,9 @@ pub(crate) fn to_ffi_post_recording_video_composition_plan(
     }
 }
 
-pub(crate) fn to_domain_affine_transform(transform: crate::vs_affine_transform) -> DomainAffineTransform {
+pub(crate) fn to_domain_affine_transform(
+    transform: crate::vs_affine_transform,
+) -> DomainAffineTransform {
     DomainAffineTransform {
         a: transform.a,
         b: transform.b,

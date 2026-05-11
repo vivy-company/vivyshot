@@ -16,8 +16,9 @@ unsafe fn stitch_session_from_handle<'a>(
     Ok(unsafe { &*session.cast::<vs_stitch_session>() })
 }
 
-
-pub(crate) unsafe fn bgra_view_slice<'a>(view: vs_bgra_image_view) -> Option<(&'a [u8], usize, usize, usize)> {
+pub(crate) unsafe fn bgra_view_slice<'a>(
+    view: vs_bgra_image_view,
+) -> Option<(&'a [u8], usize, usize, usize)> {
     if view.ptr.is_null() || view.width == 0 || view.height == 0 {
         return None;
     }
@@ -359,7 +360,6 @@ pub unsafe extern "C" fn vs_stitch_autoscroll_update(
     }
     0
 }
-
 
 fn stitch_session_push_internal(
     session_ref: &mut vs_stitch_session,

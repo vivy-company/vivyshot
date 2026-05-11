@@ -25,15 +25,6 @@ struct RustAnnotationInfo {
   }
 }
 
-struct RustVideoSessionConfig {
-  let frameRate: Int
-  let captureSystemAudio: Bool
-  let captureMicrophone: Bool
-  let showWebcam: Bool
-  let highlightMouseClicks: Bool
-  let highlightKeystrokes: Bool
-}
-
 struct RustVideoExportPlan {
   let trimStartMS: Int
   let trimEndMS: Int
@@ -66,6 +57,55 @@ struct RustVideoOverlayClipWindow {
   let startSeconds: Double
   let endSeconds: Double
   let fadeDurationSeconds: Double
+}
+
+struct RustVideoProjectRecordingInfo {
+  let durationMS: UInt32
+  let width: UInt32
+  let height: UInt32
+  let frameRate: UInt32
+  let hasAudio: Bool
+  let hasWebcamAsset: Bool
+  let hasMicrophoneAudio: Bool
+}
+
+enum RustVideoRenderTarget: UInt8 {
+  case preview = 0
+  case export = 1
+}
+
+enum RustVideoRenderItemKind: UInt8 {
+  case webcam = 1
+  case keystroke = 2
+}
+
+struct RustVideoRenderItem {
+  let kind: RustVideoRenderItemKind
+  let rect: CGRect
+  let opacity: CGFloat
+  let styleFlags: UInt32
+  let text: String
+  let assetID: UInt32
+
+  var webcamShapeCode: UInt8 {
+    UInt8(styleFlags & 0xFF)
+  }
+
+  var keystrokeStyleCode: UInt8 {
+    UInt8(styleFlags & 0xFF)
+  }
+
+  var keystrokeSizeCode: UInt8 {
+    UInt8((styleFlags >> 8) & 0xFF)
+  }
+}
+
+struct RustVideoRenderPlan {
+  let items: [RustVideoRenderItem]
+}
+
+struct RustVideoProjectProRequirement {
+  let reasonsMask: UInt32
 }
 
 struct RustVideoExportContext {

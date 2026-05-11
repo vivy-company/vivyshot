@@ -188,37 +188,9 @@ struct ProExportRequirement: Equatable {
     options: PostRecordingExportOptions?,
     target: PostRecordingExportTarget
   ) -> ProExportRequirement {
-    var reasons: [ProExportReason] = []
-
-    if project.overlayConfiguration.webcamURL != nil {
-      reasons.append(.webcamOverlay)
-    }
-    if project.overlayConfiguration.keystrokeOverlayEnabled {
-      reasons.append(.keystrokeOverlay)
-    }
-    if target == .video, project.details.microphoneEnabled {
-      reasons.append(.microphoneAudio)
-    }
-    if target == .gif {
-      reasons.append(.gifExport)
-    }
-
-    if target == .video, let options {
-      if options.codec == .hevc {
-        reasons.append(.hevcExport)
-      }
-      if options.frameRate != .fps30 {
-        reasons.append(.sixtyFPS)
-      }
-      if options.quality != .standard {
-        reasons.append(.highQuality)
-      }
-      if options.bitrate != .standard {
-        reasons.append(.highBitrate)
-      }
-    }
-
-    return ProExportRequirement(reasons: reasons)
+    ProExportRequirement(
+      reasons: project.rustProject.proRequirement(target: target, options: options) ?? []
+    )
   }
 }
 
@@ -750,11 +722,9 @@ private struct PostRecordingActionView: View {
           PostRecordingPlayerPreview(url: project.inputURL, playbackState: playbackState)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-          if project.overlayConfiguration.hasCompositedOverlays {
-            PostRecordingOverlayPreviewLayer(project: project, playbackState: playbackState)
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-              .allowsHitTesting(false)
-          }
+          PostRecordingOverlayPreviewLayer(project: project, playbackState: playbackState)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
         }
       } else if let thumbnail {
         Image(nsImage: thumbnail)
@@ -784,30 +754,29 @@ private struct PostRecordingOverlayPreviewLayer: View {
   var body: some View {
     GeometryReader { proxy in
       let videoRect = aspectFitVideoRect(in: proxy.size)
+      let renderPlan = project.rustProject.renderPlan(
+        timeSeconds: playbackState.currentSeconds,
+        renderSize: videoRect.size,
+        target: .preview
+      )
 
       ZStack(alignment: .topLeading) {
-        if let webcamURL = project.overlayConfiguration.webcamURL,
-           let webcamRect = webcamOverlayRect(
-            for: placementFrame(
-              at: playbackState.currentSeconds,
-              changes: project.overlayConfiguration.webcamPlacementChanges
-            ),
-            videoRect: videoRect
-           )
-        {
-          webcamOverlay(url: webcamURL, rect: webcamRect)
-        }
-
-        if let keyOverlay = keystrokeOverlay(at: playbackState.currentSeconds),
-           let keyRect = overlayRect(for: keyOverlay.frame, videoRect: videoRect)
-        {
-          PostRecordingKeystrokeOverlayPreview(
-            text: keyOverlay.text,
-            style: project.overlayConfiguration.keystrokeOverlayStyle,
-            size: project.overlayConfiguration.keystrokeOverlaySize
-          )
-          .frame(width: keyRect.width, height: keyRect.height)
-          .position(x: keyRect.midX, y: keyRect.midY)
+        ForEach(Array((renderPlan?.items ?? []).enumerated()), id: \.offset) { _, item in
+          let itemRect = viewRect(for: item.rect, videoRect: videoRect)
+          switch item.kind {
+          case .webcam:
+            if let webcamURL = project.webcamURL {
+              webcamOverlay(url: webcamURL, rect: itemRect, shape: webcamShape(for: item))
+            }
+          case .keystroke:
+            PostRecordingKeystrokeOverlayPreview(
+              text: item.text.isEmpty ? "⌘K" : item.text,
+              style: keystrokeStyle(for: item),
+              size: keystrokeSize(for: item)
+            )
+            .frame(width: itemRect.width, height: itemRect.height)
+            .position(x: itemRect.midX, y: itemRect.midY)
+          }
         }
       }
       .frame(width: proxy.size.width, height: proxy.size.height)
@@ -830,63 +799,17 @@ private struct PostRecordingOverlayPreviewLayer: View {
     )
   }
 
-  private func overlayRect(for normalized: CGRect, videoRect: CGRect) -> CGRect? {
-    let frame = VideoCaptureOverlayState.normalizedFrame(normalized)
-    guard frame.width > 0, frame.height > 0, videoRect.width > 0, videoRect.height > 0 else {
-      return nil
-    }
-
-    return CGRect(
-      x: videoRect.minX + frame.minX * videoRect.width,
-      y: videoRect.minY + (1 - frame.maxY) * videoRect.height,
-      width: frame.width * videoRect.width,
-      height: frame.height * videoRect.height
+  private func viewRect(for renderRect: CGRect, videoRect: CGRect) -> CGRect {
+    CGRect(
+      x: videoRect.minX + renderRect.minX,
+      y: videoRect.minY + renderRect.minY,
+      width: renderRect.width,
+      height: renderRect.height
     ).integral
   }
 
-  private func webcamOverlayRect(for normalized: CGRect, videoRect: CGRect) -> CGRect? {
-    guard let rect = overlayRect(for: normalized, videoRect: videoRect) else {
-      return nil
-    }
-    return project.overlayConfiguration.webcamOverlayAspectRatio.constrainedFrame(
-      rect,
-      in: videoRect,
-      minimumSize: CGSize(width: 2, height: 2)
-    )
-  }
-
-  private func placementFrame(at seconds: Double, changes: [VideoOverlayPlacementChange]) -> CGRect {
-    guard !changes.isEmpty else {
-      return .zero
-    }
-    var frame = changes[0].normalizedFrame
-    for change in changes where change.timestampSeconds <= seconds {
-      frame = change.normalizedFrame
-    }
-    return frame
-  }
-
-  private func keystrokeOverlay(at seconds: Double) -> (text: String, frame: CGRect)? {
-    guard project.overlayConfiguration.keystrokeOverlayEnabled else {
-      return nil
-    }
-
-    let visibleEvents = project.overlayConfiguration.keyEvents
-      .filter { event in
-        let eventSeconds = Double(event.timestampNS) / 1_000_000_000.0
-        return eventSeconds <= seconds && seconds - eventSeconds <= 1.35
-      }
-      .suffix(3)
-    let eventText = visibleEvents.map(\.displayToken).joined(separator: "  ")
-    let text = eventText.isEmpty ? "⌘K" : eventText
-    return (
-      text,
-      placementFrame(at: seconds, changes: project.overlayConfiguration.keystrokePlacementChanges)
-    )
-  }
-
   @ViewBuilder
-  private func webcamOverlay(url: URL, rect: CGRect) -> some View {
+  private func webcamOverlay(url: URL, rect: CGRect, shape: VideoWebcamOverlayShapeOption) -> some View {
     let preview = PostRecordingWebcamOverlayPreview(
       url: url,
       seconds: playbackState.currentSeconds,
@@ -894,7 +817,7 @@ private struct PostRecordingOverlayPreviewLayer: View {
     )
     .frame(width: rect.width, height: rect.height)
 
-    switch project.overlayConfiguration.webcamOverlayShape {
+    switch shape {
     case .circle:
       preview
         .clipShape(Circle())
@@ -909,6 +832,21 @@ private struct PostRecordingOverlayPreviewLayer: View {
         )
         .position(x: rect.midX, y: rect.midY)
     }
+  }
+
+  private func webcamShape(for item: RustVideoRenderItem) -> VideoWebcamOverlayShapeOption {
+    VideoWebcamOverlayShapeOption(rawValue: Int(item.webcamShapeCode))
+      ?? .roundedRect
+  }
+
+  private func keystrokeStyle(for item: RustVideoRenderItem) -> VideoKeystrokeOverlayStyleOption {
+    VideoKeystrokeOverlayStyleOption(rawValue: Int(item.keystrokeStyleCode))
+      ?? .compact
+  }
+
+  private func keystrokeSize(for item: RustVideoRenderItem) -> VideoKeystrokeOverlaySizeOption {
+    VideoKeystrokeOverlaySizeOption(rawValue: Int(item.keystrokeSizeCode))
+      ?? .medium
   }
 }
 

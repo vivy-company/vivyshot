@@ -67,8 +67,20 @@ pub use video::{
     click_event_is_duplicate, compute_video_export_plan, derive_key_overlay_label_layout,
     derive_overlay_clip_window, derive_text_overlay_label_layout, derive_video_export_context,
     derive_video_export_decision, estimated_video_file_length_limit, normalize_click_point,
-    overlay_fade_duration_seconds, post_recording_video_composition_plan,
-    preferred_video_export_container,
+    normalize_video_rect, overlay_fade_duration_seconds, post_recording_video_composition_plan,
+    preferred_video_export_container, VideoClickOverlayEvent, VideoKeyOverlayEvent,
+    VideoKeystrokeOverlay, VideoNormalizedRect, VideoOverlayPlacementKeyframe, VideoOverlaySet,
+    VideoProject, VideoProjectExportOptions, VideoProjectProRequirement, VideoRenderItem,
+    VideoRenderPlan, VideoRenderPlanQuery, VideoSourceMetadata, VideoWebcamOverlay,
+    VIDEO_KEYSTROKE_SIZE_LARGE, VIDEO_KEYSTROKE_SIZE_MEDIUM, VIDEO_KEYSTROKE_SIZE_SMALL,
+    VIDEO_KEYSTROKE_STYLE_COMPACT, VIDEO_KEYSTROKE_STYLE_GLASS, VIDEO_PROJECT_SNAPSHOT_VERSION,
+    VIDEO_PRO_REASON_BAKED_TRANSITION, VIDEO_PRO_REASON_GIF_EXPORT, VIDEO_PRO_REASON_HEVC_EXPORT,
+    VIDEO_PRO_REASON_HIGH_BITRATE, VIDEO_PRO_REASON_HIGH_QUALITY,
+    VIDEO_PRO_REASON_KEYSTROKE_OVERLAY, VIDEO_PRO_REASON_MICROPHONE_AUDIO,
+    VIDEO_PRO_REASON_SIXTY_FPS, VIDEO_PRO_REASON_WEBCAM_OVERLAY, VIDEO_RENDER_ITEM_KEYSTROKE,
+    VIDEO_RENDER_ITEM_WEBCAM, VIDEO_RENDER_TARGET_EXPORT, VIDEO_RENDER_TARGET_PREVIEW,
+    VIDEO_WEBCAM_ASPECT_FOUR_THREE, VIDEO_WEBCAM_ASPECT_SIXTEEN_NINE, VIDEO_WEBCAM_ASPECT_SQUARE,
+    VIDEO_WEBCAM_SHAPE_CIRCLE, VIDEO_WEBCAM_SHAPE_ROUNDED_RECT,
 };
 
 #[cfg(test)]

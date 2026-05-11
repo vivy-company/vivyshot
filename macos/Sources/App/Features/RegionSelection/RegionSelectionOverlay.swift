@@ -573,6 +573,7 @@ final class RegionSelectionView: NSView {
     onEditingDone = nil
     currentScreenshotCaptureID = nil
     screenshotEditorEnteredAt = nil
+    videoWebcamPlacementView.stopWebcamPreview()
     onStartVideoRequested = nil
     onStopVideoRequested = nil
     selectedCaptureMode = .selection

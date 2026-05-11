@@ -92,6 +92,9 @@ final class CaptureCoordinator: CaptureCoordinating {
                 selectionRectInScreen: rect,
                 overlayState: overlayState,
                 showFloatingHUD: true,
+                onBeforeWebcamCaptureStart: { [weak self] in
+                  self?.selectionOverlay.stopVideoWebcamPreviewForRecordingStart()
+                },
                 onStarted: { [weak self] in
                   started = true
                   // Close the frozen selection overlay once recording is live so

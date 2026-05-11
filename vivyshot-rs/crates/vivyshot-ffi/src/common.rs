@@ -12,7 +12,10 @@ pub(crate) fn register_handle(registry: &OnceLock<Mutex<HashSet<usize>>>, handle
     guard.insert(handle as usize);
 }
 
-pub(crate) fn unregister_handle(registry: &OnceLock<Mutex<HashSet<usize>>>, handle: *mut c_void) -> bool {
+pub(crate) fn unregister_handle(
+    registry: &OnceLock<Mutex<HashSet<usize>>>,
+    handle: *mut c_void,
+) -> bool {
     if handle.is_null() {
         return false;
     }
@@ -58,7 +61,6 @@ pub(crate) fn handle_count(registry: &OnceLock<Mutex<HashSet<usize>>>) -> usize 
     };
     guard.len()
 }
-
 
 #[no_mangle]
 pub extern "C" fn vs_core_version() -> *const c_char {

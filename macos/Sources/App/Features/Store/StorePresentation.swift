@@ -2,9 +2,8 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
+final class PaywallWindowController: NSWindowController, NSWindowDelegate {
   static let shared = PaywallWindowController()
-  private static let titleItemIdentifier = NSToolbarItem.Identifier("VivyShotPaywallTitleItem")
   private static let toolbarTitle = String(localized: "Unlock VivyShot", bundle: AppLocalizer.shared.bundle)
   private static let toolbarSubtitle = String(localized: "Advanced export controls and local capture statistics", bundle: AppLocalizer.shared.bundle)
 
@@ -17,8 +16,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
     )
     window.title = Self.toolbarTitle
     window.subtitle = Self.toolbarSubtitle
-    window.titleVisibility = .hidden
-    window.titlebarAppearsTransparent = true
+    window.titleVisibility = .visible
     window.toolbarStyle = .unified
     window.backgroundColor = .windowBackgroundColor
     window.isReleasedWhenClosed = false
@@ -54,14 +52,25 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
 
   private func makeToolbar() -> NSToolbar {
     let toolbar = NSToolbar(identifier: "VivyShotPaywallToolbar")
-    toolbar.delegate = self
-    toolbar.displayMode = .default
+    toolbar.displayMode = .iconOnly
     return toolbar
   }
 
   private static func makePaywallView() -> some View {
-    VivyShotPaywallView()
+    NavigationStack {
+      VivyShotPaywallView()
+        .navigationTitle(Self.toolbarTitle)
+        .navigationSubtitle(Self.toolbarSubtitle)
+    }
       .environment(\.locale, AppLocalizer.shared.locale)
+      .onAppear {
+        DispatchQueue.main.async {
+          guard let window = NSApp.keyWindow else { return }
+          window.title = Self.toolbarTitle
+          window.subtitle = Self.toolbarSubtitle
+          window.toolbarStyle = .unified
+        }
+      }
   }
 
   func windowWillClose(_ notification: Notification) {
@@ -69,63 +78,6 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate, NSToo
     window.orderOut(nil)
   }
 
-  func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [Self.titleItemIdentifier, .flexibleSpace]
-  }
-
-  func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [Self.titleItemIdentifier, .flexibleSpace]
-  }
-
-  func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    []
-  }
-
-  func toolbar(
-    _ toolbar: NSToolbar,
-    itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
-    willBeInsertedIntoToolbar flag: Bool
-  ) -> NSToolbarItem? {
-    guard itemIdentifier == Self.titleItemIdentifier else {
-      return nil
-    }
-
-    let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-    item.isBordered = false
-    item.view = titleToolbarView()
-    return item
-  }
-
-  private func titleToolbarView() -> NSView {
-    let titleLabel = NSTextField(labelWithString: Self.toolbarTitle)
-    titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-    titleLabel.alignment = .left
-    titleLabel.textColor = .labelColor
-
-    let subtitleLabel = NSTextField(labelWithString: Self.toolbarSubtitle)
-    subtitleLabel.font = .systemFont(ofSize: 11)
-    subtitleLabel.alignment = .left
-    subtitleLabel.textColor = .secondaryLabelColor
-    subtitleLabel.lineBreakMode = .byTruncatingTail
-
-    let stack = NSStackView(views: [titleLabel, subtitleLabel])
-    stack.orientation = .vertical
-    stack.alignment = .leading
-    stack.spacing = 0
-    stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-
-    let container = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 32))
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(stack)
-
-    NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-      stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor)
-    ])
-
-    return container
-  }
 }
 
 @MainActor

@@ -135,16 +135,17 @@ fn handle_registries_return_to_baseline_after_stress() {
             assert_eq!(vs_stitch_session_set_base_bgra(stitch, view, 1), 0);
             vs_stitch_session_destroy(stitch);
 
-            let video = vs_video_session_create(vs_video_session_config {
+            let video = vs_video_project_create_from_recording(vs_video_project_recording_info {
+                duration_ms: 1_000,
+                width: width as u32,
+                height: height as u32,
                 frame_rate: 30,
-                capture_system_audio: false,
-                capture_microphone: false,
-                show_webcam: false,
-                highlight_mouse_clicks: false,
-                highlight_keystrokes: false,
+                has_audio: false,
+                has_webcam_asset: false,
+                has_microphone_audio: false,
             });
             assert!(!video.is_null());
-            vs_video_session_destroy(video);
+            vs_video_project_destroy(video);
 
             let timeline = vs_timeline_create(3_000, width as u32, height as u32);
             assert!(!timeline.is_null());
@@ -212,13 +213,25 @@ fn stats_session_tracks_totals_and_serializes() {
     };
 
     unsafe {
-        assert_eq!(vs_stats_session_ingest_event(stats, screenshot, &mut applied), 0);
+        assert_eq!(
+            vs_stats_session_ingest_event(stats, screenshot, &mut applied),
+            0
+        );
         assert!(applied);
-        assert_eq!(vs_stats_session_ingest_event(stats, screenshot, &mut applied), 0);
+        assert_eq!(
+            vs_stats_session_ingest_event(stats, screenshot, &mut applied),
+            0
+        );
         assert!(!applied);
-        assert_eq!(vs_stats_session_ingest_event(stats, completion, &mut applied), 0);
+        assert_eq!(
+            vs_stats_session_ingest_event(stats, completion, &mut applied),
+            0
+        );
         assert!(applied);
-        assert_eq!(vs_stats_session_ingest_event(stats, recording, &mut applied), 0);
+        assert_eq!(
+            vs_stats_session_ingest_event(stats, recording, &mut applied),
+            0
+        );
         assert!(applied);
 
         let mut summary = vs_stats_summary::default();
@@ -226,7 +239,10 @@ fn stats_session_tracks_totals_and_serializes() {
         assert_eq!(summary.total_screenshots_captured, 1);
         assert_eq!(summary.total_recordings_completed, 1);
         assert_eq!(summary.total_capture_bytes_produced, 66_666);
-        assert_eq!(summary.average_screenshot_editor_completion_duration_ms, 10_000);
+        assert_eq!(
+            summary.average_screenshot_editor_completion_duration_ms,
+            10_000
+        );
         assert_eq!(summary.current_capture_streak_days, 2);
 
         let mut written = 0;
@@ -264,6 +280,178 @@ fn stats_session_tracks_totals_and_serializes() {
         assert!(!restored.is_null());
         vs_stats_session_destroy(restored);
         vs_stats_session_destroy(stats);
+    }
+}
+
+#[test]
+fn video_project_lifecycle_render_plan_and_snapshot_round_trip() {
+    unsafe {
+        let project = vs_video_project_create_from_recording(vs_video_project_recording_info {
+            duration_ms: 5_000,
+            width: 1_920,
+            height: 1_080,
+            frame_rate: 30,
+            has_audio: true,
+            has_webcam_asset: true,
+            has_microphone_audio: true,
+        });
+        assert!(!project.is_null());
+
+        assert_eq!(
+            vs_video_project_set_webcam_overlay(project, true, 1, 2, 9),
+            VS_STATUS_OK
+        );
+        assert_eq!(
+            vs_video_project_push_webcam_placement(
+                project,
+                0,
+                vs_video_project_rect {
+                    x: 0.70,
+                    y: 0.10,
+                    width: 0.20,
+                    height: 0.12,
+                },
+            ),
+            VS_STATUS_OK
+        );
+        assert_eq!(
+            vs_video_project_set_keystroke_overlay(project, true, 1, 1),
+            VS_STATUS_OK
+        );
+        assert_eq!(
+            vs_video_project_push_keystroke_placement(
+                project,
+                0,
+                vs_video_project_rect {
+                    x: 0.25,
+                    y: 0.75,
+                    width: 0.50,
+                    height: 0.12,
+                },
+            ),
+            VS_STATUS_OK
+        );
+        let token = "⌘K".as_bytes();
+        assert_eq!(
+            vs_video_project_add_key_event(project, 1_000, token.as_ptr(), token.len() as u32,),
+            VS_STATUS_OK
+        );
+        assert_eq!(
+            vs_video_project_add_click_event(project, 1_000, 1.2, -1.0, 0),
+            VS_STATUS_OK
+        );
+
+        let query = vs_video_project_render_plan_query {
+            time_ms: 1_000,
+            render_width: 1_920,
+            render_height: 1_080,
+            target: 1,
+        };
+        let mut written = 0u32;
+        assert_eq!(
+            vs_video_project_render_plan(project, query, std::ptr::null_mut(), 0, &mut written),
+            VS_STATUS_BUFFER_TOO_SMALL
+        );
+        assert_eq!(written, 2);
+        let mut items = vec![vs_video_project_render_item::default(); written as usize];
+        assert_eq!(
+            vs_video_project_render_plan(
+                project,
+                query,
+                items.as_mut_ptr(),
+                items.len() as u32,
+                &mut written,
+            ),
+            VS_STATUS_OK
+        );
+        assert_eq!(items[0].kind, 1);
+        assert!((items[0].width - items[0].height).abs() < 0.001);
+        assert_eq!(items[1].kind, 2);
+
+        let mut text_written = 0u32;
+        assert_eq!(
+            vs_video_project_render_plan_text(
+                project,
+                query,
+                std::ptr::null_mut(),
+                0,
+                &mut text_written
+            ),
+            VS_STATUS_BUFFER_TOO_SMALL
+        );
+        let mut text = vec![0u8; text_written as usize];
+        assert_eq!(
+            vs_video_project_render_plan_text(
+                project,
+                query,
+                text.as_mut_ptr(),
+                text.len() as u32,
+                &mut text_written,
+            ),
+            VS_STATUS_OK
+        );
+        assert_eq!(std::str::from_utf8(&text).unwrap(), "⌘K");
+
+        let mut plan = vs_video_export_plan {
+            trim_start_ms: 0,
+            trim_end_ms: 0,
+            key_event_count: 0,
+            click_event_count: 0,
+            plan_mode: 0,
+            include_audio: false,
+            include_webcam: false,
+            text_overlay_count: 0,
+            overlay_item_count: 0,
+            requires_intermediate_for_gif: false,
+            needs_custom_compositor: false,
+        };
+        assert_eq!(
+            vs_video_project_export_plan(project, &mut plan),
+            VS_STATUS_OK
+        );
+        assert!(plan.needs_custom_compositor);
+        assert_eq!(plan.key_event_count, 1);
+        assert_eq!(plan.click_event_count, 1);
+
+        let mut requirement = vs_video_project_pro_requirement_result::default();
+        assert_eq!(
+            vs_video_project_pro_requirement(
+                project,
+                vs_video_project_export_options {
+                    target: 0,
+                    codec: 1,
+                    frame_rate: 1,
+                    quality: 1,
+                    bitrate: 2,
+                    includes_baked_transition: false,
+                },
+                &mut requirement,
+            ),
+            VS_STATUS_OK
+        );
+        assert_ne!(requirement.reasons_mask & (1 << 0), 0);
+        assert_ne!(requirement.reasons_mask & (1 << 1), 0);
+        assert_ne!(requirement.reasons_mask & (1 << 2), 0);
+
+        let mut json_written = 0u32;
+        assert_eq!(
+            vs_video_project_serialize_json(project, std::ptr::null_mut(), 0, &mut json_written),
+            VS_STATUS_BUFFER_TOO_SMALL
+        );
+        let mut json = vec![0u8; json_written as usize];
+        assert_eq!(
+            vs_video_project_serialize_json(
+                project,
+                json.as_mut_ptr(),
+                json.len() as u32,
+                &mut json_written,
+            ),
+            VS_STATUS_OK
+        );
+        let restored = vs_video_project_deserialize_json(json.as_ptr(), json_written);
+        assert!(!restored.is_null());
+        vs_video_project_destroy(restored);
+        vs_video_project_destroy(project);
     }
 }
 
@@ -542,107 +730,6 @@ fn remove_annotation_clears_rendered_pixels() {
         assert_eq!(out[probe_idx + 1], 0);
 
         vs_destroy_document(doc);
-    }
-}
-
-#[test]
-fn video_session_export_plan_tracks_counts_and_trim() {
-    let config = vs_video_session_config {
-        frame_rate: 60,
-        capture_system_audio: true,
-        capture_microphone: false,
-        show_webcam: true,
-        highlight_mouse_clicks: true,
-        highlight_keystrokes: true,
-    };
-    let session = vs_video_session_create(config);
-    assert!(!session.is_null());
-
-    let key_a = b"CmdK";
-    let key_b = b"Esc";
-
-    // SAFETY: pointers remain valid for call duration and session handle is valid.
-    unsafe {
-        assert_eq!(
-            vs_video_session_add_key_event(
-                session,
-                vs_video_key_event {
-                    timestamp_ns: 10,
-                    token_ptr: key_a.as_ptr(),
-                    token_len: key_a.len(),
-                },
-            ),
-            0
-        );
-        assert_eq!(
-            vs_video_session_add_key_event(
-                session,
-                vs_video_key_event {
-                    timestamp_ns: 20,
-                    token_ptr: key_b.as_ptr(),
-                    token_len: key_b.len(),
-                },
-            ),
-            0
-        );
-        assert_eq!(
-            vs_video_session_add_click_event(
-                session,
-                vs_video_click_event {
-                    timestamp_ns: 30,
-                    normalized_x: 0.35,
-                    normalized_y: 0.82,
-                    button: 0,
-                },
-            ),
-            0
-        );
-        assert_eq!(vs_video_session_set_trim(session, 120, 980), 0);
-
-        let mut plan = vs_video_export_plan {
-            trim_start_ms: 0,
-            trim_end_ms: 0,
-            key_event_count: 0,
-            click_event_count: 0,
-            plan_mode: 0,
-            include_audio: false,
-            include_webcam: false,
-            text_overlay_count: 0,
-            overlay_item_count: 0,
-            requires_intermediate_for_gif: false,
-            needs_custom_compositor: false,
-        };
-        assert_eq!(vs_video_session_get_export_plan(session, &mut plan), 0);
-        assert_eq!(plan.trim_start_ms, 120);
-        assert_eq!(plan.trim_end_ms, 980);
-        assert_eq!(plan.key_event_count, 2);
-        assert_eq!(plan.click_event_count, 1);
-        assert_eq!(plan.plan_mode, VS_VIDEO_PLAN_MODE_COMPOSITE_MP4);
-        assert_eq!(plan.overlay_item_count, 2);
-        assert!(plan.requires_intermediate_for_gif);
-        assert_eq!(
-            vs_video_session_set_export_context(
-                session,
-                vs_video_export_context {
-                    source_has_audio: true,
-                    source_has_webcam_asset: true,
-                    audio_track_visible: false,
-                    webcam_track_visible: true,
-                    text_overlay_count: 3,
-                },
-            ),
-            0
-        );
-        assert_eq!(vs_video_session_get_export_plan(session, &mut plan), 0);
-        assert!(!plan.include_audio);
-        assert!(plan.include_webcam);
-        assert_eq!(plan.text_overlay_count, 3);
-        assert_eq!(plan.overlay_item_count, 5);
-        assert_eq!(plan.plan_mode, VS_VIDEO_PLAN_MODE_COMPOSITE_MP4);
-        assert!(plan.requires_intermediate_for_gif);
-        assert!(plan.needs_custom_compositor);
-
-        vs_video_session_destroy(session);
     }
 }
 
@@ -1389,7 +1476,10 @@ fn stitch_session_rejects_reverse_scroll_after_direction_lock() {
         assert_eq!(third_result.segment_count, 2);
         assert!(third_merged.ptr.is_null());
 
-        assert_eq!(vs_stitch_session_get_merged_image_bgra(session, &mut merged_snapshot), 0);
+        assert_eq!(
+            vs_stitch_session_get_merged_image_bgra(session, &mut merged_snapshot),
+            0
+        );
         assert_eq!(merged_snapshot.width as usize, width);
         assert_eq!(merged_snapshot.height as usize, height + down_shift);
 

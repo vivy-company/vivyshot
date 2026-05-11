@@ -15,10 +15,6 @@ final class RustCoreBridge {
     RustDocumentSession(image: image)
   }
 
-  func makeVideoSession(config: RustVideoSessionConfig) -> RustVideoSession? {
-    RustVideoSession(config: config)
-  }
-
   func makeStitchSession() -> RustStitchSession? {
     RustStitchSession()
   }

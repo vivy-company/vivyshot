@@ -1,15 +1,12 @@
 use super::*;
 use vivyshot_domain::{
     Timeline as DomainTimeline, TimelineClipTransform as DomainTimelineClipTransform,
-    TimelineError as DomainTimelineError,
-    TimelineShapeStyle as DomainTimelineShapeStyle,
+    TimelineError as DomainTimelineError, TimelineShapeStyle as DomainTimelineShapeStyle,
     TimelineTextClipExportRef as DomainTimelineTextClipExportRef,
     TimelineTextStyle as DomainTimelineTextStyle,
 };
 
-unsafe fn timeline_from_handle_mut<'a>(
-    handle: *mut c_void,
-) -> Result<&'a mut DomainTimeline, i32> {
+unsafe fn timeline_from_handle_mut<'a>(handle: *mut c_void) -> Result<&'a mut DomainTimeline, i32> {
     validate_handle(&TIMELINE_HANDLES, handle)?;
     // SAFETY: pointer was validated by registry and originates from Box::into_raw.
     Ok(unsafe { &mut *handle.cast::<DomainTimeline>() })
