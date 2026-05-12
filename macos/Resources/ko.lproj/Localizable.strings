@@ -56,3 +56,17 @@
 "Standard" = "표준";
 "High" = "높음";
 "Very High" = "매우 높음";
+"Welcome to VivyShot" = "VivyShot에 오신 것을 환영합니다";
+"Capture screenshots and recordings from the menu bar or with one shortcut." = "메뉴 막대나 하나의 단축키로 스크린샷과 녹화를 캡처하세요.";
+"Capture Shortcut" = "캡처 단축키";
+"Press anywhere to capture a region." = "어디서든 단축키를 눌러 영역을 캡처하세요.";
+"Getting Started…" = "시작하기…";
+"Select a region, window, or screen." = "영역, 창 또는 화면을 선택하세요.";
+"Edit" = "편집";
+"Annotate screenshots or prepare recordings." = "스크린샷에 주석을 달거나 녹화를 준비하세요.";
+"Share" = "공유";
+"Copy, save, or export when you are done." = "완료되면 복사, 저장 또는 내보내기하세요.";
+"Screen Recording Permission" = "화면 기록 권한";
+"Needed before VivyShot can capture your screen." = "VivyShot이 화면을 캡처하려면 먼저 필요합니다.";
+"Open System Settings" = "시스템 설정 열기";
+"Start Capture" = "캡처 시작";

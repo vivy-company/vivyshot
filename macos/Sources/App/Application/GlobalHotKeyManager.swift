@@ -60,7 +60,7 @@ final class GlobalHotKeyManager {
 
   func registerDefaultHotKey() -> Bool {
     registerHotKey(
-      keyCode: UInt32(kVK_ANSI_2),
+      keyCode: UInt32(kVK_ANSI_C),
       modifiers: UInt32(cmdKey | shiftKey)
     )
   }

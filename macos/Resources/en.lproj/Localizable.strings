@@ -225,3 +225,17 @@
 "Keystroke overlay export" = "Keystroke overlay export";
 "Keystroke overlay export not included on Free" = "Keystroke overlay export not included on Free";
 "Keystroke overlay export included on Paid" = "Keystroke overlay export included on Paid";
+"Welcome to VivyShot" = "Welcome to VivyShot";
+"Capture screenshots and recordings from the menu bar or with one shortcut." = "Capture screenshots and recordings from the menu bar or with one shortcut.";
+"Capture Shortcut" = "Capture Shortcut";
+"Press anywhere to capture a region." = "Press anywhere to capture a region.";
+"Getting Started…" = "Getting Started…";
+"Select a region, window, or screen." = "Select a region, window, or screen.";
+"Edit" = "Edit";
+"Annotate screenshots or prepare recordings." = "Annotate screenshots or prepare recordings.";
+"Share" = "Share";
+"Copy, save, or export when you are done." = "Copy, save, or export when you are done.";
+"Screen Recording Permission" = "Screen Recording Permission";
+"Needed before VivyShot can capture your screen." = "Needed before VivyShot can capture your screen.";
+"Open System Settings" = "Open System Settings";
+"Start Capture" = "Start Capture";

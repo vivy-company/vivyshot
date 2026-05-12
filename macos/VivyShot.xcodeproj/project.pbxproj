@@ -18,6 +18,7 @@
 		239CB83C9448A4210731AA59 /* RegionSelectionOverlay+EditingSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03F33B526AE66F6F7197D725 /* RegionSelectionOverlay+EditingSelection.swift */; };
 		276FE70422438F289CE414C0 /* LaunchAtLoginController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2957198006E75CDF68F636F3 /* LaunchAtLoginController.swift */; };
 		27FC97DCB4F293F1621F9318 /* AnnotationCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10E44C1A62C88CBB945A7AF4 /* AnnotationCanvasView.swift */; };
+		AE90F8E0801BD8294CEA59FC /* WelcomePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFDC265454C6701F8B4E4D0 /* WelcomePresentation.swift */; };
 		2BD91F13A3D88C9D11E37267 /* StatisticsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1B3110B1F8C2C38DBFB271 /* StatisticsPresentation.swift */; };
 		2ED7F1A68FA1FEABC1D8A2AA /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = BA2AE082AD1D1E751F851917 /* Localizable.strings */; };
 		2F98E5FBA54732922C0F3ED1 /* CaptureGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A5E4B83AB085731FA1CDA2 /* CaptureGlassViews.swift */; };
@@ -113,6 +114,7 @@
 		6C302A5AB0ABDEEFC2A13FE3 /* VivyShot.storekit */ = {isa = PBXFileReference; path = VivyShot.storekit; sourceTree = "<group>"; };
 		6E290099AAC2C60C55241F23 /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		7697C5A2052E74A30F23621F /* CaptureStatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureStatisticsView.swift; sourceTree = "<group>"; };
+		7DFDC265454C6701F8B4E4D0 /* WelcomePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomePresentation.swift; sourceTree = "<group>"; };
 		816DD48AE89ABD30828BF4E0 /* RustTimelineSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustTimelineSession.swift; sourceTree = "<group>"; };
 		8187D1FE4C35E2B75201299B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		86CE71AB4F11CEF9E9BD6105 /* RegionSelectionOverlay+Annotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+Annotation.swift"; sourceTree = "<group>"; };
@@ -224,8 +226,17 @@
 				D96DDF49FB448DA1EAC3806B /* Settings */,
 				A9DEF09102838F7E158CCD99 /* Statistics */,
 				7082315740B9D187CBA531ED /* Store */,
+				331D3FDA581E44CDB458AB45 /* Welcome */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		331D3FDA581E44CDB458AB45 /* Welcome */ = {
+			isa = PBXGroup;
+			children = (
+				7DFDC265454C6701F8B4E4D0 /* WelcomePresentation.swift */,
+			);
+			path = Welcome;
 			sourceTree = "<group>";
 		};
 		5A817043E47423CA7B6BC1F3 /* Frameworks */ = {
@@ -563,6 +574,7 @@
 				54F62A84A4DC6DEF2D2638E2 /* UITestHarnessView.swift in Sources */,
 				3293C133DF1A4B31736B5148 /* VideoCaptureComponents.swift in Sources */,
 				767A786D8BDA2122D1C1C8A7 /* VideoCaptureUI.swift in Sources */,
+				AE90F8E0801BD8294CEA59FC /* WelcomePresentation.swift in Sources */,
 				479B2BACE55FE843C36C3F41 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

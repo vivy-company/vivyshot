@@ -46,6 +46,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var captureUseOption: Bool
   @Published private(set) var captureUseControl: Bool
   @Published private(set) var captureShowHelper: Bool
+  @Published private(set) var hasSeenWelcome: Bool
   @Published private(set) var defaultCaptureType: CaptureContentType
   @Published private(set) var appLanguage: AppLanguage
 
@@ -175,6 +176,7 @@ final class AppSettings: ObservableObject {
     static let captureUseOption = "settings.capture.useOption"
     static let captureUseControl = "settings.capture.useControl"
     static let captureShowHelper = "settings.capture.showHelper"
+    static let hasSeenWelcome = "settings.welcome.hasSeenWelcome"
     static let defaultCaptureType = "settings.capture.defaultType"
     static let appLanguage = "settings.app.language"
 
@@ -254,6 +256,8 @@ final class AppSettings: ObservableObject {
     } else {
       captureShowHelper = defaults.bool(forKey: Keys.captureShowHelper)
     }
+
+    hasSeenWelcome = defaults.bool(forKey: Keys.hasSeenWelcome)
 
     let storedDefaultCaptureType = defaults.object(forKey: Keys.defaultCaptureType) as? Int
     defaultCaptureType = CaptureContentType(rawValue: storedDefaultCaptureType ?? CaptureContentType.screenshot.rawValue) ?? .screenshot
@@ -499,6 +503,14 @@ final class AppSettings: ObservableObject {
     }
     captureShowHelper = enabled
     persistCaptureHelperSetting()
+  }
+
+  func markWelcomeSeen() {
+    guard !hasSeenWelcome else {
+      return
+    }
+    hasSeenWelcome = true
+    persistWelcomeState()
   }
 
   func setDefaultCaptureType(_ type: CaptureContentType) {
@@ -1403,6 +1415,10 @@ final class AppSettings: ObservableObject {
     notifySettingsChanged()
   }
 
+  private func persistWelcomeState() {
+    defaults.set(hasSeenWelcome, forKey: Keys.hasSeenWelcome)
+  }
+
   private func persistAppLanguage() {
     defaults.set(appLanguage.rawValue, forKey: Keys.appLanguage)
     notifySettingsChanged()
@@ -1497,6 +1513,7 @@ final class AppSettings: ObservableObject {
     defaults.set(captureUseOption, forKey: Keys.captureUseOption)
     defaults.set(captureUseControl, forKey: Keys.captureUseControl)
     defaults.set(captureShowHelper, forKey: Keys.captureShowHelper)
+    defaults.set(hasSeenWelcome, forKey: Keys.hasSeenWelcome)
     defaults.set(defaultCaptureType.rawValue, forKey: Keys.defaultCaptureType)
     defaults.set(appLanguage.rawValue, forKey: Keys.appLanguage)
     defaults.set(toolOrder.map(\.rawValue), forKey: Keys.toolOrder)

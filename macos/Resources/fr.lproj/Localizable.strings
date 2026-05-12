@@ -54,3 +54,17 @@
 "Standard" = "Standard";
 "High" = "Élevée";
 "Very High" = "Très élevée";
+"Welcome to VivyShot" = "Bienvenue dans VivyShot";
+"Capture screenshots and recordings from the menu bar or with one shortcut." = "Capturez des captures d’écran et des enregistrements depuis la barre des menus ou avec un raccourci.";
+"Capture Shortcut" = "Raccourci de capture";
+"Press anywhere to capture a region." = "Utilisez le raccourci partout pour capturer une zone.";
+"Getting Started…" = "Premiers pas…";
+"Select a region, window, or screen." = "Sélectionnez une zone, une fenêtre ou un écran.";
+"Edit" = "Modifier";
+"Annotate screenshots or prepare recordings." = "Annotez les captures d’écran ou préparez les enregistrements.";
+"Share" = "Partager";
+"Copy, save, or export when you are done." = "Copiez, enregistrez ou exportez lorsque vous avez terminé.";
+"Screen Recording Permission" = "Autorisation d’enregistrement de l’écran";
+"Needed before VivyShot can capture your screen." = "Nécessaire avant que VivyShot puisse capturer votre écran.";
+"Open System Settings" = "Ouvrir Réglages Système";
+"Start Capture" = "Démarrer la capture";

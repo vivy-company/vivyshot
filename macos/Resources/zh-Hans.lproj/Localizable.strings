@@ -225,3 +225,17 @@
 "Keystroke overlay export" = "按键叠层导出";
 "Keystroke overlay export not included on Free" = "免费版不包含按键叠层导出";
 "Keystroke overlay export included on Paid" = "付费版包含按键叠层导出";
+"Welcome to VivyShot" = "欢迎使用 VivyShot";
+"Capture screenshots and recordings from the menu bar or with one shortcut." = "通过菜单栏或一个快捷键截取屏幕截图和录制视频。";
+"Capture Shortcut" = "截图快捷键";
+"Press anywhere to capture a region." = "在任何位置按下快捷键即可截取区域。";
+"Getting Started…" = "开始使用…";
+"Select a region, window, or screen." = "选择区域、窗口或屏幕。";
+"Edit" = "编辑";
+"Annotate screenshots or prepare recordings." = "标注截图或准备录制内容。";
+"Share" = "分享";
+"Copy, save, or export when you are done." = "完成后复制、保存或导出。";
+"Screen Recording Permission" = "屏幕录制权限";
+"Needed before VivyShot can capture your screen." = "VivyShot 截取屏幕前需要此权限。";
+"Open System Settings" = "打开系统设置";
+"Start Capture" = "开始截图";

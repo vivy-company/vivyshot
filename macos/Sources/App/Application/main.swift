@@ -9,6 +9,11 @@ enum UITestRuntime {
   }
 }
 
+@MainActor
+enum VivyShotRuntime {
+  static var statusController: StatusItemController?
+}
+
 struct VivyShotApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @StateObject private var localizer = AppLocalizer.shared
@@ -31,6 +36,7 @@ struct VivyShotApp: App {
       controller = StatusItemController(settings: settings)
     }
     _statusController = StateObject(wrappedValue: controller)
+    VivyShotRuntime.statusController = controller
     if UITestRuntime.isEnabled {
       UITestRuntime.statusController = controller
     }
@@ -58,7 +64,6 @@ struct VivyShotApp: App {
 private struct MenuBarMenuContent: View {
   @ObservedObject var statusController: StatusItemController
   @ObservedObject private var storeManager = StoreManager.shared
-  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     Group {
@@ -100,6 +105,17 @@ private struct MenuBarMenuContent: View {
       Divider()
 
       Button {
+        presentWelcomeWindow(
+          onStartCapture: {
+            statusController.startCapturePressed()
+          },
+          onOpenSettings: presentSettingsWindow
+        )
+      } label: {
+        Label("Getting Started…", systemImage: "questionmark.circle")
+      }
+
+      Button {
         openStatisticsWindow()
       } label: {
         Label("Statistics…", systemImage: "chart.bar.xaxis")
@@ -124,15 +140,7 @@ private struct MenuBarMenuContent: View {
   }
 
   private func openSettingsOnTop() {
-    NSApp.activate(ignoringOtherApps: true)
-    openSettings()
-    Task { @MainActor in
-      await Task.yield()
-      NSApp.activate(ignoringOtherApps: true)
-      if let visibleWindow = NSApp.windows.first(where: { $0.canBecomeKey && $0.isVisible }) {
-        visibleWindow.makeKeyAndOrderFront(nil)
-      }
-    }
+    presentSettingsWindow()
   }
 
   private func openStatisticsWindow() {

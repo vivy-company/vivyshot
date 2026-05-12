@@ -76,6 +76,13 @@ final class StatusItemController: ObservableObject {
     }
   }
 
+  func startCapturePressed() {
+    guard !captureCoordinator.isVideoRecordingActive else {
+      return
+    }
+    captureCoordinator.startRegionCapture()
+  }
+
   func quitPressed() {
     NSApplication.shared.terminate(nil)
   }

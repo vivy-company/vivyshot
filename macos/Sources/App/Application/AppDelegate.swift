@@ -15,6 +15,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       NSApp.setActivationPolicy(.accessory)
       DispatchQueue.main.async {
         CrashReporter.shared.presentRecoveredCrashNoticeIfNeeded()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+          presentWelcomeWindowIfNeeded(
+            onStartCapture: {
+              VivyShotRuntime.statusController?.startCapturePressed()
+            },
+            onOpenSettings: {
+              presentSettingsWindow()
+            }
+          )
+        }
       }
     }
   }
