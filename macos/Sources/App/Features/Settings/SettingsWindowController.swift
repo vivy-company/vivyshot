@@ -4,55 +4,42 @@ import Carbon
 import SwiftUI
 
 @MainActor
-final class VivyShotSettingsWindowController: NSWindowController, NSWindowDelegate {
-  static let shared = VivyShotSettingsWindowController()
+func presentSettingsWindow() {
+  NSApp.activate(ignoringOtherApps: true)
 
-  private init() {
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 720, height: 700),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-      backing: .buffered,
-      defer: false
-    )
-    window.title = String(localized: "Settings", bundle: AppLocalizer.shared.bundle)
-    window.titleVisibility = .visible
-    window.toolbarStyle = .unified
-    window.backgroundColor = .windowBackgroundColor
-    window.isReleasedWhenClosed = false
-    window.center()
-    window.setContentSize(NSSize(width: 720, height: 700))
-    window.contentMinSize = NSSize(width: 560, height: 620)
-
-    super.init(window: window)
-    window.delegate = self
-    refreshContent()
+  if let openSettings = SettingsWindowPresentation.openSettings {
+    openSettings()
+  } else {
+    let didOpen = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+    if !didOpen {
+      _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
   }
 
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    nil
-  }
+  bringSettingsWindowForward()
+}
 
-  func show() {
-    guard let window else { return }
-    refreshContent()
-    window.title = String(localized: "Settings", bundle: AppLocalizer.shared.bundle)
-    window.center()
-    window.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
-  }
-
-  private func refreshContent() {
-    window?.contentView = NSHostingView(
-      rootView: VivyShotSettingsView(settings: .shared)
-        .environment(\.locale, AppLocalizer.shared.locale)
-    )
+@MainActor
+func installSettingsWindowPresenter(_ openSettings: OpenSettingsAction) {
+  SettingsWindowPresentation.openSettings = {
+    openSettings()
   }
 }
 
 @MainActor
-func presentSettingsWindow() {
-  VivyShotSettingsWindowController.shared.show()
+func bringSettingsWindowForward() {
+  Task { @MainActor in
+    await Task.yield()
+    NSApp.activate(ignoringOtherApps: true)
+    if let visibleWindow = NSApp.windows.first(where: { $0.canBecomeKey && $0.isVisible }) {
+      visibleWindow.makeKeyAndOrderFront(nil)
+    }
+  }
+}
+
+@MainActor
+private enum SettingsWindowPresentation {
+  static var openSettings: (() -> Void)?
 }
 
 @MainActor

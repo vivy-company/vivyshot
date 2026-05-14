@@ -47,10 +47,7 @@ struct VivyShotApp: App {
       MenuBarMenuContent(statusController: statusController)
         .environment(\.locale, localizer.locale)
     } label: {
-      Label(
-        "VivyShot",
-        systemImage: statusController.isRecordingActive ? "stop.circle.fill" : "camera.viewfinder"
-      )
+      MenuBarStatusLabel(statusController: statusController)
     }
     .menuBarExtraStyle(.menu)
 
@@ -64,6 +61,7 @@ struct VivyShotApp: App {
 private struct MenuBarMenuContent: View {
   @ObservedObject var statusController: StatusItemController
   @ObservedObject private var storeManager = StoreManager.shared
+  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     Group {
@@ -140,12 +138,29 @@ private struct MenuBarMenuContent: View {
   }
 
   private func openSettingsOnTop() {
-    presentSettingsWindow()
+    NSApp.activate(ignoringOtherApps: true)
+    openSettings()
+    bringSettingsWindowForward()
   }
 
   private func openStatisticsWindow() {
     NSApp.activate(ignoringOtherApps: true)
     presentStatisticsWindow()
+  }
+}
+
+private struct MenuBarStatusLabel: View {
+  @ObservedObject var statusController: StatusItemController
+  @Environment(\.openSettings) private var openSettings
+
+  var body: some View {
+    Label(
+      "VivyShot",
+      systemImage: statusController.isRecordingActive ? "stop.circle.fill" : "camera.viewfinder"
+    )
+    .onAppear {
+      installSettingsWindowPresenter(openSettings)
+    }
   }
 }
 
