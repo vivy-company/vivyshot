@@ -166,7 +166,7 @@
         "독립 개발 추가 지원",
         "선택적 일회성 구매"
       ],
-      "includes": "Lifetime 잠금 해제 포함",
+      "includes": "Lifetime의 모든 기능",
       "extras": {
         "badgeTitle": "서포터 배지",
         "badgeDesc": "설정에 표시됩니다.",
