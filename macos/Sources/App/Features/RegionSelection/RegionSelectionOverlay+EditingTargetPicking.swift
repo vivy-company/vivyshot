@@ -143,6 +143,34 @@ extension RegionSelectionView {
     }
   }
 
+  func smartWindowRectForInitialSelection(at point: CGPoint) -> CGRect? {
+    guard mode == .selecting, !smartDragActivated else {
+      return nil
+    }
+    guard !captureTypeHost.frame.contains(point) else {
+      return nil
+    }
+    return captureRectForWindowPick(at: point)?.standardized.integral
+  }
+
+  func updateSmartWindowHover(at point: CGPoint?) {
+    guard mode == .selecting, !smartDragActivated, let point else {
+      if smartWindowHoverRect != nil {
+        smartWindowHoverRect = nil
+        needsLayout = true
+        needsDisplay = true
+      }
+      return
+    }
+
+    let nextHover = smartWindowRectForInitialSelection(at: point)
+    if nextHover != smartWindowHoverRect {
+      smartWindowHoverRect = nextHover
+      needsLayout = true
+      needsDisplay = true
+    }
+  }
+
   func updateWindowCaptureHover(atScreenPoint screenPoint: CGPoint?) {
     guard let screenPoint else {
       updateWindowCaptureHover(at: nil)

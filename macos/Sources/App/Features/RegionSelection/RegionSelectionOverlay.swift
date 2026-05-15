@@ -36,7 +36,7 @@ final class RegionSelectionView: NSView {
     return NSCursor(image: image, hotSpot: NSPoint(x: size.width * 0.5, y: size.height * 0.5))
   }()
 
-  var onSelectionResult: ((CGRect?, CaptureContentType) -> Void)?
+  var onSelectionResult: ((CGRect?, CaptureContentType, CaptureMode) -> Void)?
   var onCancelRequested: (() -> Void)?
   var onCancelRequestedImmediately: (() -> Void)?
   var onStartVideoRequested: ((CGRect, VideoCaptureOverlayState, @escaping (Bool) -> Void) -> Void)?
@@ -86,6 +86,11 @@ final class RegionSelectionView: NSView {
   var windowCapturePickPending = false
   var screenCapturePickPending = false
   var windowCaptureHoverRect: CGRect?
+  let smartCaptureDragActivationDistance: CGFloat = 5
+  var smartMouseDownPoint: CGPoint?
+  var smartMouseDownWindowRect: CGRect?
+  var smartDragActivated = false
+  var smartWindowHoverRect: CGRect?
   var videoRecordingActive = false
   var videoRecordingStartPending = false
   var pointerTrackingArea: NSTrackingArea?
@@ -267,6 +272,30 @@ final class RegionSelectionView: NSView {
     }
   }
 
+  func applySelectingHoverCursor(at point: CGPoint?) {
+    guard mode == .selecting else {
+      return
+    }
+
+    if let point, captureTypeHost.frame.contains(point) {
+      NSCursor.arrow.set()
+      return
+    }
+
+    if smartWindowHoverRect != nil, !smartDragActivated {
+      Self.captureCameraCursor.set()
+    } else {
+      NSCursor.crosshair.set()
+    }
+  }
+
+  func resetSmartSelectionState() {
+    smartMouseDownPoint = nil
+    smartMouseDownWindowRect = nil
+    smartDragActivated = false
+    smartWindowHoverRect = nil
+  }
+
   override func mouseDown(with event: NSEvent) {
     let point = convert(event.locationInWindow, from: nil)
 
@@ -297,13 +326,16 @@ final class RegionSelectionView: NSView {
       return
     }
 
-    dragStart = point
-    dragCurrent = point
+    smartMouseDownPoint = point
+    smartMouseDownWindowRect = smartWindowRectForInitialSelection(at: point)
+    smartWindowHoverRect = smartMouseDownWindowRect
+    smartDragActivated = false
+    dragStart = nil
+    dragCurrent = nil
+    committedSelectionRect = nil
     updateSelectingHintVisibility(animated: true)
     needsLayout = true
     needsDisplay = true
-
-    beginScreenshotStatisticsSessionIfNeeded()
   }
 
   override func mouseDragged(with event: NSEvent) {
@@ -314,8 +346,23 @@ final class RegionSelectionView: NSView {
       return
     }
 
-    guard dragStart != nil else {
+    guard let smartMouseDownPoint else {
       return
+    }
+
+    if !smartDragActivated {
+      let dx = point.x - smartMouseDownPoint.x
+      let dy = point.y - smartMouseDownPoint.y
+      let threshold = smartCaptureDragActivationDistance
+      guard dx * dx + dy * dy >= threshold * threshold else {
+        return
+      }
+
+      smartDragActivated = true
+      smartWindowHoverRect = nil
+      smartMouseDownWindowRect = nil
+      dragStart = smartMouseDownPoint
+      updateSelectingHintVisibility(animated: true)
     }
 
     dragCurrent = point
@@ -325,12 +372,19 @@ final class RegionSelectionView: NSView {
 
   override func mouseMoved(with event: NSEvent) {
     let point = convert(event.locationInWindow, from: nil)
-    updateWindowCaptureHover(at: point)
-    applyEditingHoverCursor(at: point)
+    switch mode {
+    case .selecting:
+      updateSmartWindowHover(at: point)
+      applySelectingHoverCursor(at: point)
+    case .editing:
+      updateWindowCaptureHover(at: point)
+      applyEditingHoverCursor(at: point)
+    }
   }
 
   override func mouseExited(with _: NSEvent) {
     updateWindowCaptureHover(at: nil)
+    updateSmartWindowHover(at: nil)
   }
 
   override func mouseUp(with event: NSEvent) {
@@ -339,26 +393,39 @@ final class RegionSelectionView: NSView {
       return
     }
 
-    guard dragStart != nil else {
+    guard smartMouseDownPoint != nil else {
       return
     }
 
-    dragCurrent = convert(event.locationInWindow, from: nil)
-    let selection = selectionRect().map { $0.integral }
+    let point = convert(event.locationInWindow, from: nil)
+    let committedMode: CaptureMode
+    let committedRect: CGRect?
 
+    if smartDragActivated {
+      dragCurrent = point
+      committedMode = .selection
+      committedRect = selectionRect().map { $0.integral }
+    } else {
+      committedMode = .window
+      committedRect = smartWindowRectForInitialSelection(at: point) ?? smartMouseDownWindowRect
+    }
+
+    resetSmartSelectionState()
     dragStart = nil
     dragCurrent = nil
-    committedSelectionRect = selection
+    committedSelectionRect = committedRect
     updateSelectingHintVisibility(animated: true)
     needsLayout = true
     needsDisplay = true
 
-    guard let selection, selection.width >= 2, selection.height >= 2 else {
-      NSSound.beep()
+    guard let committedRect, committedRect.width >= 2, committedRect.height >= 2 else {
+      updateSmartWindowHover(at: point)
+      applySelectingHoverCursor(at: point)
       return
     }
 
-    onSelectionResult?(selection, selectedCaptureType)
+    beginScreenshotStatisticsSessionIfNeeded()
+    onSelectionResult?(committedRect, selectedCaptureType, committedMode)
   }
 
   override func keyDown(with event: NSEvent) {
@@ -440,19 +507,23 @@ final class RegionSelectionView: NSView {
       return
     }
 
+    drawWindowCaptureHighlight(in: context, targetRect: targetRect, active: windowCapturePickPending)
+  }
+
+  func drawWindowCaptureHighlight(in context: CGContext, targetRect: CGRect, active: Bool) {
     let dimPath = CGMutablePath()
     dimPath.addRect(bounds)
     dimPath.addRect(targetRect)
 
     context.saveGState()
     context.addPath(dimPath)
-    context.setFillColor(NSColor.black.withAlphaComponent(windowCapturePickPending ? 0.34 : 0.26).cgColor)
+    context.setFillColor(NSColor.black.withAlphaComponent(active ? 0.34 : 0.26).cgColor)
     context.drawPath(using: .eoFill)
     context.restoreGState()
 
     context.saveGState()
-    context.setStrokeColor(NSColor.white.withAlphaComponent(windowCapturePickPending ? 0.94 : 0.8).cgColor)
-    context.setLineWidth(windowCapturePickPending ? 2.0 : 1.4)
+    context.setStrokeColor(NSColor.white.withAlphaComponent(active ? 0.94 : 0.8).cgColor)
+    context.setLineWidth(active ? 2.0 : 1.4)
     context.stroke(targetRect.insetBy(dx: -0.5, dy: -0.5))
     context.restoreGState()
   }
@@ -477,6 +548,7 @@ final class RegionSelectionView: NSView {
     session: RustDocumentSession?,
     selectionRect: CGRect,
     initialCaptureType: CaptureContentType,
+    initialCaptureMode: CaptureMode,
     onDone: @escaping (Bool) -> Void
   ) {
     let clipped = selectionRect.standardized.intersection(bounds).integral
@@ -505,18 +577,19 @@ final class RegionSelectionView: NSView {
     self.session = session
     onEditingDone = onDone
     selectedCaptureType = initialCaptureType
-    selectedCaptureMode = .selection
+    selectedCaptureMode = initialCaptureMode
     videoRecordingActive = false
     videoRecordingStartPending = false
     windowCapturePickPending = false
     screenCapturePickPending = false
     windowCaptureHoverRect = nil
+    resetSmartSelectionState()
     syncLiveCaptureTargetPickingState()
     if selectedCaptureType == .video {
       currentTool = .move
     }
     committedSelectionRect = clipped
-    areaCaptureRect = clipped
+    areaCaptureRect = initialCaptureMode == .selection ? clipped : nil
     activeResizeCorner = nil
     resizeStartRect = nil
     toolbarOffset = .zero
@@ -581,6 +654,7 @@ final class RegionSelectionView: NSView {
     windowCapturePickPending = false
     screenCapturePickPending = false
     windowCaptureHoverRect = nil
+    resetSmartSelectionState()
     syncLiveCaptureTargetPickingState()
     videoRecordingActive = false
     videoRecordingStartPending = false
@@ -943,6 +1017,8 @@ final class RegionSelectionView: NSView {
       return false
     }
     return mode == .selecting
+      && smartMouseDownPoint == nil
+      && !smartDragActivated
       && dragStart == nil
       && dragCurrent == nil
       && committedSelectionRect == nil
@@ -957,6 +1033,15 @@ final class RegionSelectionView: NSView {
 
   func drawSelectingOverlay(in context: CGContext) {
     let activeSelection = selectionRect() ?? committedSelectionRect
+    if activeSelection == nil, let smartWindowHoverRect {
+      drawWindowCaptureHighlight(
+        in: context,
+        targetRect: smartWindowHoverRect.standardized.integral,
+        active: true
+      )
+      return
+    }
+
     let dimPath = CGMutablePath()
     dimPath.addRect(bounds)
     if let activeSelection {

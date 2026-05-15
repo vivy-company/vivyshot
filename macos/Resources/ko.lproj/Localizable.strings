@@ -62,6 +62,8 @@
 "Press anywhere to capture a region." = "어디서든 단축키를 눌러 영역을 캡처하세요.";
 "Getting Started…" = "시작하기…";
 "Select a region, window, or screen." = "영역, 창 또는 화면을 선택하세요.";
+"Click a window or drag an area" = "창을 클릭하거나 영역을 드래그";
+"Click a window or drag an area for video" = "창을 클릭하거나 비디오 영역을 드래그";
 "Edit" = "편집";
 "Annotate screenshots or prepare recordings." = "스크린샷에 주석을 달거나 녹화를 준비하세요.";
 "Share" = "공유";

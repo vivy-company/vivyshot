@@ -82,6 +82,7 @@ final class CaptureCoordinator: CaptureCoordinating {
             session: nil,
             selectionRectInScreen: result.selectionRectInScreen,
             initialCaptureType: result.captureType,
+            initialCaptureMode: result.captureMode,
             onStartVideo: { [weak self] rect, overlayState, completion in
               guard let self else {
                 completion(false)

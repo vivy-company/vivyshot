@@ -231,6 +231,8 @@
 "Press anywhere to capture a region." = "在任何位置按下快捷键即可截取区域。";
 "Getting Started…" = "开始使用…";
 "Select a region, window, or screen." = "选择区域、窗口或屏幕。";
+"Click a window or drag an area" = "点按窗口或拖选区域";
+"Click a window or drag an area for video" = "点按窗口或拖选视频区域";
 "Edit" = "编辑";
 "Annotate screenshots or prepare recordings." = "标注截图或准备录制内容。";
 "Share" = "分享";

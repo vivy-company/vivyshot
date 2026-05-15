@@ -231,6 +231,8 @@
 "Press anywhere to capture a region." = "Press anywhere to capture a region.";
 "Getting Started…" = "Getting Started…";
 "Select a region, window, or screen." = "Select a region, window, or screen.";
+"Click a window or drag an area" = "Click a window or drag an area";
+"Click a window or drag an area for video" = "Click a window or drag an area for video";
 "Edit" = "Edit";
 "Annotate screenshots or prepare recordings." = "Annotate screenshots or prepare recordings.";
 "Share" = "Share";

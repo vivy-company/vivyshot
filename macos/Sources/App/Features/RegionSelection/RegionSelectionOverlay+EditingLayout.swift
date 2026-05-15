@@ -20,6 +20,7 @@ extension RegionSelectionView {
   func updateSelectingHintVisibility(animated: Bool) {
     let shouldShow = settings.captureShowHelper
       && mode == .selecting
+      && smartMouseDownPoint == nil
       && dragStart == nil
       && dragCurrent == nil
       && committedSelectionRect == nil
@@ -69,7 +70,7 @@ extension RegionSelectionView {
       }
       return activeSelection.width >= 2 && activeSelection.height >= 2
     }()
-    let shouldShow = (mode == .selecting || mode == .editing) && hasSelection
+    let shouldShow = mode == .selecting || (mode == .editing && hasSelection)
 
     guard shouldShow else {
       captureTypeHost.isHidden = true

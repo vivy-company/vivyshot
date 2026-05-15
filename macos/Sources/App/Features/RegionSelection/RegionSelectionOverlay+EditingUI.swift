@@ -178,7 +178,12 @@ extension RegionSelectionView {
       currentTool = visibleTools.first ?? .move
     }
 
-    if mode == .selecting, dragStart == nil, dragCurrent == nil, committedSelectionRect == nil {
+    if mode == .selecting,
+       smartMouseDownPoint == nil,
+       dragStart == nil,
+       dragCurrent == nil,
+       committedSelectionRect == nil
+    {
       selectedCaptureType = settings.defaultCaptureType
       refreshCaptureTypeSidebar()
       refreshSelectingHint()

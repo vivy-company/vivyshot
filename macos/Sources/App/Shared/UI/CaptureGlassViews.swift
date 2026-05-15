@@ -47,9 +47,9 @@ struct CaptureHintGlassCard: View {
 
   private var primaryHintText: String {
     if selectedType == .screenshot {
-      return "Drag area, or use ⌘C / ⌘S for full screen"
+      return String(localized: "Click a window or drag an area", bundle: AppLocalizer.shared.bundle)
     }
-    return "Drag area to start video capture"
+    return String(localized: "Click a window or drag an area for video", bundle: AppLocalizer.shared.bundle)
   }
 }
 

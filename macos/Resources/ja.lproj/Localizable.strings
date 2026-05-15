@@ -71,6 +71,8 @@
 "Press anywhere to capture a region." = "どこでもショートカットを押して範囲をキャプチャします。";
 "Getting Started…" = "はじめに…";
 "Select a region, window, or screen." = "範囲、ウインドウ、または画面を選択します。";
+"Click a window or drag an area" = "ウインドウをクリック、または範囲をドラッグ";
+"Click a window or drag an area for video" = "ウインドウをクリック、または動画範囲をドラッグ";
 "Edit" = "編集";
 "Annotate screenshots or prepare recordings." = "スクリーンショットに注釈を付けたり、録画を準備したりできます。";
 "Share" = "共有";

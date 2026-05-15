@@ -60,6 +60,8 @@
 "Press anywhere to capture a region." = "Usa el atajo en cualquier lugar para capturar una región.";
 "Getting Started…" = "Primeros pasos…";
 "Select a region, window, or screen." = "Selecciona una región, ventana o pantalla.";
+"Click a window or drag an area" = "Haz clic en una ventana o arrastra un área";
+"Click a window or drag an area for video" = "Haz clic en una ventana o arrastra un área para vídeo";
 "Edit" = "Editar";
 "Annotate screenshots or prepare recordings." = "Anota capturas de pantalla o prepara grabaciones.";
 "Share" = "Compartir";

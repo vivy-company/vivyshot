@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 struct RegionSelectionResult {
   let selectionRectInScreen: CGRect
   let captureType: CaptureContentType
+  let captureMode: CaptureMode
 }
 
 @MainActor
@@ -60,7 +61,7 @@ final class RegionSelectionOverlayController {
       settings: settings
     )
 
-    selectionView.onSelectionResult = { [weak self, weak window] localRect, captureType in
+    selectionView.onSelectionResult = { [weak self, weak window] localRect, captureType, captureMode in
       guard let self, let window else {
         onComplete(nil)
         return
@@ -77,7 +78,13 @@ final class RegionSelectionOverlayController {
         .offsetBy(dx: window.frame.origin.x, dy: window.frame.origin.y)
         .standardized
 
-      onComplete(RegionSelectionResult(selectionRectInScreen: globalRect, captureType: captureType))
+      onComplete(
+        RegionSelectionResult(
+          selectionRectInScreen: globalRect,
+          captureType: captureType,
+          captureMode: captureMode
+        )
+      )
     }
 
     selectionView.onCancelRequested = { [weak self] in
@@ -183,6 +190,7 @@ final class RegionSelectionOverlayController {
     session: RustDocumentSession?,
     selectionRectInScreen: CGRect,
     initialCaptureType: CaptureContentType,
+    initialCaptureMode: CaptureMode,
     onStartVideo: @escaping (CGRect, VideoCaptureOverlayState, @escaping (Bool) -> Void) -> Void,
     onStopVideo: @escaping () -> Void,
     onDone: @escaping () -> Void
@@ -200,7 +208,8 @@ final class RegionSelectionOverlayController {
     selectionView.enterEditing(
       session: session,
       selectionRect: localRect,
-      initialCaptureType: initialCaptureType
+      initialCaptureType: initialCaptureType,
+      initialCaptureMode: initialCaptureMode
     ) { [weak self] animateClose in
       guard let self else {
         onDone()
