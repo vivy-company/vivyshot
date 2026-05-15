@@ -1,9 +1,9 @@
 # dependencies (bun install)
-node_modules
+node_modules/
 
 # output
-out
-dist
+out/
+dist/
 *.tgz
 
 # code coverage
@@ -11,7 +11,7 @@ coverage
 *.lcov
 
 # logs
-logs
+logs/
 _.log
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
@@ -24,8 +24,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # caches
 .eslintcache
-.cache
-.astro
+.cache/
+.astro/
 *.tsbuildinfo
 
 # IntelliJ based IDEs

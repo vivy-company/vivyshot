@@ -2,6 +2,17 @@
 .DS_Store
 *.app.bak.*
 
+# JavaScript / web
+node_modules/
+.astro/
+.vite/
+.cache/
+dist/
+out/
+coverage/
+*.lcov
+*.tsbuildinfo
+
 # Rust
 vivyshot-rs/target/
 
