@@ -104,6 +104,12 @@
         "Gratuit pour toujours",
         "Premier export Pro gratuit"
       ],
+      "highlights": [
+        "Capture et annotation",
+        "Enregistrement d’écran avec audio système",
+        "Export H.264 standard",
+        "Premier export Pro gratuit"
+      ],
       "core": {
         "label": "Flux principal",
         "screenshots": "Capture d’écran",
@@ -132,6 +138,12 @@
         "30/60 fps, exports à haut débit",
         "Statistiques de capture",
         "Pas d’abonnement"
+      ],
+      "highlights": [
+        "Tout ce qui est dans Free",
+        "Transitions et overlays créateur",
+        "GIF, HEVC, 60 fps et export à haut débit",
+        "Statistiques de capture"
       ],
       "includes": "Tout ce qui est dans Free",
       "groups": {
@@ -165,6 +177,11 @@
         "Badge supporter dans Réglages",
         "Soutien supplémentaire au développement indépendant",
         "Achat unique facultatif"
+      ],
+      "highlights": [
+        "Tout Lifetime",
+        "Badge supporter dans Réglages",
+        "Soutien supplémentaire au développement indépendant"
       ],
       "includes": "Tout Lifetime",
       "extras": {

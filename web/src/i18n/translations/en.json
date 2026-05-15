@@ -115,6 +115,12 @@
         "Free forever",
         "First Pro export is free"
       ],
+      "highlights": [
+        "Screenshot and annotation",
+        "Screen recording with system audio",
+        "Standard H.264 export",
+        "First Pro export is free"
+      ],
       "core": {
         "label": "Core workflow",
         "screenshots": "Screenshot capture",
@@ -143,6 +149,12 @@
         "30/60 fps, high-bitrate exports",
         "Capture statistics",
         "No subscription"
+      ],
+      "highlights": [
+        "Everything in Free",
+        "Capture transitions and creator overlays",
+        "GIF, HEVC, 60 fps, and high-bitrate export",
+        "Capture statistics"
       ],
       "includes": "Everything in Free",
       "groups": {
@@ -176,6 +188,11 @@
         "Supporter badge in Settings",
         "Extra support for independent development",
         "Optional one-time purchase"
+      ],
+      "highlights": [
+        "Everything in Lifetime",
+        "Supporter badge in Settings",
+        "Extra support for independent development"
       ],
       "includes": "Everything in Lifetime",
       "extras": {

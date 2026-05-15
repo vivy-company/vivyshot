@@ -30,22 +30,6 @@ const useCases = [
 ];
 
 const whyBuiltItems = ["q1", "q2", "q3", "q4"];
-const pricingFreeCoreItems = [
-  { key: "screenshots", icon: "lucide:camera" },
-  { key: "annotation", icon: "lucide:highlighter" },
-  { key: "recording", icon: "lucide:clapperboard" },
-  { key: "audio", icon: "lucide:volume-2" }
-];
-const pricingLifetimeGroups = [
-  { key: "effects", icon: "lucide:sparkles" },
-  { key: "overlays", icon: "lucide:layers-3" },
-  { key: "exports", icon: "lucide:file-video" },
-  { key: "stats", icon: "lucide:bar-chart-3" }
-];
-const pricingSupporterItems = [
-  { key: "badge", icon: "lucide:badge-check" },
-  { key: "support", icon: "lucide:heart" }
-];
 const currentYear = new Date().getFullYear();
 
 const highlightAnswer = (text: string) =>
@@ -285,24 +269,14 @@ const highlightAnswer = (text: string) =>
               <span class="ml-1 text-base text-slate-500 dark:text-slate-400" data-i18n="pricing.free.period">{translations.en.pricing.free.period}</span>
             </span>
           </p>
-          <div class="mt-6">
-            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500" data-i18n="pricing.free.core.label">{translations.en.pricing.free.core.label}</p>
-            <div class="mt-4 grid gap-4">
-              {pricingFreeCoreItems.map((item) => (
-                <div class="grid grid-cols-[2rem_1fr] gap-3 border-t border-slate-900/8 pt-4 first:border-t-0 first:pt-0 dark:border-white/10">
-                  <div class="grid size-8 place-items-center rounded-xl bg-slate-950/[0.055] text-slate-600 dark:bg-white/[0.08] dark:text-slate-300">
-                    <Icon class="size-4" name={item.icon} />
-                  </div>
-                  <div class="flex min-h-8 items-center">
-                    <h4 class="text-sm font-semibold text-slate-950 dark:text-slate-100" data-i18n={`pricing.free.core.${item.key}`}>
-                      {translations.en.pricing.free.core[item.key as keyof typeof translations.en.pricing.free.core]}
-                    </h4>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p class="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n="pricing.free.summary">{translations.en.pricing.free.summary}</p>
-          </div>
+          <ul class="mt-6 space-y-3 text-sm font-medium leading-6 text-slate-600 dark:text-slate-300" data-i18n-list="pricing.free.highlights" data-i18n-list-style="pricing-simple">
+            {translations.en.pricing.free.highlights.map((item) => (
+              <li class="flex gap-3">
+                <span class="mt-[0.6rem] size-1.5 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
           <div class="mt-auto pt-6">
             <a class="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-slate-900/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-100" href={SITE.downloadUrl || "#"} aria-disabled={SITE.downloadUrl ? "false" : "true"}>
               <span data-i18n="pricing.free.cta">{translations.en.pricing.free.cta}</span>
@@ -319,33 +293,14 @@ const highlightAnswer = (text: string) =>
               <span class="ml-1 text-base text-slate-500 dark:text-slate-400" data-i18n="pricing.pro.monthly.period">{translations.en.pricing.pro.monthly.period}</span>
             </span>
           </p>
-          <div class="mt-6">
-            <div class="grid gap-4">
-              <div class="grid grid-cols-[2rem_1fr] gap-3">
-                <div class="grid size-8 place-items-center rounded-xl bg-slate-950 text-white dark:bg-white/[0.08] dark:text-slate-100">
-                  <Icon class="size-4" name="lucide:check" />
-                </div>
-                <div class="flex min-h-8 items-center">
-                  <h4 class="text-sm font-semibold text-slate-950 dark:text-slate-100" data-i18n="pricing.pro.includes">{translations.en.pricing.pro.includes}</h4>
-                </div>
-              </div>
-              {pricingLifetimeGroups.map((item) => (
-                <div class="grid grid-cols-[2rem_1fr] gap-3 border-t border-slate-900/8 pt-4 first:border-t-0 first:pt-0 dark:border-white/10">
-                  <div class="grid size-8 place-items-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300">
-                    <Icon class="size-4" name={item.icon} />
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-semibold text-slate-950 dark:text-slate-100" data-i18n={`pricing.pro.groups.${item.key}.title`}>
-                      {translations.en.pricing.pro.groups[item.key as keyof typeof translations.en.pricing.pro.groups].title}
-                    </h4>
-                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n={`pricing.pro.groups.${item.key}.desc`}>
-                      {translations.en.pricing.pro.groups[item.key as keyof typeof translations.en.pricing.pro.groups].desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ul class="mt-6 space-y-3 text-sm font-medium leading-6 text-slate-600 dark:text-slate-300" data-i18n-list="pricing.pro.highlights" data-i18n-list-style="pricing-simple">
+            {translations.en.pricing.pro.highlights.map((item) => (
+              <li class="flex gap-3">
+                <span class="mt-[0.6rem] size-1.5 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
           <div class="mt-auto pt-6">
             <a
               class:list={[
@@ -371,34 +326,14 @@ const highlightAnswer = (text: string) =>
           <p class="mt-5">
             <span class="text-5xl font-semibold tracking-[-0.06em] text-slate-950 dark:text-slate-100" data-i18n="pricing.lifetime.price">{translations.en.pricing.lifetime.price}</span>
           </p>
-          <div class="mt-6">
-            <div class="grid gap-4">
-              <div class="grid grid-cols-[2rem_1fr] gap-3">
-                <div class="grid size-8 place-items-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300">
-                  <Icon class="size-4" name="lucide:check" />
-                </div>
-                <div class="flex min-h-8 items-center">
-                  <h4 class="text-sm font-semibold text-slate-950 dark:text-slate-100" data-i18n="pricing.lifetime.includes">{translations.en.pricing.lifetime.includes}</h4>
-                </div>
-              </div>
-              {pricingSupporterItems.map((item) => (
-                <div class="grid grid-cols-[2rem_1fr] gap-3 border-t border-orange-200/60 pt-4 first:border-t-0 first:pt-0 dark:border-orange-500/15">
-                  <div class="grid size-8 place-items-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300">
-                    <Icon class="size-4" name={item.icon} />
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-semibold text-slate-950 dark:text-slate-100" data-i18n={`pricing.lifetime.extras.${item.key}Title`}>
-                      {translations.en.pricing.lifetime.extras[`${item.key}Title` as keyof typeof translations.en.pricing.lifetime.extras]}
-                    </h4>
-                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n={`pricing.lifetime.extras.${item.key}Desc`}>
-                      {translations.en.pricing.lifetime.extras[`${item.key}Desc` as keyof typeof translations.en.pricing.lifetime.extras]}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p class="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n="pricing.lifetime.optionalNote">{translations.en.pricing.lifetime.optionalNote}</p>
-          </div>
+          <ul class="mt-6 space-y-3 text-sm font-medium leading-6 text-slate-600 dark:text-slate-300" data-i18n-list="pricing.lifetime.highlights" data-i18n-list-style="pricing-simple">
+            {translations.en.pricing.lifetime.highlights.map((item) => (
+              <li class="flex gap-3">
+                <span class="mt-[0.6rem] size-1.5 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500"></span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
           <div class="mt-auto pt-6">
             <a class="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-orange-200 bg-orange-50 px-5 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300 dark:hover:bg-orange-500/15" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer">
               <span data-i18n="pricing.lifetime.cta">{translations.en.pricing.lifetime.cta}</span>
@@ -588,6 +523,10 @@ const highlightAnswer = (text: string) =>
     document.querySelectorAll("[data-i18n-list]").forEach((node) => {
       const items = getByPath(dictionary, node.dataset.i18nList);
       if (!Array.isArray(items)) return;
+      if (node.dataset.i18nListStyle === "pricing-simple") {
+        node.innerHTML = items.map((item) => `<li class="flex gap-3"><span class="mt-[0.6rem] size-1.5 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500"></span><span>${item}</span></li>`).join("");
+        return;
+      }
       node.innerHTML = items.map((item) => `<li class="flex gap-3"><span class="text-slate-950 dark:text-white">✓</span><span>${item}</span></li>`).join("");
     });
 

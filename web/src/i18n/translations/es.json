@@ -104,6 +104,12 @@
         "Gratis para siempre",
         "La primera exportación Pro es gratis"
       ],
+      "highlights": [
+        "Captura y anotación",
+        "Grabación de pantalla con audio del sistema",
+        "Exportación H.264 estándar",
+        "La primera exportación Pro es gratis"
+      ],
       "core": {
         "label": "Flujo principal",
         "screenshots": "Captura de pantalla",
@@ -132,6 +138,12 @@
         "30/60 fps, exportaciones de alta tasa de bits",
         "Estadísticas de captura",
         "Sin suscripción"
+      ],
+      "highlights": [
+        "Todo lo de Free",
+        "Transiciones y overlays para creadores",
+        "GIF, HEVC, 60 fps y exportación de alta tasa de bits",
+        "Estadísticas de captura"
       ],
       "includes": "Todo lo de Free",
       "groups": {
@@ -165,6 +177,11 @@
         "Insignia de supporter en Ajustes",
         "Apoyo extra al desarrollo independiente",
         "Compra única opcional"
+      ],
+      "highlights": [
+        "Todo lo de Lifetime",
+        "Insignia de supporter en Ajustes",
+        "Apoyo extra al desarrollo independiente"
       ],
       "includes": "Todo lo de Lifetime",
       "extras": {

@@ -104,6 +104,12 @@
         "Dauerhaft kostenlos",
         "Erster Pro-Export ist kostenlos"
       ],
+      "highlights": [
+        "Screenshot und Annotation",
+        "Bildschirmaufnahme mit Systemaudio",
+        "Standardexport mit H.264",
+        "Erster Pro-Export ist kostenlos"
+      ],
       "core": {
         "label": "Kern-Workflow",
         "screenshots": "Screenshot-Erfassung",
@@ -132,6 +138,12 @@
         "30/60 fps, Exporte mit hoher Bitrate",
         "Capture-Statistiken",
         "Kein Abo"
+      ],
+      "highlights": [
+        "Alles aus Free",
+        "Capture-Transitions und Creator-Overlays",
+        "GIF, HEVC, 60 fps und Export mit hoher Bitrate",
+        "Capture-Statistiken"
       ],
       "includes": "Alles aus Free",
       "groups": {
@@ -165,6 +177,11 @@
         "Supporter-Abzeichen in den Einstellungen",
         "Zusätzliche Unterstützung für unabhängige Entwicklung",
         "Optionaler Einmalkauf"
+      ],
+      "highlights": [
+        "Alles aus Lifetime",
+        "Supporter-Abzeichen in den Einstellungen",
+        "Zusätzliche Unterstützung für unabhängige Entwicklung"
       ],
       "includes": "Alles aus Lifetime",
       "extras": {
