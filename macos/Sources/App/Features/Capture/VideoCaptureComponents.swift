@@ -29,6 +29,7 @@ final class VideoCaptureCoordinator {
   private var recordingStartUptime: TimeInterval?
   private var webcamPlacementChanges: [VideoOverlayPlacementChange] = []
   private var keystrokePlacementChanges: [VideoOverlayPlacementChange] = []
+  private var webcamOverlayEnabledInSession = false
   private var keystrokeOverlayEnabledInSession = false
   private var isStoppingRecording = false
   var onRecordingStateChanged: ((Bool) -> Void)?
@@ -86,20 +87,10 @@ final class VideoCaptureCoordinator {
         let microphoneEnabled = effectiveCaptureMicrophoneEnabled
         let webcamEnabled = effectiveShowWebcamEnabled
         let keystrokesEnabled = effectiveHighlightKeystrokesEnabled
-        let recordingConfig = VideoRecordingConfig(
-          codec: settings.videoCodec,
-          frameRate: settings.videoFrameRate.rawValue,
-          highlightMouseClicks: settings.videoHighlightMouseClicks,
-          captureSystemAudio: settings.videoRecordSystemAudio,
-          captureMicrophone: microphoneEnabled
-        )
-        let recorder = ScreenRegionRecorder(
-          selectionRectInScreen: recordingRect,
-          config: recordingConfig,
-          outputURL: outputURL
-        )
+        webcamOverlayEnabledInSession = webcamEnabled
         var webcamPreviewLayer: AVCaptureVideoPreviewLayer?
         var pendingWebcamRecorder: WebcamRecorder?
+        var capturedOverlayWindowIDs: [CGWindowID] = []
         let capturesKeystrokes = keystrokesEnabled && isAccessibilityTrusted(promptIfNeeded: false)
         if keystrokesEnabled && !capturesKeystrokes {
           TransientToast.show("Keystroke overlay visible. Enable Accessibility to show real keys.", duration: 2.4)
@@ -138,7 +129,24 @@ final class VideoCaptureCoordinator {
           )
           overlayController.show()
           recordingOverlayController = overlayController
+          if let capturedWindowID = overlayController.capturedWindowID {
+            capturedOverlayWindowIDs.append(capturedWindowID)
+          }
         }
+
+        let recordingConfig = VideoRecordingConfig(
+          codec: settings.videoCodec,
+          frameRate: settings.videoFrameRate.rawValue,
+          highlightMouseClicks: settings.videoHighlightMouseClicks,
+          captureSystemAudio: settings.videoRecordSystemAudio,
+          captureMicrophone: microphoneEnabled,
+          capturedOverlayWindowIDs: capturedOverlayWindowIDs
+        )
+        let recorder = ScreenRegionRecorder(
+          selectionRectInScreen: recordingRect,
+          config: recordingConfig,
+          outputURL: outputURL
+        )
 
         if let pendingWebcamRecorder {
           await Task.yield()
@@ -215,10 +223,11 @@ final class VideoCaptureCoordinator {
     isRecordingActive = false
     hudController?.close()
     hudController = nil
-    recordingOverlayController?.close()
+    let activeOverlayController = recordingOverlayController
     recordingOverlayController = nil
 
     guard let activeRecorder = recorder else {
+      activeOverlayController?.close()
       markCaptureFlowFinished()
       cleanupRecordingSession()
       return
@@ -241,6 +250,7 @@ final class VideoCaptureCoordinator {
 
       do {
         defer {
+          activeOverlayController?.close()
           isStoppingRecording = false
         }
         let monitorResult = inputMonitor?.stop() ?? RecordingInputResult(keyEvents: [], clickEvents: [])
@@ -267,7 +277,7 @@ final class VideoCaptureCoordinator {
           frameRate: settings.videoFrameRate.rawValue,
           systemAudioEnabled: settings.videoRecordSystemAudio,
           microphoneEnabled: effectiveCaptureMicrophoneEnabled,
-          webcamEnabled: effectiveShowWebcamEnabled && webcamURL != nil,
+          webcamEnabled: webcamOverlayEnabledInSession,
           mouseClicksEnabled: settings.videoHighlightMouseClicks,
           keystrokesEnabled: keystrokeOverlayEnabledInSession,
           keyEventCount: monitorResult.keyEvents.count,
@@ -290,7 +300,8 @@ final class VideoCaptureCoordinator {
           rustProject: rustProject,
           details: recordingDetails,
           durationSeconds: assetInfo.durationSeconds,
-          videoSize: assetInfo.videoSize
+          videoSize: assetInfo.videoSize,
+          overlaysBurnedIn: webcamOverlayEnabledInSession || keystrokeOverlayEnabledInSession
         )
 
         await self.presentPostRecordingDialog(
@@ -324,10 +335,20 @@ final class VideoCaptureCoordinator {
         postRecordingPanels.removeAll(where: { $0 === panelRef })
       }
       switch action {
-      case .saveVideo(let options, let consumesTrial):
-        quickSaveVideo(project: project, options: options, consumesFreeProExportTrial: consumesTrial)
-      case .saveGIF(let consumesTrial):
-        quickSaveGIF(project: project, consumesFreeProExportTrial: consumesTrial)
+      case .saveVideo(let options, let exportState, container: let container, consumesFreeProExportTrial: let consumesTrial):
+        quickSaveVideo(
+          project: project,
+          options: options,
+          exportState: exportState,
+          container: container,
+          consumesFreeProExportTrial: consumesTrial
+        )
+      case .saveGIF(let exportState, let consumesTrial):
+        quickSaveGIF(
+          project: project,
+          exportState: exportState,
+          consumesFreeProExportTrial: consumesTrial
+        )
       case .discard:
         discardTemporaryRecording(project: project)
       }
@@ -358,15 +379,18 @@ final class VideoCaptureCoordinator {
   private func quickSaveVideo(
     project: PostRecordingProject,
     options: PostRecordingExportOptions,
+    exportState: PostRecordingExportState,
+    container: PostRecordingVideoSaveContainer?,
     consumesFreeProExportTrial: Bool
   ) {
     let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
       .replacingOccurrences(of: ":", with: "-")
-    let contentType = RustCoreBridge.shared.preferredVideoSaveContentType(codec: options.codec)
-    let defaultName = "VivyShot \(timestamp).\(contentType.preferredFilenameExtension ?? "mp4")"
+    let contentType = container?.contentType ?? RustCoreBridge.shared.preferredVideoSaveContentType(codec: options.codec)
+    let defaultName = "VivyShot \(timestamp).\(container?.fileExtension ?? contentType.preferredFilenameExtension ?? "mp4")"
 
     let panel = NSSavePanel()
-    panel.allowedContentTypes = RustCoreBridge.shared.allowedVideoSaveContentTypes(codec: options.codec)
+    panel.allowedContentTypes = container.map { [$0.contentType] }
+      ?? RustCoreBridge.shared.allowedVideoSaveContentTypes(codec: options.codec)
     panel.nameFieldStringValue = defaultName
     panel.canCreateDirectories = true
     panel.isExtensionHidden = false
@@ -376,10 +400,14 @@ final class VideoCaptureCoordinator {
     Task {
       do {
         let exportPlan = project.rustProject.exportPlan()
-        if exportPlan?.needsCustomCompositor ?? project.hasNativeCompositedOverlays {
+        let shouldUseCustomCompositor = !project.overlaysBurnedIn
+          && (exportPlan?.needsCustomCompositor ?? project.hasNativeCompositedOverlays)
+        if shouldUseCustomCompositor {
           try await PostRecordingProjectExporter.exportCompositedVideo(
             project: project,
             options: options,
+            exportState: exportState,
+            container: container,
             outputURL: outputURL
           )
           markProExportTrialConsumedIfNeeded(consumesFreeProExportTrial)
@@ -388,39 +416,13 @@ final class VideoCaptureCoordinator {
           return
         }
 
-        let asset = AVURLAsset(url: project.inputURL)
-        let durationTime = try await asset.load(.duration)
-        let durationSeconds = max(0, CMTimeGetSeconds(durationTime))
-        let trimRange = CMTimeRange(start: .zero, duration: durationTime)
-        let presetName = RustCoreBridge.shared.bestVideoExportPreset(
-          codec: options.codec,
-          quality: options.quality,
-          compatiblePresets: AVAssetExportSession.exportPresets(compatibleWith: asset)
+        try await exportSourceRecordingVideo(
+          project: project,
+          options: options,
+          exportState: exportState,
+          container: container,
+          outputURL: outputURL
         )
-
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
-          TransientToast.show("Export failed: unable to create session.", duration: 2.5)
-          return
-        }
-
-        let outputFileType = RustCoreBridge.shared.bestVideoSaveFileType(
-          codec: options.codec,
-          supportedTypes: exportSession.supportedFileTypes
-        )
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = outputFileType
-        exportSession.shouldOptimizeForNetworkUse = true
-        exportSession.timeRange = trimRange
-        if let videoComposition = try await makePostRecordingVideoComposition(asset: asset, options: options) {
-          exportSession.videoComposition = videoComposition
-        }
-        if let fileLengthLimit = RustCoreBridge.shared.estimatedVideoFileLengthLimit(
-          durationSeconds: durationSeconds,
-          options: options
-        ) {
-          exportSession.fileLengthLimit = fileLengthLimit
-        }
-        try await exportSession.vs_export()
         markProExportTrialConsumedIfNeeded(consumesFreeProExportTrial)
         cleanupTemporaryAssets(project: project)
         TransientToast.show("Saved video to \(outputURL.lastPathComponent)", duration: 2.5)
@@ -428,6 +430,119 @@ final class VideoCaptureCoordinator {
         TransientToast.show("Video save failed: \(error.localizedDescription)", duration: 2.5)
       }
     }
+  }
+
+  private func exportSourceRecordingVideo(
+    project: PostRecordingProject,
+    options: PostRecordingExportOptions,
+    exportState: PostRecordingExportState,
+    container: PostRecordingVideoSaveContainer?,
+    outputURL: URL
+  ) async throws {
+    if FileManager.default.fileExists(atPath: outputURL.path) {
+      try FileManager.default.removeItem(at: outputURL)
+    }
+
+    let asset = AVURLAsset(url: project.inputURL)
+    let durationTime = try await asset.load(.duration)
+    let durationSeconds = max(0, CMTimeGetSeconds(durationTime))
+    let trimRange = exportState.trimRange(durationSeconds: durationSeconds)
+
+    if exportState.includesAudio {
+      let presetName = RustCoreBridge.shared.bestVideoExportPreset(
+        codec: options.codec,
+        quality: options.quality,
+        compatiblePresets: AVAssetExportSession.exportPresets(compatibleWith: asset)
+      )
+
+      guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
+        throw NSError(
+          domain: "VivyShot.Export",
+          code: -201,
+          userInfo: [NSLocalizedDescriptionKey: "Unable to create video export session."]
+        )
+      }
+
+      let outputFileType = RustCoreBridge.shared.bestVideoSaveFileType(
+        codec: options.codec,
+        supportedTypes: exportSession.supportedFileTypes,
+        preferredContainer: container
+      )
+      exportSession.outputURL = outputURL
+      exportSession.outputFileType = outputFileType
+      exportSession.shouldOptimizeForNetworkUse = true
+      exportSession.timeRange = trimRange
+      if let videoComposition = try await makePostRecordingVideoComposition(asset: asset, options: options) {
+        exportSession.videoComposition = videoComposition
+      }
+      if let fileLengthLimit = RustCoreBridge.shared.estimatedVideoFileLengthLimit(
+        durationSeconds: exportState.trimmedDurationSeconds,
+        options: options
+      ) {
+        exportSession.fileLengthLimit = fileLengthLimit
+      }
+      try await exportSession.vs_export()
+      return
+    }
+
+    let composition = AVMutableComposition()
+    guard let sourceVideoTrack = try await asset.loadTracks(withMediaType: .video).first,
+          let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+          )
+    else {
+      throw NSError(
+        domain: "VivyShot.Export",
+        code: -202,
+        userInfo: [NSLocalizedDescriptionKey: "Recording video track is missing."]
+      )
+    }
+
+    let naturalSize = try await sourceVideoTrack.load(.naturalSize)
+    let preferredTransform = try await sourceVideoTrack.load(.preferredTransform)
+    compositionVideoTrack.preferredTransform = preferredTransform
+    try compositionVideoTrack.insertTimeRange(trimRange, of: sourceVideoTrack, at: .zero)
+
+    let presetName = RustCoreBridge.shared.bestVideoExportPreset(
+      codec: options.codec,
+      quality: options.quality,
+      compatiblePresets: AVAssetExportSession.exportPresets(compatibleWith: composition)
+    )
+    guard let exportSession = AVAssetExportSession(asset: composition, presetName: presetName) else {
+      throw NSError(
+        domain: "VivyShot.Export",
+        code: -203,
+        userInfo: [NSLocalizedDescriptionKey: "Unable to create muted video export session."]
+      )
+    }
+
+    let outputFileType = RustCoreBridge.shared.bestVideoSaveFileType(
+      codec: options.codec,
+      supportedTypes: exportSession.supportedFileTypes,
+      preferredContainer: container
+    )
+    exportSession.outputURL = outputURL
+    exportSession.outputFileType = outputFileType
+    exportSession.shouldOptimizeForNetworkUse = true
+    exportSession.timeRange = CMTimeRange(start: .zero, duration: trimRange.duration)
+    if let videoComposition = makePostRecordingVideoComposition(
+      videoTrack: compositionVideoTrack,
+      naturalSize: naturalSize,
+      preferredTransform: preferredTransform,
+      duration: trimRange.duration,
+      options: options
+    ) {
+      exportSession.videoComposition = videoComposition
+    }
+    if let fileLengthLimit = RustCoreBridge.shared.estimatedVideoFileLengthLimit(
+      durationSeconds: exportState.trimmedDurationSeconds,
+      options: options
+    ) {
+      exportSession.fileLengthLimit = fileLengthLimit
+    }
+    nonisolated(unsafe) let unsafeExportSession = exportSession
+    try await unsafeExportSession.vs_export()
   }
 
   private func makePostRecordingVideoComposition(
@@ -443,6 +558,22 @@ final class VideoCaptureCoordinator {
     let preferredTransform = try await videoTrack.load(.preferredTransform)
     let duration = try await asset.load(.duration)
 
+    return makePostRecordingVideoComposition(
+      videoTrack: videoTrack,
+      naturalSize: naturalSize,
+      preferredTransform: preferredTransform,
+      duration: duration,
+      options: options
+    )
+  }
+
+  private func makePostRecordingVideoComposition(
+    videoTrack: AVAssetTrack,
+    naturalSize: CGSize,
+    preferredTransform: CGAffineTransform,
+    duration: CMTime,
+    options: PostRecordingExportOptions
+  ) -> AVMutableVideoComposition? {
     guard let plan = RustCoreBridge.shared.postRecordingVideoCompositionPlan(
       naturalSize: naturalSize,
       preferredTransform: preferredTransform,
@@ -467,6 +598,7 @@ final class VideoCaptureCoordinator {
 
   private func quickSaveGIF(
     project: PostRecordingProject,
+    exportState: PostRecordingExportState,
     consumesFreeProExportTrial: Bool
   ) {
     let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
@@ -484,6 +616,7 @@ final class VideoCaptureCoordinator {
       do {
         try await PostRecordingProjectExporter.exportGIF(
           project: project,
+          exportState: exportState,
           outputURL: outputURL
         )
         markProExportTrialConsumedIfNeeded(consumesFreeProExportTrial)
@@ -547,6 +680,7 @@ final class VideoCaptureCoordinator {
     recordingStartUptime = nil
     webcamPlacementChanges = []
     keystrokePlacementChanges = []
+    webcamOverlayEnabledInSession = false
     keystrokeOverlayEnabledInSession = false
     isStoppingRecording = false
   }
@@ -577,7 +711,7 @@ final class VideoCaptureCoordinator {
     }
 
     _ = rustProject.setWebcamOverlay(
-      enabled: webcamURL != nil,
+      enabled: webcamOverlayEnabledInSession,
       shape: settings.videoWebcamOverlayShape,
       aspectRatio: settings.videoWebcamOverlayAspectRatio
     )
@@ -793,6 +927,7 @@ struct VideoRecordingConfig {
   let highlightMouseClicks: Bool
   let captureSystemAudio: Bool
   let captureMicrophone: Bool
+  let capturedOverlayWindowIDs: [CGWindowID]
 }
 
 struct VideoCaptureOverlayState {
@@ -830,9 +965,10 @@ struct PostRecordingProject {
   let details: PostRecordingDetails
   let durationSeconds: Double
   let videoSize: CGSize?
+  let overlaysBurnedIn: Bool
 
   var hasNativeCompositedOverlays: Bool {
-    webcamURL != nil
+    !overlaysBurnedIn && webcamURL != nil
   }
 }
 
@@ -1483,6 +1619,13 @@ private final class RecordingOverlayController: NSWindowController {
     panel.orderFrontRegardless()
   }
 
+  var capturedWindowID: CGWindowID? {
+    guard let window else {
+      return nil
+    }
+    return CGWindowID(window.windowNumber)
+  }
+
   func showKeystroke(_ token: String) {
     keystrokeOverlayView?.showToken(token)
   }
@@ -1799,33 +1942,44 @@ private enum PostRecordingProjectExporter {
   static func exportCompositedVideo(
     project: PostRecordingProject,
     options: PostRecordingExportOptions,
+    exportState: PostRecordingExportState,
+    container: PostRecordingVideoSaveContainer?,
     outputURL: URL
   ) async throws {
     let visualURL = temporaryExportURL(extension: "mov")
     defer { try? FileManager.default.removeItem(at: visualURL) }
 
-    try await renderCompositedVisualAsset(project: project, options: options, outputURL: visualURL)
+    try await renderCompositedVisualAsset(
+      project: project,
+      options: options,
+      exportState: exportState,
+      outputURL: visualURL
+    )
     try await mergeRenderedVideoWithSourceAudio(
       renderedVideoURL: visualURL,
       sourceURL: project.inputURL,
       options: options,
+      exportState: exportState,
+      container: container,
       outputURL: outputURL
     )
   }
 
   static func exportGIF(
     project: PostRecordingProject,
+    exportState: PostRecordingExportState,
     outputURL: URL
   ) async throws {
-    guard project.durationSeconds > 0 else {
+    let durationSeconds = exportState.trimmedDurationSeconds
+    guard durationSeconds > 0 else {
       throw exportError("GIF export failed because the recording duration is unavailable.")
     }
-    guard project.durationSeconds <= maxGIFDurationSeconds else {
+    guard durationSeconds <= maxGIFDurationSeconds else {
       throw exportError("GIF export supports recordings up to 120 seconds.")
     }
     guard let plan = RustCoreBridge.shared.buildGIFExportPlan(
-      startMS: 0,
-      endMS: UInt32(max(1, Int((project.durationSeconds * 1000).rounded()))),
+      startMS: exportState.trimStartMS,
+      endMS: exportState.trimEndMS,
       preferredFPS: 12,
       maxDimension: 960
     ) else {
@@ -1836,7 +1990,7 @@ private enum PostRecordingProjectExporter {
 
     let renderSize = gifRenderSize(videoSize: try await resolvedVideoSize(project: project), maxDimension: plan.maxDimension)
     let screenGenerator = makeImageGenerator(url: project.inputURL)
-    let webcamGenerator = project.webcamURL.map(makeImageGenerator(url:))
+    let webcamGenerator = project.overlaysBurnedIn ? nil : project.webcamURL.map(makeImageGenerator(url:))
     let destinationProperties: [CFString: Any] = [
       kCGImagePropertyGIFDictionary: [
         kCGImagePropertyGIFLoopCount: 0
@@ -1881,13 +2035,14 @@ private enum PostRecordingProjectExporter {
   private static func renderCompositedVisualAsset(
     project: PostRecordingProject,
     options: PostRecordingExportOptions,
+    exportState: PostRecordingExportState,
     outputURL: URL
   ) async throws {
     try removeExistingFile(at: outputURL)
 
     let renderSize = evenSize(try await resolvedVideoSize(project: project), scale: options.scale.factor)
     let frameRate = max(1, options.frameRate.rawValue)
-    let frameCount = max(1, Int(ceil(project.durationSeconds * Double(frameRate))))
+    let frameCount = max(1, Int(ceil(exportState.trimmedDurationSeconds * Double(frameRate))))
     let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
     let bitrate = max(2_000_000, Int(renderSize.width * renderSize.height * CGFloat(frameRate) * bitrateMultiplier(options)))
     let input = AVAssetWriterInput(
@@ -1923,7 +2078,7 @@ private enum PostRecordingProjectExporter {
     writer.startSession(atSourceTime: .zero)
 
     let screenGenerator = makeImageGenerator(url: project.inputURL)
-    let webcamGenerator = project.webcamURL.map(makeImageGenerator(url:))
+    let webcamGenerator = project.overlaysBurnedIn ? nil : project.webcamURL.map(makeImageGenerator(url:))
     let frameDuration = CMTime(value: 1, timescale: CMTimeScale(frameRate))
     screenGenerator.requestedTimeToleranceBefore = frameDuration
     screenGenerator.requestedTimeToleranceAfter = frameDuration
@@ -1946,10 +2101,10 @@ private enum PostRecordingProjectExporter {
       }
 
       let presentationTime = CMTimeMultiply(frameDuration, multiplier: Int32(frameIndex))
-      let seconds = CMTimeGetSeconds(presentationTime)
+      let seconds = Double(exportState.trimStartMS) / 1000.0 + CMTimeGetSeconds(presentationTime)
       try await renderCompositedFrame(
         into: pixelBuffer,
-        time: presentationTime,
+        time: CMTime(seconds: seconds, preferredTimescale: 600),
         seconds: seconds,
         renderSize: renderSize,
         screenGenerator: screenGenerator,
@@ -1984,6 +2139,8 @@ private enum PostRecordingProjectExporter {
     renderedVideoURL: URL,
     sourceURL: URL,
     options: PostRecordingExportOptions,
+    exportState: PostRecordingExportState,
+    container: PostRecordingVideoSaveContainer?,
     outputURL: URL
   ) async throws {
     try removeExistingFile(at: outputURL)
@@ -2007,18 +2164,23 @@ private enum PostRecordingProjectExporter {
       at: .zero
     )
 
-    for audioTrack in try await sourceAsset.loadTracks(withMediaType: .audio) {
-      guard let compositionAudioTrack = composition.addMutableTrack(
-        withMediaType: .audio,
-        preferredTrackID: kCMPersistentTrackID_Invalid
-      ) else {
-        continue
+    if exportState.includesAudio {
+      let sourceDuration = try? await sourceAsset.load(.duration)
+      let sourceDurationSeconds = max(0, CMTimeGetSeconds(sourceDuration ?? duration))
+      let sourceAudioRange = exportState.trimRange(durationSeconds: sourceDurationSeconds)
+      for audioTrack in try await sourceAsset.loadTracks(withMediaType: .audio) {
+        guard let compositionAudioTrack = composition.addMutableTrack(
+          withMediaType: .audio,
+          preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+          continue
+        }
+        try? compositionAudioTrack.insertTimeRange(
+          sourceAudioRange,
+          of: audioTrack,
+          at: .zero
+        )
       }
-      try? compositionAudioTrack.insertTimeRange(
-        CMTimeRange(start: .zero, duration: duration),
-        of: audioTrack,
-        at: .zero
-      )
     }
 
     let presetName = RustCoreBridge.shared.bestVideoExportPreset(
@@ -2031,7 +2193,8 @@ private enum PostRecordingProjectExporter {
     }
     let outputFileType = RustCoreBridge.shared.bestVideoSaveFileType(
       codec: options.codec,
-      supportedTypes: exportSession.supportedFileTypes
+      supportedTypes: exportSession.supportedFileTypes,
+      preferredContainer: container
     )
     exportSession.outputURL = outputURL
     exportSession.outputFileType = outputFileType
@@ -2142,6 +2305,10 @@ private enum PostRecordingProjectExporter {
     nonisolated(unsafe) let unsafeScreenGenerator = screenGenerator
     let (screenImage, _) = try await unsafeScreenGenerator.image(at: time)
     context.draw(screenImage, in: renderRect)
+
+    guard !project.overlaysBurnedIn else {
+      return
+    }
 
     let renderPlan = project.rustProject.renderPlan(
       timeSeconds: seconds,
@@ -2424,7 +2591,9 @@ final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputD
       try FileManager.default.removeItem(at: outputURL)
     }
 
-    let content = try await SCShareableContent.current
+    var content = try await SCShareableContent.current
+    let overlayResolution = try await resolveCapturedOverlayWindows(initialContent: content)
+    content = overlayResolution.content
     guard let screen = activeScreenForSelection(),
           let displayID = screen.displayID,
           let display = content.displays.first(where: { $0.displayID == displayID })
@@ -2437,7 +2606,11 @@ final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputD
     }
 
     let excludedApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-    let filter = SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
+    let filter = SCContentFilter(
+      display: display,
+      excludingApplications: excludedApps,
+      exceptingWindows: overlayResolution.windows
+    )
 
     let streamConfig = SCStreamConfiguration()
     let displayRect = display.frame
@@ -2496,6 +2669,34 @@ final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputD
     self.recordingOutput = recordingOutput
     setRecordingError(nil)
     try await stream.vs_startCapture()
+  }
+
+  private func resolveCapturedOverlayWindows(
+    initialContent: SCShareableContent
+  ) async throws -> (content: SCShareableContent, windows: [SCWindow]) {
+    let requestedIDs = Set(config.capturedOverlayWindowIDs)
+    guard !requestedIDs.isEmpty else {
+      return (initialContent, [])
+    }
+
+    var content = initialContent
+    for attempt in 0..<5 {
+      let windows = content.windows.filter { requestedIDs.contains($0.windowID) }
+      if windows.count == requestedIDs.count {
+        return (content, windows)
+      }
+
+      if attempt < 4 {
+        try await Task.sleep(nanoseconds: 80_000_000)
+        content = try await SCShareableContent.current
+      }
+    }
+
+    throw NSError(
+      domain: "com.vivyshot.recording",
+      code: -22,
+      userInfo: [NSLocalizedDescriptionKey: "Recording overlay window was not available to capture."]
+    )
   }
 
   func stop() async throws -> URL {

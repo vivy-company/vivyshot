@@ -477,24 +477,42 @@ struct VivyShotPaywallView: View {
     Button {
       Task { await storeManager.restorePurchases() }
     } label: {
-      HStack(spacing: 8) {
-        if storeManager.restoreState == .restoring {
-          ProgressView()
-            .progressViewStyle(.circular)
-            .scaleEffect(0.85)
-        } else {
-          Image(systemName: "arrow.clockwise.circle")
-            .imageScale(.small)
+      ZStack(alignment: .leading) {
+        HStack(spacing: 5) {
+          restoreIcon(isRestoring: false)
+          Text(String(localized: "Restore Purchases", bundle: AppLocalizer.shared.bundle))
         }
-        Text(storeManager.restoreState == .restoring
-             ? String(localized: "Restoring...", bundle: AppLocalizer.shared.bundle)
-             : String(localized: "Restore Purchases", bundle: AppLocalizer.shared.bundle))
+        .hidden()
+
+        HStack(spacing: 5) {
+          restoreIcon(isRestoring: storeManager.restoreState == .restoring)
+          Text(storeManager.restoreState == .restoring
+               ? String(localized: "Restoring...", bundle: AppLocalizer.shared.bundle)
+               : String(localized: "Restore Purchases", bundle: AppLocalizer.shared.bundle))
+        }
       }
       .font(.footnote.weight(.semibold))
       .foregroundStyle(.secondary)
     }
     .buttonStyle(.plain)
     .disabled(storeManager.restoreState == .restoring)
+    .animation(nil, value: storeManager.restoreState)
+  }
+
+  @ViewBuilder
+  private func restoreIcon(isRestoring: Bool) -> some View {
+    ZStack {
+      Image(systemName: "arrow.clockwise.circle")
+        .imageScale(.small)
+        .opacity(isRestoring ? 0 : 1)
+
+      ProgressView()
+        .progressViewStyle(.circular)
+        .controlSize(.mini)
+        .scaleEffect(0.58)
+        .opacity(isRestoring ? 1 : 0)
+    }
+    .frame(width: 12, height: 12)
   }
 
   private var successOverlay: some View {

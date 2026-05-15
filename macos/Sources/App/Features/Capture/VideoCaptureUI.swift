@@ -3,6 +3,7 @@ import AVFoundation
 import AVKit
 import CoreMedia
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class VideoRecordingHUDController: NSWindowController {
@@ -143,8 +144,13 @@ final class VideoRecordingHUDController: NSWindowController {
 // MARK: - Post-Recording Action Dialog
 
 enum PostRecordingAction {
-  case saveVideo(PostRecordingExportOptions, consumesFreeProExportTrial: Bool)
-  case saveGIF(consumesFreeProExportTrial: Bool)
+  case saveVideo(
+    PostRecordingExportOptions,
+    PostRecordingExportState,
+    container: PostRecordingVideoSaveContainer?,
+    consumesFreeProExportTrial: Bool
+  )
+  case saveGIF(PostRecordingExportState, consumesFreeProExportTrial: Bool)
   case discard
 }
 
@@ -167,9 +173,145 @@ struct PostRecordingExportOptions: Equatable {
   }
 }
 
+struct PostRecordingExportState: Equatable {
+  var trimStartMS: UInt32
+  var trimEndMS: UInt32
+  var includesAudio: Bool
+
+  func trimRange(durationSeconds: Double) -> CMTimeRange {
+    let durationMS = UInt32(max(1, Int((max(0, durationSeconds) * 1000).rounded())))
+    let start = min(trimStartMS, durationMS - 1)
+    let end = min(max(trimEndMS, start + 1), durationMS)
+    return CMTimeRange(
+      start: CMTime(value: CMTimeValue(start), timescale: 1000),
+      duration: CMTime(value: CMTimeValue(end - start), timescale: 1000)
+    )
+  }
+
+  var trimmedDurationSeconds: Double {
+    Double(max(1, trimEndMS - trimStartMS)) / 1000.0
+  }
+}
+
+struct PostRecordingReviewEditState: Equatable {
+  var trimStartMS: UInt32
+  var trimEndMS: UInt32
+  var isTrimModeActive: Bool
+  var isOutputAudioEnabled: Bool
+
+  var exportState: PostRecordingExportState {
+    PostRecordingExportState(
+      trimStartMS: trimStartMS,
+      trimEndMS: trimEndMS,
+      includesAudio: isOutputAudioEnabled
+    )
+  }
+}
+
+@MainActor
+final class PostRecordingReviewState: ObservableObject {
+  @Published private(set) var editState: PostRecordingReviewEditState
+
+  let durationMS: UInt32
+  let hasAudio: Bool
+
+  private var minGapMS: UInt32 {
+    min(500, max(1, durationMS))
+  }
+
+  init(durationSeconds: Double, hasAudio: Bool) {
+    durationMS = UInt32(max(1, Int((max(0, durationSeconds) * 1000).rounded())))
+    self.hasAudio = hasAudio
+    editState = PostRecordingReviewEditState(
+      trimStartMS: 0,
+      trimEndMS: durationMS,
+      isTrimModeActive: false,
+      isOutputAudioEnabled: hasAudio
+    )
+  }
+
+  var durationSeconds: Double {
+    Double(durationMS) / 1000.0
+  }
+
+  func setTrimModeActive(_ isActive: Bool) {
+    editState.isTrimModeActive = isActive
+  }
+
+  func toggleOutputAudio() {
+    guard hasAudio else {
+      return
+    }
+    editState.isOutputAudioEnabled.toggle()
+  }
+
+  func resetTrim() {
+    editState.trimStartMS = 0
+    editState.trimEndMS = durationMS
+  }
+
+  func updateTrim(startMS: UInt32, endMS: UInt32, activeHandle: RustTrimHandle) {
+    let normalized = RustCoreBridge.shared.normalizeTrimRange(
+      durationMS: durationMS,
+      startMS: startMS,
+      endMS: endMS,
+      minGapMS: minGapMS,
+      activeHandle: activeHandle
+    )
+
+    editState.trimStartMS = normalized?.startMS ?? min(startMS, max(0, durationMS - minGapMS))
+    editState.trimEndMS = normalized?.endMS ?? max(endMS, min(durationMS, editState.trimStartMS + minGapMS))
+  }
+
+  func exportState() -> PostRecordingExportState {
+    editState.exportState
+  }
+}
+
 enum PostRecordingExportTarget {
   case video
   case gif
+}
+
+enum PostRecordingVideoSaveContainer: String, CaseIterable {
+  case mp4
+  case mov
+
+  var title: String {
+    switch self {
+    case .mp4:
+      return String(localized: "Save as MP4", bundle: AppLocalizer.shared.bundle)
+    case .mov:
+      return String(localized: "Save as MOV", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+
+  var contentType: UTType {
+    switch self {
+    case .mp4:
+      return .mpeg4Movie
+    case .mov:
+      return .quickTimeMovie
+    }
+  }
+
+  var fileType: AVFileType {
+    switch self {
+    case .mp4:
+      return .mp4
+    case .mov:
+      return .mov
+    }
+  }
+
+  var fileExtension: String {
+    switch self {
+    case .mp4:
+      return "mp4"
+    case .mov:
+      return "mov"
+    }
+  }
 }
 
 struct ProExportRequirement: Equatable {
@@ -186,10 +328,15 @@ struct ProExportRequirement: Equatable {
   static func evaluate(
     project: PostRecordingProject,
     options: PostRecordingExportOptions?,
-    target: PostRecordingExportTarget
+    target: PostRecordingExportTarget,
+    includesAudio: Bool = true
   ) -> ProExportRequirement {
-    ProExportRequirement(
-      reasons: project.rustProject.proRequirement(target: target, options: options) ?? []
+    var reasons = project.rustProject.proRequirement(target: target, options: options) ?? []
+    if !includesAudio {
+      reasons.removeAll { $0 == .microphoneAudio }
+    }
+    return ProExportRequirement(
+      reasons: reasons
     )
   }
 }
@@ -333,6 +480,10 @@ struct PostRecordingDetails {
   let keyEventCount: Int
   let clickEventCount: Int
 
+  var hasAudio: Bool {
+    systemAudioEnabled || microphoneEnabled
+  }
+
   var toolsSummaryText: String {
     var tools: [String] = ["Screen"]
     if systemAudioEnabled { tools.append("System Audio") }
@@ -381,6 +532,7 @@ struct PostRecordingDetails {
 final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
   private let inputURL: URL
   private let project: PostRecordingProject
+  private let reviewState: PostRecordingReviewState
   private let onAction: (PostRecordingAction) -> Void
   private let storeManager = StoreManager.shared
   private var didPickAction = false
@@ -397,6 +549,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
   ) {
     self.inputURL = inputURL
     self.project = project
+    self.reviewState = PostRecordingReviewState(durationSeconds: durationSeconds, hasAudio: details.hasAudio)
     self.onAction = onAction
 
     let panel = NSWindow(
@@ -431,6 +584,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 
     let actionView = PostRecordingActionView(
       project: project,
+      reviewState: reviewState,
       thumbnail: thumbnail
     )
     panel.contentView = NSHostingView(rootView: actionView)
@@ -487,21 +641,14 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     case .exportVideoRecording:
       return toolbarButtonItem(
         identifier: itemIdentifier,
-        label: String(localized: "Export", bundle: AppLocalizer.shared.bundle),
-        symbolName: "slider.horizontal.3",
+        label: String(localized: "Export...", bundle: AppLocalizer.shared.bundle),
+        symbolName: "square.and.arrow.up",
         tintColor: .labelColor,
         prominent: false,
         action: #selector(exportVideoRecording)
       )
     case .saveVideoRecording:
-      return toolbarButtonItem(
-        identifier: itemIdentifier,
-        label: String(localized: "Save", bundle: AppLocalizer.shared.bundle),
-        symbolName: "square.and.arrow.down",
-        tintColor: .white,
-        prominent: true,
-        action: #selector(saveVideoRecording)
-      )
+      return saveMenuToolbarItem(identifier: itemIdentifier)
     default:
       return nil
     }
@@ -538,6 +685,46 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     return item
   }
 
+  private func saveMenuToolbarItem(identifier: NSToolbarItem.Identifier) -> NSToolbarItem {
+    let label = String(localized: "Save", bundle: AppLocalizer.shared.bundle)
+    let item = NSToolbarItem(itemIdentifier: identifier)
+    item.label = label
+    item.paletteLabel = label
+    item.toolTip = label
+
+    let button = NSPopUpButton(frame: .zero, pullsDown: true)
+    button.bezelStyle = .rounded
+    button.controlSize = .regular
+    button.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+    button.contentTintColor = .white
+    button.bezelColor = .controlAccentColor
+    button.target = self
+    button.action = #selector(saveRecordingFormatSelected(_:))
+    button.addItem(withTitle: label)
+    if let titleItem = button.itemArray.first {
+      titleItem.image = NSImage(systemSymbolName: "square.and.arrow.down", accessibilityDescription: label)
+    }
+
+    button.menu?.addItem(NSMenuItem.separator())
+    for container in PostRecordingVideoSaveContainer.allCases {
+      let menuItem = NSMenuItem(title: container.title, action: nil, keyEquivalent: "")
+      menuItem.representedObject = container.rawValue
+      button.menu?.addItem(menuItem)
+    }
+    let gifItem = NSMenuItem(
+      title: String(localized: "Save as GIF", bundle: AppLocalizer.shared.bundle),
+      action: nil,
+      keyEquivalent: ""
+    )
+    gifItem.representedObject = "gif"
+    button.menu?.addItem(gifItem)
+    button.sizeToFit()
+    let fittedSize = button.frame.size
+    button.frame.size = CGSize(width: fittedSize.width + 24, height: max(36, fittedSize.height))
+    item.view = button
+    return item
+  }
+
   private func performAction(_ action: PostRecordingAction) {
     guard !didPickAction else {
       return
@@ -556,16 +743,20 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 
   private func approvedActionAfterExportGate(_ action: PostRecordingAction) -> PostRecordingAction? {
     switch action {
-    case .saveVideo(let options, _):
-      guard let consumesTrial = proExportGateDecision(target: .video, options: options) else {
+    case .saveVideo(let options, let exportState, container: let container, consumesFreeProExportTrial: _):
+      guard let consumesTrial = proExportGateDecision(
+        target: .video,
+        options: options,
+        includesAudio: exportState.includesAudio
+      ) else {
         return nil
       }
-      return .saveVideo(options, consumesFreeProExportTrial: consumesTrial)
-    case .saveGIF(_):
-      guard let consumesTrial = proExportGateDecision(target: .gif, options: nil) else {
+      return .saveVideo(options, exportState, container: container, consumesFreeProExportTrial: consumesTrial)
+    case .saveGIF(let exportState, _):
+      guard let consumesTrial = proExportGateDecision(target: .gif, options: nil, includesAudio: false) else {
         return nil
       }
-      return .saveGIF(consumesFreeProExportTrial: consumesTrial)
+      return .saveGIF(exportState, consumesFreeProExportTrial: consumesTrial)
     case .discard:
       return action
     }
@@ -573,12 +764,14 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 
   private func proExportGateDecision(
     target: PostRecordingExportTarget,
-    options: PostRecordingExportOptions?
+    options: PostRecordingExportOptions?,
+    includesAudio: Bool
   ) -> Bool? {
     let requirement = ProExportRequirement.evaluate(
       project: project,
       options: options,
-      target: target
+      target: target,
+      includesAudio: includesAudio
     )
     guard requirement.requiresPro, !storeManager.hasPaidAccess else {
       return false
@@ -641,21 +834,57 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
       initialOptions: defaultExportOptions(),
       storeManager: storeManager
     ) { [weak self] options in
-      self?.performAction(.saveVideo(options, consumesFreeProExportTrial: false))
+      guard let self else { return }
+      performAction(.saveVideo(options, reviewState.exportState(), container: nil, consumesFreeProExportTrial: false))
     } onSaveGIF: { [weak self] in
-      self?.performAction(.saveGIF(consumesFreeProExportTrial: false))
+      guard let self else { return }
+      performAction(.saveGIF(reviewState.exportState(), consumesFreeProExportTrial: false))
     }
     exportSheetController = controller
     controller.presentSheet(for: window)
   }
 
   @objc
-  private func saveVideoRecording() {
-    performAction(.saveVideo(defaultExportOptions(), consumesFreeProExportTrial: false))
+  private func saveRecordingFormatSelected(_ sender: NSPopUpButton) {
+    guard let rawFormat = sender.selectedItem?.representedObject as? String else {
+      sender.selectItem(at: 0)
+      return
+    }
+    performSaveRecording(rawFormat: rawFormat)
+    sender.selectItem(at: 0)
+  }
+
+  private func performSaveRecording(rawFormat: String) {
+    if rawFormat == "gif" {
+      performAction(.saveGIF(reviewState.exportState(), consumesFreeProExportTrial: false))
+      return
+    }
+    guard let container = PostRecordingVideoSaveContainer(rawValue: rawFormat) else {
+      return
+    }
+    performAction(
+      .saveVideo(
+        quickSaveVideoOptions(),
+        reviewState.exportState(),
+        container: container,
+        consumesFreeProExportTrial: false
+      )
+    )
   }
 
   private func defaultExportOptions() -> PostRecordingExportOptions {
     PostRecordingExportOptions.defaultOptions(settings: .shared)
+  }
+
+  private func quickSaveVideoOptions() -> PostRecordingExportOptions {
+    let defaults = defaultExportOptions()
+    return PostRecordingExportOptions(
+      codec: .h264,
+      frameRate: defaults.frameRate,
+      quality: .standard,
+      scale: .full,
+      bitrate: .standard
+    )
   }
 
   static func loadAssetInfo(url: URL) async -> (durationSeconds: Double, thumbnail: NSImage?, videoSize: CGSize?) {
@@ -702,14 +931,17 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 
 private struct PostRecordingActionView: View {
   let project: PostRecordingProject
+  @ObservedObject var reviewState: PostRecordingReviewState
   let thumbnail: NSImage?
   @StateObject private var playbackState = PostRecordingPreviewPlaybackState()
 
   init(
     project: PostRecordingProject,
+    reviewState: PostRecordingReviewState,
     thumbnail: NSImage?
   ) {
     self.project = project
+    self.reviewState = reviewState
     self.thumbnail = thumbnail
   }
 
@@ -719,20 +951,29 @@ private struct PostRecordingActionView: View {
 
       if FileManager.default.fileExists(atPath: project.inputURL.path) {
         VStack(spacing: 0) {
-          ZStack {
-            PostRecordingPlayerPreview(url: project.inputURL, playbackState: playbackState)
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            PostRecordingOverlayPreviewLayer(project: project, playbackState: playbackState)
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-              .allowsHitTesting(false)
-          }
+          PostRecordingPlayerPreview(
+            url: project.inputURL,
+            playbackState: playbackState,
+            isMuted: !reviewState.editState.isOutputAudioEnabled
+          )
           .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-          PostRecordingPlaybackControls(playbackState: playbackState)
+          PostRecordingPlaybackControls(
+            reviewState: reviewState,
+            playbackState: playbackState
+          )
         }
         .onAppear {
-          playbackState.durationSeconds = project.durationSeconds
+          playbackState.configure(
+            durationSeconds: project.durationSeconds,
+            exportState: reviewState.exportState()
+          )
+        }
+        .onChange(of: reviewState.editState) { _, newValue in
+          playbackState.configure(
+            durationSeconds: project.durationSeconds,
+            exportState: newValue.exportState
+          )
         }
       } else if let thumbnail {
         Image(nsImage: thumbnail)
@@ -754,8 +995,25 @@ private final class PostRecordingPreviewPlaybackState: ObservableObject {
   @Published var currentSeconds: Double = 0
   @Published var durationSeconds: Double = 0
   @Published var isPlaying = false
+  @Published private(set) var trimStartSeconds: Double = 0
+  @Published private(set) var trimEndSeconds: Double = 0
 
   weak var player: AVPlayer?
+
+  var selectedDurationSeconds: Double {
+    max(0, activeTrimEndSeconds - activeTrimStartSeconds)
+  }
+
+  private var activeTrimStartSeconds: Double {
+    max(0, min(durationSeconds, trimStartSeconds))
+  }
+
+  private var activeTrimEndSeconds: Double {
+    let fallbackEnd = durationSeconds > 0 ? durationSeconds : trimEndSeconds
+    let end = trimEndSeconds > trimStartSeconds ? trimEndSeconds : fallbackEnd
+    let upperBound = durationSeconds > 0 ? durationSeconds : end
+    return max(activeTrimStartSeconds, min(upperBound, end))
+  }
 
   func attach(player: AVPlayer) {
     self.player = player
@@ -769,6 +1027,32 @@ private final class PostRecordingPreviewPlaybackState: ObservableObject {
     isPlaying = false
   }
 
+  func configure(durationSeconds: Double, exportState: PostRecordingExportState) {
+    let safeDuration = max(0, durationSeconds)
+    self.durationSeconds = safeDuration
+    trimStartSeconds = Double(exportState.trimStartMS) / 1000.0
+    trimEndSeconds = Double(exportState.trimEndMS) / 1000.0
+
+    if currentSeconds < activeTrimStartSeconds {
+      seek(to: activeTrimStartSeconds)
+    } else if currentSeconds > activeTrimEndSeconds {
+      seek(to: activeTrimEndSeconds)
+    }
+  }
+
+  func updateFromPlayer(seconds: Double, isPlaying: Bool) {
+    let safeSeconds = seconds.isFinite ? max(0, seconds) : 0
+    currentSeconds = safeSeconds
+    self.isPlaying = isPlaying
+
+    guard isPlaying, safeSeconds >= activeTrimEndSeconds - 0.015 else {
+      return
+    }
+    player?.pause()
+    self.isPlaying = false
+    seek(to: activeTrimEndSeconds)
+  }
+
   func togglePlayback() {
     guard let player else {
       return
@@ -778,15 +1062,16 @@ private final class PostRecordingPreviewPlaybackState: ObservableObject {
       isPlaying = false
       return
     }
-    if durationSeconds > 0, currentSeconds >= durationSeconds - 0.05 {
-      seek(to: 0)
+    if currentSeconds < activeTrimStartSeconds || currentSeconds >= activeTrimEndSeconds - 0.05 {
+      seek(to: activeTrimStartSeconds)
     }
     player.play()
     isPlaying = true
   }
 
   func seek(to seconds: Double) {
-    let clamped = max(0, min(durationSeconds > 0 ? durationSeconds : seconds, seconds))
+    let upper = activeTrimEndSeconds > activeTrimStartSeconds ? activeTrimEndSeconds : durationSeconds
+    let clamped = max(activeTrimStartSeconds, min(upper, seconds))
     currentSeconds = clamped
     player?.seek(
       to: CMTime(seconds: clamped, preferredTimescale: 600),
@@ -801,90 +1086,276 @@ private final class PostRecordingPreviewPlaybackState: ObservableObject {
 }
 
 private struct PostRecordingPlaybackControls: View {
+  @ObservedObject var reviewState: PostRecordingReviewState
   @ObservedObject var playbackState: PostRecordingPreviewPlaybackState
-  @State private var isScrubbing = false
-  @State private var scrubSeconds = 0.0
 
-  private var duration: Double {
-    max(0.1, playbackState.durationSeconds)
-  }
-
-  private var displayedSeconds: Double {
-    isScrubbing ? scrubSeconds : playbackState.currentSeconds
+  private var isTrimModeActive: Bool {
+    reviewState.editState.isTrimModeActive
   }
 
   var body: some View {
-    HStack(spacing: 12) {
-      Button {
-        playbackState.skip(by: -5)
-      } label: {
-        Image(systemName: "gobackward.5")
+    VStack(spacing: isTrimModeActive ? 8 : 0) {
+      if isTrimModeActive {
+        trimSummary
       }
-      .help("Back 5 seconds")
 
-      Button {
-        playbackState.togglePlayback()
-      } label: {
-        Image(systemName: playbackState.isPlaying ? "pause.fill" : "play.fill")
-          .font(.system(size: 16, weight: .semibold))
-          .frame(width: 28, height: 28)
-      }
-      .help(playbackState.isPlaying ? "Pause" : "Play")
-
-      Button {
-        playbackState.skip(by: 5)
-      } label: {
-        Image(systemName: "goforward.5")
-      }
-      .help("Forward 5 seconds")
-
-      Text(Self.formatTime(displayedSeconds))
-        .font(.system(size: 12, weight: .medium, design: .monospaced))
-        .foregroundStyle(.white.opacity(0.78))
-        .frame(width: 46, alignment: .trailing)
-
-      Slider(
-        value: Binding(
-          get: {
-            min(duration, max(0, displayedSeconds))
-          },
-          set: { value in
-            scrubSeconds = value
-            if !isScrubbing {
-              playbackState.seek(to: value)
-            }
-          }
-        ),
-        in: 0...duration,
-        onEditingChanged: { editing in
-          isScrubbing = editing
-          if editing {
-            scrubSeconds = playbackState.currentSeconds
-          } else {
-            playbackState.seek(to: scrubSeconds)
-          }
+      HStack(spacing: 12) {
+        Button {
+          playbackState.skip(by: -5)
+        } label: {
+          Image(systemName: "gobackward.5")
         }
-      )
-      .disabled(playbackState.durationSeconds <= 0)
+        .help(String(localized: "Back 5 seconds", bundle: AppLocalizer.shared.bundle))
 
-      Text(Self.formatTime(playbackState.durationSeconds))
-        .font(.system(size: 12, weight: .medium, design: .monospaced))
-        .foregroundStyle(.white.opacity(0.55))
-        .frame(width: 46, alignment: .leading)
+        Button {
+          playbackState.togglePlayback()
+        } label: {
+          Image(systemName: playbackState.isPlaying ? "pause.fill" : "play.fill")
+            .font(.system(size: 16, weight: .semibold))
+            .frame(width: 28, height: 28)
+        }
+        .help(playbackState.isPlaying
+          ? String(localized: "Pause", bundle: AppLocalizer.shared.bundle)
+          : String(localized: "Play", bundle: AppLocalizer.shared.bundle))
+
+        Button {
+          playbackState.skip(by: 5)
+        } label: {
+          Image(systemName: "goforward.5")
+        }
+        .help(String(localized: "Forward 5 seconds", bundle: AppLocalizer.shared.bundle))
+
+        Text(Self.formatTime(playbackState.currentSeconds))
+          .font(.system(size: 12, weight: .medium, design: .monospaced))
+          .foregroundStyle(.white.opacity(0.78))
+          .frame(width: 46, alignment: .trailing)
+
+        PostRecordingTrimTimeline(
+          reviewState: reviewState,
+          playbackState: playbackState,
+          isTrimModeActive: isTrimModeActive
+        )
+        .frame(height: isTrimModeActive ? 42 : 18)
+        .disabled(playbackState.durationSeconds <= 0)
+
+        Text(Self.formatTime(isTrimModeActive ? playbackState.selectedDurationSeconds : playbackState.durationSeconds))
+          .font(.system(size: 12, weight: .medium, design: .monospaced))
+          .foregroundStyle(.white.opacity(0.55))
+          .frame(width: 46, alignment: .leading)
+
+        Button {
+          reviewState.setTrimModeActive(!isTrimModeActive)
+        } label: {
+          Image(systemName: "scissors")
+            .frame(width: 24, height: 24)
+            .foregroundStyle(isTrimModeActive ? Color.accentColor : Color.white.opacity(0.86))
+        }
+        .help(String(localized: "Trim", bundle: AppLocalizer.shared.bundle))
+
+        if reviewState.hasAudio {
+          Button {
+            reviewState.toggleOutputAudio()
+          } label: {
+            Image(systemName: reviewState.editState.isOutputAudioEnabled ? "speaker.wave.2" : "speaker.slash")
+              .frame(width: 24, height: 24)
+          }
+          .help(reviewState.editState.isOutputAudioEnabled
+            ? String(localized: "Mute final output", bundle: AppLocalizer.shared.bundle)
+            : String(localized: "Include sound in final output", bundle: AppLocalizer.shared.bundle))
+        }
+      }
     }
     .buttonStyle(.plain)
     .foregroundStyle(.white.opacity(0.86))
     .padding(.horizontal, 16)
-    .frame(height: 48)
+    .padding(.vertical, isTrimModeActive ? 12 : 0)
+    .frame(minHeight: isTrimModeActive ? 88 : 52)
     .background(Color.black)
   }
 
-  private static func formatTime(_ seconds: Double) -> String {
+  private var trimSummary: some View {
+    HStack(spacing: 8) {
+      Image(systemName: "scissors")
+        .foregroundStyle(Color.accentColor)
+      Text(trimRangeText)
+        .font(.system(size: 12, weight: .medium, design: .monospaced))
+        .foregroundStyle(.white.opacity(0.75))
+      Spacer()
+      Button(String(localized: "Reset Trim", bundle: AppLocalizer.shared.bundle)) {
+        reviewState.resetTrim()
+        playbackState.configure(durationSeconds: reviewState.durationSeconds, exportState: reviewState.exportState())
+        playbackState.seek(to: 0)
+      }
+      .buttonStyle(.plain)
+      .font(.system(size: 12, weight: .semibold))
+      .foregroundStyle(Color.accentColor)
+    }
+  }
+
+  private var trimRangeText: String {
+    let state = reviewState.exportState()
+    return "\(Self.formatTime(Double(state.trimStartMS) / 1000.0)) - \(Self.formatTime(Double(state.trimEndMS) / 1000.0)) · \(Self.formatTime(state.trimmedDurationSeconds))"
+  }
+
+  static func formatTime(_ seconds: Double) -> String {
     guard seconds.isFinite, seconds > 0 else {
       return "00:00"
     }
     let total = Int(seconds.rounded(.down))
     return String(format: "%02d:%02d", total / 60, total % 60)
+  }
+}
+
+private enum PostRecordingTimelineDragTarget {
+  case start
+  case end
+  case playhead
+}
+
+private struct PostRecordingTrimTimeline: View {
+  @ObservedObject var reviewState: PostRecordingReviewState
+  @ObservedObject var playbackState: PostRecordingPreviewPlaybackState
+  let isTrimModeActive: Bool
+
+  @State private var dragTarget: PostRecordingTimelineDragTarget?
+
+  var body: some View {
+    GeometryReader { proxy in
+      let width = max(1, proxy.size.width)
+      let height = proxy.size.height
+      let startX = xPosition(forMS: reviewState.editState.trimStartMS, width: width)
+      let endX = xPosition(forMS: reviewState.editState.trimEndMS, width: width)
+      let playheadX = xPosition(forSeconds: playbackState.currentSeconds, width: width)
+
+      ZStack(alignment: .leading) {
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+          .fill(Color.white.opacity(0.16))
+          .frame(height: isTrimModeActive ? 26 : 6)
+          .frame(maxHeight: .infinity)
+
+        if isTrimModeActive {
+          Rectangle()
+            .fill(Color.black.opacity(0.48))
+            .frame(width: max(0, startX), height: 26)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+
+          Rectangle()
+            .fill(Color.black.opacity(0.48))
+            .frame(width: max(0, width - endX), height: 26)
+            .offset(x: endX)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+
+          RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(Color.accentColor.opacity(0.24))
+            .overlay(
+              RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.9), lineWidth: 1.5)
+            )
+            .frame(width: max(2, endX - startX), height: 30)
+            .offset(x: startX)
+
+          trimHandle
+            .offset(x: max(0, startX - 6))
+          trimHandle
+            .offset(x: min(width - 12, endX - 6))
+        } else {
+          RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(Color.accentColor.opacity(0.72))
+            .frame(width: max(0, min(width, playheadX)), height: 6)
+        }
+
+        Rectangle()
+          .fill(Color.white)
+          .frame(width: 2, height: isTrimModeActive ? 36 : 16)
+          .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+          .offset(x: min(width - 1, max(0, playheadX - 1)))
+      }
+      .frame(width: width, height: height)
+      .contentShape(Rectangle())
+      .gesture(
+        DragGesture(minimumDistance: 0)
+          .onChanged { value in
+            handleDragChanged(value, width: width, startX: startX, endX: endX)
+          }
+          .onEnded { _ in
+            dragTarget = nil
+          }
+      )
+    }
+  }
+
+  private var trimHandle: some View {
+    RoundedRectangle(cornerRadius: 3, style: .continuous)
+      .fill(Color.white)
+      .frame(width: 12, height: 34)
+      .shadow(color: .black.opacity(0.34), radius: 3, x: 0, y: 1)
+      .overlay(
+        RoundedRectangle(cornerRadius: 1, style: .continuous)
+          .fill(Color.black.opacity(0.34))
+          .frame(width: 2, height: 16)
+      )
+  }
+
+  private func handleDragChanged(
+    _ value: DragGesture.Value,
+    width: CGFloat,
+    startX: CGFloat,
+    endX: CGFloat
+  ) {
+    let locationX = min(max(0, value.location.x), width)
+    let target = dragTarget ?? dragTargetForInitialLocation(locationX, startX: startX, endX: endX)
+    dragTarget = target
+
+    let targetMS = UInt32((Double(locationX / width) * Double(reviewState.durationMS)).rounded())
+    switch target {
+    case .start:
+      reviewState.updateTrim(
+        startMS: targetMS,
+        endMS: reviewState.editState.trimEndMS,
+        activeHandle: .start
+      )
+      playbackState.configure(durationSeconds: reviewState.durationSeconds, exportState: reviewState.exportState())
+      playbackState.seek(to: Double(reviewState.editState.trimStartMS) / 1000.0)
+    case .end:
+      reviewState.updateTrim(
+        startMS: reviewState.editState.trimStartMS,
+        endMS: targetMS,
+        activeHandle: .end
+      )
+      playbackState.configure(durationSeconds: reviewState.durationSeconds, exportState: reviewState.exportState())
+    case .playhead:
+      playbackState.seek(to: Double(targetMS) / 1000.0)
+    }
+  }
+
+  private func dragTargetForInitialLocation(
+    _ x: CGFloat,
+    startX: CGFloat,
+    endX: CGFloat
+  ) -> PostRecordingTimelineDragTarget {
+    guard isTrimModeActive else {
+      return .playhead
+    }
+    if abs(x - startX) <= 24 {
+      return .start
+    }
+    if abs(x - endX) <= 24 {
+      return .end
+    }
+    return .playhead
+  }
+
+  private func xPosition(forMS milliseconds: UInt32, width: CGFloat) -> CGFloat {
+    let progress = Double(milliseconds) / Double(max(1, reviewState.durationMS))
+    return min(width, max(0, width * CGFloat(progress)))
+  }
+
+  private func xPosition(forSeconds seconds: Double, width: CGFloat) -> CGFloat {
+    guard reviewState.durationSeconds > 0 else {
+      return 0
+    }
+    let progress = seconds / reviewState.durationSeconds
+    return min(width, max(0, width * CGFloat(progress)))
   }
 }
 
@@ -1308,6 +1779,7 @@ private extension NSToolbarItem.Identifier {
 private struct PostRecordingPlayerPreview: NSViewRepresentable {
   let url: URL
   @ObservedObject var playbackState: PostRecordingPreviewPlaybackState
+  let isMuted: Bool
 
   final class Coordinator: @unchecked Sendable {
     var player: AVPlayer?
@@ -1324,8 +1796,7 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
           return
         }
         let seconds = CMTimeGetSeconds(time)
-        playbackState.currentSeconds = seconds.isFinite ? max(0, seconds) : 0
-        playbackState.isPlaying = (player?.rate ?? 0) != 0
+        playbackState.updateFromPlayer(seconds: seconds, isPlaying: (player?.rate ?? 0) != 0)
       }
     }
 
@@ -1350,6 +1821,7 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
 
     let player = AVPlayer(url: url)
     player.actionAtItemEnd = .pause
+    player.isMuted = isMuted
     view.player = player
     context.coordinator.player = player
     playbackState.attach(player: player)
@@ -1362,6 +1834,7 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
     guard let currentURL = (nsView.player?.currentItem?.asset as? AVURLAsset)?.url else {
       let player = AVPlayer(url: url)
       player.actionAtItemEnd = .pause
+      player.isMuted = isMuted
       nsView.player = player
       context.coordinator.player = player
       playbackState.attach(player: player)
@@ -1370,12 +1843,14 @@ private struct PostRecordingPlayerPreview: NSViewRepresentable {
     }
 
     guard currentURL != url else {
+      nsView.player?.isMuted = isMuted
       return
     }
 
     nsView.player?.pause()
     let player = AVPlayer(url: url)
     player.actionAtItemEnd = .pause
+    player.isMuted = isMuted
     nsView.player = player
     context.coordinator.player = player
     playbackState.attach(player: player)

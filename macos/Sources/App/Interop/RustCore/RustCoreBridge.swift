@@ -149,8 +149,12 @@ final class RustCoreBridge {
 
   func bestVideoSaveFileType(
     codec: PostRecordingExportCodec,
-    supportedTypes: [AVFileType]
+    supportedTypes: [AVFileType],
+    preferredContainer: PostRecordingVideoSaveContainer? = nil
   ) -> AVFileType {
+    if let preferredContainer, supportedTypes.contains(preferredContainer.fileType) {
+      return preferredContainer.fileType
+    }
     let supportsMP4 = supportedTypes.contains(.mp4)
     let supportsMOV = supportedTypes.contains(.mov)
     guard supportsMP4 || supportsMOV else {
