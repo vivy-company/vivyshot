@@ -174,6 +174,9 @@ final class RegionSelectionOverlayController {
     window.onToggleVideoRecording = { [weak selectionView] in
       selectionView?.performToggleVideoRecordingShortcut() ?? false
     }
+    window.onPerformDefaultCaptureAction = { [weak selectionView] in
+      selectionView?.performDefaultCaptureActionShortcut() ?? false
+    }
 
     window.contentView = selectionView
     self.window = window
@@ -770,6 +773,7 @@ final class RegionSelectionWindow: NSPanel {
   var onToggleVideoKeystrokes: (() -> Bool)?
   var onCycleVideoCountdown: (() -> Bool)?
   var onToggleVideoRecording: (() -> Bool)?
+  var onPerformDefaultCaptureAction: (() -> Bool)?
   var onCancel: (() -> Void)?
 
   override var canBecomeKey: Bool { true }
@@ -785,6 +789,9 @@ final class RegionSelectionWindow: NSPanel {
   override func keyDown(with event: NSEvent) {
     if event.keyCode == 53 { // Esc
       onCancel?()
+      return
+    }
+    if isReturnKeyEvent(event), onPerformDefaultCaptureAction?() == true {
       return
     }
     if event.keyCode == UInt16(kVK_Tab) {
@@ -913,6 +920,25 @@ final class RegionSelectionWindow: NSPanel {
     }
 
     return false
+  }
+
+  private func isReturnKeyEvent(_ event: NSEvent) -> Bool {
+    guard event.type == .keyDown else {
+      return false
+    }
+
+    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    let disallowedFlags: NSEvent.ModifierFlags = [.shift, .control, .option, .command]
+    guard flags.intersection(disallowedFlags).isEmpty else {
+      return false
+    }
+
+    switch event.keyCode {
+    case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter):
+      return true
+    default:
+      return false
+    }
   }
 
   private func shortcutIndexForToolSelection(from event: NSEvent) -> Int? {

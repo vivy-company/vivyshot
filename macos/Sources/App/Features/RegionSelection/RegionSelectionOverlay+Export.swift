@@ -209,6 +209,27 @@ extension RegionSelectionView {
     return true
   }
 
+  func resolvePendingVideoCaptureTargetForDefaultAction() -> Bool {
+    guard mode == .editing, selectedCaptureType == .video else {
+      return true
+    }
+
+    if selectedCaptureMode == .screen, screenCapturePickPending {
+      return applyCaptureRect(bounds, as: .screen, rememberAsArea: false)
+    }
+
+    if selectedCaptureMode == .window, windowCapturePickPending {
+      guard let windowRect = captureRectForWindowPick(atScreenPoint: NSEvent.mouseLocation) else {
+        NSSound.beep()
+        TransientToast.show("Move the pointer over a window to start recording")
+        return false
+      }
+      return applyCaptureRect(windowRect, as: .window, rememberAsArea: false)
+    }
+
+    return true
+  }
+
   func resolvePendingCaptureTargetForStillShortcut() -> Bool {
     guard mode == .editing, selectedCaptureType == .screenshot else {
       return false

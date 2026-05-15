@@ -235,7 +235,7 @@ struct CaptureAnnotationToolbar: View {
         .stroke(Color.white.opacity(0.24), lineWidth: 1)
     )
     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 1)
-    .help(mainAction == .copy ? "Copy (⌘C)" : "Save (⌘S)")
+    .help(mainAction == .copy ? "Copy (Return, ⌘C)" : "Save (Return, ⌘S)")
     .padding(.leading, 6)
     .padding(.trailing, 4)
   }
@@ -447,7 +447,7 @@ struct CaptureVideoToolbar: View {
         .stroke(Color.white.opacity(0.24), lineWidth: 1)
     )
     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 1)
-    .help(isRecordingActive ? "Stop recording (⌥⌘R)" : "Start video recording (⌥⌘R)")
+    .help(isRecordingActive ? "Stop recording (⌥⌘R)" : "Start video recording (Return, ⌥⌘R)")
     .padding(.leading, 4)
     .disabled(isRecordingPending)
     .opacity(isRecordingPending ? 0.6 : 1)

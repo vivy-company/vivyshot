@@ -483,6 +483,10 @@ final class RegionSelectionView: NSView {
       return
     }
 
+    if isPlainReturnKeyEvent(event), performDefaultCaptureActionShortcut() {
+      return
+    }
+
     if mode == .selecting {
       switch event.keyCode {
       case UInt16(kVK_ANSI_1):
@@ -497,6 +501,21 @@ final class RegionSelectionView: NSView {
     }
 
     super.keyDown(with: event)
+  }
+
+  private func isPlainReturnKeyEvent(_ event: NSEvent) -> Bool {
+    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    let disallowedFlags: NSEvent.ModifierFlags = [.shift, .control, .option, .command]
+    guard flags.intersection(disallowedFlags).isEmpty else {
+      return false
+    }
+
+    switch event.keyCode {
+    case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter):
+      return true
+    default:
+      return false
+    }
   }
 
   override func draw(_ dirtyRect: NSRect) {
@@ -772,6 +791,35 @@ final class RegionSelectionView: NSView {
         return
       }
       quickSaveFullScreenFromSelectingOverlay()
+    }
+  }
+
+  func performDefaultCaptureActionShortcut() -> Bool {
+    guard mode == .editing else {
+      return false
+    }
+
+    switch selectedCaptureType {
+    case .screenshot:
+      switch settings.screenshotMainAction {
+      case .copy:
+        performCopy()
+      case .save:
+        performSave()
+      }
+      return true
+    case .video:
+      guard !videoRecordingActive else {
+        return false
+      }
+      guard !videoRecordingStartPending else {
+        return true
+      }
+      guard resolvePendingVideoCaptureTargetForDefaultAction() else {
+        return true
+      }
+      startVideoRecordingFromEditor()
+      return true
     }
   }
 
