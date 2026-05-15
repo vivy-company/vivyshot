@@ -115,6 +115,14 @@
         "Free forever",
         "First Pro export is free"
       ],
+      "core": {
+        "label": "Core workflow",
+        "screenshots": "Screenshot capture",
+        "annotation": "Annotation tools",
+        "recording": "Screen recording",
+        "audio": "System audio recording"
+      },
+      "summary": "Standard H.264 exports, local-only data, and the first Pro export free.",
       "cta": "Download free"
     },
     "pro": {
@@ -136,6 +144,25 @@
         "Capture statistics",
         "No subscription"
       ],
+      "includes": "Everything in Free",
+      "groups": {
+        "effects": {
+          "title": "Capture effects",
+          "desc": "Transitions for more polished recording output."
+        },
+        "overlays": {
+          "title": "Creator overlays",
+          "desc": "Microphone, webcam, and keystroke overlays in export."
+        },
+        "exports": {
+          "title": "Export upgrades",
+          "desc": "GIF, HEVC, 60 fps, and higher-bitrate video."
+        },
+        "stats": {
+          "title": "Statistics",
+          "desc": "Local capture history and activity."
+        }
+      },
       "ctaMonthly": "Get lifetime",
       "note": "Refunds are handled by the App Store."
     },
@@ -150,6 +177,14 @@
         "Extra support for independent development",
         "Optional one-time purchase"
       ],
+      "includes": "Includes Lifetime unlock",
+      "extras": {
+        "badgeTitle": "Supporter badge",
+        "badgeDesc": "Shown in Settings.",
+        "supportTitle": "Support the project",
+        "supportDesc": "Extra funding for independent development."
+      },
+      "optionalNote": "Optional one-time purchase. No subscription.",
       "cta": "Become a supporter",
       "guarantee": "Lifetime is $9.99. Supporter is $24.99."
     }

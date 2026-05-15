@@ -104,6 +104,14 @@
         "Gratuit pour toujours",
         "Premier export Pro gratuit"
       ],
+      "core": {
+        "label": "Flux principal",
+        "screenshots": "Capture d’écran",
+        "annotation": "Outils d’annotation",
+        "recording": "Enregistrement d’écran",
+        "audio": "Audio système"
+      },
+      "summary": "Exports H.264 standard, données locales uniquement et premier export Pro gratuit.",
       "cta": "Télécharger gratuitement"
     },
     "pro": {
@@ -125,6 +133,25 @@
         "Statistiques de capture",
         "Pas d’abonnement"
       ],
+      "includes": "Tout ce qui est dans Free",
+      "groups": {
+        "effects": {
+          "title": "Effets de capture",
+          "desc": "Transitions pour des exports d’enregistrement plus soignés."
+        },
+        "overlays": {
+          "title": "Overlays créateur",
+          "desc": "Microphone, webcam et frappes dans l’export."
+        },
+        "exports": {
+          "title": "Exports avancés",
+          "desc": "GIF, HEVC, 60 fps et vidéo à débit plus élevé."
+        },
+        "stats": {
+          "title": "Statistiques",
+          "desc": "Historique et activité de capture en local."
+        }
+      },
       "ctaMonthly": "Obtenir Lifetime",
       "note": "Les remboursements sont gérés par l’App Store."
     },
@@ -139,6 +166,14 @@
         "Soutien supplémentaire au développement indépendant",
         "Achat unique facultatif"
       ],
+      "includes": "Inclut le déblocage Lifetime",
+      "extras": {
+        "badgeTitle": "Badge Supporter",
+        "badgeDesc": "Affiché dans Réglages.",
+        "supportTitle": "Soutenir le projet",
+        "supportDesc": "Financement supplémentaire pour le développement indépendant."
+      },
+      "optionalNote": "Achat unique facultatif. Pas d’abonnement.",
       "cta": "Devenir supporter",
       "guarantee": "Lifetime coûte $9.99. Supporter coûte $24.99."
     }

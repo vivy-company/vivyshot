@@ -30,6 +30,22 @@ const useCases = [
 ];
 
 const whyBuiltItems = ["q1", "q2", "q3", "q4"];
+const pricingFreeCoreItems = [
+  { key: "screenshots", icon: "lucide:camera" },
+  { key: "annotation", icon: "lucide:highlighter" },
+  { key: "recording", icon: "lucide:clapperboard" },
+  { key: "audio", icon: "lucide:volume-2" }
+];
+const pricingLifetimeGroups = [
+  { key: "effects", icon: "lucide:sparkles" },
+  { key: "overlays", icon: "lucide:layers-3" },
+  { key: "exports", icon: "lucide:file-video" },
+  { key: "stats", icon: "lucide:bar-chart-3" }
+];
+const pricingSupporterItems = [
+  { key: "badge", icon: "lucide:badge-check" },
+  { key: "support", icon: "lucide:heart" }
+];
 const currentYear = new Date().getFullYear();
 
 const highlightAnswer = (text: string) =>
@@ -269,14 +285,25 @@ const highlightAnswer = (text: string) =>
               <span class="ml-1 text-base text-slate-500 dark:text-slate-400" data-i18n="pricing.free.period">{translations.en.pricing.free.period}</span>
             </span>
           </p>
-          <ul class="mb-6 mt-6 grid flex-1 gap-3 text-slate-600 dark:text-slate-300" data-i18n-list="pricing.free.features">
-            {translations.en.pricing.free.features.map((item) => (
-              <li class="flex items-start gap-3"><span class="mt-0.5 text-slate-950 dark:text-white">✓</span><span>{item}</span></li>
-            ))}
-          </ul>
-          <a class="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-900/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-100" href={SITE.downloadUrl || "#"} aria-disabled={SITE.downloadUrl ? "false" : "true"}>
-            <span data-i18n="pricing.free.cta">{translations.en.pricing.free.cta}</span>
-          </a>
+          <div class="mt-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500" data-i18n="pricing.free.core.label">{translations.en.pricing.free.core.label}</p>
+            <div class="mt-4 grid gap-2">
+              {pricingFreeCoreItems.map((item) => (
+                <div class="flex min-h-11 items-center gap-3 rounded-2xl bg-slate-950/[0.035] px-3 text-sm font-medium text-slate-700 dark:bg-white/[0.055] dark:text-slate-200">
+                  <Icon class="size-4 text-slate-500 dark:text-slate-400" name={item.icon} />
+                  <span data-i18n={`pricing.free.core.${item.key}`}>
+                    {translations.en.pricing.free.core[item.key as keyof typeof translations.en.pricing.free.core]}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p class="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n="pricing.free.summary">{translations.en.pricing.free.summary}</p>
+          </div>
+          <div class="mt-auto pt-6">
+            <a class="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-slate-900/10 bg-white px-5 py-3 text-sm font-semibold text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-100" href={SITE.downloadUrl || "#"} aria-disabled={SITE.downloadUrl ? "false" : "true"}>
+              <span data-i18n="pricing.free.cta">{translations.en.pricing.free.cta}</span>
+            </a>
+          </div>
         </article>
 
         <article class="flex flex-col rounded-[2rem] border border-slate-900/8 bg-white/95 p-8 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[#121214] dark:shadow-none">
@@ -288,24 +315,44 @@ const highlightAnswer = (text: string) =>
               <span class="ml-1 text-base text-slate-500 dark:text-slate-400" data-i18n="pricing.pro.monthly.period">{translations.en.pricing.pro.monthly.period}</span>
             </span>
           </p>
-          <ul class="mb-6 mt-6 grid flex-1 gap-3 text-slate-600 dark:text-slate-300" data-i18n-list="pricing.pro.features">
-            {translations.en.pricing.pro.features.map((item) => (
-              <li class="flex items-start gap-3"><span class="mt-0.5 text-slate-950 dark:text-white">✓</span><span>{item}</span></li>
-            ))}
-          </ul>
-          <a
-            class:list={[
-              "inline-flex min-h-12 items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition",
-              SITE.downloadUrl
-                ? "bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
-                : "cursor-default bg-slate-950 text-white opacity-90 dark:bg-white dark:text-slate-950"
-            ]}
-            href={SITE.downloadUrl || "#"}
-            aria-disabled={SITE.downloadUrl ? "false" : "true"}
-          >
-            <span data-i18n="pricing.pro.ctaMonthly">{translations.en.pricing.pro.ctaMonthly}</span>
-          </a>
-          <p class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400" data-i18n="pricing.pro.note">{translations.en.pricing.pro.note}</p>
+          <div class="mt-6">
+            <div class="flex min-h-11 items-center gap-3 rounded-2xl bg-slate-950 text-sm font-semibold text-white dark:bg-white dark:text-slate-950">
+              <Icon class="ml-3 size-4" name="lucide:check" />
+              <span data-i18n="pricing.pro.includes">{translations.en.pricing.pro.includes}</span>
+            </div>
+            <div class="mt-4 grid gap-4">
+              {pricingLifetimeGroups.map((item) => (
+                <div class="grid grid-cols-[2rem_1fr] gap-3 border-t border-slate-900/8 pt-4 first:border-t-0 first:pt-0 dark:border-white/10">
+                  <div class="grid size-8 place-items-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300">
+                    <Icon class="size-4" name={item.icon} />
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-semibold text-slate-950 dark:text-slate-100" data-i18n={`pricing.pro.groups.${item.key}.title`}>
+                      {translations.en.pricing.pro.groups[item.key as keyof typeof translations.en.pricing.pro.groups].title}
+                    </h4>
+                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n={`pricing.pro.groups.${item.key}.desc`}>
+                      {translations.en.pricing.pro.groups[item.key as keyof typeof translations.en.pricing.pro.groups].desc}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div class="mt-auto pt-6">
+            <a
+              class:list={[
+                "inline-flex min-h-12 w-full items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition",
+                SITE.downloadUrl
+                  ? "bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                  : "cursor-default bg-slate-950 text-white opacity-90 dark:bg-white dark:text-slate-950"
+              ]}
+              href={SITE.downloadUrl || "#"}
+              aria-disabled={SITE.downloadUrl ? "false" : "true"}
+            >
+              <span data-i18n="pricing.pro.ctaMonthly">{translations.en.pricing.pro.ctaMonthly}</span>
+            </a>
+            <p class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400" data-i18n="pricing.pro.note">{translations.en.pricing.pro.note}</p>
+          </div>
         </article>
 
         <article class="relative flex flex-col overflow-hidden rounded-[2rem] border border-orange-200/80 bg-white/95 p-8 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-orange-500/20 dark:bg-white/[0.06] dark:shadow-none">
@@ -316,15 +363,36 @@ const highlightAnswer = (text: string) =>
           <p class="mt-5">
             <span class="text-5xl font-semibold tracking-[-0.06em] text-slate-950 dark:text-slate-100" data-i18n="pricing.lifetime.price">{translations.en.pricing.lifetime.price}</span>
           </p>
-          <ul class="mb-6 mt-6 grid flex-1 gap-3 text-slate-600 dark:text-slate-300" data-i18n-list="pricing.lifetime.features">
-            {translations.en.pricing.lifetime.features.map((item) => (
-              <li class="flex items-start gap-3"><span class="mt-0.5 text-slate-950 dark:text-white">✓</span><span>{item}</span></li>
-            ))}
-          </ul>
-          <a class="inline-flex min-h-12 items-center justify-center rounded-full border border-orange-200 bg-orange-50 px-5 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300 dark:hover:bg-orange-500/15" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer">
-            <span data-i18n="pricing.lifetime.cta">{translations.en.pricing.lifetime.cta}</span>
-          </a>
-          <p class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400" data-i18n="pricing.lifetime.guarantee">{translations.en.pricing.lifetime.guarantee}</p>
+          <div class="mt-6">
+            <div class="flex min-h-11 items-center gap-3 rounded-2xl border border-orange-200/80 bg-orange-50 px-3 text-sm font-semibold text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300">
+              <Icon class="size-4" name="lucide:check" />
+              <span data-i18n="pricing.lifetime.includes">{translations.en.pricing.lifetime.includes}</span>
+            </div>
+            <div class="mt-4 grid gap-4">
+              {pricingSupporterItems.map((item) => (
+                <div class="grid grid-cols-[2rem_1fr] gap-3 border-t border-orange-200/60 pt-4 first:border-t-0 first:pt-0 dark:border-orange-500/15">
+                  <div class="grid size-8 place-items-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300">
+                    <Icon class="size-4" name={item.icon} />
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-semibold text-slate-950 dark:text-slate-100" data-i18n={`pricing.lifetime.extras.${item.key}Title`}>
+                      {translations.en.pricing.lifetime.extras[`${item.key}Title` as keyof typeof translations.en.pricing.lifetime.extras]}
+                    </h4>
+                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n={`pricing.lifetime.extras.${item.key}Desc`}>
+                      {translations.en.pricing.lifetime.extras[`${item.key}Desc` as keyof typeof translations.en.pricing.lifetime.extras]}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p class="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n="pricing.lifetime.optionalNote">{translations.en.pricing.lifetime.optionalNote}</p>
+          </div>
+          <div class="mt-auto pt-6">
+            <a class="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-orange-200 bg-orange-50 px-5 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300 dark:hover:bg-orange-500/15" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer">
+              <span data-i18n="pricing.lifetime.cta">{translations.en.pricing.lifetime.cta}</span>
+            </a>
+            <p class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400" data-i18n="pricing.lifetime.guarantee">{translations.en.pricing.lifetime.guarantee}</p>
+          </div>
         </article>
       </div>
     </div>

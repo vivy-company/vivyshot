@@ -104,6 +104,14 @@
         "ずっと無料",
         "初回 Pro 書き出しは無料"
       ],
+      "core": {
+        "label": "基本ワークフロー",
+        "screenshots": "スクリーンショット撮影",
+        "annotation": "注釈ツール",
+        "recording": "画面録画",
+        "audio": "システム音声"
+      },
+      "summary": "標準 H.264 書き出し、ローカルのみのデータ、初回 Pro 書き出し無料。",
       "cta": "無料でダウンロード"
     },
     "pro": {
@@ -125,6 +133,25 @@
         "キャプチャ統計",
         "サブスクリプションなし"
       ],
+      "includes": "無料版のすべて",
+      "groups": {
+        "effects": {
+          "title": "キャプチャ効果",
+          "desc": "より polished な録画出力のためのトランジション。"
+        },
+        "overlays": {
+          "title": "クリエイター向けオーバーレイ",
+          "desc": "マイク、Web カメラ、キーストロークをエクスポートに含められます。"
+        },
+        "exports": {
+          "title": "書き出しアップグレード",
+          "desc": "GIF、HEVC、60 fps、高ビットレート動画。"
+        },
+        "stats": {
+          "title": "統計",
+          "desc": "ローカルのキャプチャ履歴とアクティビティ。"
+        }
+      },
       "ctaMonthly": "Lifetime を入手",
       "note": "返金は App Store が処理します。"
     },
@@ -139,6 +166,14 @@
         "独立開発への追加支援",
         "任意の買い切り購入"
       ],
+      "includes": "Lifetime の解放を含む",
+      "extras": {
+        "badgeTitle": "サポーターバッジ",
+        "badgeDesc": "設定画面に表示されます。",
+        "supportTitle": "プロジェクトを支援",
+        "supportDesc": "独立開発への追加資金になります。"
+      },
+      "optionalNote": "任意の買い切り購入。サブスクリプションなし。",
       "cta": "サポーターになる",
       "guarantee": "Lifetime は $9.99。Supporter は $24.99。"
     }

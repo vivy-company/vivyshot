@@ -115,6 +115,14 @@
         "永久免费",
         "首次 Pro 导出免费"
       ],
+      "core": {
+        "label": "核心流程",
+        "screenshots": "截图捕捉",
+        "annotation": "标注工具",
+        "recording": "屏幕录制",
+        "audio": "系统音频"
+      },
+      "summary": "标准 H.264 导出、仅本地数据和首次 Pro 导出免费。",
       "cta": "下载免费版"
     },
     "pro": {
@@ -136,6 +144,25 @@
         "捕捉统计",
         "没有订阅"
       ],
+      "includes": "包含免费版全部内容",
+      "groups": {
+        "effects": {
+          "title": "捕捉动效",
+          "desc": "让录制输出更精致的过渡效果。"
+        },
+        "overlays": {
+          "title": "创作者叠加层",
+          "desc": "导出中包含麦克风、摄像头和按键叠加层。"
+        },
+        "exports": {
+          "title": "导出升级",
+          "desc": "GIF、HEVC、60 fps 和更高码率视频。"
+        },
+        "stats": {
+          "title": "统计",
+          "desc": "本地捕捉历史和活动记录。"
+        }
+      },
       "ctaMonthly": "获取终身版",
       "note": "退款由 App Store 处理。"
     },
@@ -150,6 +177,14 @@
         "额外支持独立开发",
         "可选的一次性购买"
       ],
+      "includes": "包含终身版解锁",
+      "extras": {
+        "badgeTitle": "支持者标记",
+        "badgeDesc": "显示在设置中。",
+        "supportTitle": "支持项目",
+        "supportDesc": "为独立开发提供额外资金。"
+      },
+      "optionalNote": "可选的一次性购买。没有订阅。",
       "cta": "成为支持者",
       "guarantee": "终身版 $9.99。支持者 $24.99。"
     }

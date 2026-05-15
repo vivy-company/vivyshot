@@ -104,6 +104,14 @@
         "영구 무료",
         "첫 Pro 내보내기 무료"
       ],
+      "core": {
+        "label": "핵심 워크플로",
+        "screenshots": "스크린샷 캡처",
+        "annotation": "주석 도구",
+        "recording": "화면 녹화",
+        "audio": "시스템 오디오"
+      },
+      "summary": "표준 H.264 내보내기, 로컬 전용 데이터, 첫 Pro 내보내기 무료.",
       "cta": "무료 다운로드"
     },
     "pro": {
@@ -125,6 +133,25 @@
         "캡처 통계",
         "구독 없음"
       ],
+      "includes": "무료 버전의 모든 기능",
+      "groups": {
+        "effects": {
+          "title": "캡처 효과",
+          "desc": "더 완성도 높은 녹화 결과를 위한 전환 효과."
+        },
+        "overlays": {
+          "title": "크리에이터 오버레이",
+          "desc": "마이크, 웹캠, 키 입력 오버레이를 내보내기에 포함합니다."
+        },
+        "exports": {
+          "title": "내보내기 업그레이드",
+          "desc": "GIF, HEVC, 60 fps, 고비트레이트 비디오."
+        },
+        "stats": {
+          "title": "통계",
+          "desc": "로컬 캡처 기록과 활동."
+        }
+      },
       "ctaMonthly": "Lifetime 구매",
       "note": "환불은 App Store에서 처리합니다."
     },
@@ -139,6 +166,14 @@
         "독립 개발 추가 지원",
         "선택적 일회성 구매"
       ],
+      "includes": "Lifetime 잠금 해제 포함",
+      "extras": {
+        "badgeTitle": "서포터 배지",
+        "badgeDesc": "설정에 표시됩니다.",
+        "supportTitle": "프로젝트 지원",
+        "supportDesc": "독립 개발을 위한 추가 지원금."
+      },
+      "optionalNote": "선택적 일회성 구매. 구독 없음.",
       "cta": "서포터 되기",
       "guarantee": "Lifetime은 $9.99, Supporter는 $24.99."
     }

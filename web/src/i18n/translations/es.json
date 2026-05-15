@@ -104,6 +104,14 @@
         "Gratis para siempre",
         "La primera exportación Pro es gratis"
       ],
+      "core": {
+        "label": "Flujo principal",
+        "screenshots": "Captura de pantalla",
+        "annotation": "Herramientas de anotación",
+        "recording": "Grabación de pantalla",
+        "audio": "Audio del sistema"
+      },
+      "summary": "Exportaciones H.264 estándar, datos solo locales y primera exportación Pro gratis.",
       "cta": "Descargar gratis"
     },
     "pro": {
@@ -125,6 +133,25 @@
         "Estadísticas de captura",
         "Sin suscripción"
       ],
+      "includes": "Todo lo de Free",
+      "groups": {
+        "effects": {
+          "title": "Efectos de captura",
+          "desc": "Transiciones para exportaciones de grabación más pulidas."
+        },
+        "overlays": {
+          "title": "Overlays para creadores",
+          "desc": "Micrófono, webcam y pulsaciones de teclas en la exportación."
+        },
+        "exports": {
+          "title": "Mejoras de exportación",
+          "desc": "GIF, HEVC, 60 fps y vídeo con mayor tasa de bits."
+        },
+        "stats": {
+          "title": "Estadísticas",
+          "desc": "Historial y actividad de captura locales."
+        }
+      },
       "ctaMonthly": "Obtener Lifetime",
       "note": "Los reembolsos los gestiona el App Store."
     },
@@ -139,6 +166,14 @@
         "Apoyo extra al desarrollo independiente",
         "Compra única opcional"
       ],
+      "includes": "Incluye desbloqueo Lifetime",
+      "extras": {
+        "badgeTitle": "Insignia Supporter",
+        "badgeDesc": "Se muestra en Ajustes.",
+        "supportTitle": "Apoyar el proyecto",
+        "supportDesc": "Financiación extra para el desarrollo independiente."
+      },
+      "optionalNote": "Compra única opcional. Sin suscripción.",
       "cta": "Hazte supporter",
       "guarantee": "Lifetime cuesta $9.99. Supporter cuesta $24.99."
     }
