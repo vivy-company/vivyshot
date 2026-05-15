@@ -1640,12 +1640,12 @@ private final class PostRecordingExportSheetController: NSWindowController {
     self.onSaveGIF = onSaveGIF
 
     let window = NSWindow(
-      contentRect: CGRect(x: 0, y: 0, width: 420, height: 380),
+      contentRect: CGRect(x: 0, y: 0, width: 452, height: 294),
       styleMask: [.titled, .closable],
       backing: .buffered,
       defer: false
     )
-    window.title = String(localized: "Export Video", bundle: AppLocalizer.shared.bundle)
+    window.title = String(localized: "Export Recording", bundle: AppLocalizer.shared.bundle)
     window.isReleasedWhenClosed = false
 
     super.init(window: window)
@@ -1691,8 +1691,16 @@ private final class PostRecordingExportSheetController: NSWindowController {
   }
 }
 
+private enum PostRecordingExportSheetTarget: String, CaseIterable, Identifiable {
+  case video
+  case gif
+
+  var id: String { rawValue }
+}
+
 private struct PostRecordingExportSheetView: View {
   @ObservedObject private var storeManager: StoreManager
+  @State private var target: PostRecordingExportSheetTarget = .video
   @State private var options: PostRecordingExportOptions
   let onCancel: () -> Void
   let onSave: (PostRecordingExportOptions) -> Void
@@ -1713,86 +1721,181 @@ private struct PostRecordingExportSheetView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(alignment: .top, spacing: 12) {
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Export Video")
-            .font(.title3.weight(.semibold))
-          Text("Choose how this recording should be exported.")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        }
-
-        Spacer()
-
-        Button {
-          onCancel()
-        } label: {
-          Image(systemName: "xmark")
-            .font(.system(size: 11, weight: .semibold))
-            .frame(width: 24, height: 24)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
+    VStack(spacing: 0) {
+      VStack(spacing: 14) {
+        exportRows
       }
+      .padding(.horizontal, 24)
+      .padding(.top, 20)
+      .padding(.bottom, 18)
 
-      Form {
-        Picker("Codec", selection: $options.codec) {
-          ForEach(PostRecordingExportCodec.allCases) { codec in
-            Text(menuTitle(for: codec)).tag(codec)
-          }
-        }
+      Divider()
 
-        Picker("Frame Rate", selection: $options.frameRate) {
-          ForEach(PostRecordingExportFrameRate.allCases) { frameRate in
-            Text(menuTitle(for: frameRate)).tag(frameRate)
-          }
-        }
-
-        Picker("Quality", selection: $options.quality) {
-          ForEach(PostRecordingExportQuality.allCases) { quality in
-            Text(menuTitle(for: quality)).tag(quality)
-          }
-        }
-
-        Picker("Scale", selection: $options.scale) {
-          ForEach(PostRecordingExportScale.allCases) { scale in
-            Text(menuTitle(for: scale)).tag(scale)
-          }
-        }
-
-        Picker("Bitrate", selection: $options.bitrate) {
-          ForEach(PostRecordingExportBitratePreset.allCases) { bitrate in
-            Text(menuTitle(for: bitrate)).tag(bitrate)
-          }
-        }
-      }
-      .formStyle(.grouped)
-      .fixedSize(horizontal: false, vertical: true)
-
-      HStack {
-        Button(gifButtonTitle) {
-          onSaveGIF()
-        }
-
+      HStack(spacing: 8) {
         Spacer()
-        Button(LocalizedStringKey("Cancel")) {
+        Button(String(localized: "Cancel", bundle: AppLocalizer.shared.bundle)) {
           onCancel()
         }
-        Button(LocalizedStringKey("Export")) {
-          onSave(options)
+        .keyboardShortcut(.cancelAction)
+
+        Button(exportButtonTitle) {
+          switch target {
+          case .video:
+            onSave(options)
+          case .gif:
+            onSaveGIF()
+          }
         }
         .keyboardShortcut(.defaultAction)
       }
+      .padding(.horizontal, 20)
+      .padding(.vertical, 14)
     }
-    .padding(.horizontal, 18)
-    .padding(.top, 16)
-    .padding(.bottom, 14)
-    .frame(width: 420)
+    .frame(width: 452)
+    .background(Color(nsColor: .windowBackgroundColor))
   }
 
-  private var gifButtonTitle: LocalizedStringKey {
-    storeManager.hasPaidAccess ? "Export GIF" : "Export GIF (Pro)"
+  private var exportRows: some View {
+    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 18, verticalSpacing: 10) {
+      GridRow {
+        formLabel("Format")
+        Picker(String(localized: "Format", bundle: AppLocalizer.shared.bundle), selection: $target) {
+          Text(String(localized: "Video", bundle: AppLocalizer.shared.bundle))
+            .tag(PostRecordingExportSheetTarget.video)
+          Text(gifFormatTitle)
+            .tag(PostRecordingExportSheetTarget.gif)
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .frame(width: 232)
+      }
+
+      Divider()
+        .gridCellUnsizedAxes(.horizontal)
+        .padding(.vertical, 2)
+
+      switch target {
+      case .video:
+        videoRows
+      case .gif:
+        gifRows
+      }
+    }
+    .controlSize(.regular)
+  }
+
+  @ViewBuilder
+  private var videoRows: some View {
+    GridRow {
+      formLabel("Codec")
+      Picker(String(localized: "Codec", bundle: AppLocalizer.shared.bundle), selection: $options.codec) {
+        ForEach(PostRecordingExportCodec.allCases) { codec in
+          Text(menuTitle(for: codec)).tag(codec)
+        }
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .frame(width: 232)
+    }
+
+    GridRow {
+      formLabel("Frame Rate")
+      Picker(String(localized: "Frame Rate", bundle: AppLocalizer.shared.bundle), selection: $options.frameRate) {
+        ForEach(PostRecordingExportFrameRate.allCases) { frameRate in
+          Text(menuTitle(for: frameRate)).tag(frameRate)
+        }
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .frame(width: 232)
+    }
+
+    GridRow {
+      formLabel("Quality")
+      Picker(String(localized: "Quality", bundle: AppLocalizer.shared.bundle), selection: $options.quality) {
+        ForEach(PostRecordingExportQuality.allCases) { quality in
+          Text(menuTitle(for: quality)).tag(quality)
+        }
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .frame(width: 232)
+    }
+
+    GridRow {
+      formLabel("Scale")
+      Picker(String(localized: "Scale", bundle: AppLocalizer.shared.bundle), selection: $options.scale) {
+        ForEach(PostRecordingExportScale.allCases) { scale in
+          Text(menuTitle(for: scale)).tag(scale)
+        }
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .frame(width: 232)
+    }
+
+    GridRow {
+      formLabel("Bitrate")
+      Picker(String(localized: "Bitrate", bundle: AppLocalizer.shared.bundle), selection: $options.bitrate) {
+        ForEach(PostRecordingExportBitratePreset.allCases) { bitrate in
+          Text(menuTitle(for: bitrate)).tag(bitrate)
+        }
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .frame(width: 232)
+    }
+  }
+
+  @ViewBuilder
+  private var gifRows: some View {
+    GridRow {
+      formLabel("Type")
+      valueText("Animated GIF")
+    }
+
+    GridRow {
+      formLabel("Frame Rate")
+      valueText("12 fps")
+    }
+
+    GridRow {
+      formLabel("Max Size")
+      valueText("960 px")
+    }
+
+    GridRow {
+      formLabel("Audio")
+      valueText("No audio")
+    }
+  }
+
+  private func formLabel(_ key: LocalizedStringKey) -> some View {
+    Text(key)
+      .foregroundStyle(.secondary)
+      .frame(width: 96, alignment: .trailing)
+  }
+
+  private func valueText(_ key: LocalizedStringKey) -> some View {
+    Text(key)
+      .frame(width: 232, alignment: .leading)
+  }
+
+  private var gifFormatTitle: String {
+    storeManager.hasPaidAccess
+      ? String(localized: "GIF", bundle: AppLocalizer.shared.bundle)
+      : String(localized: "GIF (Pro)", bundle: AppLocalizer.shared.bundle)
+  }
+
+  private var exportButtonTitle: String {
+    switch target {
+    case .video:
+      return String(localized: "Export", bundle: AppLocalizer.shared.bundle)
+    case .gif:
+      return storeManager.hasPaidAccess
+        ? String(localized: "Export GIF", bundle: AppLocalizer.shared.bundle)
+        : String(localized: "Export GIF (Pro)", bundle: AppLocalizer.shared.bundle)
+    }
   }
 
   private func menuTitle(for codec: PostRecordingExportCodec) -> String {
