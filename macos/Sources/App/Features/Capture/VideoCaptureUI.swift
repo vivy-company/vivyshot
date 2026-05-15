@@ -1088,9 +1088,24 @@ private final class PostRecordingPreviewPlaybackState: ObservableObject {
 private struct PostRecordingPlaybackControls: View {
   @ObservedObject var reviewState: PostRecordingReviewState
   @ObservedObject var playbackState: PostRecordingPreviewPlaybackState
+  @State private var isScrubbing = false
+  @State private var scrubbedTrimmedSeconds = 0.0
 
   private var isTrimModeActive: Bool {
     reviewState.editState.isTrimModeActive
+  }
+
+  private var selectedDurationSeconds: Double {
+    max(0, playbackState.selectedDurationSeconds)
+  }
+
+  private var trimmedCurrentSeconds: Double {
+    let current = playbackState.currentSeconds - playbackState.trimStartSeconds
+    return max(0, min(selectedDurationSeconds, current))
+  }
+
+  private var displayedTrimmedSeconds: Double {
+    isScrubbing ? scrubbedTrimmedSeconds : trimmedCurrentSeconds
   }
 
   var body: some View {
@@ -1125,20 +1140,44 @@ private struct PostRecordingPlaybackControls: View {
         }
         .help(String(localized: "Forward 5 seconds", bundle: AppLocalizer.shared.bundle))
 
-        Text(Self.formatTime(playbackState.currentSeconds))
+        Text(Self.formatTime(isTrimModeActive ? playbackState.currentSeconds : displayedTrimmedSeconds))
           .font(.system(size: 12, weight: .medium, design: .monospaced))
           .foregroundStyle(.white.opacity(0.78))
           .frame(width: 46, alignment: .trailing)
 
-        PostRecordingTrimTimeline(
-          reviewState: reviewState,
-          playbackState: playbackState,
-          isTrimModeActive: isTrimModeActive
-        )
-        .frame(height: isTrimModeActive ? 42 : 18)
-        .disabled(playbackState.durationSeconds <= 0)
+        if isTrimModeActive {
+          PostRecordingTrimTimeline(
+            reviewState: reviewState,
+            playbackState: playbackState,
+            isTrimModeActive: true
+          )
+          .frame(height: 42)
+          .disabled(playbackState.durationSeconds <= 0)
+        } else {
+          Slider(
+            value: Binding(
+              get: { displayedTrimmedSeconds },
+              set: { value in
+                scrubbedTrimmedSeconds = value
+                if !isScrubbing {
+                  seekWithinTrimmedClip(to: value)
+                }
+              }
+            ),
+            in: 0...max(0.1, selectedDurationSeconds),
+            onEditingChanged: { editing in
+              isScrubbing = editing
+              if editing {
+                scrubbedTrimmedSeconds = trimmedCurrentSeconds
+              } else {
+                seekWithinTrimmedClip(to: scrubbedTrimmedSeconds)
+              }
+            }
+          )
+          .disabled(playbackState.durationSeconds <= 0 || selectedDurationSeconds <= 0)
+        }
 
-        Text(Self.formatTime(isTrimModeActive ? playbackState.selectedDurationSeconds : playbackState.durationSeconds))
+        Text(Self.formatTime(isTrimModeActive ? playbackState.selectedDurationSeconds : selectedDurationSeconds))
           .font(.system(size: 12, weight: .medium, design: .monospaced))
           .foregroundStyle(.white.opacity(0.55))
           .frame(width: 46, alignment: .leading)
@@ -1193,10 +1232,16 @@ private struct PostRecordingPlaybackControls: View {
 
       Button(String(localized: "Done", bundle: AppLocalizer.shared.bundle)) {
         reviewState.setTrimModeActive(false)
+        playbackState.seek(to: playbackState.trimStartSeconds)
       }
       .buttonStyle(.borderedProminent)
       .controlSize(.small)
     }
+  }
+
+  private func seekWithinTrimmedClip(to seconds: Double) {
+    let clamped = max(0, min(selectedDurationSeconds, seconds))
+    playbackState.seek(to: playbackState.trimStartSeconds + clamped)
   }
 
   private var trimRangeText: String {
