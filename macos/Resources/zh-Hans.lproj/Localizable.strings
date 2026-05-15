@@ -76,8 +76,8 @@
 "Website" = "网站";
 "GitHub" = "GitHub";
 "Report an Issue" = "反馈问题";
-"Capture with intent. Edit with precision." = "有目的地捕捉，精确地编辑。";
-"Selection-first screen capture for screenshots, recordings, and timeline-driven polish." = "以选区为核心的屏幕捕捉，适用于截图、录屏与时间线精修。";
+"Screen capture and recording for macOS." = "适用于 macOS 的截图与录屏工具。";
+"Capture a region, window, or screen, then annotate screenshots, trim recordings, and export when you are done." = "捕捉区域、窗口或屏幕，然后标注截图、裁剪录屏，并在完成后导出。";
 "Statistics…" = "统计…";
 "Settings…" = "设置…";
 "Stop Recording" = "停止录制";

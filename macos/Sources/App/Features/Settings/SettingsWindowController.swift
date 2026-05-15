@@ -195,12 +195,12 @@ struct VivyShotSettingsView: View {
           .font(.title)
           .fontWeight(.bold)
 
-        Text("Capture with intent. Edit with precision.")
+        Text("Screen capture and recording for macOS.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
 
-        Text("Selection-first screen capture for screenshots, recordings, and timeline-driven polish.")
+        Text("Capture a region, window, or screen, then annotate screenshots, trim recordings, and export when you are done.")
           .font(.footnote)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
