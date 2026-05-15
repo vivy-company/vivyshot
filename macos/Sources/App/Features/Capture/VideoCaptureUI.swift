@@ -1181,6 +1181,7 @@ private struct PostRecordingPlaybackControls: View {
         .font(.system(size: 12, weight: .medium, design: .monospaced))
         .foregroundStyle(.white.opacity(0.75))
       Spacer()
+
       Button(String(localized: "Reset Trim", bundle: AppLocalizer.shared.bundle)) {
         reviewState.resetTrim()
         playbackState.configure(durationSeconds: reviewState.durationSeconds, exportState: reviewState.exportState())
@@ -1189,6 +1190,12 @@ private struct PostRecordingPlaybackControls: View {
       .buttonStyle(.plain)
       .font(.system(size: 12, weight: .semibold))
       .foregroundStyle(Color.accentColor)
+
+      Button(String(localized: "Done", bundle: AppLocalizer.shared.bundle)) {
+        reviewState.setTrimModeActive(false)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.small)
     }
   }
 

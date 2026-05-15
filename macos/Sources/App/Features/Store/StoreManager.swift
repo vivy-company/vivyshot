@@ -5,15 +5,20 @@ import os.log
 @MainActor
 final class StoreManager: ObservableObject {
   static let shared = StoreManager()
+  static let reviewModeCode = "VIVYSHOT-REVIEW-2026"
 
   @Published private(set) var entitlement: StoreEntitlement = .free
   @Published private(set) var products: [Product] = []
   @Published var purchaseState: PurchaseState = .idle
   @Published var restoreState: RestoreState = .idle
   @Published private(set) var lastPurchasedProductID: String?
+  @Published private(set) var isReviewModeEnabled = false
+  @Published private(set) var reviewModeExpiresAt: Date?
 
   private var updateListenerTask: Task<Void, Error>?
+  private var reviewModeExpiryTask: Task<Void, Never>?
   private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.vivyshot", category: "Store")
+  private let reviewModeDuration: TimeInterval = 60 * 60 * 2
 
   var hasLifetimeUnlock: Bool { entitlement.hasLifetimeUnlock }
   var hasSupporterBadge: Bool { entitlement.hasSupporterBadge }
@@ -43,6 +48,7 @@ final class StoreManager: ObservableObject {
 
   deinit {
     updateListenerTask?.cancel()
+    reviewModeExpiryTask?.cancel()
   }
 
   func loadProducts() async {
@@ -125,6 +131,13 @@ final class StoreManager: ObservableObject {
   }
 
   func refreshEntitlements() async {
+    refreshReviewModeState()
+    if isReviewModeEnabled {
+      entitlement = .reviewer
+      logger.info("Entitlements refreshed: reviewMode=true")
+      return
+    }
+
     var activeProductIDs = Set<String>()
     for await result in Transaction.currentEntitlements {
       guard case .verified(let transaction) = result else {
@@ -145,6 +158,38 @@ final class StoreManager: ObservableObject {
   func resetTransientState() {
     purchaseState = .idle
     restoreState = .idle
+  }
+
+  @discardableResult
+  func enableReviewMode(code: String) -> Bool {
+    let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmedCode.caseInsensitiveCompare(Self.reviewModeCode) == .orderedSame else {
+      logger.warning("Review mode activation failed")
+      return false
+    }
+
+    setReviewModeEnabled(true)
+    return true
+  }
+
+  func setReviewModeEnabled(_ enabled: Bool) {
+    if enabled {
+      isReviewModeEnabled = true
+      reviewModeExpiresAt = Date().addingTimeInterval(reviewModeDuration)
+      entitlement = .reviewer
+      scheduleReviewModeExpiry()
+      logger.info("Review mode enabled")
+      return
+    }
+
+    guard isReviewModeEnabled || reviewModeExpiresAt != nil else { return }
+    isReviewModeEnabled = false
+    reviewModeExpiresAt = nil
+    reviewModeExpiryTask?.cancel()
+    reviewModeExpiryTask = nil
+    logger.info("Review mode disabled")
+
+    Task { await refreshEntitlements() }
   }
 
   private func listenForTransactions() -> Task<Void, Error> {
@@ -176,6 +221,26 @@ final class StoreManager: ObservableObject {
       return hasSupporterBadge
     default:
       return false
+    }
+  }
+
+  private func scheduleReviewModeExpiry() {
+    reviewModeExpiryTask?.cancel()
+    guard let reviewModeExpiresAt else { return }
+
+    let delay = max(0, reviewModeExpiresAt.timeIntervalSinceNow)
+    reviewModeExpiryTask = Task { [weak self] in
+      try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+      await MainActor.run {
+        self?.refreshReviewModeState()
+      }
+    }
+  }
+
+  private func refreshReviewModeState() {
+    guard isReviewModeEnabled else { return }
+    if let reviewModeExpiresAt, Date() >= reviewModeExpiresAt {
+      setReviewModeEnabled(false)
     }
   }
 

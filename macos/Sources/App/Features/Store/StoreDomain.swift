@@ -86,6 +86,7 @@ struct StoreEntitlement: Equatable {
   }
 
   static let free = StoreEntitlement(hasLifetimeUnlock: false, hasSupporterBadge: false)
+  static let reviewer = StoreEntitlement(hasLifetimeUnlock: true, hasSupporterBadge: true)
 
   static func resolve(productIDs: Set<String>) -> StoreEntitlement {
     StoreEntitlement(

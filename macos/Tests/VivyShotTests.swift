@@ -74,6 +74,15 @@ final class VivyShotTests: XCTestCase {
     XCTAssertEqual(entitlement.tierTitle, "Supporter")
   }
 
+  func testReviewerEntitlementUnlocksLifetimeAndSupporter() {
+    let entitlement = StoreEntitlement.reviewer
+
+    XCTAssertTrue(entitlement.hasPaidAccess)
+    XCTAssertTrue(entitlement.hasLifetimeUnlock)
+    XCTAssertTrue(entitlement.hasSupporterBadge)
+    XCTAssertEqual(entitlement.badgeTitle, "Supporter")
+  }
+
   func testCaptureStatisticsStorePersistsLedgerAndDerivesDashboardFromRust() async throws {
     let tempDirectory = FileManager.default.temporaryDirectory
       .appendingPathComponent("vivyshot-stats-tests", isDirectory: true)
