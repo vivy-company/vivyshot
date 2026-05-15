@@ -161,7 +161,14 @@ struct VivyShotPaywallView: View {
 
       purchaseFooter
     }
-    .frame(width: sheetWidth, height: sheetHeight)
+    .frame(
+      minWidth: minimumSheetWidth,
+      idealWidth: sheetWidth,
+      maxWidth: .infinity,
+      minHeight: minimumSheetHeight,
+      idealHeight: sheetHeight,
+      maxHeight: .infinity
+    )
     .background(sheetBackground)
     .task {
       await storeManager.loadProducts()
@@ -756,6 +763,14 @@ struct VivyShotPaywallView: View {
 
   private var sheetHeight: CGFloat {
     storeManager.hasSupporterBadge ? 360 : 720
+  }
+
+  private var minimumSheetWidth: CGFloat {
+    520
+  }
+
+  private var minimumSheetHeight: CGFloat {
+    storeManager.hasSupporterBadge ? 360 : 560
   }
 
   private var sheetBackground: Color {

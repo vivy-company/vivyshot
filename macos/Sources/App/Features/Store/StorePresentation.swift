@@ -15,7 +15,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
     let contentSize = Self.contentSize
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: contentSize.width, height: contentSize.height),
-      styleMask: [.titled, .closable, .fullSizeContentView],
+      styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
@@ -27,6 +27,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
     window.isReleasedWhenClosed = false
     window.center()
     window.setContentSize(contentSize)
+    window.contentMinSize = Self.minimumContentSize
     window.contentView = NSHostingView(rootView: AnyView(Self.makePaywallView(copy: copy)))
 
     super.init(window: window)
@@ -51,8 +52,11 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
     window.title = copy.title
     window.subtitle = copy.subtitle
     window.toolbar = makeToolbar()
-    window.setContentSize(contentSize)
-    window.center()
+    window.contentMinSize = Self.minimumContentSize
+    if !window.isVisible {
+      window.setContentSize(contentSize)
+      window.center()
+    }
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
   }
@@ -67,6 +71,12 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
     StoreManager.shared.hasSupporterBadge
       ? NSSize(width: 520, height: 360)
       : NSSize(width: 520, height: 720)
+  }
+
+  private static var minimumContentSize: NSSize {
+    StoreManager.shared.hasSupporterBadge
+      ? NSSize(width: 520, height: 360)
+      : NSSize(width: 520, height: 560)
   }
 
   private static var toolbarCopy: ToolbarCopy {
