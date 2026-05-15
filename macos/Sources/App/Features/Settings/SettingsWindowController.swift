@@ -220,50 +220,52 @@ struct VivyShotSettingsView: View {
 
   private var aboutLinksSection: some View {
     Section("Links") {
-      Link(destination: URL(string: "https://vivyshot.com")!) {
-        Label("Website", systemImage: "globe")
-      }
-
-      Link(destination: URL(string: "https://vivyshot.com/privacy")!) {
-        Label("Privacy Policy", systemImage: "hand.raised")
-      }
-
-      Link(destination: URL(string: "https://vivyshot.com/terms")!) {
-        Label("Terms of Use", systemImage: "doc.text")
-      }
+      AboutLinkRow(
+        title: String(localized: "Website", bundle: AppLocalizer.shared.bundle),
+        systemImage: "globe",
+        url: URL(string: "https://vivyshot.com")!
+      )
+      AboutLinkRow(
+        title: String(localized: "Privacy Policy", bundle: AppLocalizer.shared.bundle),
+        systemImage: "hand.raised",
+        url: URL(string: "https://vivyshot.com/privacy")!
+      )
+      AboutLinkRow(
+        title: String(localized: "Terms of Use", bundle: AppLocalizer.shared.bundle),
+        systemImage: "doc.text",
+        url: URL(string: "https://vivyshot.com/terms")!
+      )
     }
   }
 
   private var aboutContactSection: some View {
     Section("Get in Touch") {
-      Link(destination: URL(string: "https://x.com/wiedymi")!) {
-        Label("Developer", systemImage: "person.crop.circle")
-      }
-
-      Link(destination: URL(string: "https://discord.gg/zemMZtrkSb")!) {
-        Label("Discord", systemImage: "bubble.left.and.bubble.right")
-      }
-
-      Link(destination: URL(string: "mailto:vivyshot@vivy.company")!) {
-        Label("Email", systemImage: "envelope")
-      }
+      AboutLinkRow(
+        title: String(localized: "Developer", bundle: AppLocalizer.shared.bundle),
+        systemImage: "person.crop.circle",
+        url: URL(string: "https://x.com/wiedymi")!
+      )
+      AboutLinkRow(
+        title: String(localized: "Discord", bundle: AppLocalizer.shared.bundle),
+        systemImage: "bubble.left.and.bubble.right",
+        url: URL(string: "https://discord.gg/zemMZtrkSb")!
+      )
+      AboutLinkRow(
+        title: String(localized: "Email", bundle: AppLocalizer.shared.bundle),
+        systemImage: "envelope",
+        url: URL(string: "mailto:vivyshot@vivy.company")!
+      )
     }
   }
 
   private var aboutAppsSection: some View {
     Section("Our Apps") {
-      Link(destination: URL(string: "https://vvterm.com")!) {
-        Label {
-          VStack(alignment: .leading, spacing: 2) {
-            Text(verbatim: "VVTerm")
-            Text("Professional SSH client for macOS and iOS")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-        } icon: {
-          Image(systemName: "terminal")
-        }
-      }
+      AboutLinkRow(
+        title: "VVTerm",
+        subtitle: String(localized: "Native SSH terminal and SFTP client for iPhone, iPad, and Mac.", bundle: AppLocalizer.shared.bundle),
+        assetImage: "VVTermIcon",
+        url: URL(string: "https://vvterm.com")!
+      )
     }
   }
 
@@ -1402,6 +1404,47 @@ private struct VideoToolbarToolDropDelegate: DropDelegate {
   func performDrop(info: DropInfo) -> Bool {
     draggingTool = nil
     return true
+  }
+}
+
+private struct AboutLinkRow: View {
+  let title: String
+  var subtitle: String?
+  var systemImage: String?
+  var assetImage: String?
+  let url: URL
+
+  var body: some View {
+    Link(destination: url) {
+      HStack(spacing: 14) {
+        icon
+          .frame(width: 28, height: 28)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+          if let subtitle {
+            Text(subtitle)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  @ViewBuilder
+  private var icon: some View {
+    if let assetImage {
+      Image(assetImage)
+        .resizable()
+        .interpolation(.high)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    } else if let systemImage {
+      Image(systemName: systemImage)
+        .font(.system(size: 20, weight: .regular))
+    }
   }
 }
 
