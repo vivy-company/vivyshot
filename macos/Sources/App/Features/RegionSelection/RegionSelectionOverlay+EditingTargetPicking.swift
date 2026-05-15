@@ -144,7 +144,7 @@ extension RegionSelectionView {
   }
 
   func smartWindowRectForInitialSelection(at point: CGPoint) -> CGRect? {
-    guard mode == .selecting, !smartDragActivated else {
+    guard mode == .selecting, settings.captureSmartWindowSelectionEnabled, !smartDragActivated else {
       return nil
     }
     guard !captureTypeHost.frame.contains(point) else {
@@ -154,7 +154,7 @@ extension RegionSelectionView {
   }
 
   func updateSmartWindowHover(at point: CGPoint?) {
-    guard mode == .selecting, !smartDragActivated, let point else {
+    guard mode == .selecting, settings.captureSmartWindowSelectionEnabled, !smartDragActivated, let point else {
       if smartWindowHoverRect != nil {
         smartWindowHoverRect = nil
         needsLayout = true

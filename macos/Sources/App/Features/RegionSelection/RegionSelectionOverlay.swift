@@ -326,6 +326,17 @@ final class RegionSelectionView: NSView {
       return
     }
 
+    guard settings.captureSmartWindowSelectionEnabled else {
+      resetSmartSelectionState()
+      dragStart = point
+      dragCurrent = point
+      committedSelectionRect = nil
+      updateSelectingHintVisibility(animated: true)
+      needsLayout = true
+      needsDisplay = true
+      return
+    }
+
     smartMouseDownPoint = point
     smartMouseDownWindowRect = smartWindowRectForInitialSelection(at: point)
     smartWindowHoverRect = smartMouseDownWindowRect
@@ -343,6 +354,16 @@ final class RegionSelectionView: NSView {
 
     if mode == .editing {
       super.mouseDragged(with: event)
+      return
+    }
+
+    guard settings.captureSmartWindowSelectionEnabled else {
+      guard dragStart != nil else {
+        return
+      }
+      dragCurrent = point
+      needsLayout = true
+      needsDisplay = true
       return
     }
 
@@ -374,7 +395,11 @@ final class RegionSelectionView: NSView {
     let point = convert(event.locationInWindow, from: nil)
     switch mode {
     case .selecting:
-      updateSmartWindowHover(at: point)
+      if settings.captureSmartWindowSelectionEnabled {
+        updateSmartWindowHover(at: point)
+      } else {
+        updateSmartWindowHover(at: nil)
+      }
       applySelectingHoverCursor(at: point)
     case .editing:
       updateWindowCaptureHover(at: point)
@@ -390,6 +415,30 @@ final class RegionSelectionView: NSView {
   override func mouseUp(with event: NSEvent) {
     if mode == .editing {
       super.mouseUp(with: event)
+      return
+    }
+
+    guard settings.captureSmartWindowSelectionEnabled else {
+      guard dragStart != nil else {
+        return
+      }
+
+      dragCurrent = convert(event.locationInWindow, from: nil)
+      let selection = selectionRect().map { $0.integral }
+
+      dragStart = nil
+      dragCurrent = nil
+      committedSelectionRect = selection
+      updateSelectingHintVisibility(animated: true)
+      needsLayout = true
+      needsDisplay = true
+
+      guard let selection, selection.width >= 2, selection.height >= 2 else {
+        return
+      }
+
+      beginScreenshotStatisticsSessionIfNeeded()
+      onSelectionResult?(selection, selectedCaptureType, .selection)
       return
     }
 

@@ -353,6 +353,10 @@ struct VivyShotSettingsView: View {
         .toggleStyle(.switch)
         .controlSize(.small)
 
+      Toggle("Smart Window Selection", isOn: captureSmartWindowSelectionBinding)
+        .toggleStyle(.switch)
+        .controlSize(.small)
+
       LabeledContent("Start In") {
         Picker("Default Capture Type", selection: defaultCaptureTypeBinding) {
           ForEach(CaptureContentType.allCases) { type in
@@ -368,7 +372,7 @@ struct VivyShotSettingsView: View {
     } footer: {
       Text(
         String(
-          localized: "Choose the default mode and whether VivyShot shows the helper after capture starts.",
+          localized: "Turn off smart window selection if you prefer to draw an area before choosing a window.",
           bundle: AppLocalizer.shared.bundle
         )
       )
@@ -1012,6 +1016,13 @@ struct VivyShotSettingsView: View {
     Binding(
       get: { settings.captureShowHelper },
       set: { settings.setCaptureShowHelper($0) }
+    )
+  }
+
+  private var captureSmartWindowSelectionBinding: Binding<Bool> {
+    Binding(
+      get: { settings.captureSmartWindowSelectionEnabled },
+      set: { settings.setCaptureSmartWindowSelectionEnabled($0) }
     )
   }
 

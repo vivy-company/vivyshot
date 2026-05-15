@@ -22,6 +22,8 @@
 "Press a key combination now. Esc cancels." = "Press a key combination now. Esc cancels.";
 "Hold Command/Shift/Option/Control while pressing a key." = "Hold Command/Shift/Option/Control while pressing a key.";
 "Show Capture Helper" = "Show Capture Helper";
+"Smart Window Selection" = "Smart Window Selection";
+"Turn off smart window selection if you prefer to draw an area before choosing a window." = "Turn off smart window selection if you prefer to draw an area before choosing a window.";
 "Default" = "Default";
 "Default Capture Type" = "Default Capture Type";
 "Saving" = "Saving";

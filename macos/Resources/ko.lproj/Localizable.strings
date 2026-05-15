@@ -21,6 +21,8 @@
 "Record" = "녹화";
 "Reset" = "재설정";
 "Show Capture Helper" = "캡처 도우미 표시";
+"Smart Window Selection" = "스마트 창 선택";
+"Turn off smart window selection if you prefer to draw an area before choosing a window." = "창을 선택하기 전에 먼저 영역을 그리는 방식을 선호하면 스마트 창 선택을 끄세요.";
 "Saving" = "저장";
 "Default Folder" = "기본 폴더";
 "Choose Folder…" = "폴더 선택…";

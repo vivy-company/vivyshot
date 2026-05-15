@@ -21,6 +21,8 @@
 "Record" = "Aufnehmen";
 "Reset" = "Zurücksetzen";
 "Show Capture Helper" = "Aufnahmehilfe anzeigen";
+"Smart Window Selection" = "Smarte Fensterauswahl";
+"Turn off smart window selection if you prefer to draw an area before choosing a window." = "Deaktiviere die smarte Fensterauswahl, wenn du lieber erst einen Bereich ziehst, bevor du ein Fenster auswählst.";
 "Saving" = "Speichern";
 "Default Folder" = "Standardordner";
 "Choose Folder…" = "Ordner wählen…";

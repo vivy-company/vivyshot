@@ -23,6 +23,8 @@
 "Press a key combination now. Esc cancels." = "今すぐキーの組み合わせを押してください。Esc でキャンセルします。";
 "Hold Command/Shift/Option/Control while pressing a key." = "キーを押す際に Command / Shift / Option / Control を組み合わせられます。";
 "Show Capture Helper" = "キャプチャヘルパーを表示";
+"Smart Window Selection" = "スマートウインドウ選択";
+"Turn off smart window selection if you prefer to draw an area before choosing a window." = "ウインドウを選ぶ前に範囲を描く操作を優先する場合は、スマートウインドウ選択をオフにします。";
 "Default" = "デフォルト";
 "Default Capture Type" = "デフォルトのキャプチャ種類";
 "Saving" = "保存";

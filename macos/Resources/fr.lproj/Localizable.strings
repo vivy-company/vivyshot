@@ -21,6 +21,8 @@
 "Record" = "Enregistrer";
 "Reset" = "Réinitialiser";
 "Show Capture Helper" = "Afficher l’assistant de capture";
+"Smart Window Selection" = "Sélection intelligente des fenêtres";
+"Turn off smart window selection if you prefer to draw an area before choosing a window." = "Désactivez la sélection intelligente des fenêtres si vous préférez tracer une zone avant de choisir une fenêtre.";
 "Saving" = "Enregistrement";
 "Default Folder" = "Dossier par défaut";
 "Choose Folder…" = "Choisir un dossier…";

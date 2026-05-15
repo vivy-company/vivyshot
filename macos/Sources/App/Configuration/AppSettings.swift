@@ -46,6 +46,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var captureUseOption: Bool
   @Published private(set) var captureUseControl: Bool
   @Published private(set) var captureShowHelper: Bool
+  @Published private(set) var captureSmartWindowSelectionEnabled: Bool
   @Published private(set) var hasSeenWelcome: Bool
   @Published private(set) var defaultCaptureType: CaptureContentType
   @Published private(set) var appLanguage: AppLanguage
@@ -176,6 +177,7 @@ final class AppSettings: ObservableObject {
     static let captureUseOption = "settings.capture.useOption"
     static let captureUseControl = "settings.capture.useControl"
     static let captureShowHelper = "settings.capture.showHelper"
+    static let captureSmartWindowSelectionEnabled = "settings.capture.smartWindowSelectionEnabled"
     static let hasSeenWelcome = "settings.welcome.hasSeenWelcome"
     static let defaultCaptureType = "settings.capture.defaultType"
     static let appLanguage = "settings.app.language"
@@ -255,6 +257,11 @@ final class AppSettings: ObservableObject {
       captureShowHelper = true
     } else {
       captureShowHelper = defaults.bool(forKey: Keys.captureShowHelper)
+    }
+    if defaults.object(forKey: Keys.captureSmartWindowSelectionEnabled) == nil {
+      captureSmartWindowSelectionEnabled = true
+    } else {
+      captureSmartWindowSelectionEnabled = defaults.bool(forKey: Keys.captureSmartWindowSelectionEnabled)
     }
 
     hasSeenWelcome = defaults.bool(forKey: Keys.hasSeenWelcome)
@@ -503,6 +510,14 @@ final class AppSettings: ObservableObject {
     }
     captureShowHelper = enabled
     persistCaptureHelperSetting()
+  }
+
+  func setCaptureSmartWindowSelectionEnabled(_ enabled: Bool) {
+    guard captureSmartWindowSelectionEnabled != enabled else {
+      return
+    }
+    captureSmartWindowSelectionEnabled = enabled
+    persistCaptureSmartWindowSelectionSetting()
   }
 
   func markWelcomeSeen() {
@@ -1415,6 +1430,11 @@ final class AppSettings: ObservableObject {
     notifySettingsChanged()
   }
 
+  private func persistCaptureSmartWindowSelectionSetting() {
+    defaults.set(captureSmartWindowSelectionEnabled, forKey: Keys.captureSmartWindowSelectionEnabled)
+    notifySettingsChanged()
+  }
+
   private func persistWelcomeState() {
     defaults.set(hasSeenWelcome, forKey: Keys.hasSeenWelcome)
   }
@@ -1513,6 +1533,7 @@ final class AppSettings: ObservableObject {
     defaults.set(captureUseOption, forKey: Keys.captureUseOption)
     defaults.set(captureUseControl, forKey: Keys.captureUseControl)
     defaults.set(captureShowHelper, forKey: Keys.captureShowHelper)
+    defaults.set(captureSmartWindowSelectionEnabled, forKey: Keys.captureSmartWindowSelectionEnabled)
     defaults.set(hasSeenWelcome, forKey: Keys.hasSeenWelcome)
     defaults.set(defaultCaptureType.rawValue, forKey: Keys.defaultCaptureType)
     defaults.set(appLanguage.rawValue, forKey: Keys.appLanguage)

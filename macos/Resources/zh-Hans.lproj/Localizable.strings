@@ -22,6 +22,8 @@
 "Press a key combination now. Esc cancels." = "现在按下快捷键组合。按 Esc 取消。";
 "Hold Command/Shift/Option/Control while pressing a key." = "按键时可同时按住 Command/Shift/Option/Control。";
 "Show Capture Helper" = "显示捕捉助手";
+"Smart Window Selection" = "智能窗口选择";
+"Turn off smart window selection if you prefer to draw an area before choosing a window." = "如果你更喜欢先拖选区域再选择窗口，可以关闭智能窗口选择。";
 "Default" = "默认";
 "Default Capture Type" = "默认捕捉类型";
 "Saving" = "保存";
