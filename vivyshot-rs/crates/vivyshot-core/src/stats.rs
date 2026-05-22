@@ -582,7 +582,7 @@ fn update_streak(state: &mut CaptureStatisticsState, day_key: StatsDayKey) {
         .max(state.current_capture_streak_days);
     if state
         .last_capture_day_key
-        .map_or(true, |existing| day_key > existing)
+        .is_none_or(|existing| day_key > existing)
     {
         state.last_capture_day_key = Some(day_key);
     }

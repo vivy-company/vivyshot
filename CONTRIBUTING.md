@@ -59,6 +59,6 @@ CLA checks are enforced by the repository bot configuration in `.clabot`.
 
 By submitting contributions, you agree that your contributions may be distributed under the project's license model:
 
-- Rust core + generated FFI header (`vivyshot-rs/`, `ffi/`): MIT (`LICENSE`)
+- Rust core + generated FFI header (`vivyshot-rs/`, `ffi/`): MIT (`LICENSE-MIT`, `vivyshot-rs/LICENSE`, `ffi/LICENSE`)
 - macOS app sources (`macos/`): GPL-3.0-only (`macos/LICENSE`, `LICENSE-GPL-3.0`)
 - Official App Store binary terms: `LICENSE-APPSTORE.md`

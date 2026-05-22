@@ -96,5 +96,5 @@ The list below is generated from `cargo metadata` and reflects dependency licens
 ## Notes
 
 - License expressions are sourced from dependency package metadata.
-- Rust core + generated FFI header source are MIT-licensed (`LICENSE`); macOS app sources are GPL-3.0-only (`macos/LICENSE`, `LICENSE-GPL-3.0`).
+- Rust core + generated FFI header source are MIT-licensed (`LICENSE-MIT`, `vivyshot-rs/LICENSE`, `ffi/LICENSE`); macOS app sources are GPL-3.0-only (`macos/LICENSE`, `LICENSE-GPL-3.0`).
 - This notice file should be reviewed before binary releases to ensure accuracy for all bundled artifacts.

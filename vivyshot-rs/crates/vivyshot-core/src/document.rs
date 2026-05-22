@@ -586,18 +586,16 @@ impl DocumentCommand {
     }
 
     fn transform_affine(&mut self, scale_x: f32, scale_y: f32, translate_x: f32, translate_y: f32) {
+        let transform = AffineTransform {
+            scale_x,
+            scale_y,
+            translate_x,
+            translate_y,
+        };
         match self {
             Self::Rect(rect) | Self::FilledRect(rect) => {
-                let (x, y, width, height) = transform_rect_affine(
-                    rect.x,
-                    rect.y,
-                    rect.width,
-                    rect.height,
-                    scale_x,
-                    scale_y,
-                    translate_x,
-                    translate_y,
-                );
+                let (x, y, width, height) =
+                    transform_rect_affine(rect.x, rect.y, rect.width, rect.height, transform);
                 rect.x = x;
                 rect.y = y;
                 rect.width = width;
@@ -609,10 +607,7 @@ impl DocumentCommand {
                     ellipse.y,
                     ellipse.width,
                     ellipse.height,
-                    scale_x,
-                    scale_y,
-                    translate_x,
-                    translate_y,
+                    transform,
                 );
                 ellipse.x = x;
                 ellipse.y = y;
@@ -697,10 +692,7 @@ impl DocumentCommand {
                     pixelate.y,
                     pixelate.width,
                     pixelate.height,
-                    scale_x,
-                    scale_y,
-                    translate_x,
-                    translate_y,
+                    transform,
                 );
                 pixelate.x = x;
                 pixelate.y = y;
@@ -708,16 +700,8 @@ impl DocumentCommand {
                 pixelate.height = height;
             }
             Self::Blur(blur) => {
-                let (x, y, width, height) = transform_rect_affine(
-                    blur.x,
-                    blur.y,
-                    blur.width,
-                    blur.height,
-                    scale_x,
-                    scale_y,
-                    translate_x,
-                    translate_y,
-                );
+                let (x, y, width, height) =
+                    transform_rect_affine(blur.x, blur.y, blur.width, blur.height, transform);
                 blur.x = x;
                 blur.y = y;
                 blur.width = width;
@@ -940,7 +924,7 @@ fn text_command_bounds(text: &str, cmd: DocumentTextCommand) -> Option<DocRect> 
     if text.is_empty() {
         return None;
     }
-    let px = cmd.font_px.max(8).min(144) as i32;
+    let px = cmd.font_px.clamp(8, 144) as i32;
     let glyph_w = (px * 5) / 4;
     let line_h = (px * 3) / 2;
     let mut max_chars = 0i32;
@@ -1000,20 +984,25 @@ fn scale_point_between_rects(px: i32, py: i32, from: I32Rect, to: I32Rect) -> (i
     (x.round() as i32, y.round() as i32)
 }
 
+#[derive(Clone, Copy)]
+struct AffineTransform {
+    scale_x: f32,
+    scale_y: f32,
+    translate_x: f32,
+    translate_y: f32,
+}
+
 fn transform_rect_affine(
     x: i32,
     y: i32,
     width: i32,
     height: i32,
-    scale_x: f32,
-    scale_y: f32,
-    translate_x: f32,
-    translate_y: f32,
+    transform: AffineTransform,
 ) -> (i32, i32, i32, i32) {
-    let x0 = x as f32 * scale_x + translate_x;
-    let y0 = y as f32 * scale_y + translate_y;
-    let x1 = x.saturating_add(width) as f32 * scale_x + translate_x;
-    let y1 = y.saturating_add(height) as f32 * scale_y + translate_y;
+    let x0 = x as f32 * transform.scale_x + transform.translate_x;
+    let y0 = y as f32 * transform.scale_y + transform.translate_y;
+    let x1 = x.saturating_add(width) as f32 * transform.scale_x + transform.translate_x;
+    let y1 = y.saturating_add(height) as f32 * transform.scale_y + transform.translate_y;
     let left = round_to_i32(x0.min(x1));
     let top = round_to_i32(y0.min(y1));
     let right = round_to_i32(x0.max(x1));
