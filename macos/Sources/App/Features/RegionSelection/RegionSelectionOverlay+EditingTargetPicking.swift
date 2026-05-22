@@ -187,17 +187,16 @@ extension RegionSelectionView {
   }
 
   func syncLiveCaptureTargetPickingState() {
-    let shouldPassThrough = mode == .editing && (windowCapturePickPending || screenCapturePickPending)
+    let targetPickActive = mode == .editing && (windowCapturePickPending || screenCapturePickPending)
 
     guard let hostWindow = window else {
-      teardownGlobalTargetPickMonitors()
       return
     }
 
-    hostWindow.ignoresMouseEvents = shouldPassThrough
+    // Keep target-pick clicks in the overlay so the underlying app cannot steal keyboard focus.
+    hostWindow.ignoresMouseEvents = false
 
-    if shouldPassThrough {
-      installGlobalTargetPickMonitors()
+    if targetPickActive {
       if windowCapturePickPending {
         updateWindowCaptureHover(atScreenPoint: NSEvent.mouseLocation)
       } else {
@@ -207,87 +206,8 @@ extension RegionSelectionView {
       needsLayout = true
       needsDisplay = true
     } else {
-      teardownGlobalTargetPickMonitors()
       updateWindowCaptureHover(at: nil)
       window?.invalidateCursorRects(for: self)
-    }
-  }
-
-  func installGlobalTargetPickMonitors() {
-    if globalMouseMovedMonitor == nil {
-      globalMouseMovedMonitor = NSEvent.addGlobalMonitorForEvents(
-        matching: [.mouseMoved, .leftMouseDragged]
-      ) { [weak self] event in
-        let screenPoint = event.locationInWindow
-        Task { @MainActor [weak self, screenPoint] in
-          self?.handleGlobalTargetPickMouseMove(screenPoint: screenPoint)
-        }
-      }
-    }
-
-    if globalMouseDownMonitor == nil {
-      globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(
-        matching: [.leftMouseDown]
-      ) { [weak self] event in
-        let screenPoint = event.locationInWindow
-        Task { @MainActor [weak self, screenPoint] in
-          self?.handleGlobalTargetPickClick(screenPoint: screenPoint)
-        }
-      }
-    }
-  }
-
-  func teardownGlobalTargetPickMonitors() {
-    if let globalMouseMovedMonitor {
-      NSEvent.removeMonitor(globalMouseMovedMonitor)
-      self.globalMouseMovedMonitor = nil
-    }
-
-    if let globalMouseDownMonitor {
-      NSEvent.removeMonitor(globalMouseDownMonitor)
-      self.globalMouseDownMonitor = nil
-    }
-  }
-
-  func handleGlobalTargetPickMouseMove(screenPoint: CGPoint) {
-    guard mode == .editing else {
-      return
-    }
-    guard windowCapturePickPending || screenCapturePickPending else {
-      return
-    }
-
-    if windowCapturePickPending {
-      updateWindowCaptureHover(atScreenPoint: screenPoint)
-    }
-
-    applyEditingHoverCursor(at: localPoint(fromScreenPoint: screenPoint))
-  }
-
-  func handleGlobalTargetPickClick(screenPoint: CGPoint) {
-    guard mode == .editing else {
-      return
-    }
-
-    if windowCapturePickPending {
-      guard let windowRect = captureRectForWindowPick(atScreenPoint: screenPoint) else {
-        NSSound.beep()
-        return
-      }
-      if applyCaptureRect(windowRect, as: .window, rememberAsArea: false),
-         selectedCaptureType == .video
-      {
-        startVideoRecordingFromEditor()
-      }
-      return
-    }
-
-    if screenCapturePickPending {
-      if applyCaptureRect(bounds, as: .screen, rememberAsArea: false),
-         selectedCaptureType == .video
-      {
-        startVideoRecordingFromEditor()
-      }
     }
   }
 }

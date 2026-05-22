@@ -823,10 +823,6 @@ final class RegionSelectionWindow: NSPanel {
       return false
     }
 
-    guard let key = event.charactersIgnoringModifiers?.lowercased() else {
-      return false
-    }
-
     let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
     guard flags.contains(.command) else {
       return false
@@ -866,8 +862,8 @@ final class RegionSelectionWindow: NSPanel {
       }
     }
 
-    switch key {
-    case "z":
+    switch event.keyCode {
+    case UInt16(kVK_ANSI_Z):
       if flags == [.command, .shift] {
         onRedo?()
         return true
@@ -876,41 +872,41 @@ final class RegionSelectionWindow: NSPanel {
         onUndo?()
         return true
       }
-    case "c":
+    case UInt16(kVK_ANSI_C):
       if flags == .command {
         onCopy?()
         return true
       }
-    case "s":
+    case UInt16(kVK_ANSI_S):
       if flags == .command {
         onSave?()
         return true
       }
-    case "n":
+    case UInt16(kVK_ANSI_N):
       if flags == .command,
          let onAddStitchSegment
       {
         onAddStitchSegment()
         return true
       }
-    case "r":
+    case UInt16(kVK_ANSI_R):
       if flags == .command,
          let onResetStitch
       {
         onResetStitch()
         return true
       }
-    case "+", "=":
+    case UInt16(kVK_ANSI_Equal), UInt16(kVK_ANSI_KeypadPlus):
       if flags == .command || flags == [.command, .shift] {
         onZoomIn?()
         return true
       }
-    case "-":
+    case UInt16(kVK_ANSI_Minus), UInt16(kVK_ANSI_KeypadMinus):
       if flags == .command {
         onZoomOut?()
         return true
       }
-    case "0":
+    case UInt16(kVK_ANSI_0), UInt16(kVK_ANSI_Keypad0):
       if flags == .command {
         onZoomReset?()
         return true

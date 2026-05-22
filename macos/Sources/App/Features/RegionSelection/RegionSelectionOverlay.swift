@@ -94,8 +94,6 @@ final class RegionSelectionView: NSView {
   var videoRecordingActive = false
   var videoRecordingStartPending = false
   var pointerTrackingArea: NSTrackingArea?
-  var globalMouseMovedMonitor: Any?
-  var globalMouseDownMonitor: Any?
 
   var session: RustDocumentSession?
   var onEditingDone: ((Bool) -> Void)?
@@ -176,7 +174,6 @@ final class RegionSelectionView: NSView {
   deinit {
     MainActor.assumeIsolated {
       stitchCaptureTask?.cancel()
-      teardownGlobalTargetPickMonitors()
       if let settingsObserver {
         NotificationCenter.default.removeObserver(settingsObserver)
         self.settingsObserver = nil
