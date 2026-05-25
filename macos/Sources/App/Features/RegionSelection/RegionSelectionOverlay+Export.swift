@@ -16,35 +16,25 @@ extension RegionSelectionView {
       return
     }
 
-    let copied = autoreleasepool { () -> Bool in
-      let pasteboard = NSPasteboard.general
-      pasteboard.clearContents()
-
-      if let encodedPNG = encodedImageForCurrentSelection(format: .png, jpegQuality: 100) {
-        let item = NSPasteboardItem()
-        item.setData(encodedPNG, forType: .png)
-        if pasteboard.writeObjects([item]) {
-          return true
-        }
-      }
-
-      guard let image = exportImageForCurrentSelection() else {
-        return false
-      }
-      let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-      return pasteboard.writeObjects([nsImage])
+    guard let image = exportImageForCurrentSelection() else {
+      NSSound.beep()
+      return
     }
+
+    let encodedPNG = encodedImageForCurrentSelection(format: .png, jpegQuality: 100)
+    let copied = copyImageToPasteboard(image, encodedPNG: encodedPNG)
 
     guard copied else {
       NSSound.beep()
       return
     }
 
+    let autoSaveResult = autoSaveCopiedScreenshot(image)
     let completionContext = currentScreenshotStatisticsCompletionContext()
     let finishedAt = Date()
     finishEditing(animatedClose: false)
     recordScreenshotStatisticsCompletionIfNeeded(completionContext, finishedAt: finishedAt)
-    TransientToast.show("Copied to Clipboard")
+    showCopyResultToast(autoSaveResult: autoSaveResult)
   }
 
   func performSave() {
@@ -157,6 +147,46 @@ extension RegionSelectionView {
     return RustCoreBridge.shared.encodeImage(image, format: format, jpegQuality: jpegQuality)
   }
 
+  func copyImageToPasteboard(_ image: CGImage, encodedPNG: Data?) -> Bool {
+    autoreleasepool { () -> Bool in
+      let pasteboard = NSPasteboard.general
+      pasteboard.clearContents()
+
+      if let encodedPNG {
+        let item = NSPasteboardItem()
+        item.setData(encodedPNG, forType: .png)
+        if pasteboard.writeObjects([item]) {
+          return true
+        }
+      }
+
+      let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+      return pasteboard.writeObjects([nsImage])
+    }
+  }
+
+  func autoSaveCopiedScreenshot(_ image: CGImage) -> Bool? {
+    guard settings.saveCopiedScreenshotsToDefaultDirectory,
+          let directory = settings.defaultSaveDirectoryURL
+    else {
+      return nil
+    }
+
+    let destination = Self.makeAutoSaveURL(in: directory, ext: "png")
+    return Self.saveImageToDisk(image, to: destination, showsToast: false)
+  }
+
+  func showCopyResultToast(autoSaveResult: Bool?) {
+    switch autoSaveResult {
+    case .some(true):
+      TransientToast.show(String(localized: "Copied and Saved", bundle: AppLocalizer.shared.bundle))
+    case .some(false):
+      TransientToast.show(String(localized: "Copied. Auto-save failed.", bundle: AppLocalizer.shared.bundle))
+    case .none:
+      TransientToast.show(String(localized: "Copied to Clipboard", bundle: AppLocalizer.shared.bundle))
+    }
+  }
+
   func exportCropRectForCurrentSelection(in image: CGImage) -> CGRect? {
     guard !stitchModeEnabled else {
       return nil
@@ -249,7 +279,7 @@ extension RegionSelectionView {
     return false
   }
 
-  static func saveImageToDisk(_ image: CGImage, to url: URL) -> Bool {
+  static func saveImageToDisk(_ image: CGImage, to url: URL, showsToast: Bool = true) -> Bool {
     let ext = url.pathExtension.lowercased()
     let extType = UTType(filenameExtension: ext)
     let selectedType: UTType = (extType == .jpeg || ext == "jpg") ? .jpeg : .png
@@ -275,7 +305,9 @@ extension RegionSelectionView {
       return false
     }
 
-    TransientToast.show("Saved")
+    if showsToast {
+      TransientToast.show(String(localized: "Saved", bundle: AppLocalizer.shared.bundle))
+    }
     return true
   }
 

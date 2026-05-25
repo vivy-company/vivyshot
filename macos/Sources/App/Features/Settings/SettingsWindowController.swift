@@ -382,47 +382,78 @@ struct VivyShotSettingsView: View {
   }
 
   private var savingSection: some View {
-    Section {
-      LabeledContent("Default Folder") {
+    let hasSaveLocation = settings.defaultSaveDirectoryURL != nil
+
+    return Section {
+      LabeledContent("Save Location") {
         Text(defaultSaveDirectoryDisplay)
           .font(.system(.callout, design: .monospaced))
-          .foregroundStyle(settings.defaultSaveDirectoryURL == nil ? .secondary : .primary)
+          .foregroundStyle(hasSaveLocation ? .primary : .secondary)
           .lineLimit(2)
           .multilineTextAlignment(.trailing)
       }
 
+      if !hasSaveLocation {
+        Text("Choose a folder to enable automatic saves.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+      }
+
       HStack(spacing: 8) {
-        Button("Choose Folder…") {
+        Button(
+          String(
+            localized: hasSaveLocation ? "Change…" : "Choose Folder…",
+            bundle: AppLocalizer.shared.bundle
+          )
+        ) {
           chooseDefaultSaveDirectory()
         }
         .buttonStyle(.bordered)
 
-        Button("Clear") {
-          settings.setDefaultSaveDirectory(nil)
-        }
-        .buttonStyle(.bordered)
-        .disabled(settings.defaultSaveDirectoryURL == nil)
+        if hasSaveLocation {
+          Button("Show in Finder") {
+            revealDefaultSaveDirectoryInFinder()
+          }
+          .buttonStyle(.bordered)
 
-        Button("Show in Finder") {
-          revealDefaultSaveDirectoryInFinder()
+          Button("Clear") {
+            settings.setDefaultSaveDirectory(nil)
+          }
+          .buttonStyle(.bordered)
         }
-        .buttonStyle(.bordered)
-        .disabled(settings.defaultSaveDirectoryURL == nil)
 
         Spacer(minLength: 0)
       }
 
-      Toggle("Always save to this folder (skip Save dialog)", isOn: alwaysSaveToDefaultDirectoryBinding)
-        .toggleStyle(.switch)
-        .disabled(settings.defaultSaveDirectoryURL == nil)
+      Text("Automatic Saving")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Toggle("Save screenshots without asking", isOn: alwaysSaveToDefaultDirectoryBinding)
+          .toggleStyle(.switch)
+        Text("Use this for the Save action instead of opening the save dialog.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+      }
+      .disabled(!hasSaveLocation)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Toggle("Also save copied screenshots", isOn: saveCopiedScreenshotsToDefaultDirectoryBinding)
+          .toggleStyle(.switch)
+        Text("When you copy a screenshot, VivyShot also saves a PNG in this folder.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+      }
+      .disabled(!hasSaveLocation)
     } header: {
       Text("Saving")
     } footer: {
       Text(
         String(
-          localized: settings.defaultSaveDirectoryURL == nil
-            ? "If no folder is selected, VivyShot asks where to save each capture."
-            : "Turn on Always Save to skip the save dialog and save directly into the selected folder.",
+          localized: hasSaveLocation
+            ? "Choose the automatic saving behavior that fits your workflow."
+            : "Choose a folder first to enable automatic saving.",
           bundle: AppLocalizer.shared.bundle
         )
       )
@@ -1049,6 +1080,13 @@ struct VivyShotSettingsView: View {
     )
   }
 
+  private var saveCopiedScreenshotsToDefaultDirectoryBinding: Binding<Bool> {
+    Binding(
+      get: { settings.saveCopiedScreenshotsToDefaultDirectory },
+      set: { settings.setSaveCopiedScreenshotsToDefaultDirectory($0) }
+    )
+  }
+
   private var toolbarAccentColorBinding: Binding<Color> {
     Binding(
       get: { Color(settings.toolbarAccentColor) },
@@ -1253,7 +1291,7 @@ struct VivyShotSettingsView: View {
 
   private var defaultSaveDirectoryDisplay: String {
     guard let url = settings.defaultSaveDirectoryURL else {
-      return String(localized: "Not set", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "No folder selected", bundle: AppLocalizer.shared.bundle)
     }
     return (url.path as NSString).abbreviatingWithTildeInPath
   }

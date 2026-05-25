@@ -1039,41 +1039,26 @@ final class RegionSelectionView: NSView {
       return
     }
 
-    let copied = autoreleasepool { () -> Bool in
-      let pasteboard = NSPasteboard.general
-      pasteboard.clearContents()
-
-      if let encodedPNG = RustCoreBridge.shared.encodeImage(
-        frozenImage,
-        format: .png,
-        jpegQuality: 100
-      ) {
-        let item = NSPasteboardItem()
-        item.setData(encodedPNG, forType: .png)
-        if pasteboard.writeObjects([item]) {
-          return true
-        }
-      }
-
-      let nsImage = NSImage(
-        cgImage: frozenImage,
-        size: NSSize(width: frozenImage.width, height: frozenImage.height)
-      )
-      return pasteboard.writeObjects([nsImage])
-    }
+    let encodedPNG = RustCoreBridge.shared.encodeImage(
+      frozenImage,
+      format: .png,
+      jpegQuality: 100
+    )
+    let copied = copyImageToPasteboard(frozenImage, encodedPNG: encodedPNG)
 
     guard copied else {
       NSSound.beep()
       return
     }
 
+    let autoSaveResult = autoSaveCopiedScreenshot(frozenImage)
     recordStandaloneScreenshotCapture(frozenImage)
     if let onCancelRequestedImmediately {
       onCancelRequestedImmediately()
     } else {
       onCancelRequested?()
     }
-    TransientToast.show("Copied to Clipboard")
+    showCopyResultToast(autoSaveResult: autoSaveResult)
   }
 
   func quickSaveFullScreenFromSelectingOverlay() {

@@ -61,6 +61,7 @@ final class AppSettings: ObservableObject {
 
   @Published private(set) var defaultSaveDirectoryPath: String
   @Published private(set) var alwaysSaveToDefaultDirectory: Bool
+  @Published private(set) var saveCopiedScreenshotsToDefaultDirectory: Bool
 
   @Published private(set) var captureTransitionStyle: CaptureTransitionStyle
   @Published private(set) var captureTransitionSpeed: Double
@@ -192,6 +193,7 @@ final class AppSettings: ObservableObject {
 
     static let defaultSaveDirectoryPath = "settings.save.defaultDirectoryPath"
     static let alwaysSaveToDefaultDirectory = "settings.save.alwaysSaveToDefaultDirectory"
+    static let saveCopiedScreenshotsToDefaultDirectory = "settings.save.saveCopiedScreenshotsToDefaultDirectory"
 
     static let captureTransitionStyle = "settings.capture.transition.style"
     static let captureTransitionSpeed = "settings.capture.transition.speed"
@@ -292,6 +294,7 @@ final class AppSettings: ObservableObject {
 
     defaultSaveDirectoryPath = defaults.string(forKey: Keys.defaultSaveDirectoryPath) ?? ""
     alwaysSaveToDefaultDirectory = defaults.bool(forKey: Keys.alwaysSaveToDefaultDirectory)
+    saveCopiedScreenshotsToDefaultDirectory = defaults.bool(forKey: Keys.saveCopiedScreenshotsToDefaultDirectory)
 
     let storedTransitionStyle = defaults.object(forKey: Keys.captureTransitionStyle) as? Int
     captureTransitionStyle = CaptureTransitionStyle(rawValue: storedTransitionStyle ?? CaptureTransitionStyle.ripple.rawValue) ?? .ripple
@@ -1021,6 +1024,7 @@ final class AppSettings: ObservableObject {
     defaultSaveDirectoryPath = normalizedPath
     if normalizedPath.isEmpty {
       alwaysSaveToDefaultDirectory = false
+      saveCopiedScreenshotsToDefaultDirectory = false
     }
     persistSaveSettings()
   }
@@ -1031,6 +1035,15 @@ final class AppSettings: ObservableObject {
       return
     }
     alwaysSaveToDefaultDirectory = normalizedEnabled
+    persistSaveSettings()
+  }
+
+  func setSaveCopiedScreenshotsToDefaultDirectory(_ enabled: Bool) {
+    let normalizedEnabled = enabled && !defaultSaveDirectoryPath.isEmpty
+    guard saveCopiedScreenshotsToDefaultDirectory != normalizedEnabled else {
+      return
+    }
+    saveCopiedScreenshotsToDefaultDirectory = normalizedEnabled
     persistSaveSettings()
   }
 
@@ -1465,6 +1478,7 @@ final class AppSettings: ObservableObject {
   private func persistSaveSettings() {
     defaults.set(defaultSaveDirectoryPath, forKey: Keys.defaultSaveDirectoryPath)
     defaults.set(alwaysSaveToDefaultDirectory, forKey: Keys.alwaysSaveToDefaultDirectory)
+    defaults.set(saveCopiedScreenshotsToDefaultDirectory, forKey: Keys.saveCopiedScreenshotsToDefaultDirectory)
     notifySettingsChanged()
   }
 
@@ -1545,6 +1559,7 @@ final class AppSettings: ObservableObject {
     defaults.set(textFontName, forKey: Keys.textFontName)
     defaults.set(defaultSaveDirectoryPath, forKey: Keys.defaultSaveDirectoryPath)
     defaults.set(alwaysSaveToDefaultDirectory, forKey: Keys.alwaysSaveToDefaultDirectory)
+    defaults.set(saveCopiedScreenshotsToDefaultDirectory, forKey: Keys.saveCopiedScreenshotsToDefaultDirectory)
     defaults.set(toolbarAccentRed, forKey: Keys.toolbarAccentRed)
     defaults.set(toolbarAccentGreen, forKey: Keys.toolbarAccentGreen)
     defaults.set(toolbarAccentBlue, forKey: Keys.toolbarAccentBlue)
