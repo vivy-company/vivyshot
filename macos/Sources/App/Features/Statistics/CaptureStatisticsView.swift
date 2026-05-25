@@ -959,54 +959,36 @@ private struct StatisticsMetricDetailChart: View {
   let points: [StatisticsMetricDetailPoint]
   let accentColor: Color
 
-  private var chartWidth: CGFloat {
-    max(560, CGFloat(points.count) * pointWidth)
-  }
-
-  private var pointWidth: CGFloat {
-    switch points.count {
-    case ...31: return 16
-    case ...92: return 10
-    case ...185: return 8
-    default: return 6
-    }
-  }
-
   var body: some View {
-    GeometryReader { proxy in
-      ScrollView(.horizontal, showsIndicators: false) {
-        Chart(points) { point in
-          BarMark(
-            x: .value("Day", point.date, unit: .day),
-            y: .value(metric.title, point.value)
-          )
-          .foregroundStyle(accentColor.gradient)
-          .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-        }
-        .chartXAxis {
-          AxisMarks(values: .stride(by: .month)) { _ in
-            AxisGridLine().foregroundStyle(.quaternary)
-            AxisValueLabel(format: .dateTime.month(.abbreviated))
-          }
-        }
-        .chartYAxis {
-          AxisMarks(position: .leading) { value in
-            AxisGridLine().foregroundStyle(.quaternary)
-            AxisTick()
-            if let y = value.as(Double.self) {
-              AxisValueLabel(metric.formatYAxisValue(y))
-            }
-          }
-        }
-        .chartPlotStyle { plot in
-          plot
-            .background(Color.secondary.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-        .frame(width: max(proxy.size.width, chartWidth), height: 180)
+    Chart(points) { point in
+      BarMark(
+        x: .value("Day", point.date, unit: .day),
+        y: .value(metric.title, point.value)
+      )
+      .foregroundStyle(accentColor.gradient)
+      .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+    }
+    .chartXAxis {
+      AxisMarks(values: .stride(by: .month)) { _ in
+        AxisGridLine().foregroundStyle(.quaternary)
+        AxisValueLabel(format: .dateTime.month(.abbreviated))
       }
     }
-    .frame(height: 180)
+    .chartYAxis {
+      AxisMarks(position: .leading) { value in
+        AxisGridLine().foregroundStyle(.quaternary)
+        AxisTick()
+        if let y = value.as(Double.self) {
+          AxisValueLabel(metric.formatYAxisValue(y))
+        }
+      }
+    }
+    .chartPlotStyle { plot in
+      plot
+        .background(Color.secondary.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+    .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 180)
   }
 }
 
