@@ -100,6 +100,10 @@ private struct StatisticsRootView: View {
     return s.totalScreenshotsCaptured > 0 || s.totalRecordingsCompleted > 0 || !viewModel.dashboardData.dailyBuckets.isEmpty
   }
 
+  private var windowSubtitle: String {
+    hasFullAccess ? "Local capture totals, streaks, history, and milestones for this Mac." : "Local capture totals and recent activity for this Mac."
+  }
+
   var body: some View {
     Form {
       if presentation == .settings {
@@ -128,13 +132,13 @@ private struct StatisticsRootView: View {
     }
     .formStyle(.grouped)
     .navigationTitle("Statistics")
-    .navigationSubtitle(hasFullAccess ? "Local capture totals, streaks, history, and milestones for this Mac." : "Local capture totals and recent activity for this Mac.")
+    .modifier(StatisticsNavigationSubtitleModifier(subtitle: presentation == .window ? windowSubtitle : nil))
     .onAppear {
       guard presentation == .window else { return }
       DispatchQueue.main.async {
         guard let window = NSApp.keyWindow else { return }
         window.title = "Statistics"
-        window.subtitle = hasFullAccess ? "Local capture totals, streaks, history, and milestones for this Mac." : "Local capture totals and recent activity for this Mac."
+        window.subtitle = windowSubtitle
         window.toolbarStyle = .unified
       }
     }
@@ -667,6 +671,19 @@ private struct StatisticsRootView: View {
     let symbols = calendar.shortWeekdaySymbols
     let start = max(calendar.firstWeekday - 1, 0)
     return (Array(symbols[start...]) + Array(symbols[..<start])).map { String($0.prefix(1)) }
+  }
+}
+
+private struct StatisticsNavigationSubtitleModifier: ViewModifier {
+  let subtitle: String?
+
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    if let subtitle {
+      content.navigationSubtitle(subtitle)
+    } else {
+      content
+    }
   }
 }
 
