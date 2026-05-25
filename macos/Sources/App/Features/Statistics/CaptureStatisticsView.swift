@@ -773,7 +773,7 @@ enum StatisticsOverviewMetric: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .screenshots:
       let c = Int64(point.value.rounded())
-      return "\(date) \u{2022} \(c.formatted()) \(c == 1 ? "screenshot" : "screenshots")"
+      return "\(date) \u{2022} \(c.formatted())"
     case .recordings:
       let c = Int64(point.value.rounded())
       return "\(date) \u{2022} \(c.formatted()) \(c == 1 ? "recording" : "recordings")"
