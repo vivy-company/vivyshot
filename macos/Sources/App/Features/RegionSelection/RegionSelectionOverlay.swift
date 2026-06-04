@@ -74,9 +74,20 @@ final class RegionSelectionView: NSView {
   let editingMaskView = SelectionMaskOverlayView()
   let videoWebcamPlacementView = CaptureOverlayPlacementView(kind: .webcam)
   let videoKeystrokePlacementView = CaptureOverlayPlacementView(kind: .keystroke)
-  lazy var toolbarHost = NSHostingView(rootView: makeToolbarView())
+  let captureModeSelectionState = CaptureModeSelectionState()
+  let toolbarRefresh = RegionSelectionToolbarRefresh()
+  lazy var toolbarHost = NSHostingView(
+    rootView: RegionSelectionToolbarHost(refresh: toolbarRefresh) { [weak self] in
+      guard let self else {
+        return AnyView(EmptyView())
+      }
+      return self.makeToolbarView()
+    }
+  )
   lazy var selectingHintHost = NSHostingView(rootView: CaptureHintGlassCard(selectedType: selectedCaptureType))
   lazy var captureTypeHost = NSHostingView(rootView: makeCaptureTypeSidebar())
+  var glassChromeRevealTask: Task<Void, Never>?
+  var glassBackdropRefreshScheduled = false
   var toolbarOffset: CGSize = .zero
   var toolbarDragStartOffset: CGSize?
   var stitchControlPanel: NSPanel?
@@ -173,6 +184,7 @@ final class RegionSelectionView: NSView {
 
   deinit {
     MainActor.assumeIsolated {
+      glassChromeRevealTask?.cancel()
       stitchCaptureTask?.cancel()
       if let settingsObserver {
         NotificationCenter.default.removeObserver(settingsObserver)
@@ -521,6 +533,9 @@ final class RegionSelectionView: NSView {
     guard let context = NSGraphicsContext.current?.cgContext else {
       return
     }
+    defer {
+      scheduleGlassBackdropRefreshIfNeeded()
+    }
 
     if stitchPassThroughOverlayActive, mode == .editing {
       drawStitchPassThroughFocus(in: context)
@@ -643,6 +658,7 @@ final class RegionSelectionView: NSView {
     onEditingDone = onDone
     selectedCaptureType = initialCaptureType
     selectedCaptureMode = initialCaptureMode
+    captureModeSelectionState.setSelectedMode(initialCaptureMode, animated: false)
     videoRecordingActive = false
     videoRecordingStartPending = false
     windowCapturePickPending = false
@@ -697,6 +713,7 @@ final class RegionSelectionView: NSView {
   }
 
   func prepareForClose() {
+    glassChromeRevealTask?.cancel()
     canvasView.finishInlineTextEditing(commit: true)
     canvasView.image = nil
     frozenImage = nil
@@ -715,6 +732,7 @@ final class RegionSelectionView: NSView {
     onStartVideoRequested = nil
     onStopVideoRequested = nil
     selectedCaptureMode = .selection
+    captureModeSelectionState.setSelectedMode(.selection, animated: false)
     areaCaptureRect = nil
     windowCapturePickPending = false
     screenCapturePickPending = false

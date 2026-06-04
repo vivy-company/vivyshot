@@ -1,5 +1,32 @@
 import AppKit
+import QuartzCore
 import SwiftUI
+
+@MainActor
+final class RegionSelectionToolbarRefresh: ObservableObject {
+  @Published private(set) var revision = 0
+
+  func refresh(animated: Bool) {
+    if animated {
+      withAnimation(.smooth(duration: 0.18)) {
+        revision += 1
+      }
+    } else {
+      revision += 1
+    }
+  }
+}
+
+@MainActor
+struct RegionSelectionToolbarHost: View {
+  @ObservedObject var refresh: RegionSelectionToolbarRefresh
+  let content: () -> AnyView
+
+  var body: some View {
+    let _ = refresh.revision
+    content()
+  }
+}
 
 @MainActor
 extension RegionSelectionView {
@@ -13,6 +40,7 @@ extension RegionSelectionView {
   func makeScreenshotToolbar() -> CaptureAnnotationToolbar {
     CaptureAnnotationToolbar(
       selectedCaptureMode: selectedCaptureMode,
+      modeSelectionState: captureModeSelectionState,
       onSelectCaptureMode: { [weak self] captureMode in
         self?.setCaptureModeFromToolbar(captureMode)
       },
@@ -71,6 +99,7 @@ extension RegionSelectionView {
   func makeCaptureVideoToolbar() -> CaptureVideoToolbar {
     CaptureVideoToolbar(
       selectedCaptureMode: selectedCaptureMode,
+      modeSelectionState: captureModeSelectionState,
       onSelectCaptureMode: { [weak self] captureMode in
         self?.setCaptureModeFromToolbar(captureMode)
       },
@@ -253,9 +282,81 @@ extension RegionSelectionView {
     annotationColor = rgb
   }
 
-  func refreshToolbar() {
-    toolbarHost.rootView = makeToolbarView()
+  func refreshToolbar(animated: Bool = false) {
+    captureModeSelectionState.setSelectedMode(selectedCaptureMode, animated: animated)
+    toolbarRefresh.refresh(animated: animated)
     needsLayout = true
+    refreshGlassHosts()
+  }
+
+  func refreshToolbarSelection(animated: Bool = true) {
+    captureModeSelectionState.setSelectedMode(selectedCaptureMode, animated: animated)
+    needsLayout = true
+    refreshGlassHosts()
+  }
+
+  func prepareGlassChromeForFirstDisplay() {
+    glassChromeRevealTask?.cancel()
+    glassBackdropRefreshScheduled = false
+  }
+
+  func primeGlassChromeAfterFirstDisplay() {
+    glassChromeRevealTask?.cancel()
+    layoutSubtreeIfNeeded()
+    displayIfNeeded()
+    refreshGlassHosts()
+
+    glassChromeRevealTask = Task { @MainActor [weak self] in
+      await Task.yield()
+      guard let self, !Task.isCancelled else {
+        return
+      }
+
+      self.layoutSubtreeIfNeeded()
+      self.displayIfNeeded()
+      self.window?.contentView?.displayIfNeeded()
+      self.refreshGlassHosts()
+
+      try? await Task.sleep(nanoseconds: 16_000_000)
+      guard !Task.isCancelled else {
+        return
+      }
+
+      self.updateSelectingHintVisibility(animated: false)
+      self.layoutCaptureTypePanel()
+      self.layoutEditorChrome()
+      self.refreshGlassHosts()
+    }
+  }
+
+  func refreshGlassHosts(redrawBackdrop: Bool = false) {
+    toolbarHost.needsDisplay = true
+    toolbarHost.layer?.setNeedsDisplay()
+    toolbarHost.layoutSubtreeIfNeeded()
+    captureTypeHost.needsDisplay = true
+    captureTypeHost.layer?.setNeedsDisplay()
+    selectingHintHost.needsDisplay = true
+    selectingHintHost.layer?.setNeedsDisplay()
+    if redrawBackdrop {
+      window?.contentView?.needsDisplay = true
+    }
+  }
+
+  func scheduleGlassBackdropRefreshIfNeeded() {
+    guard !glassBackdropRefreshScheduled,
+          !selectingHintHost.isHidden || !captureTypeHost.isHidden || !toolbarHost.isHidden
+    else {
+      return
+    }
+
+    glassBackdropRefreshScheduled = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self else {
+        return
+      }
+      self.glassBackdropRefreshScheduled = false
+      self.refreshGlassHosts()
+    }
   }
 
   func updateToolbarDrag(_ translation: CGSize) {

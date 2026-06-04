@@ -120,9 +120,20 @@ private func openScreenRecordingSettings() {
 }
 
 @MainActor
+private func requestScreenRecordingPermission() -> Bool {
+  if CGPreflightScreenCaptureAccess() {
+    return true
+  }
+
+  _ = CGRequestScreenCaptureAccess()
+  return CGPreflightScreenCaptureAccess()
+}
+
+@MainActor
 private struct VivyShotWelcomeView: View {
   @ObservedObject var settings: AppSettings
   @State var screenRecordingAllowed: Bool
+  @State private var screenRecordingRequestInProgress = false
 
   let onStartCapture: () -> Void
   let onOpenSettings: () -> Void
@@ -225,7 +236,7 @@ private struct VivyShotWelcomeView: View {
       VStack(alignment: .leading, spacing: 3) {
         Text(localized("Screen Recording Permission"))
           .font(.callout.weight(.semibold))
-        Text(localized("Needed before VivyShot can capture your screen."))
+        Text(localized("Grant access so macOS can list VivyShot in Screen Recording settings."))
           .font(.footnote)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -233,11 +244,28 @@ private struct VivyShotWelcomeView: View {
 
       Spacer(minLength: 8)
 
-      Button(localized("Open System Settings")) {
-        onOpenScreenRecordingSettings()
-        screenRecordingAllowed = CGPreflightScreenCaptureAccess()
+      VStack(alignment: .trailing, spacing: 6) {
+        Button(screenRecordingRequestInProgress ? localized("Checking…") : localized("Grant Access")) {
+          screenRecordingRequestInProgress = true
+          let allowed = requestScreenRecordingPermission()
+          screenRecordingAllowed = allowed
+          screenRecordingRequestInProgress = false
+          if !allowed {
+            onOpenScreenRecordingSettings()
+          }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(screenRecordingRequestInProgress)
+        .controlSize(.regular)
+
+        Button(localized("Open System Settings")) {
+          screenRecordingAllowed = CGPreflightScreenCaptureAccess()
+          if !screenRecordingAllowed {
+            onOpenScreenRecordingSettings()
+          }
+        }
+        .controlSize(.small)
       }
-      .controlSize(.regular)
     }
     .padding(12)
     .background(Color.orange.opacity(0.09), in: RoundedRectangle(cornerRadius: 12, style: .continuous))

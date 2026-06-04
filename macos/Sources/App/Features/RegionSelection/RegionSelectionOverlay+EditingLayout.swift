@@ -104,6 +104,7 @@ extension RegionSelectionView {
     let y = min(max(padding, centeredY), max(padding, bounds.height - panelHeight - padding))
 
     captureTypeHost.frame = CGRect(x: x, y: y, width: panelWidth, height: panelHeight).integral
+    captureTypeHost.alphaValue = 1
     captureTypeHost.isHidden = false
   }
 
@@ -147,6 +148,7 @@ extension RegionSelectionView {
     editingMaskView.frame = bounds
 
     canvasView.isHidden = liveTargetPickActive
+    toolbarHost.alphaValue = 1
     toolbarHost.isHidden = false
     updateCanvasPreviewStrokeWidth()
 

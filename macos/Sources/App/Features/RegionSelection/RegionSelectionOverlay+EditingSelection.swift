@@ -30,7 +30,7 @@ extension RegionSelectionView {
     areaCaptureRect = resized
     if selectedCaptureMode != .selection {
       selectedCaptureMode = .selection
-      refreshToolbar()
+      refreshToolbarSelection(animated: true)
     }
     needsLayout = true
     needsDisplay = true
@@ -79,7 +79,7 @@ extension RegionSelectionView {
     areaCaptureRect = candidate.integral
     if selectedCaptureMode != .selection {
       selectedCaptureMode = .selection
-      refreshToolbar()
+      refreshToolbarSelection(animated: true)
     }
     needsLayout = true
     needsDisplay = true
@@ -122,7 +122,7 @@ extension RegionSelectionView {
       committedSelectionRect = bounds.integral
       activeResizeCorner = nil
       resizeStartRect = nil
-      refreshToolbar()
+      refreshToolbarSelection(animated: true)
       syncLiveCaptureTargetPickingState()
       needsLayout = true
       needsDisplay = true
@@ -136,7 +136,7 @@ extension RegionSelectionView {
       windowCapturePickPending = true
       screenCapturePickPending = false
       updateWindowCaptureHover(at: currentMousePointInView())
-      refreshToolbar()
+      refreshToolbarSelection(animated: true)
       syncLiveCaptureTargetPickingState()
       window?.invalidateCursorRects(for: self)
       if selectedCaptureType == .video {
@@ -180,7 +180,7 @@ extension RegionSelectionView {
     }
     activeResizeCorner = nil
     resizeStartRect = nil
-    refreshToolbar()
+    refreshToolbarSelection(animated: true)
     needsLayout = true
     needsDisplay = true
     return true

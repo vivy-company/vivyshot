@@ -55,6 +55,7 @@ extension RegionSelectionView {
     }
 
     toolbarHost.translatesAutoresizingMaskIntoConstraints = true
+    toolbarHost.alphaValue = 1
     toolbarHost.isHidden = true
     addSubview(toolbarHost)
   }

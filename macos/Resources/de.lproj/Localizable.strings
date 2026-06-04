@@ -104,6 +104,9 @@
 "Copy, save, or export when you are done." = "Kopiere, speichere oder exportiere, wenn du fertig bist.";
 "Screen Recording Permission" = "Bildschirmaufnahme-Berechtigung";
 "Needed before VivyShot can capture your screen." = "Erforderlich, bevor VivyShot deinen Bildschirm aufnehmen kann.";
+"Grant access so macOS can list VivyShot in Screen Recording settings." = "Erlaube den Zugriff, damit macOS VivyShot in den Bildschirmaufnahme-Einstellungen anzeigen kann.";
+"Grant Access" = "Zugriff erlauben";
+"Checking…" = "Prüfen…";
 "Open System Settings" = "Systemeinstellungen öffnen";
 "Start Capture" = "Aufnahme starten";
 "Links" = "Links";

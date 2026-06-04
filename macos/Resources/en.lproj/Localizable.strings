@@ -271,6 +271,9 @@
 "Copy, save, or export when you are done." = "Copy, save, or export when you are done.";
 "Screen Recording Permission" = "Screen Recording Permission";
 "Needed before VivyShot can capture your screen." = "Needed before VivyShot can capture your screen.";
+"Grant access so macOS can list VivyShot in Screen Recording settings." = "Grant access so macOS can list VivyShot in Screen Recording settings.";
+"Grant Access" = "Grant Access";
+"Checking…" = "Checking…";
 "Open System Settings" = "Open System Settings";
 "Start Capture" = "Start Capture";
 "Get in Touch" = "Get in Touch";

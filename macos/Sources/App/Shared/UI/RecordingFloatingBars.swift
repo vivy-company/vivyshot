@@ -12,13 +12,17 @@ struct StitchRecordingFloatingBar: View {
           barContent
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .glassEffect(.regular.tint(Color.red.opacity(0.08)).interactive(), in: .capsule)
         }
       } else {
         barContent
           .padding(.horizontal, 8)
           .padding(.vertical, 8)
           .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+          .overlay(
+            Capsule(style: .continuous)
+              .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+          )
       }
     }
     .fixedSize()
@@ -33,10 +37,10 @@ struct StitchRecordingFloatingBar: View {
 
       Text("Scrolling")
         .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(.white.opacity(0.9))
+        .foregroundStyle(.primary)
 
       Rectangle()
-        .fill(Color.white.opacity(0.18))
+        .fill(Color.primary.opacity(0.16))
         .frame(width: 1, height: 20)
 
       HoverTooltipIconButton(
@@ -68,13 +72,17 @@ struct VideoRecordingFloatingBar: View {
           barContent
             .padding(.horizontal, 10)
             .padding(.vertical, 10)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .glassEffect(.regular.tint(Color.red.opacity(0.08)).interactive(), in: .capsule)
         }
       } else {
         barContent
           .padding(.horizontal, 10)
           .padding(.vertical, 10)
           .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+          .overlay(
+            Capsule(style: .continuous)
+              .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+          )
       }
     }
     .fixedSize()
@@ -82,11 +90,7 @@ struct VideoRecordingFloatingBar: View {
 
   private var barContent: some View {
     HStack(spacing: 5) {
-      toolbarPassiveIcon(
-        symbol: "record.circle.fill",
-        help: "Recording",
-        highlighted: true
-      )
+      recordingIndicator
 
       timerChip
 
@@ -106,25 +110,39 @@ struct VideoRecordingFloatingBar: View {
     }
   }
 
+  private var recordingIndicator: some View {
+    HStack(spacing: 5) {
+      Image(systemName: "record.circle.fill")
+        .font(.system(size: 14, weight: .semibold))
+
+      Text("REC")
+        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+    }
+    .foregroundStyle(Color.red)
+    .frame(height: 28)
+    .padding(.horizontal, 4)
+    .help("Recording")
+  }
+
   private var timerChip: some View {
     Text(formattedElapsedTime)
       .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-      .foregroundStyle(.white.opacity(0.94))
+      .foregroundStyle(.primary)
       .frame(minWidth: elapsedSeconds >= 3600 ? 78 : 58, minHeight: 28)
       .padding(.horizontal, 8)
       .background(
         RoundedRectangle(cornerRadius: 7, style: .continuous)
-          .fill(Color.white.opacity(0.18))
+          .fill(Color.primary.opacity(0.06))
       )
       .overlay(
         RoundedRectangle(cornerRadius: 7, style: .continuous)
-          .stroke(Color.white.opacity(0.34), lineWidth: 1)
+          .stroke(Color.primary.opacity(0.12), lineWidth: 1)
       )
   }
 
   private var separator: some View {
     Rectangle()
-      .fill(Color.white.opacity(0.18))
+      .fill(Color.primary.opacity(0.16))
       .frame(width: 1, height: 22)
   }
 

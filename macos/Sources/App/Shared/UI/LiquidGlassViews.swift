@@ -8,6 +8,9 @@ struct HoverTooltipCircleModeButton: View {
   let isSelected: Bool
   let isDisabled: Bool
   let diameter: CGFloat
+  var selectionNamespace: Namespace.ID? = nil
+  var selectionID: String? = nil
+  var showsSelectionBackground = true
   let action: () -> Void
 
   @State private var isHovered = false
@@ -16,9 +19,17 @@ struct HoverTooltipCircleModeButton: View {
   var body: some View {
     Button {
       symbolBounceToken += 1
-      action()
+      withAnimation(.smooth(duration: 0.18)) {
+        action()
+      }
     } label: {
-      symbolImage
+      ZStack {
+        if showsSelectionBackground {
+          selectedGlassBackground
+        }
+
+        symbolImage
+      }
       .frame(width: diameter + 4, height: diameter + 4)
       .contentShape(Circle())
     }
@@ -51,6 +62,35 @@ struct HoverTooltipCircleModeButton: View {
       image.symbolEffect(.bounce, value: symbolBounceToken)
     } else {
       image
+    }
+  }
+
+  @ViewBuilder
+  private var selectedGlassBackground: some View {
+    let size = diameter + 4
+    if isSelected {
+      if #available(macOS 26.0, *),
+         let selectionNamespace,
+         let selectionID {
+        Circle()
+          .fill(Color.white.opacity(0.001))
+          .frame(width: size, height: size)
+          .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: Circle())
+          .glassEffectID(selectionID, in: selectionNamespace)
+          .glassEffectTransition(.matchedGeometry)
+          .overlay(
+            Circle()
+              .stroke(Color.white.opacity(0.32), lineWidth: 1)
+          )
+      } else {
+        Circle()
+          .fill(Color.white.opacity(0.18))
+          .overlay(
+            Circle()
+              .stroke(Color.white.opacity(0.28), lineWidth: 1)
+          )
+          .frame(width: size, height: size)
+      }
     }
   }
 }

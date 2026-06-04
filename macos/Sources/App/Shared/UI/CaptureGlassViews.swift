@@ -12,7 +12,7 @@ struct CaptureHintGlassCard: View {
           panelContent
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
-            .glassEffect(.regular, in: .rect(cornerRadius: 12, style: .continuous))
+            .glassEffect(.regular.tint(Color.white.opacity(0.08)), in: .rect(cornerRadius: 12, style: .continuous))
         }
       } else {
         panelContent
@@ -23,7 +23,7 @@ struct CaptureHintGlassCard: View {
               .fill(.ultraThinMaterial)
               .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                  .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                  .stroke(Color.primary.opacity(0.12), lineWidth: 1)
               )
           )
       }
@@ -37,11 +37,11 @@ struct CaptureHintGlassCard: View {
     VStack(alignment: .leading, spacing: 4) {
       Text(primaryHintText)
         .font(.system(size: 12.5, weight: .semibold))
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
 
       Text("Esc cancel  •  1 screenshot  •  2 video  •  ⇧Tab switch")
         .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(.white.opacity(0.84))
+        .foregroundStyle(.secondary)
     }
   }
 
@@ -210,16 +210,16 @@ struct CaptureTypeSidebar: View {
     label: {
       ZStack {
         Circle()
-          .fill(Color.white.opacity(0.1))
+          .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.06))
           .frame(width: 38, height: 38)
           .overlay(
             Circle()
-              .stroke(Color.white.opacity(0.14), lineWidth: 1)
+              .stroke(isSelected ? Color.accentColor.opacity(0.34) : Color.primary.opacity(0.10), lineWidth: 1)
           )
 
         Image(systemName: type.symbolName)
           .font(.system(size: 17, weight: .semibold))
-          .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.92))
+          .foregroundStyle(isSelected ? Color.accentColor : Color.primary.opacity(0.82))
       }
       .frame(width: 44, height: 44)
       .contentShape(Rectangle())
@@ -245,6 +245,8 @@ struct CaptureFloatingToolbar: View {
   let onCancel: () -> Void
   let onCapture: () -> Void
 
+  @Namespace private var modeSelectionNamespace
+
   var body: some View {
     Group {
       if #available(macOS 26.0, *) {
@@ -252,7 +254,7 @@ struct CaptureFloatingToolbar: View {
           toolbarContent
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: .capsule)
         }
       } else {
         toolbarContent
@@ -263,7 +265,7 @@ struct CaptureFloatingToolbar: View {
               .fill(.ultraThinMaterial)
               .overlay(
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
-                  .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                  .stroke(Color.primary.opacity(0.12), lineWidth: 1)
               )
           )
       }
@@ -396,7 +398,7 @@ struct CaptureFloatingToolbar: View {
 
   private var separator: some View {
     Rectangle()
-      .fill(Color.white.opacity(0.16))
+      .fill(Color.primary.opacity(0.16))
       .frame(width: 1, height: 28)
   }
 
@@ -407,17 +409,39 @@ struct CaptureFloatingToolbar: View {
     isSelected: Bool,
     action: @escaping () -> Void
   ) -> some View {
+    let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
     let icon = Image(systemName: symbol)
       .font(.system(size: 15, weight: .semibold))
+      .foregroundStyle(isSelected ? Color.accentColor : Color.primary.opacity(0.82))
       .frame(width: 40, height: 34)
       .contentShape(Rectangle())
 
     if #available(macOS 26.0, *) {
-      Button(action: action) {
-        icon
+      Button {
+        withAnimation(.smooth(duration: 0.18)) {
+          action()
+        }
+      } label: {
+        ZStack {
+          if isSelected {
+            shape
+              .fill(Color.white.opacity(0.001))
+              .frame(width: 40, height: 34)
+              .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: shape)
+              .glassEffectID("floating-capture-mode", in: modeSelectionNamespace)
+              .glassEffectTransition(.matchedGeometry)
+              .overlay(
+                shape
+                  .stroke(Color.white.opacity(0.32), lineWidth: 1)
+              )
+          }
+
+          icon
+        }
+        .frame(width: 40, height: 34)
       }
       .help(help)
-      .buttonStyle(.glass(glassModeStyle(isSelected: isSelected)))
+      .buttonStyle(.plain)
     } else {
       Button(action: action) {
         icon
@@ -433,14 +457,6 @@ struct CaptureFloatingToolbar: View {
           .stroke(Color.white.opacity(isSelected ? 0.26 : 0), lineWidth: 1)
       )
     }
-  }
-
-  @available(macOS 26.0, *)
-  private func glassModeStyle(isSelected: Bool) -> Glass {
-    if isSelected {
-      return .regular.tint(.accentColor.opacity(0.65)).interactive()
-    }
-    return .regular.interactive()
   }
 
   private func modeHelp(_ mode: CaptureMode) -> String {

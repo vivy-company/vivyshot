@@ -13,8 +13,32 @@ private func captureModeHelpText(_ mode: CaptureMode) -> String {
 }
 
 @MainActor
+final class CaptureModeSelectionState: ObservableObject {
+  @Published private(set) var selectedMode: CaptureMode
+
+  init(selectedMode: CaptureMode = .selection) {
+    self.selectedMode = selectedMode
+  }
+
+  func setSelectedMode(_ mode: CaptureMode, animated: Bool) {
+    guard selectedMode != mode else {
+      return
+    }
+
+    if animated {
+      withAnimation(.smooth(duration: 0.22)) {
+        selectedMode = mode
+      }
+    } else {
+      selectedMode = mode
+    }
+  }
+}
+
+@MainActor
 struct CaptureAnnotationToolbar: View {
   let selectedCaptureMode: CaptureMode
+  @ObservedObject var modeSelectionState: CaptureModeSelectionState
   let onSelectCaptureMode: (CaptureMode) -> Void
   let onCloseCapture: () -> Void
   let selectedTool: AnnotationTool
@@ -35,6 +59,12 @@ struct CaptureAnnotationToolbar: View {
   let accentColor: Color
   let onToolbarDrag: ((CGSize) -> Void)?
   let onToolbarDragEnd: (() -> Void)?
+
+  @Namespace private var modeSelectionNamespace
+
+  private var visualSelectedCaptureMode: CaptureMode {
+    modeSelectionState.selectedMode
+  }
 
   var body: some View {
     Group {
@@ -160,11 +190,16 @@ struct CaptureAnnotationToolbar: View {
   }
 
   private var captureModeButtons: some View {
-    HStack(spacing: 2) {
-      ForEach(CaptureMode.allCases) { mode in
-        captureModeIconButton(mode)
+    ZStack(alignment: .leading) {
+      captureModeSelectionBackground
+
+      HStack(spacing: 2) {
+        ForEach(CaptureMode.allCases) { mode in
+          captureModeIconButton(mode)
+        }
       }
     }
+    .frame(height: 34)
   }
 
   private var fallbackCaptureModeButtons: some View {
@@ -172,6 +207,41 @@ struct CaptureAnnotationToolbar: View {
       ForEach(CaptureMode.allCases) { mode in
         captureModeIconButton(mode)
       }
+    }
+  }
+
+  @ViewBuilder
+  private var captureModeSelectionBackground: some View {
+    let itemSize: CGFloat = 34
+    let spacing: CGFloat = 2
+    let selectedIndex = CaptureMode.allCases.firstIndex(of: visualSelectedCaptureMode) ?? 0
+    let xOffset = CGFloat(selectedIndex) * (itemSize + spacing)
+
+    if #available(macOS 26.0, *) {
+      Circle()
+        .fill(Color.white.opacity(0.001))
+        .frame(width: itemSize, height: itemSize)
+        .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: Circle())
+        .glassEffectID("annotation-capture-mode-slider", in: modeSelectionNamespace)
+        .glassEffectTransition(.matchedGeometry)
+        .overlay(
+          Circle()
+            .stroke(Color.white.opacity(0.32), lineWidth: 1)
+        )
+        .offset(x: xOffset)
+        .animation(.smooth(duration: 0.22), value: visualSelectedCaptureMode)
+        .allowsHitTesting(false)
+    } else {
+      Circle()
+        .fill(Color.white.opacity(0.18))
+        .overlay(
+          Circle()
+            .stroke(Color.white.opacity(0.28), lineWidth: 1)
+        )
+        .frame(width: itemSize, height: itemSize)
+        .offset(x: xOffset)
+        .animation(.easeOut(duration: 0.18), value: visualSelectedCaptureMode)
+        .allowsHitTesting(false)
     }
   }
 
@@ -291,14 +361,17 @@ struct CaptureAnnotationToolbar: View {
   }
 
   private func captureModeIconButton(_ mode: CaptureMode) -> some View {
-    let isSelected = selectedCaptureMode == mode
+    let isSelected = visualSelectedCaptureMode == mode
 
     return HoverTooltipCircleModeButton(
       symbol: mode.symbolName,
       help: captureModeHelpText(mode),
       isSelected: isSelected,
       isDisabled: false,
-      diameter: 30
+      diameter: 30,
+      selectionNamespace: modeSelectionNamespace,
+      selectionID: "annotation-capture-mode",
+      showsSelectionBackground: false
     ) {
       onSelectCaptureMode(mode)
     }
@@ -316,6 +389,7 @@ struct CaptureAnnotationToolbar: View {
 @MainActor
 struct CaptureVideoToolbar: View {
   let selectedCaptureMode: CaptureMode
+  @ObservedObject var modeSelectionState: CaptureModeSelectionState
   let onSelectCaptureMode: (CaptureMode) -> Void
   let onCloseCapture: () -> Void
   let recordSystemAudio: Bool
@@ -338,6 +412,12 @@ struct CaptureVideoToolbar: View {
   let onToggleRecording: () -> Void
   let onToolbarDrag: ((CGSize) -> Void)?
   let onToolbarDragEnd: (() -> Void)?
+
+  @Namespace private var modeSelectionNamespace
+
+  private var visualSelectedCaptureMode: CaptureMode {
+    modeSelectionState.selectedMode
+  }
 
   private var hasConfigurableTools: Bool {
     !toolOrder.isEmpty
@@ -408,11 +488,16 @@ struct CaptureVideoToolbar: View {
   }
 
   private var captureModeButtons: some View {
-    HStack(spacing: 2) {
-      ForEach(CaptureMode.allCases) { mode in
-        captureModeIconButton(mode)
+    ZStack(alignment: .leading) {
+      captureModeSelectionBackground
+
+      HStack(spacing: 2) {
+        ForEach(CaptureMode.allCases) { mode in
+          captureModeIconButton(mode)
+        }
       }
     }
+    .frame(height: 34)
   }
 
   private var fallbackCaptureModeButtons: some View {
@@ -420,6 +505,41 @@ struct CaptureVideoToolbar: View {
       ForEach(CaptureMode.allCases) { mode in
         captureModeIconButton(mode)
       }
+    }
+  }
+
+  @ViewBuilder
+  private var captureModeSelectionBackground: some View {
+    let itemSize: CGFloat = 34
+    let spacing: CGFloat = 2
+    let selectedIndex = CaptureMode.allCases.firstIndex(of: visualSelectedCaptureMode) ?? 0
+    let xOffset = CGFloat(selectedIndex) * (itemSize + spacing)
+
+    if #available(macOS 26.0, *) {
+      Circle()
+        .fill(Color.white.opacity(0.001))
+        .frame(width: itemSize, height: itemSize)
+        .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: Circle())
+        .glassEffectID("video-capture-mode-slider", in: modeSelectionNamespace)
+        .glassEffectTransition(.matchedGeometry)
+        .overlay(
+          Circle()
+            .stroke(Color.white.opacity(0.32), lineWidth: 1)
+        )
+        .offset(x: xOffset)
+        .animation(.smooth(duration: 0.22), value: visualSelectedCaptureMode)
+        .allowsHitTesting(false)
+    } else {
+      Circle()
+        .fill(Color.white.opacity(0.18))
+        .overlay(
+          Circle()
+            .stroke(Color.white.opacity(0.28), lineWidth: 1)
+        )
+        .frame(width: itemSize, height: itemSize)
+        .offset(x: xOffset)
+        .animation(.easeOut(duration: 0.18), value: visualSelectedCaptureMode)
+        .allowsHitTesting(false)
     }
   }
 
@@ -658,7 +778,7 @@ struct CaptureVideoToolbar: View {
   }
 
   private func captureModeIconButton(_ mode: CaptureMode) -> some View {
-    let isSelected = selectedCaptureMode == mode
+    let isSelected = visualSelectedCaptureMode == mode
     let disabled = isRecordingActive || isRecordingPending
 
     return HoverTooltipCircleModeButton(
@@ -666,7 +786,10 @@ struct CaptureVideoToolbar: View {
       help: captureModeHelpText(mode),
       isSelected: isSelected,
       isDisabled: disabled,
-      diameter: 30
+      diameter: 30,
+      selectionNamespace: modeSelectionNamespace,
+      selectionID: "video-capture-mode",
+      showsSelectionBackground: false
     ) {
       onSelectCaptureMode(mode)
     }

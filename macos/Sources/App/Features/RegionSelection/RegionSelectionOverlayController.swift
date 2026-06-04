@@ -182,10 +182,13 @@ final class RegionSelectionOverlayController {
     self.window = window
     self.selectionView = selectionView
 
+    selectionView.prepareGlassChromeForFirstDisplay()
+    window.alphaValue = 0
     window.makeKeyAndOrderFront(nil)
     window.makeFirstResponder(selectionView)
     window.invalidateCursorRects(for: selectionView)
     NSCursor.crosshair.set()
+    selectionView.primeGlassChromeAfterFirstDisplay()
     animateCaptureOverlayIn(window)
   }
 
@@ -288,10 +291,13 @@ final class RegionSelectionOverlayController {
     self.window = window
     self.selectionView = selectionView
 
+    selectionView.prepareGlassChromeForFirstDisplay()
+    window.alphaValue = 0
     window.makeKeyAndOrderFront(nil)
     window.makeFirstResponder(selectionView)
     window.invalidateCursorRects(for: selectionView)
     NSCursor.crosshair.set()
+    selectionView.primeGlassChromeAfterFirstDisplay()
     animateCaptureOverlayIn(window)
 
     let holdDuration = transitionDuration(entering: true, style: settings.captureTransitionStyle) + 0.7
