@@ -8,7 +8,7 @@
     "title": "VivyShot: Screen Studio",
     "subtitle": "Conçu pour accélérer les captures et enregistrements d’écran pour le travail, la documentation, les bugs et les workflows d’agents IA, avec capture, annotation et export dans un seul flux.",
     "primaryCta": "Télécharger",
-    "meta": "Disponible dès maintenant sur <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>. Windows et HarmonyOS sont prévus ensuite."
+    "meta": "Disponible dès maintenant sur <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>."
   },
   "why": {
     "title": "Ce qui le rend différent",
@@ -216,7 +216,7 @@
   },
   "closing": {
     "title": "Disponible maintenant sur macOS.",
-    "subtitle": "Windows et HarmonyOS arrivent ensuite, avec une interface native sur chaque plateforme.",
+    "subtitle": "Interface native sur chaque plateforme où VivyShot est disponible.",
     "cta": "Télécharger"
   },
   "footer": {

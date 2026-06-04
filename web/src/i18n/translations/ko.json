@@ -8,7 +8,7 @@
     "title": "VivyShot: Screen Studio",
     "subtitle": "업무, 문서, 버그 리포트, AI 에이전트 워크플로를 위해 스크린샷과 화면 녹화를 더 빠르게 만들도록 설계했습니다. 캡처, 주석, 내보내기를 한 흐름에 담았습니다.",
     "primaryCta": "다운로드",
-    "meta": "현재 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>에서 사용할 수 있습니다. Windows와 HarmonyOS는 다음 단계입니다."
+    "meta": "현재 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>에서 사용할 수 있습니다."
   },
   "why": {
     "title": "무엇이 다른가",
@@ -216,7 +216,7 @@
   },
   "closing": {
     "title": "지금 macOS에서 사용 가능합니다.",
-    "subtitle": "Windows와 HarmonyOS는 다음 예정이며, 각 플랫폼에서도 네이티브 UI를 유지합니다.",
+    "subtitle": "VivyShot이 제공되는 각 플랫폼에서 네이티브 UI를 유지합니다.",
     "cta": "다운로드"
   },
   "footer": {

@@ -19,7 +19,7 @@
     "subtitle": "为了让工作、文档、bug 报告和 AI agent 工作流里的截图与录屏更快而做，把捕获、标注和导出放进同一条流程里。",
     "primaryCta": "下载",
     "secondaryCta": "",
-    "meta": "当前已可用于 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>。Windows 和 HarmonyOS 已列入后续计划。"
+    "meta": "当前已可用于 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>。"
   },
   "why": {
     "title": "它有什么不同",
@@ -227,7 +227,7 @@
   },
   "closing": {
     "title": "当前已可用于 macOS。",
-    "subtitle": "Windows 和 HarmonyOS 已列入后续计划，并且每个平台都会保留原生界面。",
+    "subtitle": "VivyShot 发布到哪里，就为对应平台保留原生界面。",
     "cta": "下载"
   },
   "footer": {
