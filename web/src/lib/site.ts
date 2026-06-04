@@ -10,10 +10,11 @@ export const SITE = {
   name: "VivyShot: Screen Studio",
   shortName: "VivyShot",
   siteUrl: "https://vivyshot.com",
+  appStoreUrl: "https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121",
   title: "VivyShot: Screen Studio",
   description:
     "VivyShot: Screen Studio is an open source screenshot, annotation, and recording app built to stay simple, fast, and native on each platform.",
-  downloadUrl: "",
+  downloadUrl: "https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121",
   githubUrl: "https://github.com/vivy-company/vivyshot",
   themeStorageKey: "vivyshot-theme",
   languageStorageKey: "vivyshot-language",
@@ -30,6 +31,7 @@ export const softwareSchema = {
   description:
     "Open source screenshot, annotation, and recording software built to stay simple, fast, and native on each platform.",
   url: "https://vivyshot.com/",
+  downloadUrl: "https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121",
   image: "https://vivyshot.com/og.png",
   author: {
     "@type": "Organization",
