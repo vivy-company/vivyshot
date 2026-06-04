@@ -50,6 +50,11 @@
 "Toolbar" = "도구 막대";
 "Video Capture" = "비디오 캡처";
 "Quality" = "품질";
+"Recording Encoder" = "녹화 인코더";
+"Encoder" = "인코더";
+"Standard (H.264)" = "표준 (H.264)";
+"Smaller File (HEVC)" = "작은 파일 (HEVC)";
+"CPU Recording (H.264)" = "CPU 녹화 (H.264)";
 "Frame Rate" = "프레임 속도";
 "Countdown" = "카운트다운";
 "Copy" = "복사";

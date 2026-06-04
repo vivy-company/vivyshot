@@ -115,18 +115,21 @@ enum ScreenshotMainAction: Int, CaseIterable, Identifiable {
   }
 }
 
-enum VideoCodecOption: Int, CaseIterable, Identifiable {
-  case h264 = 0
-  case hevc = 1
+enum VideoRecordingEncoderOption: Int, CaseIterable, Identifiable {
+  case standardH264 = 0
+  case smallerFileHEVC = 1
+  case cpuH264 = 2
 
   var id: Int { rawValue }
 
   var title: String {
     switch self {
-    case .h264:
+    case .standardH264:
       return String(localized: "Standard (H.264)", bundle: AppLocalizer.shared.bundle)
-    case .hevc:
-      return String(localized: "High (HEVC)", bundle: AppLocalizer.shared.bundle)
+    case .smallerFileHEVC:
+      return String(localized: "Smaller File (HEVC)", bundle: AppLocalizer.shared.bundle)
+    case .cpuH264:
+      return String(localized: "CPU Recording (H.264)", bundle: AppLocalizer.shared.bundle)
     }
   }
 }
@@ -134,6 +137,7 @@ enum VideoCodecOption: Int, CaseIterable, Identifiable {
 enum VideoFrameRateOption: Int, CaseIterable, Identifiable {
   case fps30 = 30
   case fps60 = 60
+  case fps120 = 120
 
   var id: Int { rawValue }
 

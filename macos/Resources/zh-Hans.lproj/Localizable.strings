@@ -60,6 +60,8 @@
 "Reset Toolbar" = "重置工具栏";
 "Video Capture" = "视频录制";
 "Quality" = "质量";
+"Recording Encoder" = "录制编码器";
+"Encoder" = "编码器";
 "Frame Rate" = "帧率";
 "Countdown" = "倒计时";
 "Camera" = "摄像头";
@@ -121,7 +123,8 @@
 "Copy" = "复制";
 "Save" = "保存";
 "Standard (H.264)" = "标准（H.264）";
-"High (HEVC)" = "高质量（HEVC）";
+"Smaller File (HEVC)" = "更小文件（HEVC）";
+"CPU Recording (H.264)" = "CPU 录制（H.264）";
 "Off" = "关闭";
 "Small" = "小";
 "Medium" = "中";

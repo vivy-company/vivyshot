@@ -59,6 +59,11 @@
 "Toolbar" = "ツールバー";
 "Video Capture" = "ビデオキャプチャ";
 "Quality" = "品質";
+"Recording Encoder" = "録画エンコーダー";
+"Encoder" = "エンコーダー";
+"Standard (H.264)" = "標準 (H.264)";
+"Smaller File (HEVC)" = "小さいファイル (HEVC)";
+"CPU Recording (H.264)" = "CPU 録画 (H.264)";
 "Frame Rate" = "フレームレート";
 "Countdown" = "カウントダウン";
 "Copy" = "コピー";

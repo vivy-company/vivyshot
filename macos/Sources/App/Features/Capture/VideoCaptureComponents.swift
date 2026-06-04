@@ -9,7 +9,14 @@ import QuartzCore
 import ScreenCaptureKit
 import SwiftUI
 import UniformTypeIdentifiers
+import VideoToolbox
 import VivyShotKit
+
+@MainActor
+private protocol RegionRecordingSession: AnyObject {
+  func start() async throws
+  func stop() async throws -> URL
+}
 
 @MainActor
 final class VideoCaptureCoordinator {
@@ -17,7 +24,7 @@ final class VideoCaptureCoordinator {
   private let videoWebcamFeatureEnabled = true
   private let videoKeystrokesFeatureEnabled = true
   private let settings: AppSettings
-  private var recorder: ScreenRegionRecorder?
+  private var recorder: (any RegionRecordingSession)?
   private var webcamRecorder: WebcamRecorder?
   private var inputMonitor: RecordingInputMonitor?
   private var hudController: VideoRecordingHUDController?
@@ -135,18 +142,27 @@ final class VideoCaptureCoordinator {
         }
 
         let recordingConfig = VideoRecordingConfig(
-          codec: settings.videoCodec,
+          encoder: settings.videoRecordingEncoder,
           frameRate: settings.videoFrameRate.rawValue,
           highlightMouseClicks: settings.videoHighlightMouseClicks,
           captureSystemAudio: settings.videoRecordSystemAudio,
           captureMicrophone: microphoneEnabled,
           capturedOverlayWindowIDs: capturedOverlayWindowIDs
         )
-        let recorder = ScreenRegionRecorder(
-          selectionRectInScreen: recordingRect,
-          config: recordingConfig,
-          outputURL: outputURL
-        )
+        let recorder: any RegionRecordingSession = switch recordingConfig.encoder {
+        case .standardH264, .smallerFileHEVC:
+          ScreenRegionRecorder(
+            selectionRectInScreen: recordingRect,
+            config: recordingConfig,
+            outputURL: outputURL
+          )
+        case .cpuH264:
+          ScreenRegionSoftwareH264Recorder(
+            selectionRectInScreen: recordingRect,
+            config: recordingConfig,
+            outputURL: outputURL
+          )
+        }
 
         if let pendingWebcamRecorder {
           await Task.yield()
@@ -922,7 +938,7 @@ final class VideoCaptureCoordinator {
 }
 
 struct VideoRecordingConfig {
-  let codec: VideoCodecOption
+  let encoder: VideoRecordingEncoderOption
   let frameRate: Int
   let highlightMouseClicks: Bool
   let captureSystemAudio: Bool
@@ -2569,7 +2585,7 @@ private enum PostRecordingProjectExporter {
 }
 
 @MainActor
-final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputDelegate {
+final class ScreenRegionRecorder: NSObject, RegionRecordingSession, SCStreamDelegate, SCRecordingOutputDelegate {
   private let selectionRectInScreen: CGRect
   private let config: VideoRecordingConfig
   private(set) var outputURL: URL
@@ -2645,10 +2661,10 @@ final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputD
     let outputConfig = SCRecordingOutputConfiguration()
     outputConfig.outputURL = outputURL
 
-    switch config.codec {
-    case .h264:
+    switch config.encoder {
+    case .standardH264, .cpuH264:
       outputConfig.videoCodecType = .h264
-    case .hevc:
+    case .smallerFileHEVC:
       if outputConfig.availableVideoCodecTypes.contains(.hevc) {
         outputConfig.videoCodecType = .hevc
       } else {
@@ -2742,6 +2758,434 @@ final class ScreenRegionRecorder: NSObject, SCStreamDelegate, SCRecordingOutputD
     recordingErrorLock.lock()
     latestRecordingError = error
     recordingErrorLock.unlock()
+  }
+}
+
+@MainActor
+final class ScreenRegionSoftwareH264Recorder: NSObject, RegionRecordingSession, SCStreamDelegate, SCStreamOutput {
+  private let selectionRectInScreen: CGRect
+  private let config: VideoRecordingConfig
+  private(set) var outputURL: URL
+
+  private var stream: SCStream?
+  private let sampleWriter: SoftwareH264AssetWriter
+  private let recordingErrorLock = NSLock()
+  nonisolated(unsafe) private var latestRecordingError: Error?
+
+  init(selectionRectInScreen: CGRect, config: VideoRecordingConfig, outputURL: URL) {
+    self.selectionRectInScreen = selectionRectInScreen.standardized
+    self.config = config
+    self.outputURL = outputURL
+    sampleWriter = SoftwareH264AssetWriter(
+      outputURL: outputURL,
+      frameRate: config.frameRate,
+      includeSystemAudio: config.captureSystemAudio,
+      includeMicrophoneAudio: config.captureMicrophone
+    )
+    super.init()
+  }
+
+  func start() async throws {
+    var content = try await SCShareableContent.current
+    let overlayResolution = try await resolveCapturedOverlayWindows(initialContent: content)
+    content = overlayResolution.content
+    guard let screen = activeScreenForSelection(),
+          let displayID = screen.displayID,
+          let display = content.displays.first(where: { $0.displayID == displayID })
+    else {
+      throw NSError(
+        domain: "com.vivyshot.recording",
+        code: -30,
+        userInfo: [NSLocalizedDescriptionKey: "No compatible display found for selected area."]
+      )
+    }
+
+    let excludedApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
+    let filter = SCContentFilter(
+      display: display,
+      excludingApplications: excludedApps,
+      exceptingWindows: overlayResolution.windows
+    )
+
+    let streamConfig = SCStreamConfiguration()
+    let displayRect = display.frame
+    let selectionInCG = cocoaRectToCGDisplayRect(selectionRectInScreen)
+    let sourceRect = selectionInCG
+      .intersection(displayRect)
+      .offsetBy(dx: -displayRect.minX, dy: -displayRect.minY)
+      .integral
+    guard !sourceRect.isNull, sourceRect.width >= 2, sourceRect.height >= 2 else {
+      throw NSError(
+        domain: "com.vivyshot.recording",
+        code: -31,
+        userInfo: [NSLocalizedDescriptionKey: "Selected region is too small to record."]
+      )
+    }
+
+    let scale = max(1.0, screen.backingScaleFactor)
+    let outputWidth = max(2, Int((sourceRect.width * scale).rounded()))
+    let outputHeight = max(2, Int((sourceRect.height * scale).rounded()))
+    streamConfig.sourceRect = sourceRect
+    streamConfig.width = outputWidth
+    streamConfig.height = outputHeight
+    streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, config.frameRate)))
+    streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
+    streamConfig.queueDepth = 5
+    streamConfig.showsCursor = true
+    streamConfig.showMouseClicks = config.highlightMouseClicks
+    streamConfig.capturesAudio = config.captureSystemAudio
+    streamConfig.captureMicrophone = config.captureMicrophone
+    streamConfig.excludesCurrentProcessAudio = false
+    streamConfig.captureDynamicRange = .SDR
+
+    sampleWriter.configureVideoSize(width: outputWidth, height: outputHeight)
+    try sampleWriter.prepare()
+
+    let stream = SCStream(filter: filter, configuration: streamConfig, delegate: self)
+    try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: sampleWriter.queue)
+    if config.captureSystemAudio {
+      try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: sampleWriter.queue)
+    }
+    if config.captureMicrophone {
+      try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: sampleWriter.queue)
+    }
+
+    self.stream = stream
+    setRecordingError(nil)
+    do {
+      try await stream.vs_startCapture()
+    } catch {
+      sampleWriter.cancel()
+      throw error
+    }
+  }
+
+  func stop() async throws -> URL {
+    guard let stream else {
+      return outputURL
+    }
+
+    try await stream.vs_stopCapture()
+    self.stream = nil
+
+    if let recordingError = currentRecordingError() {
+      sampleWriter.cancel()
+      throw recordingError
+    }
+
+    try await sampleWriter.finish()
+    return outputURL
+  }
+
+  private func resolveCapturedOverlayWindows(
+    initialContent: SCShareableContent
+  ) async throws -> (content: SCShareableContent, windows: [SCWindow]) {
+    let requestedIDs = Set(config.capturedOverlayWindowIDs)
+    guard !requestedIDs.isEmpty else {
+      return (initialContent, [])
+    }
+
+    var content = initialContent
+    for attempt in 0..<5 {
+      let windows = content.windows.filter { requestedIDs.contains($0.windowID) }
+      if windows.count == requestedIDs.count {
+        return (content, windows)
+      }
+
+      if attempt < 4 {
+        try await Task.sleep(nanoseconds: 80_000_000)
+        content = try await SCShareableContent.current
+      }
+    }
+
+    throw NSError(
+      domain: "com.vivyshot.recording",
+      code: -32,
+      userInfo: [NSLocalizedDescriptionKey: "Recording overlay window was not available to capture."]
+    )
+  }
+
+  private func activeScreenForSelection() -> NSScreen? {
+    let center = CGPoint(x: selectionRectInScreen.midX, y: selectionRectInScreen.midY)
+    return NSScreen.screens.first(where: { $0.frame.contains(center) })
+      ?? NSScreen.main
+      ?? NSScreen.screens.first
+  }
+
+  nonisolated func stream(
+    _ stream: SCStream,
+    didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
+    of type: SCStreamOutputType
+  ) {
+    sampleWriter.append(sampleBuffer: sampleBuffer, type: type)
+  }
+
+  nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
+    setRecordingError(error)
+  }
+
+  nonisolated private func currentRecordingError() -> Error? {
+    recordingErrorLock.lock()
+    defer { recordingErrorLock.unlock() }
+    return latestRecordingError
+  }
+
+  nonisolated private func setRecordingError(_ error: Error?) {
+    recordingErrorLock.lock()
+    latestRecordingError = error
+    recordingErrorLock.unlock()
+  }
+}
+
+private final class SoftwareH264AssetWriter: @unchecked Sendable {
+  let queue = DispatchQueue(label: "com.vivyshot.recording.software-h264-writer", qos: .userInitiated)
+
+  private let outputURL: URL
+  private let frameRate: Int
+  private let includeSystemAudio: Bool
+  private let includeMicrophoneAudio: Bool
+  private var configuredVideoSize: CGSize?
+  private var writer: AVAssetWriter?
+  private var videoInput: AVAssetWriterInput?
+  private var systemAudioInput: AVAssetWriterInput?
+  private var microphoneAudioInput: AVAssetWriterInput?
+  private var sessionStartTime: CMTime?
+  private var didFinish = false
+
+  init(
+    outputURL: URL,
+    frameRate: Int,
+    includeSystemAudio: Bool,
+    includeMicrophoneAudio: Bool
+  ) {
+    self.outputURL = outputURL
+    self.frameRate = max(1, frameRate)
+    self.includeSystemAudio = includeSystemAudio
+    self.includeMicrophoneAudio = includeMicrophoneAudio
+  }
+
+  func configureVideoSize(width: Int, height: Int) {
+    configuredVideoSize = CGSize(width: max(2, width), height: max(2, height))
+  }
+
+  func prepare() throws {
+    if FileManager.default.fileExists(atPath: outputURL.path) {
+      try FileManager.default.removeItem(at: outputURL)
+    }
+
+    guard let videoSize = configuredVideoSize else {
+      throw NSError(
+        domain: "com.vivyshot.recording",
+        code: -40,
+        userInfo: [NSLocalizedDescriptionKey: "Software encoder video size was not configured."]
+      )
+    }
+
+    let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
+    writer.shouldOptimizeForNetworkUse = true
+
+    let bitrate = max(6_000_000, Int(videoSize.width * videoSize.height * CGFloat(frameRate) * 0.12))
+    let videoInput = AVAssetWriterInput(
+      mediaType: .video,
+      outputSettings: [
+        AVVideoCodecKey: AVVideoCodecType.h264,
+        AVVideoWidthKey: Int(videoSize.width),
+        AVVideoHeightKey: Int(videoSize.height),
+        AVVideoEncoderSpecificationKey: [
+          kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String: false
+        ],
+        AVVideoCompressionPropertiesKey: [
+          AVVideoAverageBitRateKey: bitrate,
+          AVVideoExpectedSourceFrameRateKey: frameRate,
+          AVVideoMaxKeyFrameIntervalKey: frameRate * 2,
+          AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+        ]
+      ]
+    )
+    videoInput.expectsMediaDataInRealTime = true
+    guard writer.canAdd(videoInput) else {
+      throw NSError(
+        domain: "com.vivyshot.recording",
+        code: -41,
+        userInfo: [NSLocalizedDescriptionKey: "Unable to configure software H.264 video writer."]
+      )
+    }
+    writer.add(videoInput)
+
+    if includeSystemAudio {
+      let input = makeAudioInput()
+      guard writer.canAdd(input) else {
+        throw NSError(
+          domain: "com.vivyshot.recording",
+          code: -42,
+          userInfo: [NSLocalizedDescriptionKey: "Unable to configure system audio writer."]
+        )
+      }
+      writer.add(input)
+      systemAudioInput = input
+    }
+
+    if includeMicrophoneAudio {
+      let input = makeAudioInput()
+      guard writer.canAdd(input) else {
+        throw NSError(
+          domain: "com.vivyshot.recording",
+          code: -43,
+          userInfo: [NSLocalizedDescriptionKey: "Unable to configure microphone audio writer."]
+        )
+      }
+      writer.add(input)
+      microphoneAudioInput = input
+    }
+
+    guard writer.startWriting() else {
+      throw writer.error ?? NSError(
+        domain: "com.vivyshot.recording",
+        code: -44,
+        userInfo: [NSLocalizedDescriptionKey: "Unable to start software H.264 writer."]
+      )
+    }
+
+    self.writer = writer
+    self.videoInput = videoInput
+  }
+
+  func append(sampleBuffer: CMSampleBuffer, type: SCStreamOutputType) {
+    guard CMSampleBufferDataIsReady(sampleBuffer), !didFinish else {
+      return
+    }
+
+    switch type {
+    case .screen:
+      appendVideo(sampleBuffer)
+    case .audio:
+      appendAudio(sampleBuffer, input: systemAudioInput)
+    case .microphone:
+      appendAudio(sampleBuffer, input: microphoneAudioInput)
+    @unknown default:
+      return
+    }
+  }
+
+  func finish() async throws {
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      queue.async { [self] in
+        didFinish = true
+
+        guard let writer else {
+          continuation.resume(returning: ())
+          return
+        }
+
+        guard sessionStartTime != nil else {
+          writer.cancelWriting()
+          continuation.resume(throwing: NSError(
+            domain: "com.vivyshot.recording",
+            code: -45,
+            userInfo: [NSLocalizedDescriptionKey: "No video frames were captured for software H.264 recording."]
+          ))
+          return
+        }
+
+        videoInput?.markAsFinished()
+        systemAudioInput?.markAsFinished()
+        microphoneAudioInput?.markAsFinished()
+
+        nonisolated(unsafe) let unsafeWriter = writer
+        unsafeWriter.finishWriting {
+          switch unsafeWriter.status {
+          case .completed:
+            continuation.resume(returning: ())
+          case .failed:
+            continuation.resume(throwing: unsafeWriter.error ?? NSError(
+              domain: "com.vivyshot.recording",
+              code: -46,
+              userInfo: [NSLocalizedDescriptionKey: "Software H.264 writer failed."]
+            ))
+          case .cancelled:
+            continuation.resume(throwing: NSError(
+              domain: "com.vivyshot.recording",
+              code: -47,
+              userInfo: [NSLocalizedDescriptionKey: "Software H.264 writer was cancelled."]
+            ))
+          default:
+            continuation.resume(throwing: unsafeWriter.error ?? NSError(
+              domain: "com.vivyshot.recording",
+              code: -48,
+              userInfo: [NSLocalizedDescriptionKey: "Software H.264 writer did not complete."]
+            ))
+          }
+        }
+      }
+    }
+  }
+
+  func cancel() {
+    queue.async { [self] in
+      didFinish = true
+      writer?.cancelWriting()
+    }
+  }
+
+  private func appendVideo(_ sampleBuffer: CMSampleBuffer) {
+    guard let writer, writer.status == .writing, let videoInput else {
+      return
+    }
+    guard CMSampleBufferGetImageBuffer(sampleBuffer) != nil else {
+      return
+    }
+    guard isCompleteScreenFrame(sampleBuffer) else {
+      return
+    }
+
+    let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+    guard presentationTime.isValid else {
+      return
+    }
+
+    if sessionStartTime == nil {
+      sessionStartTime = presentationTime
+      writer.startSession(atSourceTime: presentationTime)
+    }
+
+    guard videoInput.isReadyForMoreMediaData else {
+      return
+    }
+    _ = videoInput.append(sampleBuffer)
+  }
+
+  private func appendAudio(_ sampleBuffer: CMSampleBuffer, input: AVAssetWriterInput?) {
+    guard let input, input.isReadyForMoreMediaData, sessionStartTime != nil else {
+      return
+    }
+    _ = input.append(sampleBuffer)
+  }
+
+  private func makeAudioInput() -> AVAssetWriterInput {
+    let input = AVAssetWriterInput(
+      mediaType: .audio,
+      outputSettings: [
+        AVFormatIDKey: kAudioFormatMPEG4AAC,
+        AVSampleRateKey: 48_000,
+        AVNumberOfChannelsKey: 2,
+        AVEncoderBitRateKey: 128_000
+      ]
+    )
+    input.expectsMediaDataInRealTime = true
+    return input
+  }
+
+  private func isCompleteScreenFrame(_ sampleBuffer: CMSampleBuffer) -> Bool {
+    guard let attachments = CMSampleBufferGetSampleAttachmentsArray(
+      sampleBuffer,
+      createIfNecessary: false
+    ) as? [[SCStreamFrameInfo: Any]],
+      let statusValue = attachments.first?[SCStreamFrameInfo.status] as? Int,
+      let status = SCFrameStatus(rawValue: statusValue)
+    else {
+      return true
+    }
+    return status == .complete || status == .started
   }
 }
 

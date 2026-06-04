@@ -20,7 +20,7 @@ That is functional, but it does not feel like a complete recording review/export
 
 At the same time, VivyShot already has recording-level configuration for:
 
-1. Codec via `VideoCodecOption`.
+1. Recording encoder via `VideoRecordingEncoderOption`.
 2. Frame rate via `VideoFrameRateOption`.
 
 Those settings exist in app settings and capture configuration, but they are not surfaced in the review/export experience where users most expect professional controls.
@@ -112,18 +112,20 @@ Current behavior:
 
 Current enums:
 
-1. `VideoCodecOption`
-   - `h264`
-   - `hevc`
+1. `VideoRecordingEncoderOption`
+   - `standardH264`
+   - `smallerFileHEVC`
+   - `cpuH264`
 2. `VideoFrameRateOption`
    - `fps30`
    - `fps60`
+   - `fps120`
 
 `macos/Sources/App/Configuration/AppSettings.swift`
 
 Current persisted settings already include:
 
-1. `videoCodec`
+1. `videoRecordingEncoder`
 2. `videoFrameRate`
 
 ### 5.3 Current Recording Output Path
@@ -132,7 +134,7 @@ Current persisted settings already include:
 
 Current facts:
 
-1. Capture-time recording already respects `VideoRecordingConfig.codec`.
+1. Capture-time recording already respects `VideoRecordingConfig.encoder`.
 2. Capture-time recording already respects `VideoRecordingConfig.frameRate`.
 3. The post-recording `quickSaveMP4` path currently exports with:
    - `AVAssetExportPresetHighestQuality`
@@ -374,7 +376,7 @@ For v1, selected export options in the review window do not need to persist glob
 Acceptable behavior:
 
 1. The review window starts with free-safe defaults.
-2. Optionally seed defaults from `AppSettings.videoCodec` and `AppSettings.videoFrameRate` where it improves continuity.
+2. Optionally seed defaults from `AppSettings.videoRecordingEncoder` and `AppSettings.videoFrameRate` where it improves continuity.
 3. The export selection only needs to live for the lifetime of the review window.
 
 This is deliberately smaller and less risky than immediately creating a broad persistent export-preferences system.

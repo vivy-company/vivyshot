@@ -72,7 +72,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var toolbarAccentAlpha: Double
   @Published private(set) var screenshotMainAction: ScreenshotMainAction
 
-  @Published private(set) var videoCodec: VideoCodecOption
+  @Published private(set) var videoRecordingEncoder: VideoRecordingEncoderOption
   @Published private(set) var videoFrameRate: VideoFrameRateOption
   @Published private(set) var videoCountdown: VideoCountdownOption
   @Published private(set) var videoExportCodec: PostRecordingExportCodec
@@ -204,7 +204,7 @@ final class AppSettings: ObservableObject {
     static let toolbarAccentAlpha = "settings.appearance.toolbarAccent.alpha"
     static let screenshotMainAction = "settings.appearance.screenshotMainAction"
 
-    static let videoCodec = "settings.video.codec"
+    static let videoRecordingEncoder = "settings.video.recordingEncoder"
     static let videoFrameRate = "settings.video.frameRate"
     static let videoCountdown = "settings.video.countdown"
     static let videoExportCodec = "settings.video.export.codec"
@@ -320,8 +320,10 @@ final class AppSettings: ObservableObject {
       rawValue: storedScreenshotMainAction ?? ScreenshotMainAction.copy.rawValue
     ) ?? .copy
 
-    let storedVideoCodec = defaults.object(forKey: Keys.videoCodec) as? Int
-    videoCodec = VideoCodecOption(rawValue: storedVideoCodec ?? VideoCodecOption.h264.rawValue) ?? .h264
+    let storedVideoRecordingEncoder = defaults.object(forKey: Keys.videoRecordingEncoder) as? Int
+    videoRecordingEncoder = VideoRecordingEncoderOption(
+      rawValue: storedVideoRecordingEncoder ?? VideoRecordingEncoderOption.standardH264.rawValue
+    ) ?? .standardH264
 
     let storedVideoFrameRate = defaults.object(forKey: Keys.videoFrameRate) as? Int
     videoFrameRate = VideoFrameRateOption(rawValue: storedVideoFrameRate ?? VideoFrameRateOption.fps30.rawValue) ?? .fps30
@@ -548,11 +550,11 @@ final class AppSettings: ObservableObject {
     persistAppLanguage()
   }
 
-  func setVideoCodec(_ codec: VideoCodecOption) {
-    guard videoCodec != codec else {
+  func setVideoRecordingEncoder(_ encoder: VideoRecordingEncoderOption) {
+    guard videoRecordingEncoder != encoder else {
       return
     }
-    videoCodec = codec
+    videoRecordingEncoder = encoder
     persistVideoCaptureSettings()
   }
 
@@ -840,7 +842,7 @@ final class AppSettings: ObservableObject {
 
   func resetVideoCaptureSettings() {
     defaultCaptureType = .screenshot
-    videoCodec = .h264
+    videoRecordingEncoder = .standardH264
     videoFrameRate = .fps30
     videoCountdown = .off
     videoExportCodec = .h264
@@ -1509,7 +1511,7 @@ final class AppSettings: ObservableObject {
 
   private func persistVideoCaptureSettings() {
     defaults.set(defaultCaptureType.rawValue, forKey: Keys.defaultCaptureType)
-    defaults.set(videoCodec.rawValue, forKey: Keys.videoCodec)
+    defaults.set(videoRecordingEncoder.rawValue, forKey: Keys.videoRecordingEncoder)
     defaults.set(videoFrameRate.rawValue, forKey: Keys.videoFrameRate)
     defaults.set(videoCountdown.rawValue, forKey: Keys.videoCountdown)
     defaults.set(videoExportCodec.rawValue, forKey: Keys.videoExportCodec)
@@ -1568,7 +1570,7 @@ final class AppSettings: ObservableObject {
     defaults.set(captureTransitionStyle.rawValue, forKey: Keys.captureTransitionStyle)
     defaults.set(captureTransitionSpeed, forKey: Keys.captureTransitionSpeed)
     defaults.set(captureTransitionIntensity, forKey: Keys.captureTransitionIntensity)
-    defaults.set(videoCodec.rawValue, forKey: Keys.videoCodec)
+    defaults.set(videoRecordingEncoder.rawValue, forKey: Keys.videoRecordingEncoder)
     defaults.set(videoFrameRate.rawValue, forKey: Keys.videoFrameRate)
     defaults.set(videoCountdown.rawValue, forKey: Keys.videoCountdown)
     defaults.set(videoExportCodec.rawValue, forKey: Keys.videoExportCodec)

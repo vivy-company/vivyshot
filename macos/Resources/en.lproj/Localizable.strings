@@ -60,6 +60,8 @@
 "Reset Toolbar" = "Reset Toolbar";
 "Video Capture" = "Video Capture";
 "Quality" = "Quality";
+"Recording Encoder" = "Recording Encoder";
+"Encoder" = "Encoder";
 "Frame Rate" = "Frame Rate";
 "Countdown" = "Countdown";
 "Camera" = "Camera";
@@ -121,7 +123,8 @@
 "Copy" = "Copy";
 "Save" = "Save";
 "Standard (H.264)" = "Standard (H.264)";
-"High (HEVC)" = "High (HEVC)";
+"Smaller File (HEVC)" = "Smaller File (HEVC)";
+"CPU Recording (H.264)" = "CPU Recording (H.264)";
 "Off" = "Off";
 "Small" = "Small";
 "Medium" = "Medium";

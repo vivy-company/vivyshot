@@ -48,6 +48,11 @@
 "Copied. Auto-save failed." = "Copié. Échec de l’enregistrement automatique.";
 "Saved" = "Enregistré";
 "Quality" = "Qualité";
+"Recording Encoder" = "Encodeur d’enregistrement";
+"Encoder" = "Encodeur";
+"Standard (H.264)" = "Standard (H.264)";
+"Smaller File (HEVC)" = "Fichier plus petit (HEVC)";
+"CPU Recording (H.264)" = "Enregistrement CPU (H.264)";
 "Frame Rate" = "Fréquence d’images";
 "Countdown" = "Compte à rebours";
 "Copy" = "Copier";

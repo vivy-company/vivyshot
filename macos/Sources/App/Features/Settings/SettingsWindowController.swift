@@ -558,17 +558,17 @@ struct VivyShotSettingsView: View {
   private var videoCaptureSection: some View {
     Section("Video Capture") {
       HStack(spacing: 10) {
-        Text("Quality")
+        Text("Encoder")
           .frame(width: 78, alignment: .leading)
         Spacer(minLength: 0)
-        Picker("Video Quality", selection: videoCodecBinding) {
-          ForEach(VideoCodecOption.allCases) { codec in
-            Text(codec.title).tag(codec)
+        Picker("Recording Encoder", selection: videoRecordingEncoderBinding) {
+          ForEach(VideoRecordingEncoderOption.allCases) { encoder in
+            Text(encoder.title).tag(encoder)
           }
         }
         .labelsHidden()
         .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
+        .frame(width: 220, alignment: .trailing)
       }
 
       HStack(spacing: 10) {
@@ -1108,10 +1108,10 @@ struct VivyShotSettingsView: View {
     )
   }
 
-  private var videoCodecBinding: Binding<VideoCodecOption> {
+  private var videoRecordingEncoderBinding: Binding<VideoRecordingEncoderOption> {
     Binding(
-      get: { settings.videoCodec },
-      set: { settings.setVideoCodec($0) }
+      get: { settings.videoRecordingEncoder },
+      set: { settings.setVideoRecordingEncoder($0) }
     )
   }
 
