@@ -20,7 +20,7 @@ Build VivyShot as a Rust-first capture and editing core that can power multiple 
 ## Distribution And Commercial Goals
 
 - Official macOS distribution is available through the App Store:
-  https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121
+  https://apps.apple.com/us/app/id6760658121
 - The App Store app uses a free base app with one-time in-app purchases.
 
 ## Agent Working Rules

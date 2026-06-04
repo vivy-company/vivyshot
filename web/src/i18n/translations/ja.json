@@ -5,7 +5,7 @@
   },
   "hero": {
     "eyebrow": "シンプル。ネイティブ。高速。",
-    "title": "VivyShot: Screen Studio",
+    "title": "VivyShot",
     "subtitle": "仕事、ドキュメント、バグ報告、AI エージェントのワークフロー向けに、スクリーンショットと画面録画をもっと素早く行うためのツールです。キャプチャ、注釈、書き出しをひとつの流れにまとめました。",
     "primaryCta": "ダウンロード",
     "meta": "現在 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span> で利用できます。"

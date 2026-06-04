@@ -7,7 +7,7 @@
 [![Rust Core License](https://img.shields.io/badge/Rust%20Core-MIT-green?style=flat-square)](LICENSE-MIT)
 [![macOS License](https://img.shields.io/badge/macOS-GPL%203.0-blue?style=flat-square)](LICENSE-GPL-3.0)
 [![Binary License](https://img.shields.io/badge/Binary-App%20Store%20EULA-6e7681?style=flat-square)](LICENSE-APPSTORE.md)
-[![App Store](https://img.shields.io/badge/App%20Store-Download-0a84ff?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121)
+[![App Store](https://img.shields.io/badge/App%20Store-Download-0a84ff?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/us/app/id6760658121)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ff69b4?style=flat-square&logo=github)](https://github.com/sponsors/vivy-company)
 
 Open source screen capture, annotation, and recording software with a portable Rust core and a native macOS app today.
@@ -52,7 +52,7 @@ The product direction is straightforward:
 
 ## Distribution And Pricing
 
-- Official macOS distribution is available through Apple's App Store: <https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121>
+- Official macOS distribution is available through Apple's App Store: <https://apps.apple.com/us/app/id6760658121>
 - Pricing direction:
   - Free forever for the core workflow
   - Lifetime unlock: `$9.99` one-time

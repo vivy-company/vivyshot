@@ -7,14 +7,14 @@ import fr from "../i18n/translations/fr.json";
 import es from "../i18n/translations/es.json";
 
 export const SITE = {
-  name: "VivyShot: Screen Studio",
+  name: "VivyShot",
   shortName: "VivyShot",
   siteUrl: "https://vivyshot.com",
-  appStoreUrl: "https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121",
-  title: "VivyShot: Screen Studio",
+  appStoreUrl: "https://apps.apple.com/us/app/id6760658121",
+  title: "VivyShot",
   description:
-    "VivyShot: Screen Studio is an open source screenshot, annotation, and recording app built to stay simple, fast, and native on each platform.",
-  downloadUrl: "https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121",
+    "VivyShot is an open source screenshot, annotation, and recording app built to stay simple, fast, and native on each platform.",
+  downloadUrl: "https://apps.apple.com/us/app/id6760658121",
   githubUrl: "https://github.com/vivy-company/vivyshot",
   themeStorageKey: "vivyshot-theme",
   languageStorageKey: "vivyshot-language",
@@ -25,13 +25,13 @@ export const translations = { en, zh, ja, ko, de, fr, es } as const;
 export const softwareSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  name: "VivyShot: Screen Studio",
+  name: "VivyShot",
   applicationCategory: "GraphicsApplication",
   operatingSystem: "macOS",
   description:
     "Open source screenshot, annotation, and recording software built to stay simple, fast, and native on each platform.",
   url: "https://vivyshot.com/",
-  downloadUrl: "https://apps.apple.com/us/app/vivyshot-screen-studio/id6760658121",
+  downloadUrl: "https://apps.apple.com/us/app/id6760658121",
   image: "https://vivyshot.com/og.png",
   author: {
     "@type": "Organization",
@@ -55,7 +55,7 @@ export const websiteSchema = {
   "@graph": [
     {
       "@type": "WebSite",
-      name: "VivyShot: Screen Studio",
+      name: "VivyShot",
       url: "https://vivyshot.com/",
     },
     {
