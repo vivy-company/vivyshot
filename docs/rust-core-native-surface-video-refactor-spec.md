@@ -8,6 +8,7 @@
 - Related:
   - `AGENTS.md`
   - `docs/rust-core-ffi-refactor-spec.md`
+  - `docs/rust-platform-capture-backends-spec.md`
   - `docs/video-editor-spec.md`
   - `docs/post-recording-export-options-spec.md`
   - `docs/pro-preview-and-export-trial-spec.md`
@@ -36,7 +37,7 @@ This creates a multi-surface risk:
 3. Rust timeline/video APIs exist but are underused by the shipping post-recording flow.
 4. The product has two architectural styles at once: Rust-owned screenshot editing and Swift-owned video editing/export.
 
-The goal of this refactor is not to make Rust call macOS media APIs. The goal is to make Rust own the portable video product state and decisions while Swift remains the native surface that executes macOS-specific capture, preview, rendering, and file operations.
+The goal of this refactor is not to make `vivyshot-core` call macOS media APIs. The goal is to make Rust own the portable video product state and decisions while the macOS surface executes macOS-specific capture, preview, rendering, and file operations. A later capture refinement may move that macOS-specific execution from Swift into a separate `vivyshot-capture` crate; see `docs/rust-platform-capture-backends-spec.md`.
 
 ## 2. Decision
 
@@ -236,7 +237,7 @@ It must not own video or stitch state machines long-term.
 
 This refactor does not require:
 
-1. Porting ScreenCaptureKit or AVFoundation to Rust.
+1. Porting ScreenCaptureKit or AVFoundation to `vivyshot-core`. A separate `vivyshot-capture` crate is covered by `docs/rust-platform-capture-backends-spec.md`.
 2. Moving raw video frame transport through FFI.
 3. Replacing native SwiftUI/AppKit preview UI.
 4. Rewriting the paywall UI.
