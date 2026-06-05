@@ -1,6 +1,9 @@
 import AppKit
 import SwiftUI
 
+private let toolbarNeutralForeground = Color.white.opacity(0.9)
+private let toolbarSecondaryForeground = Color.white.opacity(0.72)
+
 private func captureModeHelpText(_ mode: CaptureMode) -> String {
   switch mode {
   case .screen:
@@ -303,7 +306,7 @@ struct CaptureAnnotationToolbar: View {
       cornerRadius: 7,
       selectedFillOpacity: 0.18,
       selectedStrokeOpacity: 0.34,
-      tintOverride: isSelected ? accentColor : Color.primary.opacity(0.82),
+      tintOverride: isSelected ? accentColor : toolbarNeutralForeground,
       action: action
     )
   }
@@ -351,7 +354,7 @@ struct CaptureAnnotationToolbar: View {
       selectionID: "annotation-capture-mode",
       showsSelectionBackground: false,
       selectedTint: accentColor,
-      normalTint: Color.primary.opacity(0.82)
+      normalTint: toolbarNeutralForeground
     ) {
       onSelectCaptureMode(mode)
     }
@@ -571,13 +574,13 @@ struct CaptureVideoToolbar: View {
       HStack(spacing: 4) {
         Image(systemName: "timer")
           .font(.system(size: 13.5, weight: .semibold))
-          .foregroundStyle(isCountdownEnabled ? accentColor : Color.primary.opacity(0.82))
+          .foregroundStyle(isCountdownEnabled ? accentColor : toolbarNeutralForeground)
         Text(countdown.title)
           .font(.system(size: 11.5, weight: .semibold))
-          .foregroundStyle(isCountdownEnabled ? accentColor : Color.primary.opacity(0.82))
+          .foregroundStyle(isCountdownEnabled ? accentColor : toolbarNeutralForeground)
         Image(systemName: "chevron.down")
           .font(.system(size: 9, weight: .bold))
-          .foregroundStyle(Color.primary.opacity(0.66))
+          .foregroundStyle(toolbarSecondaryForeground)
       }
       .frame(height: 26)
       .padding(.horizontal, 10)
@@ -719,7 +722,7 @@ struct CaptureVideoToolbar: View {
       cornerRadius: 7,
       selectedFillOpacity: 0.18,
       selectedStrokeOpacity: 0.34,
-      tintOverride: isSelected ? accentColor : Color.primary.opacity(0.82),
+      tintOverride: isSelected ? accentColor : toolbarNeutralForeground,
       isLocked: isLocked,
       action: action
     )
@@ -772,7 +775,7 @@ struct CaptureVideoToolbar: View {
       selectionID: "video-capture-mode",
       showsSelectionBackground: false,
       selectedTint: accentColor,
-      normalTint: Color.primary.opacity(0.82)
+      normalTint: toolbarNeutralForeground
     ) {
       onSelectCaptureMode(mode)
     }

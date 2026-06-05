@@ -30,20 +30,28 @@ final class RegionSelectionGlassHostingView<Content: View>: NSView {
       let glassView = NSGlassEffectView()
       glassView.style = .regular
       glassView.cornerRadius = cornerRadius
-      glassView.contentView = hostingView
       shellView = glassView
     } else {
       let visualEffectView = NSVisualEffectView()
       visualEffectView.blendingMode = .behindWindow
       visualEffectView.material = .hudWindow
       visualEffectView.state = .active
-      visualEffectView.addSubview(hostingView)
       shellView = visualEffectView
     }
 
     super.init(frame: .zero)
     configureTransparentHost()
+    // The glass shell provides the material; the SwiftUI content sits on top as a sibling rather
+    // than the glass's clipped contentView, so hover tooltips can overflow the toolbar bounds
+    // instead of being clipped to the glass shape. Forced-dark appearance (set on the overlay
+    // window) keeps both the shell and the content legible.
     addSubview(shellView)
+    addSubview(hostingView)
+  }
+
+  // Allow hover tooltips to draw outside the toolbar/glass bounds.
+  override var wantsDefaultClipping: Bool {
+    false
   }
 
   @available(*, unavailable)
@@ -80,6 +88,10 @@ final class RegionSelectionGlassHostingView<Content: View>: NSView {
     layer?.backgroundColor = NSColor.clear.cgColor
     layer?.isOpaque = false
     layer?.masksToBounds = false
+    hostingView.wantsLayer = true
+    hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+    hostingView.layer?.isOpaque = false
+    hostingView.layer?.masksToBounds = false
   }
 }
 

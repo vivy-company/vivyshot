@@ -782,6 +782,21 @@ final class RegionSelectionWindow: NSPanel {
   var onPerformDefaultCaptureAction: (() -> Bool)?
   var onCancel: (() -> Void)?
 
+  // Native Liquid Glass renders its dark variant correctly here but is washed-out/white in Light
+  // Aqua inside this borderless screen-saver-level panel. Pin every overlay window to dark so the
+  // glass chrome is consistent and legible regardless of the system theme.
+  private static let overlayAppearance = NSAppearance(named: .darkAqua)
+
+  override init(
+    contentRect: NSRect,
+    styleMask style: NSWindow.StyleMask,
+    backing backingStoreType: NSWindow.BackingStoreType,
+    defer flag: Bool
+  ) {
+    super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
+    appearance = Self.overlayAppearance
+  }
+
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
 
