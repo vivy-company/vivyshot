@@ -19,6 +19,7 @@ extension RegionSelectionView {
 
   func updateSelectingHintVisibility(animated: Bool) {
     let shouldShow = settings.captureShowHelper
+      && glassChromeReadyForBackdrop
       && mode == .selecting
       && smartMouseDownPoint == nil
       && dragStart == nil
@@ -28,32 +29,11 @@ extension RegionSelectionView {
     if shouldShow {
       layoutSelectingHint()
       if selectingHintHost.isHidden {
-        selectingHintHost.alphaValue = 0
         selectingHintHost.isHidden = false
       }
     }
 
-    let targetAlpha: CGFloat = shouldShow ? 1 : 0
-
-    if animated {
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = 0.14
-        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        selectingHintHost.animator().alphaValue = targetAlpha
-      } completionHandler: { [weak self] in
-        MainActor.assumeIsolated {
-          guard let self else {
-            return
-          }
-          if !shouldShow {
-            self.selectingHintHost.isHidden = true
-          }
-        }
-      }
-      return
-    }
-
-    selectingHintHost.alphaValue = targetAlpha
+    selectingHintHost.alphaValue = 1
     selectingHintHost.isHidden = !shouldShow
   }
 
@@ -72,7 +52,7 @@ extension RegionSelectionView {
     }()
     let shouldShow = mode == .selecting || (mode == .editing && hasSelection)
 
-    guard shouldShow else {
+    guard shouldShow, glassChromeReadyForBackdrop else {
       captureTypeHost.isHidden = true
       return
     }
@@ -149,7 +129,6 @@ extension RegionSelectionView {
 
     canvasView.isHidden = liveTargetPickActive
     toolbarHost.alphaValue = 1
-    toolbarHost.isHidden = false
     updateCanvasPreviewStrokeWidth()
 
     let shouldShowSelectionMask = !liveTargetPickActive
@@ -214,12 +193,31 @@ extension RegionSelectionView {
     let y = min(max(minY, unclampedY), maxY)
     toolbarOffset = CGSize(width: x - defaultX, height: y - defaultY)
 
-    toolbarHost.frame = CGRect(
+    let toolbarFrame = CGRect(
       x: x,
       y: y,
       width: toolbarSize.width,
       height: toolbarSize.height
     ).integral
+
+    let shouldAnimateToolbarFrame = toolbarFrameAnimationPending
+      && glassChromeReadyForBackdrop
+      && !toolbarHost.isHidden
+      && toolbarHost.frame.width > 0
+      && toolbarHost.frame.height > 0
+      && toolbarHost.frame != toolbarFrame
+    toolbarFrameAnimationPending = false
+
+    if shouldAnimateToolbarFrame {
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = 0.26
+        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        toolbarHost.animator().frame = toolbarFrame
+      }
+    } else {
+      toolbarHost.frame = toolbarFrame
+    }
+    toolbarHost.isHidden = !glassChromeReadyForBackdrop
 
     if stitchModeEnabled || selection == nil || hidesSelectionFrame {
       setResizeHandlesHidden(true)

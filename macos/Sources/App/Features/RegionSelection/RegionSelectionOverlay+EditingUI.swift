@@ -28,7 +28,7 @@ extension RegionSelectionView {
     addSubview(videoKeystrokePlacementView)
 
     selectingHintHost.translatesAutoresizingMaskIntoConstraints = true
-    selectingHintHost.alphaValue = 0
+    selectingHintHost.alphaValue = 1
     selectingHintHost.isHidden = true
     addSubview(selectingHintHost)
 
@@ -135,6 +135,7 @@ extension RegionSelectionView {
   func makeCaptureTypeSidebar() -> CaptureTypeSidebar {
     CaptureTypeSidebar(
       selectedType: selectedCaptureType,
+      usesExternalGlassSurface: true,
       onSelectType: { [weak self] type in
         self?.setSelectedCaptureType(type)
       }
@@ -142,7 +143,7 @@ extension RegionSelectionView {
   }
 
   func refreshSelectingHint() {
-    selectingHintHost.rootView = CaptureHintGlassCard(selectedType: selectedCaptureType)
+    selectingHintHost.rootView = CaptureHintGlassCard(selectedType: selectedCaptureType, usesExternalGlassSurface: true)
     needsLayout = true
   }
 

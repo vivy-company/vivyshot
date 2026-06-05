@@ -4,10 +4,15 @@ import SwiftUI
 @MainActor
 struct CaptureHintGlassCard: View {
   let selectedType: CaptureContentType
+  var usesExternalGlassSurface = false
 
   var body: some View {
     Group {
-      if #available(macOS 26.0, *) {
+      if usesExternalGlassSurface {
+        panelContent
+          .padding(.horizontal, 12)
+          .padding(.vertical, 9)
+      } else if #available(macOS 26.0, *) {
         GlassEffectContainer(spacing: 0) {
           panelContent
             .padding(.horizontal, 12)
@@ -164,21 +169,23 @@ private struct ResizeGripGlyph: Shape {
 @MainActor
 struct CaptureTypeSidebar: View {
   let selectedType: CaptureContentType
+  var usesExternalGlassSurface = false
   let onSelectType: (CaptureContentType) -> Void
 
   var body: some View {
     Group {
-      if #available(macOS 26.0, *) {
+      if usesExternalGlassSurface {
+        panelContent
+          .padding(6)
+      } else if #available(macOS 26.0, *) {
         GlassEffectContainer(spacing: 0) {
           panelContent
-            .padding(.horizontal, 7)
-            .padding(.vertical, 7)
+            .padding(6)
             .glassEffect(.regular.interactive(), in: .capsule)
         }
       } else {
         panelContent
-          .padding(.horizontal, 7)
-          .padding(.vertical, 7)
+          .padding(6)
           .background(
             Capsule(style: .continuous)
               .fill(.ultraThinMaterial)
@@ -194,11 +201,38 @@ struct CaptureTypeSidebar: View {
   }
 
   private var panelContent: some View {
-    VStack(spacing: 4) {
-      ForEach(CaptureContentType.allCases) { type in
-        captureButton(type)
+    ZStack(alignment: .top) {
+      selectionRail
+
+      VStack(spacing: 4) {
+        ForEach(CaptureContentType.allCases) { type in
+          captureButton(type)
+        }
       }
     }
+    .frame(width: 44, height: captureRailHeight)
+  }
+
+  private var captureRailHeight: CGFloat {
+    let count = CGFloat(CaptureContentType.allCases.count)
+    return max(44, count * 44 + max(0, count - 1) * 4)
+  }
+
+  private var selectedTypeIndex: Int {
+    CaptureContentType.allCases.firstIndex(of: selectedType) ?? 0
+  }
+
+  private var selectionRail: some View {
+    RoundedRectangle(cornerRadius: 17, style: .continuous)
+      .fill(Color.accentColor.opacity(0.07))
+      .overlay(
+        RoundedRectangle(cornerRadius: 17, style: .continuous)
+          .stroke(Color.accentColor.opacity(0.24), lineWidth: 1)
+      )
+      .frame(width: 36, height: 36)
+      .offset(y: CGFloat(selectedTypeIndex) * 48 + 4)
+      .animation(.smooth(duration: 0.20), value: selectedType)
+      .allowsHitTesting(false)
   }
 
   private func captureButton(_ type: CaptureContentType) -> some View {
@@ -208,18 +242,17 @@ struct CaptureTypeSidebar: View {
       onSelectType(type)
     }
     label: {
-      ZStack {
-        Circle()
-          .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.06))
-          .frame(width: 38, height: 38)
-          .overlay(
-            Circle()
-              .stroke(isSelected ? Color.accentColor.opacity(0.34) : Color.primary.opacity(0.10), lineWidth: 1)
-          )
-
+      ZStack(alignment: .bottomTrailing) {
         Image(systemName: type.symbolName)
           .font(.system(size: 17, weight: .semibold))
           .foregroundStyle(isSelected ? Color.accentColor : Color.primary.opacity(0.82))
+
+        if isSelected {
+          Circle()
+            .fill(Color.accentColor)
+            .frame(width: 5, height: 5)
+            .offset(x: -7, y: -7)
+        }
       }
       .frame(width: 44, height: 44)
       .contentShape(Rectangle())
@@ -254,7 +287,7 @@ struct CaptureFloatingToolbar: View {
           toolbarContent
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: .capsule)
+            .glassEffect(.regular.interactive(), in: .capsule)
         }
       } else {
         toolbarContent
@@ -348,7 +381,7 @@ struct CaptureFloatingToolbar: View {
           .frame(height: 34)
           .padding(.horizontal, 8)
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.plain)
         .help("Capture options")
       } else {
         Menu {
@@ -381,9 +414,14 @@ struct CaptureFloatingToolbar: View {
       if #available(macOS 26.0, *) {
         Button("Capture", action: onCapture)
           .font(.system(size: 15, weight: .semibold))
+          .foregroundStyle(Color.accentColor)
           .padding(.horizontal, 24)
           .frame(height: 40)
-          .buttonStyle(.glassProminent)
+          .buttonStyle(.plain)
+          .overlay(
+            Capsule(style: .continuous)
+              .stroke(Color.accentColor.opacity(0.34), lineWidth: 1)
+          )
           .help("Capture selection")
       } else {
         Button("Capture", action: onCapture)
@@ -425,15 +463,12 @@ struct CaptureFloatingToolbar: View {
         ZStack {
           if isSelected {
             shape
-              .fill(Color.white.opacity(0.001))
-              .frame(width: 40, height: 34)
-              .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: shape)
-              .glassEffectID("floating-capture-mode", in: modeSelectionNamespace)
-              .glassEffectTransition(.matchedGeometry)
+              .fill(Color.accentColor.opacity(0.07))
               .overlay(
                 shape
-                  .stroke(Color.white.opacity(0.32), lineWidth: 1)
+                  .stroke(Color.accentColor.opacity(0.24), lineWidth: 1)
               )
+              .frame(width: 40, height: 34)
           }
 
           icon

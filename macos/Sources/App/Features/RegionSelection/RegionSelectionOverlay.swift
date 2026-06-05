@@ -10,6 +10,80 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 @MainActor
+final class RegionSelectionGlassHostingView<Content: View>: NSView {
+  private let hostingView: NSHostingView<Content>
+  private let shellView: NSView
+
+  var rootView: Content {
+    get { hostingView.rootView }
+    set {
+      hostingView.rootView = newValue
+      invalidateIntrinsicContentSize()
+      needsLayout = true
+    }
+  }
+
+  init(rootView: Content, cornerRadius: CGFloat = 26) {
+    hostingView = NSHostingView(rootView: rootView)
+
+    if #available(macOS 26.0, *) {
+      let glassView = NSGlassEffectView()
+      glassView.style = .regular
+      glassView.cornerRadius = cornerRadius
+      glassView.contentView = hostingView
+      shellView = glassView
+    } else {
+      let visualEffectView = NSVisualEffectView()
+      visualEffectView.blendingMode = .behindWindow
+      visualEffectView.material = .hudWindow
+      visualEffectView.state = .active
+      visualEffectView.addSubview(hostingView)
+      shellView = visualEffectView
+    }
+
+    super.init(frame: .zero)
+    configureTransparentHost()
+    addSubview(shellView)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  override var isOpaque: Bool {
+    false
+  }
+
+  override var fittingSize: NSSize {
+    hostingView.fittingSize
+  }
+
+  override var intrinsicContentSize: NSSize {
+    hostingView.intrinsicContentSize
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    configureTransparentHost()
+  }
+
+  override func layout() {
+    super.layout()
+    shellView.frame = bounds
+    hostingView.frame = bounds
+  }
+
+  private func configureTransparentHost() {
+    translatesAutoresizingMaskIntoConstraints = true
+    wantsLayer = true
+    layer?.backgroundColor = NSColor.clear.cgColor
+    layer?.isOpaque = false
+    layer?.masksToBounds = false
+  }
+}
+
+@MainActor
 final class RegionSelectionView: NSView {
   static let captureCameraCursor: NSCursor = {
     let size = NSSize(width: 28, height: 28)
@@ -76,20 +150,26 @@ final class RegionSelectionView: NSView {
   let videoKeystrokePlacementView = CaptureOverlayPlacementView(kind: .keystroke)
   let captureModeSelectionState = CaptureModeSelectionState()
   let toolbarRefresh = RegionSelectionToolbarRefresh()
-  lazy var toolbarHost = NSHostingView(
-    rootView: RegionSelectionToolbarHost(refresh: toolbarRefresh) { [weak self] in
+  lazy var toolbarHost = RegionSelectionGlassHostingView(
+    rootView: RegionSelectionToolbarHost(refresh: toolbarRefresh) { [weak self] glassNamespace in
       guard let self else {
         return AnyView(EmptyView())
       }
-      return self.makeToolbarView()
-    }
+      return self.makeToolbarView(glassNamespace: glassNamespace)
+    },
+    cornerRadius: 28
   )
-  lazy var selectingHintHost = NSHostingView(rootView: CaptureHintGlassCard(selectedType: selectedCaptureType))
-  lazy var captureTypeHost = NSHostingView(rootView: makeCaptureTypeSidebar())
+  lazy var selectingHintHost = RegionSelectionGlassHostingView(
+    rootView: CaptureHintGlassCard(selectedType: selectedCaptureType, usesExternalGlassSurface: true),
+    cornerRadius: 12
+  )
+  lazy var captureTypeHost = RegionSelectionGlassHostingView(rootView: makeCaptureTypeSidebar(), cornerRadius: 28)
   var glassChromeRevealTask: Task<Void, Never>?
   var glassBackdropRefreshScheduled = false
+  var glassChromeReadyForBackdrop = false
   var toolbarOffset: CGSize = .zero
   var toolbarDragStartOffset: CGSize?
+  var toolbarFrameAnimationPending = false
   var stitchControlPanel: NSPanel?
   var selectedCaptureType: CaptureContentType
   var selectedCaptureMode: CaptureMode = .selection
@@ -704,7 +784,6 @@ final class RegionSelectionView: NSView {
 
     editingMaskView.selectionRect = clipped
     editingMaskView.isHidden = false
-    toolbarHost.isHidden = false
     refreshCaptureTypeSidebar()
     refreshToolbar()
     layoutEditorChrome()
@@ -714,6 +793,7 @@ final class RegionSelectionView: NSView {
 
   func prepareForClose() {
     glassChromeRevealTask?.cancel()
+    glassChromeReadyForBackdrop = false
     canvasView.finishInlineTextEditing(commit: true)
     canvasView.image = nil
     frozenImage = nil

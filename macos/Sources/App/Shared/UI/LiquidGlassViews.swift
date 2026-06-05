@@ -11,6 +11,8 @@ struct HoverTooltipCircleModeButton: View {
   var selectionNamespace: Namespace.ID? = nil
   var selectionID: String? = nil
   var showsSelectionBackground = true
+  var selectedTint: Color = .accentColor
+  var normalTint: Color = Color.white.opacity(0.9)
   let action: () -> Void
 
   @State private var isHovered = false
@@ -56,7 +58,7 @@ struct HoverTooltipCircleModeButton: View {
   private var symbolImage: some View {
     let image = Image(systemName: symbol)
       .font(.system(size: max(12, diameter * 0.46), weight: .semibold))
-      .foregroundStyle(isSelected ? Color.accentColor : Color.white.opacity(0.9))
+      .foregroundStyle(isSelected ? selectedTint : normalTint)
 
     if #available(macOS 14.0, *) {
       image.symbolEffect(.bounce, value: symbolBounceToken)

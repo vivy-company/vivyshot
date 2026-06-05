@@ -183,12 +183,12 @@ final class RegionSelectionOverlayController {
     self.selectionView = selectionView
 
     selectionView.prepareGlassChromeForFirstDisplay()
-    window.alphaValue = 0
+    window.alphaValue = 1
     window.makeKeyAndOrderFront(nil)
     window.makeFirstResponder(selectionView)
     window.invalidateCursorRects(for: selectionView)
     NSCursor.crosshair.set()
-    selectionView.primeGlassChromeAfterFirstDisplay()
+    selectionView.primeGlassChromeAfterFirstDisplay(revealDelay: glassChromeRevealDelayForFirstDisplay)
     animateCaptureOverlayIn(window)
   }
 
@@ -292,12 +292,12 @@ final class RegionSelectionOverlayController {
     self.selectionView = selectionView
 
     selectionView.prepareGlassChromeForFirstDisplay()
-    window.alphaValue = 0
+    window.alphaValue = 1
     window.makeKeyAndOrderFront(nil)
     window.makeFirstResponder(selectionView)
     window.invalidateCursorRects(for: selectionView)
     NSCursor.crosshair.set()
-    selectionView.primeGlassChromeAfterFirstDisplay()
+    selectionView.primeGlassChromeAfterFirstDisplay(revealDelay: glassChromeRevealDelayForFirstDisplay)
     animateCaptureOverlayIn(window)
 
     let holdDuration = transitionDuration(entering: true, style: settings.captureTransitionStyle) + 0.7
@@ -360,19 +360,9 @@ final class RegionSelectionOverlayController {
     case .none:
       window.alphaValue = 1
     case .fade:
-      window.alphaValue = 0
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = duration
-        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        window.animator().alphaValue = 1
-      }
+      window.alphaValue = 1
     case .ripple:
-      window.alphaValue = 0
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = duration * 0.78
-        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        window.animator().alphaValue = 1
-      }
+      window.alphaValue = 1
       applyCenterRippleTransition(to: window, entering: true, duration: duration)
     case .liquidDrop, .zoomBlur, .waterWave:
       window.alphaValue = 1
@@ -455,6 +445,16 @@ final class RegionSelectionOverlayController {
       base = entering ? 0.58 : 0.48
     }
     return max(0.12, base / speed)
+  }
+
+  private var glassChromeRevealDelayForFirstDisplay: TimeInterval {
+    let style = effectiveCaptureTransitionStyle
+    switch style {
+    case .fade, .ripple:
+      return transitionDuration(entering: true, style: style) + 0.016
+    case .none, .liquidDrop, .zoomBlur, .waterWave:
+      return 0.032
+    }
   }
 
   private var effectiveCaptureTransitionStyle: CaptureTransitionStyle {

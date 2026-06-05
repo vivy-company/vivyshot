@@ -5,10 +5,12 @@ import SwiftUI
 @MainActor
 final class RegionSelectionToolbarRefresh: ObservableObject {
   @Published private(set) var revision = 0
+  private(set) var lastRefreshAnimated = false
 
   func refresh(animated: Bool) {
+    lastRefreshAnimated = animated
     if animated {
-      withAnimation(.smooth(duration: 0.18)) {
+      withAnimation(.smooth(duration: 0.28)) {
         revision += 1
       }
     } else {
@@ -20,27 +22,52 @@ final class RegionSelectionToolbarRefresh: ObservableObject {
 @MainActor
 struct RegionSelectionToolbarHost: View {
   @ObservedObject var refresh: RegionSelectionToolbarRefresh
-  let content: () -> AnyView
+  let content: (Namespace.ID) -> AnyView
+
+  @Namespace private var glassNamespace
 
   var body: some View {
-    let _ = refresh.revision
-    content()
+    let revision = refresh.revision
+    let animated = refresh.lastRefreshAnimated
+    ZStack {
+      content(glassNamespace)
+        .id(revision)
+        .transition(toolbarTransition(animated: animated))
+    }
+    .animation(animated ? .smooth(duration: 0.26) : nil, value: revision)
+  }
+
+  private func toolbarTransition(animated: Bool) -> AnyTransition {
+    guard animated else {
+      return .identity
+    }
+
+    return .asymmetric(
+      insertion: .opacity
+        .combined(with: .scale(scale: 0.985, anchor: .center))
+        .combined(with: .offset(y: 3)),
+      removal: .opacity
+        .combined(with: .scale(scale: 1.015, anchor: .center))
+        .combined(with: .offset(y: -3))
+    )
   }
 }
 
 @MainActor
 extension RegionSelectionView {
-  func makeToolbarView() -> AnyView {
+  func makeToolbarView(glassNamespace: Namespace.ID) -> AnyView {
     if mode == .editing, selectedCaptureType == .video {
-      return AnyView(makeCaptureVideoToolbar())
+      return AnyView(makeCaptureVideoToolbar(glassNamespace: glassNamespace))
     }
-    return AnyView(makeScreenshotToolbar())
+    return AnyView(makeScreenshotToolbar(glassNamespace: glassNamespace))
   }
 
-  func makeScreenshotToolbar() -> CaptureAnnotationToolbar {
+  func makeScreenshotToolbar(glassNamespace: Namespace.ID? = nil) -> CaptureAnnotationToolbar {
     CaptureAnnotationToolbar(
       selectedCaptureMode: selectedCaptureMode,
       modeSelectionState: captureModeSelectionState,
+      glassNamespace: glassNamespace,
+      usesExternalGlassSurface: true,
       onSelectCaptureMode: { [weak self] captureMode in
         self?.setCaptureModeFromToolbar(captureMode)
       },
@@ -96,10 +123,12 @@ extension RegionSelectionView {
     )
   }
 
-  func makeCaptureVideoToolbar() -> CaptureVideoToolbar {
+  func makeCaptureVideoToolbar(glassNamespace: Namespace.ID? = nil) -> CaptureVideoToolbar {
     CaptureVideoToolbar(
       selectedCaptureMode: selectedCaptureMode,
       modeSelectionState: captureModeSelectionState,
+      glassNamespace: glassNamespace,
+      usesExternalGlassSurface: true,
       onSelectCaptureMode: { [weak self] captureMode in
         self?.setCaptureModeFromToolbar(captureMode)
       },
@@ -189,7 +218,7 @@ extension RegionSelectionView {
     settings.setDefaultCaptureType(type)
     refreshCaptureTypeSidebar()
     refreshSelectingHint()
-    refreshToolbar()
+    refreshToolbar(animated: true)
   }
 
   func toggleVideoRecordingFromEditor() {
@@ -284,6 +313,9 @@ extension RegionSelectionView {
 
   func refreshToolbar(animated: Bool = false) {
     captureModeSelectionState.setSelectedMode(selectedCaptureMode, animated: animated)
+    if animated, mode == .editing {
+      toolbarFrameAnimationPending = true
+    }
     toolbarRefresh.refresh(animated: animated)
     needsLayout = true
     refreshGlassHosts()
@@ -298,9 +330,16 @@ extension RegionSelectionView {
   func prepareGlassChromeForFirstDisplay() {
     glassChromeRevealTask?.cancel()
     glassBackdropRefreshScheduled = false
+    glassChromeReadyForBackdrop = false
+    selectingHintHost.alphaValue = 1
+    selectingHintHost.isHidden = true
+    captureTypeHost.alphaValue = 1
+    captureTypeHost.isHidden = true
+    toolbarHost.alphaValue = 1
+    toolbarHost.isHidden = true
   }
 
-  func primeGlassChromeAfterFirstDisplay() {
+  func primeGlassChromeAfterFirstDisplay(revealDelay: TimeInterval = 0.032) {
     glassChromeRevealTask?.cancel()
     layoutSubtreeIfNeeded()
     displayIfNeeded()
@@ -317,33 +356,67 @@ extension RegionSelectionView {
       self.window?.contentView?.displayIfNeeded()
       self.refreshGlassHosts()
 
-      try? await Task.sleep(nanoseconds: 16_000_000)
+      let delay = max(0.016, revealDelay)
+      try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
       guard !Task.isCancelled else {
         return
       }
 
+      self.glassChromeReadyForBackdrop = true
+      self.rebuildGlassChromeForStableBackdrop()
       self.updateSelectingHintVisibility(animated: false)
       self.layoutCaptureTypePanel()
       self.layoutEditorChrome()
-      self.refreshGlassHosts()
+      self.refreshGlassHosts(redrawBackdrop: true)
+
+      await Task.yield()
+      guard !Task.isCancelled else {
+        return
+      }
+      self.forceGlassBackdropResample()
     }
   }
 
   func refreshGlassHosts(redrawBackdrop: Bool = false) {
-    toolbarHost.needsDisplay = true
-    toolbarHost.layer?.setNeedsDisplay()
-    toolbarHost.layoutSubtreeIfNeeded()
-    captureTypeHost.needsDisplay = true
-    captureTypeHost.layer?.setNeedsDisplay()
-    selectingHintHost.needsDisplay = true
-    selectingHintHost.layer?.setNeedsDisplay()
+    for host in [selectingHintHost, captureTypeHost, toolbarHost] {
+      host.needsLayout = true
+      host.layoutSubtreeIfNeeded()
+      host.needsDisplay = true
+      host.layer?.setNeedsDisplay()
+      if let superview = host.superview {
+        superview.setNeedsDisplay(host.frame.insetBy(dx: -2, dy: -2))
+      }
+    }
     if redrawBackdrop {
       window?.contentView?.needsDisplay = true
     }
   }
 
+  func rebuildGlassChromeForStableBackdrop() {
+    refreshSelectingHint()
+    refreshCaptureTypeSidebar()
+    refreshToolbar(animated: false)
+  }
+
+  func forceGlassBackdropResample() {
+    for host in [selectingHintHost, captureTypeHost, toolbarHost] where !host.isHidden {
+      let frame = host.frame
+      guard frame.width > 0, frame.height > 0 else {
+        continue
+      }
+
+      host.frame = frame.offsetBy(dx: 0.5, dy: 0)
+      host.layoutSubtreeIfNeeded()
+      host.displayIfNeeded()
+      host.frame = frame
+      host.layoutSubtreeIfNeeded()
+      host.displayIfNeeded()
+    }
+  }
+
   func scheduleGlassBackdropRefreshIfNeeded() {
-    guard !glassBackdropRefreshScheduled,
+    guard glassChromeReadyForBackdrop,
+          !glassBackdropRefreshScheduled,
           !selectingHintHost.isHidden || !captureTypeHost.isHidden || !toolbarHost.isHidden
     else {
       return

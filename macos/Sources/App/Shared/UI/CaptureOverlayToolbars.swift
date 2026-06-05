@@ -39,6 +39,8 @@ final class CaptureModeSelectionState: ObservableObject {
 struct CaptureAnnotationToolbar: View {
   let selectedCaptureMode: CaptureMode
   @ObservedObject var modeSelectionState: CaptureModeSelectionState
+  var glassNamespace: Namespace.ID? = nil
+  var usesExternalGlassSurface = false
   let onSelectCaptureMode: (CaptureMode) -> Void
   let onCloseCapture: () -> Void
   let selectedTool: AnnotationTool
@@ -68,112 +70,23 @@ struct CaptureAnnotationToolbar: View {
 
   var body: some View {
     Group {
-      if #available(macOS 26.0, *) {
-        GlassEffectContainer(spacing: 0) {
-          HStack(spacing: 4) {
-            closeCaptureButton
-            separator
-            captureModeButtons
-            separator
-            colorPickerButton
-
-            separator
-
-            HStack(spacing: 1) {
-              ForEach(Array(toolOrder.enumerated()), id: \.element.id) { index, tool in
-                toolbarIconButton(
-                  symbol: tool.symbolName,
-                  help: toolHelp(tool, index: index),
-                  isSelected: selectedTool == tool
-                ) {
-                  onSelectTool(tool)
-                }
-              }
-            }
-
-            separator
-
-            HStack(spacing: 1) {
-              toolbarIconButton(symbol: "arrow.uturn.backward", help: "Undo (⌘Z)", action: onUndo)
-              toolbarIconButton(symbol: "arrow.uturn.forward", help: "Redo (⇧⌘Z)", action: onRedo)
-              toolbarIconButton(symbol: "doc.on.doc", help: "Copy (⌘C)", action: onCopy)
-              toolbarIconButton(symbol: "square.and.arrow.down", help: "Save (⌘S)", action: onSave)
-            }
-
-            if onAddStitchSegment != nil {
-              separator
-              HStack(spacing: 1) {
-                toolbarIconButton(
-                  symbol: isStitchRecordingActive ? "stop.circle.fill" : "record.circle",
-                  help: isStitchRecordingActive ? "Stop scrolling capture (⌘N)" : "Start scrolling capture (⌘N)"
-                ) {
-                  onAddStitchSegment?()
-                }
-                if onResetStitch != nil {
-                  toolbarIconButton(
-                    symbol: "arrow.counterclockwise",
-                    help: "Reset stitch (⌘R)",
-                    isDisabled: isStitchCaptureInProgress || isStitchRecordingActive
-                  ) {
-                    onResetStitch?()
-                  }
-                }
-              }
-            }
-
-            separator
-
-            mainActionButton
-          }
+      if usesExternalGlassSurface {
+        toolbarContent
           .padding(.horizontal, 8)
           .padding(.vertical, 8)
-          .glassEffect(.regular.interactive(), in: .capsule)
+      } else if #available(macOS 26.0, *) {
+        if glassNamespace != nil {
+          glassToolbarSurface
+        } else {
+          GlassEffectContainer(spacing: 0) {
+            glassToolbarSurface
+          }
         }
       } else {
-        HStack(spacing: 4) {
-          fallbackCloseCaptureButton
-          separator
-          fallbackCaptureModeButtons
-          separator
-          fallbackColorPickerButton
-          separator
-          ForEach(Array(toolOrder.enumerated()), id: \.element.id) { index, tool in
-            fallbackIconButton(
-              symbol: tool.symbolName,
-              help: toolHelp(tool, index: index),
-              isSelected: selectedTool == tool
-            ) {
-              onSelectTool(tool)
-            }
-          }
-          separator
-          fallbackIconButton(symbol: "arrow.uturn.backward", help: "Undo (⌘Z)", action: onUndo)
-          fallbackIconButton(symbol: "arrow.uturn.forward", help: "Redo (⇧⌘Z)", action: onRedo)
-          fallbackIconButton(symbol: "doc.on.doc", help: "Copy (⌘C)", action: onCopy)
-          fallbackIconButton(symbol: "square.and.arrow.down", help: "Save (⌘S)", action: onSave)
-          if onAddStitchSegment != nil {
-            separator
-            fallbackIconButton(
-              symbol: isStitchRecordingActive ? "stop.circle.fill" : "record.circle",
-              help: isStitchRecordingActive ? "Stop scrolling capture (⌘N)" : "Start scrolling capture (⌘N)"
-            ) {
-              onAddStitchSegment?()
-            }
-            if onResetStitch != nil {
-              fallbackIconButton(
-                symbol: "arrow.counterclockwise",
-                help: "Reset stitch (⌘R)",
-                isDisabled: isStitchCaptureInProgress || isStitchRecordingActive
-              ) {
-                onResetStitch?()
-              }
-            }
-          }
-          mainActionButton
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        toolbarContent
+          .padding(.horizontal, 8)
+          .padding(.vertical, 8)
+          .background(.ultraThinMaterial, in: Capsule(style: .continuous))
       }
     }
     .fixedSize()
@@ -185,8 +98,80 @@ struct CaptureAnnotationToolbar: View {
     toolbarIconButton(symbol: "xmark.circle.fill", help: "Exit capture (Esc)", action: onCloseCapture)
   }
 
-  private var fallbackCloseCaptureButton: some View {
-    fallbackIconButton(symbol: "xmark.circle.fill", help: "Exit capture (Esc)", action: onCloseCapture)
+  @available(macOS 26.0, *)
+  @ViewBuilder
+  private var glassToolbarSurface: some View {
+    if let glassNamespace {
+      toolbarContent
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .glassEffectID("region-selection-toolbar-shell", in: glassNamespace)
+        .glassEffectTransition(.matchedGeometry)
+    } else {
+      toolbarContent
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .glassEffect(.regular.interactive(), in: .capsule)
+    }
+  }
+
+  private var toolbarContent: some View {
+    HStack(spacing: 4) {
+      closeCaptureButton
+      separator
+      captureModeButtons
+      separator
+      colorPickerButton
+
+      separator
+
+      HStack(spacing: 1) {
+        ForEach(Array(toolOrder.enumerated()), id: \.element.id) { index, tool in
+          toolbarIconButton(
+            symbol: tool.symbolName,
+            help: toolHelp(tool, index: index),
+            isSelected: selectedTool == tool
+          ) {
+            onSelectTool(tool)
+          }
+        }
+      }
+
+      separator
+
+      HStack(spacing: 1) {
+        toolbarIconButton(symbol: "arrow.uturn.backward", help: "Undo (⌘Z)", action: onUndo)
+        toolbarIconButton(symbol: "arrow.uturn.forward", help: "Redo (⇧⌘Z)", action: onRedo)
+        toolbarIconButton(symbol: "doc.on.doc", help: "Copy (⌘C)", action: onCopy)
+        toolbarIconButton(symbol: "square.and.arrow.down", help: "Save (⌘S)", action: onSave)
+      }
+
+      if onAddStitchSegment != nil {
+        separator
+        HStack(spacing: 1) {
+          toolbarIconButton(
+            symbol: isStitchRecordingActive ? "stop.circle.fill" : "record.circle",
+            help: isStitchRecordingActive ? "Stop scrolling capture (⌘N)" : "Start scrolling capture (⌘N)"
+          ) {
+            onAddStitchSegment?()
+          }
+          if onResetStitch != nil {
+            toolbarIconButton(
+              symbol: "arrow.counterclockwise",
+              help: "Reset stitch (⌘R)",
+              isDisabled: isStitchCaptureInProgress || isStitchRecordingActive
+            ) {
+              onResetStitch?()
+            }
+          }
+        }
+      }
+
+      separator
+
+      mainActionButton
+    }
   }
 
   private var captureModeButtons: some View {
@@ -219,15 +204,12 @@ struct CaptureAnnotationToolbar: View {
 
     if #available(macOS 26.0, *) {
       Circle()
-        .fill(Color.white.opacity(0.001))
-        .frame(width: itemSize, height: itemSize)
-        .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: Circle())
-        .glassEffectID("annotation-capture-mode-slider", in: modeSelectionNamespace)
-        .glassEffectTransition(.matchedGeometry)
+        .fill(Color.accentColor.opacity(0.07))
         .overlay(
           Circle()
-            .stroke(Color.white.opacity(0.32), lineWidth: 1)
+            .stroke(Color.accentColor.opacity(0.24), lineWidth: 1)
         )
+        .frame(width: itemSize, height: itemSize)
         .offset(x: xOffset)
         .animation(.smooth(duration: 0.22), value: visualSelectedCaptureMode)
         .allowsHitTesting(false)
@@ -294,17 +276,12 @@ struct CaptureAnnotationToolbar: View {
         .frame(width: 30, height: 30)
         .contentShape(Circle())
     }
-    .foregroundStyle(.white)
+    .foregroundStyle(accentColor)
     .buttonStyle(.plain)
-    .background(
-      Circle()
-        .fill(accentColor)
-    )
     .overlay(
       Circle()
-        .stroke(Color.white.opacity(0.24), lineWidth: 1)
+        .stroke(accentColor.opacity(0.42), lineWidth: 1)
     )
-    .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 1)
     .help(mainAction == .copy ? "Copy (Return, ⌘C)" : "Save (Return, ⌘S)")
     .padding(.leading, 6)
     .padding(.trailing, 4)
@@ -326,6 +303,7 @@ struct CaptureAnnotationToolbar: View {
       cornerRadius: 7,
       selectedFillOpacity: 0.18,
       selectedStrokeOpacity: 0.34,
+      tintOverride: isSelected ? accentColor : Color.primary.opacity(0.82),
       action: action
     )
   }
@@ -371,7 +349,9 @@ struct CaptureAnnotationToolbar: View {
       diameter: 30,
       selectionNamespace: modeSelectionNamespace,
       selectionID: "annotation-capture-mode",
-      showsSelectionBackground: false
+      showsSelectionBackground: false,
+      selectedTint: accentColor,
+      normalTint: Color.primary.opacity(0.82)
     ) {
       onSelectCaptureMode(mode)
     }
@@ -390,6 +370,8 @@ struct CaptureAnnotationToolbar: View {
 struct CaptureVideoToolbar: View {
   let selectedCaptureMode: CaptureMode
   @ObservedObject var modeSelectionState: CaptureModeSelectionState
+  var glassNamespace: Namespace.ID? = nil
+  var usesExternalGlassSurface = false
   let onSelectCaptureMode: (CaptureMode) -> Void
   let onCloseCapture: () -> Void
   let recordSystemAudio: Bool
@@ -425,41 +407,23 @@ struct CaptureVideoToolbar: View {
 
   var body: some View {
     Group {
-      if #available(macOS 26.0, *) {
-        GlassEffectContainer(spacing: 0) {
-          HStack(spacing: 5) {
-            closeCaptureButton
-            separator
-            captureModeButtons
-            if hasConfigurableTools {
-              separator
-              ForEach(toolOrder) { tool in
-                videoToolButton(tool, fallback: false)
-              }
-            }
-            separator
-            recordButton
-          }
+      if usesExternalGlassSurface {
+        toolbarContent
           .padding(.horizontal, 8)
           .padding(.vertical, 8)
-          .glassEffect(.regular.interactive(), in: .capsule)
+      } else if #available(macOS 26.0, *) {
+        if glassNamespace != nil {
+          glassToolbarSurface
+        } else {
+          GlassEffectContainer(spacing: 0) {
+            glassToolbarSurface
+          }
         }
       } else {
-        HStack(spacing: 5) {
-          fallbackCloseCaptureButton
-          separator
-          fallbackCaptureModeButtons
-          if hasConfigurableTools {
-            separator
-            ForEach(toolOrder) { tool in
-              videoToolButton(tool, fallback: true)
-            }
-          }
-          recordButton
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        toolbarContent
+          .padding(.horizontal, 8)
+          .padding(.vertical, 8)
+          .background(.ultraThinMaterial, in: Capsule(style: .continuous))
       }
     }
     .fixedSize()
@@ -477,14 +441,38 @@ struct CaptureVideoToolbar: View {
     )
   }
 
-  private var fallbackCloseCaptureButton: some View {
-    fallbackIconButton(
-      symbol: "xmark.circle.fill",
-      help: "Exit capture (Esc)",
-      isSelected: false,
-      isDisabled: isRecordingPending,
-      action: onCloseCapture
-    )
+  @available(macOS 26.0, *)
+  @ViewBuilder
+  private var glassToolbarSurface: some View {
+    if let glassNamespace {
+      toolbarContent
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .glassEffectID("region-selection-toolbar-shell", in: glassNamespace)
+        .glassEffectTransition(.matchedGeometry)
+    } else {
+      toolbarContent
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .glassEffect(.regular.interactive(), in: .capsule)
+    }
+  }
+
+  private var toolbarContent: some View {
+    HStack(spacing: 5) {
+      closeCaptureButton
+      separator
+      captureModeButtons
+      if hasConfigurableTools {
+        separator
+        ForEach(toolOrder) { tool in
+          videoToolButton(tool, fallback: false)
+        }
+      }
+      separator
+      recordButton
+    }
   }
 
   private var captureModeButtons: some View {
@@ -517,15 +505,12 @@ struct CaptureVideoToolbar: View {
 
     if #available(macOS 26.0, *) {
       Circle()
-        .fill(Color.white.opacity(0.001))
-        .frame(width: itemSize, height: itemSize)
-        .glassEffect(.regular.tint(Color.white.opacity(0.08)).interactive(), in: Circle())
-        .glassEffectID("video-capture-mode-slider", in: modeSelectionNamespace)
-        .glassEffectTransition(.matchedGeometry)
+        .fill(Color.accentColor.opacity(0.07))
         .overlay(
           Circle()
-            .stroke(Color.white.opacity(0.32), lineWidth: 1)
+            .stroke(Color.accentColor.opacity(0.24), lineWidth: 1)
         )
+        .frame(width: itemSize, height: itemSize)
         .offset(x: xOffset)
         .animation(.smooth(duration: 0.22), value: visualSelectedCaptureMode)
         .allowsHitTesting(false)
@@ -556,17 +541,12 @@ struct CaptureVideoToolbar: View {
         .frame(width: 30, height: 30)
         .contentShape(Circle())
     }
-    .foregroundStyle(.white)
+    .foregroundStyle(accentColor)
     .buttonStyle(.plain)
-    .background(
-      Circle()
-        .fill(accentColor)
-    )
     .overlay(
       Circle()
-        .stroke(Color.white.opacity(0.24), lineWidth: 1)
+        .stroke(accentColor.opacity(0.42), lineWidth: 1)
     )
-    .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 1)
     .help(isRecordingActive ? "Stop recording (⌥⌘R)" : "Start video recording (Return, ⌥⌘R)")
     .padding(.leading, 4)
     .disabled(isRecordingPending)
@@ -591,13 +571,13 @@ struct CaptureVideoToolbar: View {
       HStack(spacing: 4) {
         Image(systemName: "timer")
           .font(.system(size: 13.5, weight: .semibold))
-          .foregroundStyle(isCountdownEnabled ? Color.accentColor : Color.white.opacity(0.9))
+          .foregroundStyle(isCountdownEnabled ? accentColor : Color.primary.opacity(0.82))
         Text(countdown.title)
           .font(.system(size: 11.5, weight: .semibold))
-          .foregroundStyle(isCountdownEnabled ? Color.accentColor : Color.white.opacity(0.9))
+          .foregroundStyle(isCountdownEnabled ? accentColor : Color.primary.opacity(0.82))
         Image(systemName: "chevron.down")
           .font(.system(size: 9, weight: .bold))
-          .foregroundStyle(Color.white.opacity(0.72))
+          .foregroundStyle(Color.primary.opacity(0.66))
       }
       .frame(height: 26)
       .padding(.horizontal, 10)
@@ -739,6 +719,7 @@ struct CaptureVideoToolbar: View {
       cornerRadius: 7,
       selectedFillOpacity: 0.18,
       selectedStrokeOpacity: 0.34,
+      tintOverride: isSelected ? accentColor : Color.primary.opacity(0.82),
       isLocked: isLocked,
       action: action
     )
@@ -789,7 +770,9 @@ struct CaptureVideoToolbar: View {
       diameter: 30,
       selectionNamespace: modeSelectionNamespace,
       selectionID: "video-capture-mode",
-      showsSelectionBackground: false
+      showsSelectionBackground: false,
+      selectedTint: accentColor,
+      normalTint: Color.primary.opacity(0.82)
     ) {
       onSelectCaptureMode(mode)
     }
