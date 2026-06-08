@@ -1,22 +1,10 @@
 import AppKit
-import Darwin
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var uiTestWindow: NSWindow?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    if CaptureBackendSmokeRuntime.isEnabled {
-      NSApp.setActivationPolicy(.regular)
-      NSApp.activate(ignoringOtherApps: true)
-      Task { @MainActor in
-        let exitCode = await CaptureBackendSmokeRuntime.runAndPrint()
-        NSApp.terminate(nil)
-        exit(exitCode)
-      }
-      return
-    }
-
     if UITestRuntime.isEnabled {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)

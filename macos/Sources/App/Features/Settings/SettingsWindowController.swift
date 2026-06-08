@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Carbon
 import SwiftUI
 
@@ -79,9 +80,8 @@ struct VivyShotSettingsView: View {
   @ObservedObject private var launchAtLoginController = LaunchAtLoginController.shared
   @State private var selectedTab: SettingsTab = .general
   @State private var isRecordingShortcut = false
-  private let captureCapabilities = CaptureBackendCapabilities.load()
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
-  @State private var webcamDevices: [CaptureWebcamDevice] = []
+  @State private var webcamDevices: [WebcamDeviceOption] = []
   @State private var draggingScreenshotTool: AnnotationTool?
   @State private var draggingVideoTool: VideoToolbarTool?
   @State private var isReviewerModeSheetPresented = false
@@ -562,7 +562,7 @@ struct VivyShotSettingsView: View {
           .frame(width: 78, alignment: .leading)
         Spacer(minLength: 0)
         Picker("Recording Encoder", selection: videoRecordingEncoderBinding) {
-          ForEach(videoRecordingEncoderOptions) { encoder in
+          ForEach(VideoRecordingEncoderOption.allCases) { encoder in
             Text(encoder.title).tag(encoder)
           }
         }
@@ -601,8 +601,7 @@ struct VivyShotSettingsView: View {
 
       Toggle("Record system audio", isOn: videoRecordSystemAudioBinding)
         .toggleStyle(.switch)
-        .disabled(!captureCapabilities.systemAudio)
-      if videoMicrophoneFeatureVisible, captureCapabilities.microphoneAudio {
+      if videoMicrophoneFeatureVisible {
         Toggle("Record microphone", isOn: videoRecordMicrophoneBinding)
           .toggleStyle(.switch)
       }
@@ -1116,23 +1115,6 @@ struct VivyShotSettingsView: View {
     )
   }
 
-  private var videoRecordingEncoderOptions: [VideoRecordingEncoderOption] {
-    let supported = VideoRecordingEncoderOption.allCases.filter { encoder in
-      switch encoder {
-      case .standardH264:
-        return captureCapabilities.h264
-      case .smallerFileHEVC:
-        return captureCapabilities.hevc
-      case .cpuH264:
-        return true
-      }
-    }
-    if supported.contains(settings.videoRecordingEncoder) {
-      return supported
-    }
-    return supported + [settings.videoRecordingEncoder]
-  }
-
   private var videoFrameRateBinding: Binding<VideoFrameRateOption> {
     Binding(
       get: { settings.videoFrameRate },
@@ -1345,12 +1327,30 @@ struct VivyShotSettingsView: View {
   }
 
   private func refreshWebcamDevices() {
-    webcamDevices = CaptureWebcamDevices.load()
+    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+    if #available(macOS 14.0, *) {
+      deviceTypes.append(.external)
+    } else {
+      deviceTypes.append(.externalUnknown)
+    }
+    let discovery = AVCaptureDevice.DiscoverySession(
+      deviceTypes: deviceTypes,
+      mediaType: .video,
+      position: .unspecified
+    )
+    webcamDevices = discovery.devices
+      .map { WebcamDeviceOption(id: $0.uniqueID, name: $0.localizedName) }
+      .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
   }
 
   private func previewCaptureTransition() {
     CaptureTransitionPreviewCoordinator.shared.preview()
   }
+}
+
+private struct WebcamDeviceOption: Identifiable, Hashable {
+  let id: String
+  let name: String
 }
 
 private struct ReorderHandleGlyph: View {

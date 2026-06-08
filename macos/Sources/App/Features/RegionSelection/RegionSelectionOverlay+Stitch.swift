@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import ScreenCaptureKit
 import SwiftUI
 
 @MainActor
@@ -554,7 +555,11 @@ extension RegionSelectionView {
       return nil
     }
 
-    return try? await CaptureScreenshotClient.captureImage(in: overlayCocoaRectToCGDisplayRect(frame))
+    return await withCheckedContinuation { continuation in
+      SCScreenshotManager.captureImage(in: overlayCocoaRectToCGDisplayRect(frame)) { image, _ in
+        continuation.resume(returning: image)
+      }
+    }
   }
 
   func cropSegment(

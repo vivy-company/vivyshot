@@ -1,14 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/vivyshot-apple-media-sys",
   "crates/vivyshot-core",
-  "crates/vivyshot-capture",
   "crates/vivyshot-ffi",
 ]
 
 [profile.release]
 panic = "abort"
-
-[patch.crates-io]
-screencapturekit = { path = "vendor/screencapturekit" }

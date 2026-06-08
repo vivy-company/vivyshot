@@ -1,6 +1,6 @@
 import AppKit
 import ApplicationServices
-@preconcurrency import AVFoundation
+import AVFoundation
 import Carbon
 import CoreGraphics
 import Foundation
@@ -1774,42 +1774,5 @@ final class CaptureOverlayPlacementView: NSView {
     needsDisplay = true
     needsLayout = true
     runner.startDetached()
-  }
-}
-
-private final class CaptureSessionRunner: @unchecked Sendable {
-  private let session: AVCaptureSession
-  private let queue: DispatchQueue
-
-  init(session: AVCaptureSession, label: String) {
-    self.session = session
-    self.queue = DispatchQueue(label: label, qos: .userInitiated)
-  }
-
-  func startDetached() {
-    queue.async { [session] in
-      if !session.isRunning {
-        session.startRunning()
-      }
-    }
-  }
-
-  func stopDetached() {
-    queue.async { [session] in
-      if session.isRunning {
-        session.stopRunning()
-      }
-    }
-  }
-
-  func stop() async {
-    await withCheckedContinuation { continuation in
-      queue.async { [session] in
-        if session.isRunning {
-          session.stopRunning()
-        }
-        continuation.resume()
-      }
-    }
   }
 }

@@ -4,6 +4,7 @@ import Carbon
 import CoreImage
 import CoreGraphics
 import ImageIO
+import ScreenCaptureKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -682,7 +683,37 @@ final class CaptureTransitionPreviewCoordinator {
       return nil
     }
 
-    return try? await CaptureScreenshotClient.captureImage(in: overlayCocoaRectToCGDisplayRect(rect))
+    return try? await withCheckedThrowingContinuation { continuation in
+      let captureRect: CGRect
+      if let primaryHeight = NSScreen.screens.first?.frame.height {
+        captureRect = CGRect(
+          x: rect.origin.x,
+          y: primaryHeight - rect.maxY,
+          width: rect.width,
+          height: rect.height
+        )
+      } else {
+        captureRect = rect
+      }
+
+      SCScreenshotManager.captureImage(in: captureRect) { image, error in
+        if let error {
+          continuation.resume(throwing: error)
+          return
+        }
+
+        guard let image else {
+          continuation.resume(throwing: NSError(
+            domain: "com.vivyshot.capture-preview",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "No image returned by ScreenCaptureKit."]
+          ))
+          return
+        }
+
+        continuation.resume(returning: image)
+      }
+    }
   }
 
   private func makeFallbackFrozenImage(size: CGSize) -> CGImage? {
