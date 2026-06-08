@@ -97,6 +97,7 @@ static STITCH_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new()
 static TIMELINE_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 static STATS_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 static CAPTURE_RECORDING_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
+static CAPTURE_WEBCAM_RECORDING_SESSION_HANDLES: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
 
 #[cfg(test)]
 pub(crate) fn live_handle_counts() -> (usize, usize, usize, usize, usize) {

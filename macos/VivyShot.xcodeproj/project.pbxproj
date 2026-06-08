@@ -35,6 +35,8 @@
 		4C9E1A0B5D7F4E91A2B3C4E5 /* CaptureScreenshotClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9E1A0B5D7F4E91A2B3C4D5 /* CaptureScreenshotClient.swift */; };
 		4C9E1A0B5D7F4E91A2B3C4E6 /* CaptureBackendCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9E1A0B5D7F4E91A2B3C4D6 /* CaptureBackendCapabilities.swift */; };
 		4C9E1A0B5D7F4E91A2B3C4E7 /* CaptureRecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9E1A0B5D7F4E91A2B3C4D7 /* CaptureRecordingSession.swift */; };
+		4C9E1A0B5D7F4E91A2B3C4E8 /* CaptureWebcamDevices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9E1A0B5D7F4E91A2B3C4D8 /* CaptureWebcamDevices.swift */; };
+		4C9E1A0B5D7F4E91A2B3C4E9 /* CaptureWebcamRecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9E1A0B5D7F4E91A2B3C4D9 /* CaptureWebcamRecordingSession.swift */; };
 		4EF7321858709E0AA0FA30CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E09D563D2FE97127B7A1E0DB /* Assets.xcassets */; };
 		53B136B76F4024389FDCB678 /* LiquidGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C89348136A4D786A65F23AB /* LiquidGlassViews.swift */; };
 		5445B074158660DC0C10E372 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E290099AAC2C60C55241F23 /* StoreManager.swift */; };
@@ -109,6 +111,8 @@
 		4C9E1A0B5D7F4E91A2B3C4D5 /* CaptureScreenshotClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScreenshotClient.swift; sourceTree = "<group>"; };
 		4C9E1A0B5D7F4E91A2B3C4D6 /* CaptureBackendCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureBackendCapabilities.swift; sourceTree = "<group>"; };
 		4C9E1A0B5D7F4E91A2B3C4D7 /* CaptureRecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRecordingSession.swift; sourceTree = "<group>"; };
+		4C9E1A0B5D7F4E91A2B3C4D8 /* CaptureWebcamDevices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureWebcamDevices.swift; sourceTree = "<group>"; };
+		4C9E1A0B5D7F4E91A2B3C4D9 /* CaptureWebcamRecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureWebcamRecordingSession.swift; sourceTree = "<group>"; };
 		4A115B6AB5FAAD5005D17120 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		4F6372C4CA3D0FA0704513EC /* RegionSelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlay.swift; sourceTree = "<group>"; };
 		5B4220C2A3DBFDB5039B1381 /* VideoCaptureUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCaptureUI.swift; sourceTree = "<group>"; };
@@ -310,6 +314,8 @@
 				4C9E1A0B5D7F4E91A2B3C4D6 /* CaptureBackendCapabilities.swift */,
 				4C9E1A0B5D7F4E91A2B3C4D7 /* CaptureRecordingSession.swift */,
 				4C9E1A0B5D7F4E91A2B3C4D5 /* CaptureScreenshotClient.swift */,
+				4C9E1A0B5D7F4E91A2B3C4D8 /* CaptureWebcamDevices.swift */,
+				4C9E1A0B5D7F4E91A2B3C4D9 /* CaptureWebcamRecordingSession.swift */,
 			);
 			path = Capture;
 			sourceTree = "<group>";
@@ -557,6 +563,8 @@
 				4C9E1A0B5D7F4E91A2B3C4E6 /* CaptureBackendCapabilities.swift in Sources */,
 				4C9E1A0B5D7F4E91A2B3C4E7 /* CaptureRecordingSession.swift in Sources */,
 				4C9E1A0B5D7F4E91A2B3C4E5 /* CaptureScreenshotClient.swift in Sources */,
+				4C9E1A0B5D7F4E91A2B3C4E8 /* CaptureWebcamDevices.swift in Sources */,
+				4C9E1A0B5D7F4E91A2B3C4E9 /* CaptureWebcamRecordingSession.swift in Sources */,
 				228E659159579F768750614B /* CaptureStatisticsModels.swift in Sources */,
 				BDF3574C70F231FF5D8EB4F7 /* CaptureStatisticsStore.swift in Sources */,
 				A434ADF704A473DD005EFB3C /* CaptureStatisticsView.swift in Sources */,

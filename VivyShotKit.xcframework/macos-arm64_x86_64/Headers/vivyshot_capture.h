@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 typedef struct vs_capture_recording_session vs_capture_recording_session;
+typedef struct vs_capture_webcam_recording_session vs_capture_webcam_recording_session;
 
 enum {
   VS_CAPTURE_STATUS_OK = 0,
@@ -54,6 +55,7 @@ enum {
   VS_CAPTURE_DEVICE_CAPABILITY_REGION_RECORDING = 1u << 1,
   VS_CAPTURE_DEVICE_CAPABILITY_SCREENSHOT_CAPTURE = 1u << 2,
   VS_CAPTURE_DEVICE_CAPABILITY_MICROPHONE_AUDIO = 1u << 3,
+  VS_CAPTURE_DEVICE_CAPABILITY_WEBCAM_RECORDING = 1u << 4,
 };
 
 enum {
@@ -96,6 +98,17 @@ typedef struct {
 } vs_capture_recording_output;
 
 typedef struct {
+  vs_capture_path output_path;
+  const uint8_t *preferred_device_id_utf8;
+  uint32_t preferred_device_id_len;
+} vs_capture_webcam_recording_config;
+
+typedef struct {
+  vs_capture_path output_path;
+  double recording_start_uptime_seconds;
+} vs_capture_webcam_recording_output;
+
+typedef struct {
   bool region_recording;
   bool window_recording;
   bool display_recording;
@@ -121,6 +134,15 @@ typedef struct {
 } vs_capture_device;
 
 typedef struct {
+  const uint8_t *stable_id_utf8;
+  uint32_t stable_id_len;
+  const uint8_t *display_name_utf8;
+  uint32_t display_name_len;
+  uint32_t capability_mask;
+  bool is_available;
+} vs_capture_webcam_device;
+
+typedef struct {
   uint32_t width;
   uint32_t height;
   uint32_t bytes_per_row;
@@ -139,6 +161,17 @@ typedef void (*vs_capture_recording_stop_callback)(
   void *user_data,
   int32_t status,
   vs_capture_recording_output output
+);
+
+typedef void (*vs_capture_webcam_recording_start_callback)(
+  void *user_data,
+  int32_t status
+);
+
+typedef void (*vs_capture_webcam_recording_stop_callback)(
+  void *user_data,
+  int32_t status,
+  vs_capture_webcam_recording_output output
 );
 
 typedef void (*vs_capture_screenshot_callback)(
@@ -171,6 +204,31 @@ void vs_capture_recording_cancel(vs_capture_recording_session *session);
 
 void vs_capture_recording_output_free(vs_capture_recording_output output);
 
+int32_t vs_capture_webcam_recording_create(
+  const vs_capture_webcam_recording_config *config,
+  vs_capture_webcam_recording_session **out_session
+);
+
+void *vs_capture_webcam_recording_preview_session(
+  vs_capture_webcam_recording_session *session
+);
+
+void vs_capture_webcam_recording_start(
+  vs_capture_webcam_recording_session *session,
+  void *user_data,
+  vs_capture_webcam_recording_start_callback callback
+);
+
+void vs_capture_webcam_recording_stop(
+  vs_capture_webcam_recording_session *session,
+  void *user_data,
+  vs_capture_webcam_recording_stop_callback callback
+);
+
+void vs_capture_webcam_recording_cancel(vs_capture_webcam_recording_session *session);
+
+void vs_capture_webcam_recording_output_free(vs_capture_webcam_recording_output output);
+
 int32_t vs_capture_copy_capabilities(vs_capture_capabilities *out_capabilities);
 
 int32_t vs_capture_copy_devices(
@@ -181,5 +239,13 @@ int32_t vs_capture_copy_devices(
 );
 
 void vs_capture_devices_free(vs_capture_device *devices, uint32_t count);
+
+int32_t vs_capture_copy_webcam_devices(
+  vs_capture_webcam_device *out_devices,
+  uint32_t capacity,
+  uint32_t *out_count
+);
+
+void vs_capture_webcam_devices_free(vs_capture_webcam_device *devices, uint32_t count);
 
 #endif

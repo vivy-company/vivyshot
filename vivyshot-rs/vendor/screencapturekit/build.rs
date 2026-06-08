@@ -255,12 +255,9 @@ fn link_swift_bridge(swift_build_dir: &str) {
 
     // Link required frameworks
     println!("cargo:rustc-link-lib=framework=Foundation");
-    println!("cargo:rustc-link-lib=framework=AVFoundation");
     println!("cargo:rustc-link-lib=framework=CoreGraphics");
     println!("cargo:rustc-link-lib=framework=CoreMedia");
-    println!("cargo:rustc-link-lib=framework=CoreVideo");
     println!("cargo:rustc-link-lib=framework=IOSurface");
-    println!("cargo:rustc-link-lib=framework=VideoToolbox");
 
     // Add rpath for Swift runtime libraries
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");

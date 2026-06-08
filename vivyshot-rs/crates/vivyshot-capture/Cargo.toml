@@ -11,3 +11,4 @@ name = "vivyshot_capture"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 screencapturekit = { version = "7.0.1", features = ["macos_15_2"] }
+vivyshot-apple-media-sys = { path = "../vivyshot-apple-media-sys" }

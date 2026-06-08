@@ -9,7 +9,8 @@ use std::thread;
 use vivyshot_capture::{
     Backend as CaptureBackend, CaptureCapabilities, CaptureDevice, CaptureDeviceKind, CaptureError,
     CaptureErrorKind, CaptureRect, CapturedImage, RecordingCodec, RecordingConfig,
-    RecordingContainer, RecordingEncoder, RecordingOutput, RecordingSession,
+    RecordingContainer, RecordingEncoder, RecordingOutput, RecordingSession, WebcamDevice,
+    WebcamRecordingConfig, WebcamRecordingOutput, WebcamRecordingSession,
 };
 
 use super::*;
@@ -58,6 +59,21 @@ pub struct vs_capture_recording_output {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
+pub struct vs_capture_webcam_recording_config {
+    pub output_path: vs_capture_path,
+    pub preferred_device_id_utf8: *const u8,
+    pub preferred_device_id_len: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct vs_capture_webcam_recording_output {
+    pub output_path: vs_capture_path,
+    pub recording_start_uptime_seconds: f64,
+}
+
+#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct vs_capture_capabilities {
     pub region_recording: bool,
@@ -88,6 +104,17 @@ pub struct vs_capture_device {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
+pub struct vs_capture_webcam_device {
+    pub stable_id_utf8: *const u8,
+    pub stable_id_len: u32,
+    pub display_name_utf8: *const u8,
+    pub display_name_len: u32,
+    pub capability_mask: u32,
+    pub is_available: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
 pub struct vs_capture_captured_image {
     pub width: u32,
     pub height: u32,
@@ -101,11 +128,20 @@ pub struct vs_capture_recording_session {
     inner: Mutex<Option<RecordingSession>>,
 }
 
+pub struct vs_capture_webcam_recording_session {
+    inner: Mutex<Option<WebcamRecordingSession>>,
+}
+
 pub type vs_capture_recording_start_callback =
     Option<extern "C" fn(*mut c_void, i32, *mut vs_capture_recording_session)>;
 
 pub type vs_capture_recording_stop_callback =
     Option<extern "C" fn(*mut c_void, i32, vs_capture_recording_output)>;
+
+pub type vs_capture_webcam_recording_start_callback = Option<extern "C" fn(*mut c_void, i32)>;
+
+pub type vs_capture_webcam_recording_stop_callback =
+    Option<extern "C" fn(*mut c_void, i32, vs_capture_webcam_recording_output)>;
 
 pub type vs_capture_screenshot_callback =
     Option<extern "C" fn(*mut c_void, i32, vs_capture_captured_image)>;
@@ -141,6 +177,19 @@ unsafe fn read_path(path: vs_capture_path) -> Result<PathBuf, i32> {
         return Err(VS_CAPTURE_STATUS_INVALID_ARGUMENT);
     }
     Ok(PathBuf::from(path))
+}
+
+unsafe fn read_optional_utf8(ptr: *const u8, len: u32) -> Result<String, i32> {
+    if len == 0 {
+        return Ok(String::new());
+    }
+    if ptr.is_null() {
+        return Err(VS_CAPTURE_STATUS_NULL_POINTER);
+    }
+    let len = usize::try_from(len).map_err(|_| VS_CAPTURE_STATUS_INVALID_ARGUMENT)?;
+    let bytes = unsafe { slice::from_raw_parts(ptr, len) };
+    let value = std::str::from_utf8(bytes).map_err(|_| VS_CAPTURE_STATUS_INVALID_ARGUMENT)?;
+    Ok(value.to_string())
 }
 
 unsafe fn read_window_ids(config: &vs_capture_recording_config) -> Result<Vec<u32>, i32> {
@@ -187,6 +236,24 @@ unsafe fn to_capture_config(
     })
 }
 
+unsafe fn to_webcam_recording_config(
+    config: *const vs_capture_webcam_recording_config,
+) -> Result<WebcamRecordingConfig, i32> {
+    if config.is_null() {
+        return Err(VS_CAPTURE_STATUS_NULL_POINTER);
+    }
+    let config = unsafe { &*config };
+    Ok(WebcamRecordingConfig {
+        output_path: unsafe { read_path(config.output_path)? },
+        preferred_device_id: unsafe {
+            read_optional_utf8(
+                config.preferred_device_id_utf8,
+                config.preferred_device_id_len,
+            )?
+        },
+    })
+}
+
 fn to_capture_rect(rect: vs_capture_rect) -> Result<CaptureRect, i32> {
     if !rect.x.is_finite()
         || !rect.y.is_finite()
@@ -230,6 +297,13 @@ fn output_to_ffi(output: RecordingOutput) -> vs_capture_recording_output {
     }
 }
 
+fn webcam_output_to_ffi(output: WebcamRecordingOutput) -> vs_capture_webcam_recording_output {
+    vs_capture_webcam_recording_output {
+        output_path: path_to_ffi(output.output_path),
+        recording_start_uptime_seconds: output.recording_start_uptime_seconds,
+    }
+}
+
 fn capabilities_to_ffi(capabilities: CaptureCapabilities) -> vs_capture_capabilities {
     vs_capture_capabilities {
         region_recording: capabilities.region_recording,
@@ -270,6 +344,19 @@ fn device_to_ffi(device: CaptureDevice) -> vs_capture_device {
     let (stable_id_utf8, stable_id_len) = string_to_ffi_bytes(device.stable_id);
     let (display_name_utf8, display_name_len) = string_to_ffi_bytes(device.display_name);
     vs_capture_device {
+        stable_id_utf8,
+        stable_id_len,
+        display_name_utf8,
+        display_name_len,
+        capability_mask: device.capability_mask,
+        is_available: device.is_available,
+    }
+}
+
+fn webcam_device_to_ffi(device: WebcamDevice) -> vs_capture_webcam_device {
+    let (stable_id_utf8, stable_id_len) = string_to_ffi_bytes(device.stable_id);
+    let (display_name_utf8, display_name_len) = string_to_ffi_bytes(device.display_name);
+    vs_capture_webcam_device {
         stable_id_utf8,
         stable_id_len,
         display_name_utf8,
@@ -422,6 +509,57 @@ pub unsafe extern "C" fn vs_capture_devices_free(devices: *mut vs_capture_device
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn vs_capture_copy_webcam_devices(
+    out_devices: *mut vs_capture_webcam_device,
+    capacity: u32,
+    out_count: *mut u32,
+) -> i32 {
+    if out_count.is_null() {
+        return VS_CAPTURE_STATUS_NULL_POINTER;
+    }
+    let devices = match CaptureBackend::new().webcam_devices() {
+        Ok(devices) => devices,
+        Err(error) => return capture_status(&error),
+    };
+    let count = devices.len().min(u32::MAX as usize) as u32;
+    unsafe {
+        *out_count = count;
+    }
+    if capacity == 0 {
+        return VS_CAPTURE_STATUS_OK;
+    }
+    if out_devices.is_null() {
+        return VS_CAPTURE_STATUS_NULL_POINTER;
+    }
+    if capacity < count {
+        return VS_CAPTURE_STATUS_BUFFER_TOO_SMALL;
+    }
+    for (index, device) in devices.into_iter().enumerate() {
+        unsafe {
+            out_devices.add(index).write(webcam_device_to_ffi(device));
+        }
+    }
+    VS_CAPTURE_STATUS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_capture_webcam_devices_free(
+    devices: *mut vs_capture_webcam_device,
+    count: u32,
+) {
+    if devices.is_null() || count == 0 {
+        return;
+    }
+    for index in 0..count as usize {
+        let device = unsafe { devices.add(index).read() };
+        unsafe {
+            free_ffi_bytes(device.stable_id_utf8, device.stable_id_len);
+            free_ffi_bytes(device.display_name_utf8, device.display_name_len);
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn vs_capture_recording_start(
     config: *const vs_capture_recording_config,
     user_data: *mut c_void,
@@ -537,6 +675,181 @@ pub unsafe extern "C" fn vs_capture_recording_output_free(output: vs_capture_rec
     let slice = std::ptr::slice_from_raw_parts_mut(output.output_path.path_utf8 as *mut u8, len);
     unsafe {
         drop(Box::from_raw(slice));
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_capture_webcam_recording_create(
+    config: *const vs_capture_webcam_recording_config,
+    out_session: *mut *mut vs_capture_webcam_recording_session,
+) -> i32 {
+    if out_session.is_null() {
+        return VS_CAPTURE_STATUS_NULL_POINTER;
+    }
+    let config = match unsafe { to_webcam_recording_config(config) } {
+        Ok(config) => config,
+        Err(status) => return status,
+    };
+    let session = match CaptureBackend::new().start_webcam_recording(config) {
+        Ok(session) => session,
+        Err(error) => return capture_status(&error),
+    };
+    let handle = Box::into_raw(Box::new(vs_capture_webcam_recording_session {
+        inner: Mutex::new(Some(session)),
+    }));
+    register_handle(&CAPTURE_WEBCAM_RECORDING_SESSION_HANDLES, handle.cast());
+    unsafe {
+        *out_session = handle;
+    }
+    VS_CAPTURE_STATUS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_capture_webcam_recording_preview_session(
+    session: *mut vs_capture_webcam_recording_session,
+) -> *mut c_void {
+    if validate_handle(&CAPTURE_WEBCAM_RECORDING_SESSION_HANDLES, session.cast()).is_err() {
+        return std::ptr::null_mut();
+    }
+    let session_ref = unsafe { &*session };
+    let guard = session_ref
+        .inner
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    guard.as_ref().map_or(std::ptr::null_mut(), |session| {
+        session.preview_session_ptr()
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_capture_webcam_recording_start(
+    session: *mut vs_capture_webcam_recording_session,
+    user_data: *mut c_void,
+    callback: vs_capture_webcam_recording_start_callback,
+) {
+    let Some(callback) = callback else {
+        return;
+    };
+    if let Err(status) = validate_handle(&CAPTURE_WEBCAM_RECORDING_SESSION_HANDLES, session.cast())
+    {
+        callback(user_data, status);
+        return;
+    }
+    let user_data = user_data as usize;
+    let session = session as usize;
+    thread::spawn(move || {
+        let user_data = user_data as *mut c_void;
+        let session = session as *mut vs_capture_webcam_recording_session;
+        let session_ref = unsafe { &*session };
+        let result = {
+            let guard = session_ref
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match guard.as_ref() {
+                Some(active_session) => active_session.start(),
+                None => Err(CaptureError::new(
+                    CaptureErrorKind::InternalPlatformError,
+                    "webcam recording session is already finished",
+                )),
+            }
+        };
+        match result {
+            Ok(()) => callback(user_data, VS_CAPTURE_STATUS_OK),
+            Err(error) => callback(user_data, capture_status(&error)),
+        }
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_capture_webcam_recording_stop(
+    session: *mut vs_capture_webcam_recording_session,
+    user_data: *mut c_void,
+    callback: vs_capture_webcam_recording_stop_callback,
+) {
+    let Some(callback) = callback else {
+        return;
+    };
+    if let Err(status) = validate_handle(&CAPTURE_WEBCAM_RECORDING_SESSION_HANDLES, session.cast())
+    {
+        callback(
+            user_data,
+            status,
+            vs_capture_webcam_recording_output::default(),
+        );
+        return;
+    }
+    let user_data = user_data as usize;
+    let session = session as usize;
+    thread::spawn(move || {
+        let user_data = user_data as *mut c_void;
+        let session = session as *mut vs_capture_webcam_recording_session;
+        let session_ref = unsafe { &*session };
+        let active_session = {
+            let mut guard = session_ref
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            guard.take()
+        };
+        let Some(active_session) = active_session else {
+            callback(
+                user_data,
+                VS_CAPTURE_STATUS_INVALID_ARGUMENT,
+                vs_capture_webcam_recording_output::default(),
+            );
+            return;
+        };
+        let result = active_session.stop();
+        unregister_handle(&CAPTURE_WEBCAM_RECORDING_SESSION_HANDLES, session.cast());
+        unsafe {
+            drop(Box::from_raw(session));
+        }
+        match result {
+            Ok(output) => callback(
+                user_data,
+                VS_CAPTURE_STATUS_OK,
+                webcam_output_to_ffi(output),
+            ),
+            Err(error) => callback(
+                user_data,
+                capture_status(&error),
+                vs_capture_webcam_recording_output::default(),
+            ),
+        }
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_capture_webcam_recording_cancel(
+    session: *mut vs_capture_webcam_recording_session,
+) {
+    if validate_handle(&CAPTURE_WEBCAM_RECORDING_SESSION_HANDLES, session.cast()).is_err() {
+        return;
+    }
+    let session_ref = unsafe { &*session };
+    let active_session = {
+        let mut guard = session_ref
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard.take()
+    };
+    if let Some(active_session) = active_session {
+        active_session.cancel();
+    }
+    unregister_handle(&CAPTURE_WEBCAM_RECORDING_SESSION_HANDLES, session.cast());
+    unsafe {
+        drop(Box::from_raw(session));
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vs_capture_webcam_recording_output_free(
+    output: vs_capture_webcam_recording_output,
+) {
+    unsafe {
+        free_ffi_bytes(output.output_path.path_utf8, output.output_path.path_len);
     }
 }
 

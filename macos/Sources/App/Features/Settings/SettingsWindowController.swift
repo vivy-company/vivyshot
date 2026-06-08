@@ -1,5 +1,4 @@
 import AppKit
-import AVFoundation
 import Carbon
 import SwiftUI
 
@@ -82,7 +81,7 @@ struct VivyShotSettingsView: View {
   @State private var isRecordingShortcut = false
   private let captureCapabilities = CaptureBackendCapabilities.load()
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
-  @State private var webcamDevices: [WebcamDeviceOption] = []
+  @State private var webcamDevices: [CaptureWebcamDevice] = []
   @State private var draggingScreenshotTool: AnnotationTool?
   @State private var draggingVideoTool: VideoToolbarTool?
   @State private var isReviewerModeSheetPresented = false
@@ -1346,30 +1345,12 @@ struct VivyShotSettingsView: View {
   }
 
   private func refreshWebcamDevices() {
-    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
-    if #available(macOS 14.0, *) {
-      deviceTypes.append(.external)
-    } else {
-      deviceTypes.append(.externalUnknown)
-    }
-    let discovery = AVCaptureDevice.DiscoverySession(
-      deviceTypes: deviceTypes,
-      mediaType: .video,
-      position: .unspecified
-    )
-    webcamDevices = discovery.devices
-      .map { WebcamDeviceOption(id: $0.uniqueID, name: $0.localizedName) }
-      .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    webcamDevices = CaptureWebcamDevices.load()
   }
 
   private func previewCaptureTransition() {
     CaptureTransitionPreviewCoordinator.shared.preview()
   }
-}
-
-private struct WebcamDeviceOption: Identifiable, Hashable {
-  let id: String
-  let name: String
 }
 
 private struct ReorderHandleGlyph: View {

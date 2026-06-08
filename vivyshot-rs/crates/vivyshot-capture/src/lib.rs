@@ -6,9 +6,9 @@ mod macos;
 mod unsupported;
 
 #[cfg(target_os = "macos")]
-pub use macos::{Backend, RecordingSession};
+pub use macos::{Backend, RecordingSession, WebcamRecordingSession};
 #[cfg(not(target_os = "macos"))]
-pub use unsupported::{Backend, RecordingSession};
+pub use unsupported::{Backend, RecordingSession, WebcamRecordingSession};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CaptureRect {
@@ -97,6 +97,7 @@ pub const DEVICE_CAPABILITY_DISPLAY_RECORDING: u32 = 1 << 0;
 pub const DEVICE_CAPABILITY_REGION_RECORDING: u32 = 1 << 1;
 pub const DEVICE_CAPABILITY_SCREENSHOT_CAPTURE: u32 = 1 << 2;
 pub const DEVICE_CAPABILITY_MICROPHONE_AUDIO: u32 = 1 << 3;
+pub const DEVICE_CAPABILITY_WEBCAM_RECORDING: u32 = 1 << 4;
 
 pub const PIXEL_FORMAT_BGRA8_PREMULTIPLIED_FIRST: u8 = 0;
 
@@ -151,6 +152,26 @@ pub struct RecordingOutput {
     pub frame_rate: u32,
     pub codec: RecordingCodec,
     pub container: RecordingContainer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WebcamDevice {
+    pub stable_id: String,
+    pub display_name: String,
+    pub capability_mask: u32,
+    pub is_available: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WebcamRecordingConfig {
+    pub output_path: PathBuf,
+    pub preferred_device_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WebcamRecordingOutput {
+    pub output_path: PathBuf,
+    pub recording_start_uptime_seconds: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

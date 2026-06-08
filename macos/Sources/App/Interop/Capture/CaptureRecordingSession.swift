@@ -164,7 +164,7 @@ final class CaptureRecordingSession: RegionRecordingSession {
     }
   }
 
-  nonisolated fileprivate static func pathString(from path: vs_capture_path) -> String? {
+  nonisolated static func pathString(from path: vs_capture_path) -> String? {
     guard let pathBytes = path.path_utf8, path.path_len > 0 else {
       return nil
     }

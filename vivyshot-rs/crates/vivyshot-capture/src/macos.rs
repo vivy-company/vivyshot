@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void, CStr};
 use std::fs;
 use std::path::PathBuf;
 use std::process;
@@ -27,13 +27,15 @@ use screencapturekit::stream::delegate_trait::StreamCallbacks;
 use screencapturekit::stream::output_trait::SCStreamOutputTrait;
 use screencapturekit::stream::output_type::SCStreamOutputType;
 use screencapturekit::stream::SCStream;
+use vivyshot_apple_media_sys as apple_media;
 
 use crate::{
     CaptureCapabilities, CaptureDevice, CaptureDeviceKind, CaptureError, CaptureErrorKind,
     CaptureRect, CapturedImage, RecordingCodec, RecordingConfig, RecordingContainer,
-    RecordingEncoder, RecordingOutput, DEVICE_CAPABILITY_DISPLAY_RECORDING,
-    DEVICE_CAPABILITY_MICROPHONE_AUDIO, DEVICE_CAPABILITY_REGION_RECORDING,
-    DEVICE_CAPABILITY_SCREENSHOT_CAPTURE, PIXEL_FORMAT_BGRA8_PREMULTIPLIED_FIRST,
+    RecordingEncoder, RecordingOutput, WebcamDevice, WebcamRecordingConfig, WebcamRecordingOutput,
+    DEVICE_CAPABILITY_DISPLAY_RECORDING, DEVICE_CAPABILITY_MICROPHONE_AUDIO,
+    DEVICE_CAPABILITY_REGION_RECORDING, DEVICE_CAPABILITY_SCREENSHOT_CAPTURE,
+    DEVICE_CAPABILITY_WEBCAM_RECORDING, PIXEL_FORMAT_BGRA8_PREMULTIPLIED_FIRST,
 };
 
 pub struct Backend;
@@ -45,6 +47,13 @@ pub struct RecordingSession {
     output: RecordingOutput,
     latest_error: Arc<Mutex<Option<CaptureError>>>,
 }
+
+pub struct WebcamRecordingSession {
+    ptr: NonNull<c_void>,
+    output_path: PathBuf,
+}
+
+unsafe impl Send for WebcamRecordingSession {}
 
 impl Backend {
     pub fn new() -> Self {
@@ -88,6 +97,17 @@ impl Backend {
         rect_screen: CaptureRect,
     ) -> Result<CapturedImage, CaptureError> {
         capture_screenshot(rect_screen)
+    }
+
+    pub fn webcam_devices(&self) -> Result<Vec<WebcamDevice>, CaptureError> {
+        webcam_devices()
+    }
+
+    pub fn start_webcam_recording(
+        &self,
+        config: WebcamRecordingConfig,
+    ) -> Result<WebcamRecordingSession, CaptureError> {
+        WebcamRecordingSession::new(config)
     }
 }
 
@@ -142,6 +162,72 @@ impl RecordingSession {
             writer.cancel();
         }
         let _ = fs::remove_file(&self.output.output_path);
+    }
+}
+
+impl WebcamRecordingSession {
+    fn new(config: WebcamRecordingConfig) -> Result<Self, CaptureError> {
+        remove_existing_output(&config.output_path)?;
+        let output_path = config.output_path;
+        let output_path_bytes = path_bytes(&output_path)?;
+        let device_id_bytes = config.preferred_device_id.into_bytes();
+        let ptr = unsafe {
+            apple_media::sck_webcam_recorder_create(
+                output_path_bytes.as_ptr(),
+                output_path_bytes.len().min(u32::MAX as usize) as u32,
+                device_id_bytes.as_ptr(),
+                device_id_bytes.len().min(u32::MAX as usize) as u32,
+            )
+        };
+        let ptr = NonNull::new(ptr).ok_or_else(|| {
+            CaptureError::new(
+                CaptureErrorKind::RecordingOutputFailed,
+                "failed to create webcam recorder",
+            )
+        })?;
+        Ok(Self { ptr, output_path })
+    }
+
+    pub fn preview_session_ptr(&self) -> *mut c_void {
+        unsafe { apple_media::sck_webcam_recorder_preview_session(self.ptr.as_ptr()) }
+    }
+
+    pub fn start(&self) -> Result<(), CaptureError> {
+        webcam_status(unsafe { apple_media::sck_webcam_recorder_start(self.ptr.as_ptr()) })
+    }
+
+    pub fn stop(self) -> Result<WebcamRecordingOutput, CaptureError> {
+        webcam_status(unsafe { apple_media::sck_webcam_recorder_stop(self.ptr.as_ptr()) })?;
+        if !self.output_path.exists() {
+            return Err(CaptureError::new(
+                CaptureErrorKind::OutputFileUnavailable,
+                format!(
+                    "webcam output does not exist: {}",
+                    self.output_path.display()
+                ),
+            ));
+        }
+        let recording_start_uptime_seconds =
+            unsafe { apple_media::sck_webcam_recorder_start_uptime_seconds(self.ptr.as_ptr()) };
+        Ok(WebcamRecordingOutput {
+            output_path: self.output_path.clone(),
+            recording_start_uptime_seconds,
+        })
+    }
+
+    pub fn cancel(self) {
+        unsafe {
+            apple_media::sck_webcam_recorder_cancel(self.ptr.as_ptr());
+        }
+        let _ = fs::remove_file(&self.output_path);
+    }
+}
+
+impl Drop for WebcamRecordingSession {
+    fn drop(&mut self) {
+        unsafe {
+            apple_media::sck_webcam_recorder_destroy(self.ptr.as_ptr());
+        }
     }
 }
 
@@ -350,6 +436,29 @@ fn microphone_devices() -> Vec<CaptureDevice> {
         .collect()
 }
 
+fn webcam_devices() -> Result<Vec<WebcamDevice>, CaptureError> {
+    let mut devices_ptr: *mut apple_media::WebcamDevice = std::ptr::null_mut();
+    let mut count: u32 = 0;
+    webcam_status(unsafe { apple_media::sck_webcam_copy_devices(&mut devices_ptr, &mut count) })?;
+    if devices_ptr.is_null() || count == 0 {
+        return Ok(Vec::new());
+    }
+
+    let devices = unsafe { std::slice::from_raw_parts(devices_ptr, count as usize) }
+        .iter()
+        .map(|device| WebcamDevice {
+            stable_id: unsafe { c_string(device.stable_id) },
+            display_name: unsafe { c_string(device.display_name) },
+            capability_mask: DEVICE_CAPABILITY_WEBCAM_RECORDING,
+            is_available: true,
+        })
+        .collect();
+    unsafe {
+        apple_media::sck_webcam_devices_free(devices_ptr, count);
+    }
+    Ok(devices)
+}
+
 fn capture_screenshot(rect_screen: CaptureRect) -> Result<CapturedImage, CaptureError> {
     let rect_screen = rect_screen.standardized();
     if rect_screen.width < 1.0 || rect_screen.height < 1.0 {
@@ -416,6 +525,26 @@ fn remove_existing_output(path: &PathBuf) -> Result<(), CaptureError> {
         })?;
     }
     Ok(())
+}
+
+fn path_bytes(path: &PathBuf) -> Result<Vec<u8>, CaptureError> {
+    let bytes = path.to_string_lossy().into_owned().into_bytes();
+    if bytes.is_empty() || bytes.len() > u32::MAX as usize {
+        return Err(CaptureError::new(
+            CaptureErrorKind::OutputFileUnavailable,
+            "output path is not representable by capture backend",
+        ));
+    }
+    Ok(bytes)
+}
+
+unsafe fn c_string(ptr: *const c_char) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn display_for_selection(
@@ -654,7 +783,7 @@ impl SoftwareH264Writer {
             )
         })?;
         let ptr = unsafe {
-            sck_software_h264_writer_create(
+            apple_media::sck_software_h264_writer_create(
                 path.as_ptr(),
                 path_len,
                 frame_rate.max(1),
@@ -673,12 +802,18 @@ impl SoftwareH264Writer {
 
     fn configure_video_size(&self, width: u32, height: u32) -> Result<(), CaptureError> {
         software_writer_status(unsafe {
-            sck_software_h264_writer_configure_video_size(self.ptr.as_ptr(), width, height)
+            apple_media::sck_software_h264_writer_configure_video_size(
+                self.ptr.as_ptr(),
+                width,
+                height,
+            )
         })
     }
 
     fn prepare(&self) -> Result<(), CaptureError> {
-        software_writer_status(unsafe { sck_software_h264_writer_prepare(self.ptr.as_ptr()) })
+        software_writer_status(unsafe {
+            apple_media::sck_software_h264_writer_prepare(self.ptr.as_ptr())
+        })
     }
 
     fn append_sample(&self, sample_buffer: CMSampleBuffer, output_type: SCStreamOutputType) {
@@ -688,17 +823,23 @@ impl SoftwareH264Writer {
             SCStreamOutputType::Microphone => 2,
         };
         unsafe {
-            sck_software_h264_writer_append(self.ptr.as_ptr(), sample_buffer.as_ptr(), output_type);
+            apple_media::sck_software_h264_writer_append(
+                self.ptr.as_ptr(),
+                sample_buffer.as_ptr(),
+                output_type,
+            );
         }
     }
 
     fn finish(&self) -> Result<(), CaptureError> {
-        software_writer_status(unsafe { sck_software_h264_writer_finish(self.ptr.as_ptr()) })
+        software_writer_status(unsafe {
+            apple_media::sck_software_h264_writer_finish(self.ptr.as_ptr())
+        })
     }
 
     fn cancel(&self) {
         unsafe {
-            sck_software_h264_writer_cancel(self.ptr.as_ptr());
+            apple_media::sck_software_h264_writer_cancel(self.ptr.as_ptr());
         }
     }
 }
@@ -706,7 +847,7 @@ impl SoftwareH264Writer {
 impl Drop for SoftwareH264Writer {
     fn drop(&mut self) {
         unsafe {
-            sck_software_h264_writer_destroy(self.ptr.as_ptr());
+            apple_media::sck_software_h264_writer_destroy(self.ptr.as_ptr());
         }
     }
 }
@@ -722,27 +863,27 @@ impl SCStreamOutputTrait for SoftwareH264SampleHandler {
 }
 
 fn software_writer_status(status: i32) -> Result<(), CaptureError> {
-    if status == SCK_SOFTWARE_WRITER_STATUS_OK {
+    if status == apple_media::SOFTWARE_WRITER_STATUS_OK {
         return Ok(());
     }
     let (kind, diagnostic) = match status {
-        SCK_SOFTWARE_WRITER_STATUS_INVALID_ARGUMENT => (
+        apple_media::SOFTWARE_WRITER_STATUS_INVALID_ARGUMENT => (
             CaptureErrorKind::InternalPlatformError,
             "software H.264 writer received an invalid request",
         ),
-        SCK_SOFTWARE_WRITER_STATUS_NO_FRAMES => (
+        apple_media::SOFTWARE_WRITER_STATUS_NO_FRAMES => (
             CaptureErrorKind::NoFramesCaptured,
             "no video frames were captured for software H.264 recording",
         ),
-        SCK_SOFTWARE_WRITER_STATUS_CANCELLED => (
+        apple_media::SOFTWARE_WRITER_STATUS_CANCELLED => (
             CaptureErrorKind::Cancelled,
             "software H.264 writer was cancelled",
         ),
-        SCK_SOFTWARE_WRITER_STATUS_FINISH_FAILED => (
+        apple_media::SOFTWARE_WRITER_STATUS_FINISH_FAILED => (
             CaptureErrorKind::RecordingOutputFailed,
             "software H.264 writer failed to finish",
         ),
-        SCK_SOFTWARE_WRITER_STATUS_INCOMPLETE => (
+        apple_media::SOFTWARE_WRITER_STATUS_INCOMPLETE => (
             CaptureErrorKind::RecordingOutputFailed,
             "software H.264 writer did not complete",
         ),
@@ -754,35 +895,49 @@ fn software_writer_status(status: i32) -> Result<(), CaptureError> {
     Err(CaptureError::new(kind, diagnostic))
 }
 
-const SCK_SOFTWARE_WRITER_STATUS_OK: i32 = 0;
-const SCK_SOFTWARE_WRITER_STATUS_INVALID_ARGUMENT: i32 = -1;
-const SCK_SOFTWARE_WRITER_STATUS_NO_FRAMES: i32 = -7;
-const SCK_SOFTWARE_WRITER_STATUS_FINISH_FAILED: i32 = -8;
-const SCK_SOFTWARE_WRITER_STATUS_CANCELLED: i32 = -9;
-const SCK_SOFTWARE_WRITER_STATUS_INCOMPLETE: i32 = -10;
-
-extern "C" {
-    fn sck_software_h264_writer_create(
-        path_utf8: *const u8,
-        path_len: u32,
-        frame_rate: u32,
-        include_system_audio: bool,
-        include_microphone_audio: bool,
-    ) -> *mut c_void;
-    fn sck_software_h264_writer_configure_video_size(
-        writer: *mut c_void,
-        width: u32,
-        height: u32,
-    ) -> i32;
-    fn sck_software_h264_writer_prepare(writer: *mut c_void) -> i32;
-    fn sck_software_h264_writer_append(
-        writer: *mut c_void,
-        sample_buffer: *mut c_void,
-        output_type: i32,
-    );
-    fn sck_software_h264_writer_finish(writer: *mut c_void) -> i32;
-    fn sck_software_h264_writer_cancel(writer: *mut c_void);
-    fn sck_software_h264_writer_destroy(writer: *mut c_void);
+fn webcam_status(status: i32) -> Result<(), CaptureError> {
+    if status == apple_media::WEBCAM_STATUS_OK {
+        return Ok(());
+    }
+    let (kind, diagnostic) = match status {
+        apple_media::WEBCAM_STATUS_INVALID_ARGUMENT => (
+            CaptureErrorKind::InternalPlatformError,
+            "webcam backend received an invalid request",
+        ),
+        apple_media::WEBCAM_STATUS_NO_DEVICE => (
+            CaptureErrorKind::OutputFileUnavailable,
+            "no camera device is available",
+        ),
+        apple_media::WEBCAM_STATUS_INPUT_UNAVAILABLE => (
+            CaptureErrorKind::RecordingOutputFailed,
+            "unable to add webcam input",
+        ),
+        apple_media::WEBCAM_STATUS_OUTPUT_UNAVAILABLE => (
+            CaptureErrorKind::RecordingOutputFailed,
+            "unable to add webcam output",
+        ),
+        apple_media::WEBCAM_STATUS_START_FAILED => (
+            CaptureErrorKind::StreamStartFailed,
+            "webcam recording failed to start",
+        ),
+        apple_media::WEBCAM_STATUS_STOP_FAILED => (
+            CaptureErrorKind::RecordingOutputFailed,
+            "webcam recording failed to stop",
+        ),
+        apple_media::WEBCAM_STATUS_OUTPUT_FILE_UNAVAILABLE => (
+            CaptureErrorKind::OutputFileUnavailable,
+            "webcam recording output file is unavailable",
+        ),
+        apple_media::WEBCAM_STATUS_CANCELLED => (
+            CaptureErrorKind::Cancelled,
+            "webcam recording was cancelled",
+        ),
+        _ => (
+            CaptureErrorKind::InternalPlatformError,
+            "webcam backend failed with an unknown status",
+        ),
+    };
+    Err(CaptureError::new(kind, diagnostic))
 }
 
 fn store_latest_error(lock: &Arc<Mutex<Option<CaptureError>>>, error: CaptureError) {
