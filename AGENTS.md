@@ -2,19 +2,18 @@
 
 ## Mission
 
-Build VivyShot as a Rust-first capture and editing core that can power multiple desktop surfaces.
+Build VivyShot as a Swift-first, native macOS screen capture and editing app.
 
 ## Product Goals
 
-- Keep the Rust core (`vivyshot-rs/`) as the cross-surface source of truth for geometry, timeline, and export logic.
-- Officially supported app surface today: macOS (`macos/`).
-- Planned future official surfaces: Windows and Linux.
-- Preserve a stable C ABI boundary via `ffi/vivyshot_core.h` for host integrations.
+- Keep VivyShot focused on macOS.
+- Use Swift, SwiftUI, AppKit, ScreenCaptureKit, AVFoundation, and other Apple frameworks directly.
+- Keep capture, annotation, recording, review, export, settings, and store behavior owned by the macOS app.
+- Do not plan for non-macOS surfaces, alternate-language cores, generated native bridges, or stable C integration layers.
 
 ## Licensing Goals
 
-- Rust core and generated FFI header (`vivyshot-rs/`, `ffi/`): MIT.
-- macOS app sources (`macos/`): GPL-3.0-only.
+- App sources: GPL-3.0-only.
 - App Store binaries: Apple App Store EULA + VivyShot binary terms (`LICENSE-APPSTORE.md`).
 
 ## Distribution And Commercial Goals
@@ -25,16 +24,15 @@ Build VivyShot as a Rust-first capture and editing core that can power multiple 
 
 ## Agent Working Rules
 
-- Keep repo messaging aligned with goals above (README, description, policy docs).
-- Do not collapse the split license model into a single repo-wide source license.
-- Prioritize Rust-core changes for behavior that should be shared across surfaces.
-- If ABI changes are needed, regenerate header via `./scripts/gen-ffi.sh` and keep contract tests passing.
-- Keep CI and governance files (`.github/workflows`, legal docs, CLA config) consistent with this strategy.
+- Keep repo messaging aligned with the Swift-only macOS direction above.
+- Do not introduce alternate-language core, generated bridge, or future non-macOS platform claims unless explicitly requested.
+- Prefer direct Apple framework integration over proxy layers for native capture, recording, editing, and export behavior.
+- Keep CI, governance, legal docs, README copy, and website copy consistent with the macOS-only product strategy.
 
 ## Greenfield Policy
 
 - VivyShot is currently a greenfield, pre-1.0 project.
-- Breaking changes are acceptable across data fields, APIs, ABI shapes, and internal architecture when they improve the product.
+- Breaking changes are acceptable across data fields, APIs, and internal architecture when they improve the product.
 - Do not preserve backward compatibility by default.
 - Do not add compatibility shims, migration layers, or deprecation overhead unless explicitly requested.
-- Optimize for the best long-term design and multi-surface evolution rather than legacy constraints.
+- Optimize for the best long-term native macOS design rather than legacy constraints.

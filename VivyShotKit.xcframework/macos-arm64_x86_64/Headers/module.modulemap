@@ -1,4 +1,0 @@
-module VivyShotKit {
-    header "vivyshot_core.h"
-    export *
-}

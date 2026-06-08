@@ -3,8 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-MACOS_DIR="$ROOT_DIR/macos"
-PROJECT_PATH="$MACOS_DIR/VivyShot.xcodeproj"
+PROJECT_PATH="$ROOT_DIR/VivyShot.xcodeproj"
 SCHEME="VivyShot"
 DERIVED_DATA_PATH="$ROOT_DIR/.build/DerivedData"
 RELEASE_PRODUCTS_DIR="$DERIVED_DATA_PATH/Build/Products/Release"
@@ -15,10 +14,7 @@ if [ ! -d "$PROJECT_PATH" ]; then
   exit 1
 fi
 
-echo "==> Building Rust core (universal static library)..."
-"$SCRIPT_DIR/build-rust-universal.sh"
-
-echo "==> Building macOS app (Release)..."
+echo "==> Building VivyShot (Release)..."
 xcodebuild \
   -project "$PROJECT_PATH" \
   -scheme "$SCHEME" \

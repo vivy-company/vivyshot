@@ -9,12 +9,12 @@
   - `docs/post-recording-export-options-spec.md`
   - `docs/video-editor-spec.md`
   - `docs/capture-statistics-spec.md`
-  - `macos/Sources/App/Features/Capture/VideoCaptureComponents.swift`
-  - `macos/Sources/App/Features/Capture/VideoCaptureUI.swift`
-  - `macos/Sources/App/Features/RegionSelection/RegionSelectionOverlay.swift`
-  - `macos/Sources/App/Features/Settings/SettingsWindowController.swift`
-  - `macos/Sources/App/Features/Store/StoreDomain.swift`
-  - `macos/Sources/App/Features/Store/StoreViews.swift`
+  - `Sources/App/Features/Capture/RecordingComponents.swift`
+  - `Sources/App/Features/Capture/RecordingReviewUI.swift`
+  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay.swift`
+  - `Sources/App/Features/Settings/SettingsWindowController.swift`
+  - `Sources/App/Features/Store/StoreDomain.swift`
+  - `Sources/App/Features/Store/StoreViews.swift`
 
 ## 1. Product Goal
 
@@ -472,7 +472,7 @@ Acceptance:
 
 Build validation:
 
-1. `xcodebuild -project macos/VivyShot.xcodeproj -scheme VivyShot -configuration Release -derivedDataPath .build/DerivedData build`
+1. `xcodebuild -project VivyShot.xcodeproj -scheme VivyShot -configuration Release -derivedDataPath .build/DerivedData build`
 2. `./scripts/install-macos-release.sh`
 
 Manual validation:

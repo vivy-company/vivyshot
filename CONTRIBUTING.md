@@ -18,8 +18,6 @@ Requirements:
 
 - macOS 15.2+
 - Xcode 16.0+
-- Rust stable toolchain (`rustup`)
-- `cbindgen` for FFI header generation: `cargo install cbindgen`
 
 Setup:
 
@@ -27,11 +25,8 @@ Setup:
 git clone https://github.com/vivy-company/vivyshot.git
 cd vivyshot
 
-# Build universal Rust static library used by the macOS app
-./scripts/build-rust-universal.sh
-
 # Open project
-open macos/VivyShot.xcodeproj
+open VivyShot.xcodeproj
 ```
 
 ## Pull Request Guidelines
@@ -59,6 +54,5 @@ CLA checks are enforced by the repository bot configuration in `.clabot`.
 
 By submitting contributions, you agree that your contributions may be distributed under the project's license model:
 
-- Rust core + generated FFI header (`vivyshot-rs/`, `ffi/`): MIT (`LICENSE-MIT`, `vivyshot-rs/LICENSE`, `ffi/LICENSE`)
-- macOS app sources (`macos/`): GPL-3.0-only (`macos/LICENSE`, `LICENSE-GPL-3.0`)
+- Source code: GPL-3.0-only (`LICENSE-GPL-3.0`)
 - Official App Store binary terms: `LICENSE-APPSTORE.md`

@@ -5,15 +5,13 @@
 - Owner: VivyShot
 - Related:
   - `AGENTS.md`
-  - `macos/Sources/App/Features/Capture/CaptureCoordinator.swift`
-  - `macos/Sources/App/Features/RegionSelection/RegionSelectionOverlay.swift`
-  - `macos/Sources/App/Features/RegionSelection/RegionSelectionOverlayController.swift`
-  - `macos/Sources/App/Features/RegionSelection/RegionSelectionOverlay+EditingTargetPicking.swift`
-  - `macos/Sources/App/Features/RegionSelection/RegionSelectionOverlay+EditingSelection.swift`
-  - `macos/Sources/App/Shared/UI/CaptureGlassViews.swift`
-  - `macos/Sources/App/Shared/UI/CaptureOverlayToolbars.swift`
-  - `vivyshot-rs/crates/vivyshot-core/`
-  - `vivyshot-rs/crates/vivyshot-ffi/`
+  - `Sources/App/Features/Capture/CaptureCoordinator.swift`
+  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay.swift`
+  - `Sources/App/Features/RegionSelection/RegionSelectionOverlayController.swift`
+  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay+EditingTargetPicking.swift`
+  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay+EditingSelection.swift`
+  - `Sources/App/Shared/UI/CaptureGlassViews.swift`
+  - `Sources/App/Shared/UI/CaptureOverlayToolbars.swift`
 
 ## 1. Problem Statement
 
@@ -86,7 +84,7 @@ The highlight must not appear for:
 2. Dock and Window Server surfaces.
 3. Desktop elements.
 4. Invisible, tiny, transparent, or offscreen windows.
-5. Windows outside the active capture screen frame.
+5. Window targets outside the active capture screen frame.
 
 ### 3.3 Clicking A Window
 
@@ -270,7 +268,7 @@ The threshold should be based on squared distance from mouse-down to avoid jitte
 
 ## 7. Architecture And Ownership
 
-### 7.1 Swift macOS Surface Owns
+### 7.1 Swift macOS App Owns
 
 Swift remains responsible for:
 
@@ -280,27 +278,14 @@ Swift remains responsible for:
 4. Drawing native hover and selection feedback.
 5. Managing AppKit windows, cursors, and first responder state.
 6. Preserving existing screenshot and video toolbar behavior.
+7. Applying smart selection decision rules:
+   - click vs drag threshold
+   - drag priority over hover
+   - empty click behavior
+   - final target kind
+   - area rectangle normalization and clipping
 
-### 7.2 Rust Core Should Own Portable Intent Rules
-
-The smart selection decision rules are portable product behavior:
-
-1. Click vs drag threshold.
-2. Drag priority over hover.
-3. Empty click behavior.
-4. Final target kind.
-5. Area rectangle normalization and clipping.
-
-Preferred long-term implementation:
-
-1. Add a small pure Rust capture-intent helper in `vivyshot-core`.
-2. Expose it through `vivyshot-ffi` only if the macOS surface needs stateful interop.
-3. Unit-test click, drag, empty click, and window-hover cases in Rust.
-4. Keep macOS window enumeration outside Rust.
-
-The native surface should supply `hoveredWindowRect` as input. Rust should not know about `CGWindowListCopyWindowInfo`, process IDs, window layers, AppKit cursors, or ScreenCaptureKit.
-
-If v1 ships with a Swift-only state machine, it should still follow this spec exactly and keep the logic isolated enough to move into Rust later. Do not scatter the smart-selection rules across unrelated view methods.
+Keep the smart-selection rules isolated in Swift domain/helper code rather than scattering them across unrelated view methods.
 
 ## 8. Implementation Plan
 
@@ -328,7 +313,7 @@ Update `RegionSelectionView.enterEditing(...)` to accept an initial capture mode
 
 Add initial-selection state to `RegionSelectionView`.
 
-Suggested Swift-local fields if the Rust helper is not added in the first patch:
+Suggested Swift-local fields:
 
 ```swift
 private var smartMouseDownPoint: CGPoint?
@@ -457,14 +442,9 @@ Do not leave English-only capture hints.
 
 Run automated checks:
 
-1. Rust tests if capture-intent logic or FFI changes are added:
-   - `cargo test -p vivyshot-core`
-   - `cargo test -p vivyshot-ffi`
+1. Swift tests for capture-intent logic if helper code is added.
 2. Swift build:
-   - `xcodebuild -project macos/VivyShot.xcodeproj -scheme VivyShot -configuration Debug build`
-3. If ABI changes are made:
-   - `./scripts/gen-ffi.sh`
-   - Confirm `ffi/vivyshot_core.h` and `VivyShotKit.xcframework/.../vivyshot_core.h` are consistent.
+   - `xcodebuild -project VivyShot.xcodeproj -scheme VivyShot -configuration Debug build`
 
 Manual QA:
 
@@ -500,5 +480,4 @@ These are intentionally left out of the first implementation:
 
 1. Should hovering a window plus `Command-C` copy that window instead of full screen?
 2. Should the initial overlay support keyboard cycling between window candidates under the pointer?
-3. Should future Windows/Linux surfaces use the same Rust intent helper through FFI from day one?
-4. Should selected-window video capture eventually use true per-window ScreenCaptureKit capture rather than a window-bounds region?
+3. Should selected-window video capture eventually use true per-window ScreenCaptureKit capture rather than a window-bounds region?

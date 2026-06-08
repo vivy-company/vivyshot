@@ -3,7 +3,7 @@
 - Status: Active Draft
 - Date: 2026-04-06
 - Owner: VivyShot
-- Related: `SPEC.md`, `docs/video-editor-spec.md`, `macos/Sources/App/Features/Capture/VideoCaptureUI.swift`, `macos/Sources/App/Features/Capture/VideoCaptureComponents.swift`
+- Related: `SPEC.md`, `docs/video-editor-spec.md`, `Sources/App/Features/Capture/RecordingReviewUI.swift`, `Sources/App/Features/Capture/RecordingComponents.swift`
 
 ## 1. Problem Statement
 
@@ -20,8 +20,8 @@ That is functional, but it does not feel like a complete recording review/export
 
 At the same time, VivyShot already has recording-level configuration for:
 
-1. Recording encoder via `VideoRecordingEncoderOption`.
-2. Frame rate via `VideoFrameRateOption`.
+1. Recording encoder via `RecordingEncoder`.
+2. Frame rate via `RecordingFrameRate`.
 
 Those settings exist in app settings and capture configuration, but they are not surfaced in the review/export experience where users most expect professional controls.
 
@@ -43,7 +43,7 @@ Initial implementation does not include:
 1. A full video editor inside the review window.
 2. Timeline editing in the review window.
 3. GIF redesign or advanced GIF controls.
-4. Full transcoding pipeline redesign in Rust.
+4. Full transcoding pipeline redesign.
 5. Custom bitrate text fields.
 6. Arbitrary output dimension editing.
 
@@ -88,7 +88,7 @@ This spec is based on the current macOS code, not a hypothetical future architec
 
 ### 5.1 Current Review Window
 
-`macos/Sources/App/Features/Capture/VideoCaptureUI.swift`
+`Sources/App/Features/Capture/RecordingReviewUI.swift`
 
 Relevant types:
 
@@ -108,34 +108,34 @@ Current behavior:
 
 ### 5.2 Current Recording Configuration
 
-`macos/Sources/App/Configuration/CaptureMode.swift`
+`Sources/App/Configuration/CaptureMode.swift`
 
 Current enums:
 
-1. `VideoRecordingEncoderOption`
+1. `RecordingEncoder`
    - `standardH264`
    - `smallerFileHEVC`
    - `cpuH264`
-2. `VideoFrameRateOption`
+2. `RecordingFrameRate`
    - `fps30`
    - `fps60`
    - `fps120`
 
-`macos/Sources/App/Configuration/AppSettings.swift`
+`Sources/App/Configuration/AppSettings.swift`
 
 Current persisted settings already include:
 
-1. `videoRecordingEncoder`
-2. `videoFrameRate`
+1. `recordingEncoder`
+2. `recordingFrameRate`
 
 ### 5.3 Current Recording Output Path
 
-`macos/Sources/App/Features/Capture/VideoCaptureComponents.swift`
+`Sources/App/Features/Capture/RecordingComponents.swift`
 
 Current facts:
 
-1. Capture-time recording already respects `VideoRecordingConfig.encoder`.
-2. Capture-time recording already respects `VideoRecordingConfig.frameRate`.
+1. Capture-time recording already respects `RecordingConfig.encoder`.
+2. Capture-time recording already respects `RecordingConfig.frameRate`.
 3. The post-recording `quickSaveMP4` path currently exports with:
    - `AVAssetExportPresetHighestQuality`
    - `.mp4`
@@ -266,7 +266,7 @@ When trim is added to the post-recording review window, it must be available to 
 
 For this spec:
 
-1. Trim is a future core feature.
+1. Trim is a future review-window feature.
 2. Export controls are the premium surface.
 
 That product line must remain stable.
@@ -333,14 +333,14 @@ Behavior:
 
 Primary files:
 
-1. `macos/Sources/App/Features/Capture/VideoCaptureUI.swift`
-2. `macos/Sources/App/Features/Capture/VideoCaptureComponents.swift`
-3. `macos/Sources/App/Features/Store/StoreManager.swift`
+1. `Sources/App/Features/Capture/RecordingReviewUI.swift`
+2. `Sources/App/Features/Capture/RecordingComponents.swift`
+3. `Sources/App/Features/Store/StoreManager.swift`
 
 Supporting files:
 
-1. `macos/Sources/App/Configuration/CaptureMode.swift`
-2. `macos/Sources/App/Configuration/AppSettings.swift`
+1. `Sources/App/Configuration/CaptureMode.swift`
+2. `Sources/App/Configuration/AppSettings.swift`
 
 ### 11.2 Review Panel Changes
 
@@ -376,7 +376,7 @@ For v1, selected export options in the review window do not need to persist glob
 Acceptable behavior:
 
 1. The review window starts with free-safe defaults.
-2. Optionally seed defaults from `AppSettings.videoRecordingEncoder` and `AppSettings.videoFrameRate` where it improves continuity.
+2. Optionally seed defaults from `AppSettings.recordingEncoder` and `AppSettings.recordingFrameRate` where it improves continuity.
 3. The export selection only needs to live for the lifetime of the review window.
 
 This is deliberately smaller and less risky than immediately creating a broad persistent export-preferences system.

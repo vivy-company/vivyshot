@@ -9,8 +9,8 @@
       "Open source screenshot workflow",
       "Capture, annotate, and export",
       "Record clean visuals fast",
-      "Portable by design",
-      "Native UI on each platform",
+      "Native macOS workflow",
+      "Built for macOS",
       "Made for docs, feedback, and bug reports",
       "Built for focused daily use",
       "Fast, clean, and efficient"
@@ -23,18 +23,18 @@
   },
   "why": {
     "title": "What makes it different",
-    "subtitle": "Simple to use, native on every platform, portable by design, and open source from the start.",
+    "subtitle": "Simple to use, native to macOS, and open source from the start.",
     "native": {
       "title": "Simple",
       "desc": "Built for a direct flow: hit <kbd>⌘ ⇧ C</kbd>, select the area, press <kbd>⌘ C</kbd>, and share it."
     },
     "modern": {
       "title": "Native",
-      "desc": "Each platform gets its own native UI, so VivyShot can feel at home wherever it runs."
+      "desc": "Built with a native macOS UI so VivyShot feels at home where it runs."
     },
     "sync": {
-      "title": "Portable",
-      "desc": "A shared engine keeps behavior consistent across platforms and makes it easier to bring VivyShot to more devices."
+      "title": "Focused",
+      "desc": "The app stays focused on fast capture, annotation, recording, and export instead of spreading across platforms."
     },
     "pricing": {
       "title": "Open source",
@@ -53,8 +53,8 @@
       "desc": "Add simple post-capture editing."
     },
     "later": {
-      "title": "More platforms",
-      "desc": "Bring it to more native desktops."
+      "title": "Polish",
+      "desc": "Refine the macOS workflow and export quality."
     }
   },
   "features": {
@@ -218,7 +218,7 @@
     },
     "q3": {
       "question": "Native matters",
-      "answer": "I do not want one heavy interface forced onto every platform. The app should feel right where it runs."
+      "answer": "I want the app to feel right on macOS instead of hiding the system behind a generic interface."
     },
     "q4": {
       "question": "Keep it useful",
@@ -227,12 +227,12 @@
   },
   "closing": {
     "title": "Available now on macOS.",
-    "subtitle": "Native UI on each platform where VivyShot ships.",
+    "subtitle": "Native macOS UI for capture, annotation, recording, and export.",
     "cta": "Download"
   },
   "footer": {
     "tagline": "Screen capture, annotation, and recording",
-    "description": "Open source and built around a portable engine, with native UI on each platform VivyShot ships on.",
+    "description": "Open source and built as a native macOS app for capture, annotation, recording, and export.",
     "productTitle": "Product",
     "resourcesTitle": "Resources",
     "navWhy": "What makes it different",

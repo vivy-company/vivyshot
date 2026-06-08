@@ -3,7 +3,7 @@
 - Status: Active Draft
 - Date: 2026-04-07
 - Owner: VivyShot
-- Related: `docs/capture-history-spec.md`, `docs/video-editor-spec.md`, `macos/Sources/App/Features/Store/StoreDomain.swift`
+- Related: `docs/capture-history-spec.md`, `docs/video-editor-spec.md`, `Sources/App/Features/Store/StoreDomain.swift`
 
 ## 1. Problem Statement
 
@@ -27,7 +27,7 @@ This should be a premium, emotional-retention feature, not a remote analytics sy
 3. Gate full statistics behind paid unlock tiers, with `Lifetime` as the base unlock and `Supporter` inheriting all `Lifetime` capabilities.
 4. Keep capture-time write overhead negligible.
 5. Reuse existing history/capture events where practical instead of inventing a second full media index.
-6. Keep semantics identical across all official surfaces.
+6. Keep semantics consistent across app flows that emit statistics events.
 
 ## 3. Non-Goals (Initial Ship)
 
@@ -61,21 +61,20 @@ Rules:
 2. No third-party analytics SDK dependency.
 3. No inspection of unrelated user files outside VivyShot-managed flows.
 
-### 4.3 Ownership Split
+### 4.3 Ownership
 
-Statistics are a **Rust-core domain with surface-owned adapters**.
+Statistics are a **Swift-owned macOS app domain**.
 
-Rust core owns:
+The macOS app owns:
 
 1. statistics event schema
 2. aggregation rules
 3. streak logic
 4. daily rollup logic
 5. query/projection logic for summary cards and graph buckets
-6. cross-surface canonical semantics
-7. canonical time-bucketing policy
+6. canonical time-bucketing policy
 
-Surface owns:
+The app also owns:
 
 1. detecting successful capture lifecycle events
 2. entitlement checks
@@ -83,28 +82,27 @@ Surface owns:
 4. storage backend implementation and file path selection
 5. scheduling compaction, reset, and migration hooks
 
-## 5. Why This Should Live In Rust Core
+## 5. Why This Should Stay App-Owned
 
-The repo goal is to keep shared behavior in the Rust core when it should remain identical across macOS, Windows, and Linux.
+The statistics feature is local, macOS-only, and tightly coupled to capture history, entitlements, settings, and app presentation.
 
-Capture statistics fit that boundary if they are modeled correctly:
+Capture statistics should still be modeled clearly:
 
 1. The canonical meaning of a screenshot capture, completed recording, streak day, daily bucket, and byte accounting should not drift by surface.
-2. The daily graph and streak math should be identical across platforms.
-3. Lifetime aggregates should be reconstructible and queryable from a shared domain engine.
-4. Future surfaces should not re-implement and subtly diverge on idempotency, day-boundary semantics, or counting rules.
-5. Timezone and DST handling should be deterministic across platforms.
+2. The daily graph and streak math should be deterministic.
+3. Lifetime aggregates should be reconstructible and queryable from a durable local event ledger.
+4. Timezone and DST handling should be deterministic.
 
-The correct split is therefore not "surface-only stats". The correct split is:
+The correct split is therefore:
 
-1. Rust core owns the statistics engine.
-2. Surface feeds normalized events into that engine.
-3. Surface stores the engine state using a platform-local persistence adapter.
+1. Swift domain code owns the statistics engine.
+2. Capture flows feed normalized events into that engine.
+3. SQLite stores the event ledger and derived projections.
 
 This also resolves the mismatch with `docs/capture-history-spec.md`:
 
 1. History remains retention-bound recent-media indexing.
-2. Statistics becomes a separate long-lived core-owned domain that can outlive history retention.
+2. Statistics becomes a separate long-lived app-owned domain that can outlive history retention.
 
 ## 6. UX Specification
 
@@ -247,7 +245,7 @@ Rules:
 1. Count only sessions that have both a valid start and a qualifying finish.
 2. Do not count abandoned editor sessions in the average.
 3. Do not count later reopen-from-history actions as part of the original screenshot completion time.
-4. If idle-time filtering is added later, it must be applied consistently across all surfaces.
+4. If idle-time filtering is added later, it must be applied consistently across all screenshot completion paths.
 5. Instant screenshot flows that never enter the editor are excluded from this metric in v1.
 6. UI copy must not imply that this metric covers all screenshot workflows.
 
@@ -255,14 +253,14 @@ Rules:
 
 ### 8.1 Source Of Truth
 
-For v1, the source of truth is a **Rust-core statistics domain** persisted by the host surface.
+For v1, the source of truth is a **Swift statistics domain** persisted by the macOS app.
 
 Preferred write flow:
 
-1. Capture/recording finishes on the host surface.
-2. Surface normalizes the result into a core-defined statistics event.
-3. Rust core ingests the event and updates statistics state.
-4. Surface persists the updated state or core-generated mutation through its storage adapter.
+1. Capture/recording finishes in the app.
+2. The capture flow normalizes the result into a statistics event.
+3. The statistics engine ingests the event and updates statistics state.
+4. The app persists the updated state through its storage adapter.
 5. History writer may separately record recent-media history entries.
 
 ### 8.2 Relationship To Capture History
@@ -288,11 +286,11 @@ Suggested path:
 
 1. `Application Support/VivyShot/history/history.sqlite`
 
-macOS may store statistics in the same DB initially, but the domain model and schema semantics are defined by Rust core rather than by Swift-only code.
+macOS may store statistics in the same DB initially, but the domain model and schema semantics remain logically separate from recent history rows.
 
 ### 8.4 Core Engine Model
 
-Rust core should expose:
+Swift domain code should expose:
 
 1. event input types
 2. aggregate state types
@@ -301,25 +299,25 @@ Rust core should expose:
 5. graph projection functions
 6. reset and backfill helpers
 
-Preferred architecture inside `vivyshot-core`:
+Preferred architecture:
 
 1. pure deterministic functions over explicit state
-2. no direct SQLite dependency in the core crate
-3. no store entitlement logic in core
-4. no surface UI types in core
-5. no surface-owned day-bucket derivation in core inputs
+2. storage adapters keep SQLite concerns separate from aggregation logic
+3. no store entitlement logic in the aggregation engine
+4. no UI types in the aggregation engine
+5. no caller-owned day-bucket derivation in event inputs
 
-### 8.5 Core/Surface Contract
+### 8.5 Event Delivery Contract
 
 #### 8.5.1 Delivery Semantics
 
-Surface-to-core delivery uses an **at-least-once** contract.
+Capture-flow-to-statistics delivery uses an **at-least-once** contract.
 
 Rules:
 
-1. Surface emits events only after the corresponding host-side action has succeeded.
-2. Surface may retry the same event after crash/restart or uncertain commit state.
-3. Rust core must treat duplicate `event_key` values as a no-op and report whether an event was newly applied.
+1. Capture flows emit events only after the corresponding action has succeeded.
+2. The app may retry the same event after crash/restart or uncertain commit state.
+3. The statistics engine must treat duplicate `event_key` values as a no-op and report whether an event was newly applied.
 4. Live ingestion may use one-event-at-a-time delivery in v1.
 5. Batch ingestion is optional, but if added later it must preserve the same event semantics as repeated single-event ingestion.
 
@@ -327,10 +325,10 @@ Rules:
 
 Rules:
 
-1. For normal live operation, surface should deliver events in nondecreasing `occurredAtMs`.
+1. For normal live operation, capture flows should deliver events in nondecreasing `occurredAtMs`.
 2. If both screenshot events exist for the same `captureId`, `screenshotCaptured` must not have a later `occurredAtMs` than `screenshotSessionCompleted`.
 3. Duplicate `event_key` values are never an error; they are a deterministic no-op.
-4. If a surface needs to insert older historical events after newer live events were already applied, it must trigger a projection rebuild from the authoritative event ledger.
+4. If the app needs to insert older historical events after newer live events were already applied, it must trigger a projection rebuild from the authoritative event ledger.
 5. Rebuild replay order is fixed as `occurred_at_ms ASC, event_key ASC`.
 
 #### 8.5.3 Persistence Authority
@@ -339,38 +337,33 @@ Authority split:
 
 1. `stats_ingested_events` is the authoritative durable ledger for correctness and rebuild.
 2. `stats_lifetime_totals` and `stats_daily_capture` are derived projections optimized for reads.
-3. Rust core owns semantic validation and projection derivation.
-4. Surface owns physical storage, SQLite transactions, schema migration, and file location.
+3. The statistics engine owns semantic validation and projection derivation.
+4. The storage layer owns physical storage, SQLite transactions, schema migration, and file location.
 5. If the ledger and projections disagree, the ledger wins and projections must be rebuilt.
 
 #### 8.5.4 Replay And Rebuild Rules
 
 Rules:
 
-1. Surface may hydrate a Rust stats session from persisted snapshot/projection state as a startup optimization.
+1. The app may hydrate a statistics session from persisted snapshot/projection state as a startup optimization.
 2. The canonical recovery path is replay from `stats_ingested_events`.
-3. If projection rows are missing, corrupt, or version-incompatible, surface must discard projections and rebuild from the authoritative ledger.
+3. If projection rows are missing, corrupt, or version-incompatible, the app must discard projections and rebuild from the authoritative ledger.
 4. `Reset Statistics…` clears both the authoritative event ledger and all derived projections.
-5. Replay must be deterministic and produce the same totals, streaks, and daily buckets on every official surface.
+5. Replay must be deterministic and produce the same totals, streaks, and daily buckets every time.
 
-#### 8.5.5 Concrete FFI / Session API Shape
+#### 8.5.5 Concrete Session API Shape
 
-The statistics engine should follow the existing session-oriented FFI style already used for video and timeline domains.
+The statistics engine should expose an ordinary Swift session API.
 
 Minimum v1 API shape:
 
 ```text
-vs_stats_session_create() -> handle
-vs_stats_session_destroy(handle)
-
-vs_stats_session_ingest_event(handle, event, out_applied) -> status
-vs_stats_session_get_summary(handle, out_summary) -> status
-vs_stats_session_get_recent_daily_buckets(handle, day_count, out_ptr, out_cap, out_written) -> status
-vs_stats_session_get_all_daily_buckets(handle, out_ptr, out_cap, out_written) -> status
-vs_stats_session_reset(handle) -> status
-
-vs_stats_session_serialize_json(handle, out_ptr, out_len, out_written) -> status
-vs_stats_session_deserialize_json(json_ptr, json_len) -> handle
+StatisticsSession.ingest(event) -> applied
+StatisticsSession.summary() -> StatisticsSummary
+StatisticsSession.recentDailyBuckets(dayCount) -> [StatisticsDailyBucket]
+StatisticsSession.allDailyBuckets() -> [StatisticsDailyBucket]
+StatisticsSession.reset()
+StatisticsSession.snapshot() -> StatisticsSnapshot
 ```
 
 Contract rules:
@@ -378,7 +371,7 @@ Contract rules:
 1. `ingest_event` returns whether the event changed state so the surface can avoid redundant projection writes.
 2. Daily-bucket query results must be returned in ascending canonical day order.
 3. JSON serialization is an optimization for session snapshot persistence, not a replacement for the authoritative event ledger.
-4. FFI types must remain control-plane only; no raw media bytes cross this boundary.
+4. No raw media bytes are needed for statistics.
 
 ## 9. Persistence Specification
 
@@ -458,12 +451,12 @@ Rules:
 1. `event_key` must be namespaced by event type.
 2. Different event types for the same capture session must not collide.
 3. The same logical event retried on the same surface must reuse the same `event_key`.
-4. Cross-surface implementations must preserve the same key semantics.
+4. All event producers must preserve the same key semantics.
 5. `captureId` is the shared logical identifier across events in the same screenshot flow.
 
-### 9.3 Core Event Model
+### 9.3 Event Model
 
-Rust core should define a normalized input shape similar to:
+The statistics engine should define a normalized input shape similar to:
 
 ```text
 StatisticsEvent {
@@ -478,28 +471,28 @@ StatisticsEvent {
 }
 ```
 
-Surface is responsible for:
+Capture flows are responsible for:
 
 1. generating stable event keys
 2. providing the capture timestamp and timezone offset at the moment of the event
 3. ensuring only successful capture outcomes are emitted
 4. measuring screenshot completion duration from editor entry to qualifying finish
 
-Rust core is responsible for:
+The statistics engine is responsible for:
 
 1. deriving canonical `dayKey` from `occurredAtMs` and `timezoneOffsetMinutes`
-2. applying the same day-bucketing logic on every surface
+2. applying the same day-bucketing logic for every event source
 3. evaluating streak transitions from canonical day keys
 4. returning deterministic projections after ingest or replay
 
 ### 9.4 Canonical Day-Bucketing Policy
 
-Daily buckets and streaks must be derived in Rust core, not by surfaces.
+Daily buckets and streaks must be derived by the statistics engine, not by individual event producers.
 
 Rule set:
 
 1. Each event carries `occurredAtMs` plus `timezoneOffsetMinutes` captured at event time.
-2. Rust core derives the local calendar day key from those two values.
+2. The statistics engine derives the local calendar day key from those two values.
 3. Day key format is fixed as `YYYY-MM-DD`.
 4. If the user travels or DST changes occur, the bucket is based on the offset attached to the original event.
 5. Reprojection must be deterministic when rebuilding aggregates from stored events.
@@ -520,7 +513,7 @@ When ingesting a new day:
 
 ## 10. Read APIs and Projections
 
-Rust core should expose read models such as:
+The statistics engine should expose read models such as:
 
 ```text
 StatisticsSummaryViewModel
@@ -528,9 +521,7 @@ StatisticsDailyGraphPoint
 StatisticsMilestoneViewModel
 ```
 
-Surface may map these core projections into native UI view models.
-
-FFI additions are expected for v1 if macOS consumes the statistics engine through the existing C ABI boundary.
+UI code may map these projections into view models.
 
 The summary projection should expose an explicitly named field such as:
 
@@ -577,7 +568,7 @@ Avoid hostile UX:
    - p95 < 120 ms for 1 year of daily buckets
 3. Writes must be crash-safe and idempotent.
 4. Stats corruption must not block capture flow.
-5. Rebuilding projections from persisted events or state must be deterministic across surfaces.
+5. Rebuilding projections from persisted events or state must be deterministic.
 
 ## 14. Privacy and Data Handling
 

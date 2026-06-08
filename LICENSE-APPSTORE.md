@@ -17,17 +17,9 @@ Use of App Store binaries is governed by:
 
 ## Source Code License
 
-Source code in this repository uses a split model:
-
-- Rust core + generated FFI header (`vivyshot-rs/`, `ffi/`): MIT (`LICENSE-MIT`, `vivyshot-rs/LICENSE`, `ffi/LICENSE`)
-- macOS app sources (`macos/`): GPL-3.0-only (`macos/LICENSE`, `LICENSE-GPL-3.0`)
+The macOS app sources are licensed under GPL-3.0-only (`LICENSE-GPL-3.0`).
 
 ## License Summary
 
-- Rust core source: MIT
 - macOS app source: GPL-3.0-only
 - Official App Store binaries: App Store EULA + VivyShot product terms
-
-## Third-Party Software
-
-Third-party notices for bundled dependencies are provided in `THIRD_PARTY_NOTICES.md`.

@@ -3,25 +3,23 @@
 [![macOS](https://img.shields.io/badge/macOS-15.2+-black?style=flat-square&logo=apple)](#requirements)
 [![Website](https://img.shields.io/badge/Website-vivyshot.com-0a66c2?style=flat-square)](https://vivyshot.com)
 [![Swift](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift&logoColor=white)](https://swift.org)
-[![Rust](https://img.shields.io/badge/Rust-stable-000000?style=flat-square&logo=rust)](https://www.rust-lang.org)
-[![Rust Core License](https://img.shields.io/badge/Rust%20Core-MIT-green?style=flat-square)](LICENSE-MIT)
 [![macOS License](https://img.shields.io/badge/macOS-GPL%203.0-blue?style=flat-square)](LICENSE-GPL-3.0)
 [![Binary License](https://img.shields.io/badge/Binary-App%20Store%20EULA-6e7681?style=flat-square)](LICENSE-APPSTORE.md)
 [![App Store](https://img.shields.io/badge/App%20Store-Download-0a84ff?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/us/app/id6760658121)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ff69b4?style=flat-square&logo=github)](https://github.com/sponsors/vivy-company)
 
-Open source screen capture, annotation, and recording software with a portable Rust core and a native macOS app today.
+Open source screen capture, annotation, and recording software built as a native Swift macOS app.
 
 ![VivyShot screenshot](web/public/screenshot.png)
 
 ## What Is VivyShot?
 
-VivyShot is a focused screenshot and recording tool for people who want to capture something, mark it up, copy it, and move on. It is built around a portable Rust core for shared geometry, timeline, and export logic, with a native macOS app as the official surface today.
+VivyShot is a focused screenshot and recording tool for people who want to capture something, mark it up, copy it, and move on. It is built directly on Apple frameworks so the capture, editing, and export flow can stay native, simple, and maintainable.
 
 The product direction is straightforward:
 
 - Keep the workflow simple and keyboard-friendly.
-- Keep the UI native on each platform instead of stretching one generic shell everywhere.
+- Keep the UI native to macOS.
 - Keep the project open source and inspectable.
 - Keep pricing simple: free forever for the core workflow, with one-time upgrades instead of a subscription.
 
@@ -39,16 +37,9 @@ The product direction is straightforward:
 - Recording options for audio and input overlays
 
 ### Architecture
-- Native macOS host app in SwiftUI (`macos/`)
-- Portable Rust core + C ABI (`vivyshot-rs/` + `ffi/vivyshot_core.h`)
-- ABI contract tests and property tests around the shared core
-
-## Surface Strategy
-
-- Core engine in Rust (`vivyshot-rs`) is intentionally surface-agnostic.
-- Stable C ABI (`ffi/vivyshot_core.h`) is used to integrate with app surfaces.
-- Official supported surface today: macOS (`macos/`).
-- More native desktop surfaces are planned over time.
+- Native macOS app in SwiftUI and AppKit
+- Direct integration with ScreenCaptureKit, AVFoundation, CoreGraphics, and ImageIO
+- App-owned annotation, recording, review, export, settings, and store behavior
 
 ## Distribution And Pricing
 
@@ -64,8 +55,6 @@ The product direction is straightforward:
 
 - macOS 15.2+
 - Xcode 16.0+
-- Rust stable toolchain
-- `cbindgen` (`cargo install cbindgen`)
 
 ## Build From Source
 
@@ -73,59 +62,28 @@ The product direction is straightforward:
 git clone https://github.com/vivy-company/vivyshot.git
 cd vivyshot
 
-# Build universal Rust static library used by Xcode targets.
-./scripts/build-rust-universal.sh
-
-# (Optional) Regenerate C header after FFI changes.
-./scripts/gen-ffi.sh
-
 # Open in Xcode.
-open macos/VivyShot.xcodeproj
+open VivyShot.xcodeproj
 ```
 
 ## Test And CI Commands
 
 ```bash
-# Rust checks
-cd vivyshot-rs
-cargo fmt --all --check
-cargo clippy -p vivyshot-core --all-targets -- -D warnings
-cargo clippy -p vivyshot-ffi --all-targets -- -D warnings
-cargo test --workspace
-
-# FFI and perf gate (from repo root)
-./scripts/gen-ffi.sh
-./scripts/ci-bench-gate.sh 20
-./scripts/ci-perf-gate.sh 20
+xcodebuild -project VivyShot.xcodeproj -scheme VivyShot -configuration Debug -destination 'platform=macOS' build
+plutil -lint Resources/*.lproj/Localizable.strings
 ```
-
-`ci-bench-gate.sh` enforces by default:
-- Document benchmark (`memory_bench`):
-  `avg_ms_per_session <= 180`, `p95_ms_per_session <= 280`,
-  `baseline_rss_mb <= 100`, `peak_rss_mb <= 200`
-- Screenshot benchmark (`screenshot_bench`):
-  `avg_ms_per_session <= 100`, `p95_ms_per_session <= 140`,
-  `baseline_rss_mb <= 100`, `peak_rss_mb <= 200`
-
-Override with environment variables:
-`VIVYSHOT_DOC_BENCH_MAX_AVG_MS`, `VIVYSHOT_DOC_BENCH_MAX_P95_MS`,
-`VIVYSHOT_DOC_BENCH_MAX_BASELINE_RSS_MB`, `VIVYSHOT_DOC_BENCH_MAX_PEAK_RSS_MB`,
-`VIVYSHOT_SHOT_BENCH_MAX_AVG_MS`, `VIVYSHOT_SHOT_BENCH_MAX_P95_MS`,
-`VIVYSHOT_SHOT_BENCH_MAX_BASELINE_RSS_MB`, `VIVYSHOT_SHOT_BENCH_MAX_PEAK_RSS_MB`.
 
 ## Repository Layout
 
 ```text
-macos/          # SwiftUI macOS app
-vivyshot-rs/    # Rust workspace: core + FFI adapter
-ffi/            # Generated C header for ABI boundary
-scripts/        # Build/test/dev scripts
+Sources/        # SwiftUI/AppKit macOS app sources
+Resources/      # App assets, localizations, privacy, and StoreKit config
+Config/         # Info.plist and entitlements
+Tests/          # Unit tests
 docs/           # Specs and engineering notes
+web/            # VivyShot website
+scripts/        # Development and release scripts
 ```
-
-## Third-Party Notices
-
-See `THIRD_PARTY_NOTICES.md`.
 
 ## Contributing
 
@@ -137,10 +95,7 @@ See `SECURITY.md` for vulnerability reporting guidelines.
 
 ## License
 
-VivyShot uses a split source-license model:
-
-- Rust core + generated FFI header (`vivyshot-rs/`, `ffi/`): MIT (`LICENSE-MIT`, `vivyshot-rs/LICENSE`, `ffi/LICENSE`)
-- macOS app sources (`macos/`): GPL-3.0-only (`macos/LICENSE`, `LICENSE-GPL-3.0`)
+- Source code: GPL-3.0-only (`LICENSE-GPL-3.0`)
 - Official App Store binaries: App Store EULA + VivyShot binary terms (`LICENSE-APPSTORE.md`)
 
 If you obtain VivyShot via Apple's App Store, App Store EULA and binary terms apply to that binary distribution.

@@ -13,7 +13,7 @@ export const SITE = {
   appStoreUrl: "https://apps.apple.com/us/app/id6760658121",
   title: "VivyShot",
   description:
-    "VivyShot is an open source screenshot, annotation, and recording app built to stay simple, fast, and native on each platform.",
+    "VivyShot is an open source screenshot, annotation, and recording app built to stay simple, fast, and native on macOS.",
   downloadUrl: "https://apps.apple.com/us/app/id6760658121",
   githubUrl: "https://github.com/vivy-company/vivyshot",
   themeStorageKey: "vivyshot-theme",
@@ -29,7 +29,7 @@ export const softwareSchema = {
   applicationCategory: "GraphicsApplication",
   operatingSystem: "macOS",
   description:
-    "Open source screenshot, annotation, and recording software built to stay simple, fast, and native on each platform.",
+    "Open source screenshot, annotation, and recording software built to stay simple, fast, and native on macOS.",
   url: "https://vivyshot.com/",
   downloadUrl: "https://apps.apple.com/us/app/id6760658121",
   image: "https://vivyshot.com/og.png",
@@ -45,8 +45,7 @@ export const softwareSchema = {
     "Export-focused editing",
     "Open source",
     "Focused daily workflow",
-    "Portable engine",
-    "Native platform UI",
+    "Native macOS UI",
   ],
 };
 

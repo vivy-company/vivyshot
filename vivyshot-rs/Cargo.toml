@@ -1,9 +1,0 @@
-[workspace]
-resolver = "2"
-members = [
-  "crates/vivyshot-core",
-  "crates/vivyshot-ffi",
-]
-
-[profile.release]
-panic = "abort"

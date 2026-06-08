@@ -5,8 +5,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_IMAGE="$ROOT_DIR/docs/branding/logo.png"
 WEB_LOGO="$ROOT_DIR/web/public/logo.png"
-APPICON_DIR="$ROOT_DIR/macos/Resources/Assets.xcassets/AppIcon.appiconset"
-ICNS_PATH="$ROOT_DIR/macos/Resources/AppIcon.icns"
+APPICON_DIR="$ROOT_DIR/Resources/Assets.xcassets/AppIcon.appiconset"
+ICNS_PATH="$ROOT_DIR/Resources/AppIcon.icns"
 
 if [[ ! -f "$SOURCE_IMAGE" ]]; then
   echo "missing source image: $SOURCE_IMAGE" >&2

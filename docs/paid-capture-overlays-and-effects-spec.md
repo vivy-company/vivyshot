@@ -8,13 +8,12 @@
 - Related:
   - `docs/video-editor-spec.md`
   - `docs/post-recording-export-options-spec.md`
-  - `macos/Sources/App/Features/Capture/VideoCaptureComponents.swift`
-  - `macos/Sources/App/Features/Capture/VideoCaptureUI.swift`
-  - `macos/Sources/App/Features/RegionSelection/RegionSelectionOverlay.swift`
-  - `macos/Sources/App/Features/Settings/SettingsWindowController.swift`
-  - `macos/Sources/App/Features/Store/StoreDomain.swift`
-  - `macos/Sources/App/Features/Store/StoreViews.swift`
-  - `vivyshot-rs/crates/vivyshot-core/src/video.rs`
+  - `Sources/App/Features/Capture/RecordingComponents.swift`
+  - `Sources/App/Features/Capture/RecordingReviewUI.swift`
+  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay.swift`
+  - `Sources/App/Features/Settings/SettingsWindowController.swift`
+  - `Sources/App/Features/Store/StoreDomain.swift`
+  - `Sources/App/Features/Store/StoreViews.swift`
 
 This document describes the first lock-first paid-feature implementation. The current product direction is now preview-first with a central Pro export gate. Use `docs/pro-preview-and-export-trial-spec.md` for future implementation decisions.
 
@@ -130,14 +129,14 @@ The current app has hidden flags for:
    - `captureTransitionEffectsVisible`
    - `captureTransitionEffectsEnabled`
 2. Microphone recording:
-   - `videoMicrophoneFeatureVisible`
-   - `videoMicrophoneFeatureEnabled`
+   - `microphoneFeatureVisible`
+   - `microphoneFeatureEnabled`
 3. Webcam overlay:
-   - `videoWebcamFeatureVisible`
-   - `videoWebcamFeatureEnabled`
+   - `webcamFeatureVisible`
+   - `webcamFeatureEnabled`
 4. Keystroke highlights:
-   - `videoKeystrokesFeatureVisible`
-   - `videoKeystrokesFeatureEnabled`
+   - `keystrokesFeatureVisible`
+   - `keystrokesFeatureEnabled`
 5. Scrolling capture:
    - `stitchCaptureFeatureVisible`
 
@@ -151,8 +150,8 @@ Already present:
 2. Toolbar tool definitions for microphone, webcam, mouse clicks, keystrokes, and countdown.
 3. Webcam recorder that records a separate camera asset.
 4. Input monitor that records keystroke and mouse click events.
-5. Rust timeline/export concepts for webcam, audio, text overlays, key overlays, and custom compositor decisions.
-6. Rust GIF export planning helpers.
+5. Existing video/export concepts for webcam, audio, text overlays, key overlays, and custom compositor decisions.
+6. Existing GIF export planning helpers.
 7. Post-recording export gating for HEVC, 60 fps, high quality, and high bitrate.
 
 ### 4.3 Missing Production Pieces
@@ -324,7 +323,7 @@ Export:
 1. Render keystroke labels over MP4/HEVC/GIF exports.
 2. Label timing must be derived from recorded key event timestamps.
 3. Consecutive keys should combine or replace in a predictable way rather than flooding the screen.
-4. Use Rust layout/timing helpers as the source of truth where available.
+4. Use shared Swift layout/timing helpers as the source of truth.
 
 ### 5.5 GIF Export
 
@@ -337,7 +336,7 @@ Post-recording UI:
 
 Export policy:
 
-1. Use Rust GIF plan helpers for frame rate, frame count, max dimension, and frame timing.
+1. Use Swift GIF plan helpers for frame rate, frame count, max dimension, and frame timing.
 2. Keep hard guardrails:
    - max duration
    - max dimension
@@ -349,7 +348,7 @@ Export policy:
 
 ### 6.1 Source Of Truth
 
-Rust core remains the source of truth for:
+Swift domain code remains the source of truth for:
 
 1. Overlay geometry normalization.
 2. Overlay timing decisions.
@@ -357,7 +356,7 @@ Rust core remains the source of truth for:
 4. GIF export planning.
 5. Whether export requires custom composition.
 
-macOS remains responsible for:
+The macOS app remains responsible for:
 
 1. ScreenCaptureKit recording.
 2. Camera capture.
@@ -390,8 +389,8 @@ All capture-region-dependent data should be normalized so resizing/export scalin
 
 Current problem:
 
-1. `VideoCaptureCoordinator` records webcam/key/click data.
-2. `rustVideoSession` is cleared before export.
+1. `RecordingCoordinator` records webcam/key/click data.
+2. Post-recording metadata is not consistently carried into export.
 3. `quickSaveVideo` only receives the screen recording URL and export options.
 
 Required flow:
@@ -446,7 +445,7 @@ Rules:
 
 1. If no overlays are present, GIF can sample the source recording directly.
 2. If overlays are present, GIF samples the composed video frames.
-3. Use Rust GIF plan helpers for deterministic frame timing.
+3. Use Swift GIF plan helpers for deterministic frame timing.
 4. Exported GIF must match the preview placement and overlay shape.
 
 ## 7. Paid Gate UX
@@ -623,14 +622,13 @@ Acceptance:
 
 Build validation:
 
-1. `xcodebuild -project macos/VivyShot.xcodeproj -scheme VivyShot -configuration Release -derivedDataPath .build/DerivedData build`
+1. `xcodebuild -project VivyShot.xcodeproj -scheme VivyShot -configuration Release -derivedDataPath .build/DerivedData build`
 2. `./scripts/install-macos-release.sh`
 
-Core validation:
+Domain validation:
 
-1. Rust unit tests for overlay geometry and timing helpers.
-2. FFI contract tests if ABI changes are needed.
-3. Swift tests for paid gate normalization and export plan decisions.
+1. Swift tests for overlay geometry and timing helpers.
+2. Swift tests for paid gate normalization and export plan decisions.
 
 Manual validation:
 

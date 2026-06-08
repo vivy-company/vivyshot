@@ -6,10 +6,10 @@
 - Related:
   - `docs/pro-preview-and-export-trial-spec.md`
   - `docs/post-recording-export-options-spec.md`
-  - `macos/Sources/App/Features/Capture/VideoCaptureUI.swift`
-  - `macos/Sources/App/Features/Capture/VideoCaptureComponents.swift`
-  - `macos/Sources/App/Features/RegionSelection/RegionSelectionOverlayController.swift`
-  - `macos/Sources/App/Shared/UI/CaptureGlassViews.swift`
+  - `Sources/App/Features/Capture/RecordingReviewUI.swift`
+  - `Sources/App/Features/Capture/RecordingComponents.swift`
+  - `Sources/App/Features/RegionSelection/RegionSelectionOverlayController.swift`
+  - `Sources/App/Shared/UI/CaptureGlassViews.swift`
 
 ## 1. Product Goal
 
@@ -330,7 +330,7 @@ enum RecordingWindowCaptureRole {
 
 The screen recorder should receive only the `NSWindow.windowNumber` values for `.capturedContentOverlay` windows.
 
-### 6.2 Resolving Overlay Windows
+### 6.2 Resolving Overlay Window Objects
 
 `SCContentFilter` requires `SCWindow` objects in `exceptingWindows`.
 
@@ -355,7 +355,7 @@ This is better than creating a file that looks different from what the user saw.
 `ScreenRegionRecorder.start(...)` should accept a list of captured overlay window IDs:
 
 ```swift
-struct VideoRecordingConfig {
+struct RecordingConfig {
   ...
   var capturedOverlayWindowIDs: [CGWindowID]
 }
@@ -367,7 +367,7 @@ or:
 func start(
   selectionRectInScreen: CGRect,
   outputURL: URL,
-  config: VideoRecordingConfig,
+  config: RecordingConfig,
   capturedOverlayWindows: [NSWindow]
 ) async throws
 ```
@@ -404,20 +404,20 @@ No overlay visibility booleans in v1.
 
 Initialize `isOutputAudioEnabled` from `PostRecordingDetails` or asset track inspection. If the recording has no audio, force it to `false` and hide the speaker toggle.
 
-### 6.6 Rust Core Role
+### 6.6 App Domain Role
 
-Rust remains useful for:
+Swift domain helpers remain useful for:
 
 1. Trim range normalization.
 2. GIF frame timing.
 3. Export policy/pro requirement calculation, including audio visibility.
-4. Future non-burned editor features.
+4. Future editor features.
 
-Rust does not need to render webcam/keystroke overlays for v1 burn-in output.
+The review path does not need to render duplicate webcam/keystroke overlays for v1 burn-in output.
 
 ## 7. Implementation Plan
 
-### Slice 1: Split Overlay Windows
+### Slice 1: Split Overlay Window Responsibilities
 
 1. Rename/refactor current `RecordingOverlayController` into content overlay responsibilities.
 2. Ensure captured content overlay contains only webcam/keystroke visual content.
@@ -441,7 +441,7 @@ Rust does not need to render webcam/keystroke overlays for v1 burn-in output.
 
 1. Add `Trim` as a bottom playback-bar toggle.
 2. Replace settings-style sliders with one timeline and draggable start/end handles.
-3. Use `RustCoreBridge.normalizeTrimRange(...)`.
+3. Use a shared Swift trim-normalization helper.
 4. Clamp playback to trim range.
 
 ### Slice 5: Bottom Sound Tool
@@ -506,10 +506,9 @@ Rust does not need to render webcam/keystroke overlays for v1 burn-in output.
 
 Automated:
 
-1. `cargo test -p vivyshot-core`
-2. `cargo test -p vivyshot-ffi`
-3. `plutil -lint macos/Resources/*.lproj/Localizable.strings`
-4. `./scripts/install-macos-release.sh`
+1. `xcodebuild -project VivyShot.xcodeproj -scheme VivyShot -configuration Debug -destination 'platform=macOS' build`
+2. `plutil -lint Resources/*.lproj/Localizable.strings`
+3. `./scripts/install-macos-release.sh`
 
 Manual:
 

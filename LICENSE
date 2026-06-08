@@ -1,13 +1,9 @@
 VivyShot Source License Summary
 
-VivyShot uses a split source-license model. This repository-level file is a
-summary only; it is not a single source license covering every file in the
-repository.
+VivyShot app and website sources in this repository are licensed under GNU
+General Public License v3.0 only unless a file carries a more specific notice.
 
-- Rust core and generated FFI header sources (`vivyshot-rs/`, `ffi/`): MIT.
-  See `LICENSE-MIT`, `vivyshot-rs/LICENSE`, and `ffi/LICENSE`.
-- macOS app sources (`macos/`): GNU General Public License v3.0 only.
-  See `LICENSE-GPL-3.0` and `macos/LICENSE`.
+- Source license: GNU General Public License v3.0 only. See `LICENSE-GPL-3.0`.
 - Official App Store binaries: Apple's App Store EULA plus VivyShot binary
   terms. See `LICENSE-APPSTORE.md`.
 

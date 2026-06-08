@@ -12,18 +12,18 @@
   },
   "why": {
     "title": "Was den Unterschied macht",
-    "subtitle": "Einfach zu benutzen, auf jeder Plattform nativ, portabel gedacht und von Anfang an Open Source.",
+    "subtitle": "Einfach zu benutzen, nativ für macOS und von Anfang an Open Source.",
     "native": {
       "title": "Einfach",
       "desc": "Für einen direkten Ablauf gebaut: <kbd>⌘ ⇧ C</kbd> drücken, Bereich wählen, <kbd>⌘ C</kbd> drücken und teilen."
     },
     "modern": {
       "title": "Nativ",
-      "desc": "Jede Plattform bekommt ihre eigene native UI, damit sich VivyShot überall richtig anfühlt."
+      "desc": "Mit nativer macOS-Oberfläche gebaut, damit sich VivyShot dort richtig anfühlt."
     },
     "sync": {
-      "title": "Portabel",
-      "desc": "Eine gemeinsame Engine hält das Verhalten plattformübergreifend konsistent und erleichtert die Erweiterung auf weitere Geräte."
+      "title": "Fokussiert",
+      "desc": "Die App konzentriert sich auf schnelle Captures, Annotation, Recording und Export statt auf mehrere Plattformen."
     },
     "pricing": {
       "title": "Open Source",
@@ -42,8 +42,8 @@
       "desc": "Einfache Nachbearbeitung nach dem Capture ergänzen."
     },
     "later": {
-      "title": "Mehr Plattformen",
-      "desc": "Auf weitere native Desktop-Plattformen bringen."
+      "title": "Polish",
+      "desc": "Den macOS-Workflow und die Exportqualität weiter verfeinern."
     }
   },
   "features": {
@@ -207,7 +207,7 @@
     },
     "q3": {
       "question": "Nativ ist wichtig",
-      "answer": "Ich will keine schwere Oberfläche, die überall erzwungen wird. Die App soll sich dort richtig anfühlen, wo sie läuft."
+      "answer": "Ich will eine App, die sich auf macOS richtig anfühlt, statt das System hinter einer generischen Oberfläche zu verstecken."
     },
     "q4": {
       "question": "Nützlich bleiben",
@@ -216,12 +216,12 @@
   },
   "closing": {
     "title": "Jetzt auf macOS verfügbar.",
-    "subtitle": "Native Oberfläche auf jeder Plattform, auf der VivyShot erscheint.",
+    "subtitle": "Native macOS-Oberfläche für Capture, Annotation, Recording und Export.",
     "cta": "Download"
   },
   "footer": {
     "tagline": "Screen Capture, Annotation und Recording",
-    "description": "Open Source und auf einer portablen Engine aufgebaut, mit nativer UI auf jeder Plattform, auf der VivyShot erscheint.",
+    "description": "Open Source und als native macOS-App für Capture, Annotation, Recording und Export gebaut.",
     "productTitle": "Produkt",
     "resourcesTitle": "Ressourcen",
     "navWhy": "Was den Unterschied macht",
