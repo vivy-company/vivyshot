@@ -1,0 +1,13 @@
+[package]
+name = "vivyshot-capture"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/vivy-company/vivyshot"
+build = "build.rs"
+
+[lib]
+name = "vivyshot_capture"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+screencapturekit = { version = "7.0.1", features = ["macos_15_2"] }

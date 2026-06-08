@@ -80,6 +80,7 @@ struct VivyShotSettingsView: View {
   @ObservedObject private var launchAtLoginController = LaunchAtLoginController.shared
   @State private var selectedTab: SettingsTab = .general
   @State private var isRecordingShortcut = false
+  private let captureCapabilities = CaptureBackendCapabilities.load()
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
   @State private var webcamDevices: [WebcamDeviceOption] = []
   @State private var draggingScreenshotTool: AnnotationTool?
@@ -562,7 +563,7 @@ struct VivyShotSettingsView: View {
           .frame(width: 78, alignment: .leading)
         Spacer(minLength: 0)
         Picker("Recording Encoder", selection: videoRecordingEncoderBinding) {
-          ForEach(VideoRecordingEncoderOption.allCases) { encoder in
+          ForEach(videoRecordingEncoderOptions) { encoder in
             Text(encoder.title).tag(encoder)
           }
         }
@@ -601,7 +602,8 @@ struct VivyShotSettingsView: View {
 
       Toggle("Record system audio", isOn: videoRecordSystemAudioBinding)
         .toggleStyle(.switch)
-      if videoMicrophoneFeatureVisible {
+        .disabled(!captureCapabilities.systemAudio)
+      if videoMicrophoneFeatureVisible, captureCapabilities.microphoneAudio {
         Toggle("Record microphone", isOn: videoRecordMicrophoneBinding)
           .toggleStyle(.switch)
       }
@@ -1113,6 +1115,23 @@ struct VivyShotSettingsView: View {
       get: { settings.videoRecordingEncoder },
       set: { settings.setVideoRecordingEncoder($0) }
     )
+  }
+
+  private var videoRecordingEncoderOptions: [VideoRecordingEncoderOption] {
+    let supported = VideoRecordingEncoderOption.allCases.filter { encoder in
+      switch encoder {
+      case .standardH264:
+        return captureCapabilities.h264
+      case .smallerFileHEVC:
+        return captureCapabilities.hevc
+      case .cpuH264:
+        return true
+      }
+    }
+    if supported.contains(settings.videoRecordingEncoder) {
+      return supported
+    }
+    return supported + [settings.videoRecordingEncoder]
   }
 
   private var videoFrameRateBinding: Binding<VideoFrameRateOption> {

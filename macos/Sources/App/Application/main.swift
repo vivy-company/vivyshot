@@ -18,10 +18,9 @@ struct VivyShotApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @StateObject private var localizer = AppLocalizer.shared
   @StateObject private var statusController: StatusItemController
-  @StateObject private var storeManager = StoreManager.shared
 
   init() {
-    if !UITestRuntime.isEnabled {
+    if !UITestRuntime.isEnabled && !CaptureBackendSmokeRuntime.isEnabled {
       CrashReporter.shared.install()
     }
 

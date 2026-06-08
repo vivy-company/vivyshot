@@ -32,9 +32,11 @@ HEADERS_STAGING="$WORKSPACE_DIR/target/xcframework-headers"
 rm -rf "$HEADERS_STAGING"
 mkdir -p "$HEADERS_STAGING"
 cp "$FFI_HEADER_DIR/vivyshot_core.h" "$HEADERS_STAGING/"
+cp "$FFI_HEADER_DIR/vivyshot_capture.h" "$HEADERS_STAGING/"
 cat > "$HEADERS_STAGING/module.modulemap" <<'MODULEMAP'
 module VivyShotKit {
     header "vivyshot_core.h"
+    header "vivyshot_capture.h"
     export *
 }
 MODULEMAP

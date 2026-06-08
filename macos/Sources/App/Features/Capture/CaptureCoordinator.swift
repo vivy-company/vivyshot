@@ -7,7 +7,6 @@ import CoreGraphics
 import CoreMedia
 import ImageIO
 import QuartzCore
-import ScreenCaptureKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -140,47 +139,7 @@ final class CaptureCoordinator: CaptureCoordinating {
   }
 
   private func captureFrozenImage(in rect: CGRect) async throws -> CGImage {
-    guard #available(macOS 15.2, *) else {
-      throw NSError(
-        domain: "com.vivyshot.capture",
-        code: -10,
-        userInfo: [NSLocalizedDescriptionKey: "Screen capture requires macOS 15.2 or newer."]
-      )
-    }
-
-    return try await withCheckedThrowingContinuation { continuation in
-      let captureRect: CGRect
-      if let primaryHeight = NSScreen.screens.first?.frame.height {
-        captureRect = CGRect(
-          x: rect.origin.x,
-          y: primaryHeight - rect.maxY,
-          width: rect.width,
-          height: rect.height
-        )
-      } else {
-        captureRect = rect
-      }
-
-      SCScreenshotManager.captureImage(in: captureRect) { image, error in
-        if let error {
-          continuation.resume(throwing: error)
-          return
-        }
-
-        guard let image else {
-          continuation.resume(
-            throwing: NSError(
-              domain: "com.vivyshot.capture",
-              code: -11,
-              userInfo: [NSLocalizedDescriptionKey: "No image returned by ScreenCaptureKit."]
-            )
-          )
-          return
-        }
-
-        continuation.resume(returning: image)
-      }
-    }
+    try await CaptureScreenshotClient.captureImage(in: overlayCocoaRectToCGDisplayRect(rect))
   }
 
   // Build a plain BGRA-backed copy so we can drop ScreenCaptureKit surface-backed storage promptly.
