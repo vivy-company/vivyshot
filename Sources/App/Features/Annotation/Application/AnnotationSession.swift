@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import CoreImage
 import CoreText
 import Foundation
 
@@ -59,11 +60,11 @@ final class AnnotationSession {
   }
 
   func addPixelate(imageRect: CGRect) -> CGImage? {
-    append(.effect(imageRect.standardized, NSColor.black.withAlphaComponent(0.18)))
+    append(.pixelate(imageRect.standardized))
   }
 
   func addBlur(imageRect: CGRect) -> CGImage? {
-    append(.effect(imageRect.standardized, NSColor.white.withAlphaComponent(0.14)))
+    append(.blur(imageRect.standardized))
   }
 
   func undo() -> CGImage? {
@@ -131,30 +132,63 @@ final class AnnotationSession {
   }
 
   private func render() -> CGImage? {
-    guard
-      let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-      let context = CGContext(
-        data: nil,
-        width: baseImage.width,
-        height: baseImage.height,
-        bitsPerComponent: 8,
-        bytesPerRow: baseImage.width * 4,
-        space: colorSpace,
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-      )
-    else {
+    guard var context = makeContext(drawing: baseImage) else {
       return nil
     }
-    context.interpolationQuality = .high
-    context.draw(baseImage, in: CGRect(x: 0, y: 0, width: baseImage.width, height: baseImage.height))
+
     for command in commands {
-      command.draw(in: context)
+      switch command {
+      case .pixelate(let rect):
+        guard
+          let image = context.makeImage(),
+          let pixelated = ImageRegionEffect.pixelate(image, rect: rect)
+        else {
+          return nil
+        }
+        guard let nextContext = makeContext(drawing: pixelated) else {
+          return nil
+        }
+        context = nextContext
+      case .blur(let rect):
+        guard
+          let image = context.makeImage(),
+          let blurred = ImageRegionEffect.blur(image, rect: rect)
+        else {
+          return nil
+        }
+        guard let nextContext = makeContext(drawing: blurred) else {
+          return nil
+        }
+        context = nextContext
+      default:
+        command.draw(in: context)
+      }
     }
     guard let image = context.makeImage() else {
       return nil
     }
     renderedImage = image
     return image
+  }
+
+  private func makeContext(drawing image: CGImage) -> CGContext? {
+    guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+          let context = CGContext(
+      data: nil,
+      width: baseImage.width,
+      height: baseImage.height,
+      bitsPerComponent: 8,
+      bytesPerRow: baseImage.width * 4,
+      space: colorSpace,
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else {
+      return nil
+    }
+    context.interpolationQuality = .high
+    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    context.translateBy(x: 0, y: CGFloat(image.height))
+    context.scaleBy(x: 1, y: -1)
+    return context
   }
 }
 
@@ -165,23 +199,25 @@ private enum Command {
   case path([CGPoint], NSColor, CGFloat)
   case arrow(CGPoint, CGPoint, NSColor, CGFloat)
   case text(String, CGPoint, TextAnnotationStyle)
-  case effect(CGRect, NSColor)
+  case pixelate(CGRect)
+  case blur(CGRect)
 
   var kind: Int {
     switch self {
-    case .rect: return 1
-    case .ellipse: return 2
-    case .line: return 3
-    case .path: return 4
-    case .arrow: return 5
-    case .text: return 6
-    case .effect: return 7
+    case .rect(_, _, _, let filled): return filled ? 2 : 1
+    case .ellipse(_, _, _, let filled): return filled ? 4 : 3
+    case .line: return 5
+    case .arrow: return 6
+    case .path: return 7
+    case .text: return 8
+    case .pixelate: return 9
+    case .blur: return 10
     }
   }
 
   var bounds: CGRect {
     switch self {
-    case .rect(let rect, _, _, _), .ellipse(let rect, _, _, _), .effect(let rect, _):
+    case .rect(let rect, _, _, _), .ellipse(let rect, _, _, _), .pixelate(let rect), .blur(let rect):
       return rect.standardized
     case .line(let start, let end, _, let width), .arrow(let start, let end, _, let width):
       return CGRect(
@@ -257,9 +293,8 @@ private enum Command {
       context.textPosition = point
       CTLineDraw(line, context)
       context.restoreGState()
-    case .effect(let rect, let color):
-      context.setFillColor(color.cgColor)
-      context.fill(rect)
+    case .pixelate, .blur:
+      break
     }
   }
 
@@ -277,8 +312,10 @@ private enum Command {
       self = .arrow(start + delta, end + delta, color, width)
     case .text(let text, let point, let style):
       self = .text(text, point + delta, style)
-    case .effect(let rect, let color):
-      self = .effect(rect.offsetBy(dx: delta.x, dy: delta.y), color)
+    case .pixelate(let rect):
+      self = .pixelate(rect.offsetBy(dx: delta.x, dy: delta.y))
+    case .blur(let rect):
+      self = .blur(rect.offsetBy(dx: delta.x, dy: delta.y))
     }
   }
 
@@ -288,11 +325,70 @@ private enum Command {
       self = .rect(rect, color, width, filled)
     case .ellipse(_, let color, let width, let filled):
       self = .ellipse(rect, color, width, filled)
-    case .effect(_, let color):
-      self = .effect(rect, color)
+    case .pixelate:
+      self = .pixelate(rect)
+    case .blur:
+      self = .blur(rect)
     default:
       break
     }
+  }
+}
+
+private enum ImageRegionEffect {
+  private static let pixelateBlockSize = 12
+  private static let blurRadius = 4
+  private static let context = CIContext()
+
+  static func pixelate(_ image: CGImage, rect: CGRect) -> CGImage? {
+    apply(to: image, rect: rect) { input, region in
+      input
+        .cropped(to: region)
+        .applyingFilter("CIPixellate", parameters: [
+          kCIInputScaleKey: pixelateBlockSize,
+          kCIInputCenterKey: CIVector(x: region.midX, y: region.midY)
+        ])
+        .cropped(to: region)
+    }
+  }
+
+  static func blur(_ image: CGImage, rect: CGRect) -> CGImage? {
+    apply(to: image, rect: rect) { input, region in
+      let sample = region
+        .insetBy(dx: -CGFloat(blurRadius), dy: -CGFloat(blurRadius))
+        .intersection(input.extent)
+
+      return input
+        .cropped(to: sample)
+        .clampedToExtent()
+        .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: blurRadius])
+        .cropped(to: region)
+    }
+  }
+
+  private static func apply(
+    to image: CGImage,
+    rect: CGRect,
+    effect: (CIImage, CGRect) -> CIImage?
+  ) -> CGImage? {
+    let input = CIImage(cgImage: image)
+    let region = coreImageRect(fromTopLeftImageRect: rect, imageHeight: image.height).intersection(input.extent)
+    guard !region.isNull, !region.isEmpty, let filteredRegion = effect(input, region) else {
+      return nil
+    }
+
+    let output = filteredRegion.composited(over: input)
+    return context.createCGImage(output, from: input.extent)
+  }
+
+  private static func coreImageRect(fromTopLeftImageRect rect: CGRect, imageHeight: Int) -> CGRect {
+    let standardized = rect.standardized
+    return CGRect(
+      x: standardized.minX.rounded(.down),
+      y: CGFloat(imageHeight) - standardized.maxY.rounded(.up),
+      width: standardized.width.rounded(.up),
+      height: standardized.height.rounded(.up)
+    )
   }
 }
 

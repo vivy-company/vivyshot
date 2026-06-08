@@ -176,6 +176,42 @@ final class AppTests: XCTestCase {
     )
   }
 
+  func testAnnotationSessionRendersImageSpaceAtTopLeft() throws {
+    let image = try XCTUnwrap(makeSolidImage(width: 24, height: 24, color: .white))
+    let session = try XCTUnwrap(AnnotationSession(image: image))
+    let rendered = try XCTUnwrap(session.addFilledRect(
+      imageRect: CGRect(x: 2, y: 2, width: 8, height: 8),
+      color: .black
+    ))
+
+    XCTAssertTrue(try isDarkPixel(in: rendered, x: 4, y: 4))
+    XCTAssertFalse(try isDarkPixel(in: rendered, x: 4, y: 20))
+  }
+
+  func testAnnotationSessionPixelatesImageSpaceAtTopLeft() throws {
+    let image = try XCTUnwrap(makePrivacyEffectTestImage(width: 24, height: 24))
+    let session = try XCTUnwrap(AnnotationSession(image: image))
+    let rendered = try XCTUnwrap(session.addPixelate(imageRect: CGRect(x: 0, y: 0, width: 12, height: 12)))
+
+    let original = try rgbPixel(in: image, x: 3, y: 8)
+    let affected = try rgbPixel(in: rendered, x: 3, y: 8)
+    let unaffected = try rgbPixel(in: rendered, x: 3, y: 20)
+    XCTAssertNotEqual(affected, original)
+    XCTAssertEqual(unaffected, RGBPixel(red: 255, green: 0, blue: 0))
+  }
+
+  func testAnnotationSessionBlursImageSpaceAtTopLeft() throws {
+    let image = try XCTUnwrap(makePrivacyEffectTestImage(width: 24, height: 24))
+    let session = try XCTUnwrap(AnnotationSession(image: image))
+    let rendered = try XCTUnwrap(session.addBlur(imageRect: CGRect(x: 3, y: 0, width: 6, height: 12)))
+
+    let affected = try rgbPixel(in: rendered, x: 5, y: 4)
+    let unaffected = try rgbPixel(in: rendered, x: 5, y: 20)
+    XCTAssertGreaterThan(affected.red, 32)
+    XCTAssertLessThan(affected.red, 255)
+    XCTAssertEqual(unaffected, RGBPixel(red: 255, green: 0, blue: 0))
+  }
+
   func testCanvasGeometryClampsPanUsingFittedDrawSize() throws {
     let clamped = try XCTUnwrap(CanvasGeometry.clampPanOffset(
       boundsSize: CGSize(width: 1_000, height: 500),
@@ -235,7 +271,7 @@ final class AppTests: XCTestCase {
     XCTAssertEqual(service.registerCallCount, 1)
   }
 
-  private func makeSolidImage(width: Int, height: Int) -> CGImage? {
+  private func makeSolidImage(width: Int, height: Int, color: NSColor = .systemBlue) -> CGImage? {
     guard
       let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
       let context = CGContext(
@@ -250,10 +286,79 @@ final class AppTests: XCTestCase {
     else {
       return nil
     }
-    context.setFillColor(NSColor.systemBlue.cgColor)
+    context.setFillColor(color.cgColor)
     context.fill(CGRect(x: 0, y: 0, width: width, height: height))
     return context.makeImage()
   }
+
+  private func makePrivacyEffectTestImage(width: Int, height: Int) -> CGImage? {
+    var pixels = [UInt8](repeating: 255, count: width * height * 4)
+    for y in 0..<height {
+      for x in 0..<width {
+        let index = (y * width + x) * 4
+        if y >= height / 2 {
+          pixels[index] = 255
+          pixels[index + 1] = 0
+          pixels[index + 2] = 0
+        } else if x < width / 4 {
+          pixels[index] = 0
+          pixels[index + 1] = 0
+          pixels[index + 2] = 0
+        } else {
+          pixels[index] = 255
+          pixels[index + 1] = 255
+          pixels[index + 2] = 255
+        }
+      }
+    }
+    guard
+      let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+      let context = CGContext(
+        data: &pixels,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: width * 4,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else {
+      return nil
+    }
+    return context.makeImage()
+  }
+
+  private func isDarkPixel(in image: CGImage, x: Int, y: Int) throws -> Bool {
+    let pixel = try rgbPixel(in: image, x: x, y: y)
+    return pixel.red < 64 && pixel.green < 64 && pixel.blue < 64
+  }
+
+  private func rgbPixel(in image: CGImage, x: Int, y: Int) throws -> RGBPixel {
+    var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+    guard
+      let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+      let context = CGContext(
+        data: &pixels,
+        width: image.width,
+        height: image.height,
+        bitsPerComponent: 8,
+        bytesPerRow: image.width * 4,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else {
+      throw NSError(domain: "AppTests", code: -3, userInfo: nil)
+    }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    let index = (y * image.width + x) * 4
+    return RGBPixel(red: pixels[index], green: pixels[index + 1], blue: pixels[index + 2])
+  }
+}
+
+private struct RGBPixel: Equatable {
+  let red: UInt8
+  let green: UInt8
+  let blue: UInt8
 }
 
 private func queryInt64(_ db: OpaquePointer, sql: String) throws -> Int64 {
