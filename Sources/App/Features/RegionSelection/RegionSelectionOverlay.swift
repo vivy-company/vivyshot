@@ -19,6 +19,7 @@ final class RegionSelectionGlassHostingView<Content: View>: NSView {
     get { hostingView.rootView }
     set {
       hostingView.rootView = newValue
+      hostingView.invalidateIntrinsicContentSize()
       invalidateIntrinsicContentSize()
       needsLayout = true
     }
@@ -127,8 +128,9 @@ final class RegionSelectionView: NSView {
   var onSelectionResult: ((CGRect?, CaptureContentType, CaptureMode) -> Void)?
   var onCancelRequested: (() -> Void)?
   var onCancelRequestedImmediately: (() -> Void)?
-  var onStartVideoRequested: ((CGRect, RecordingOverlayState, @escaping (Bool) -> Void) -> Void)?
+  var onStartVideoRequested: ((CGRect, RecordingOverlayState, @escaping (Bool, RecordingLiveControlState?) -> Void) -> Void)?
   var onStopVideoRequested: (() -> Void)?
+  var onRecordingToolToggleRequested: ((RecordingTool, Bool, @escaping (RecordingLiveControlState) -> Void) -> Void)?
   let settings: AppSettings
   var settingsObserver: NSObjectProtocol?
 
@@ -184,6 +186,9 @@ final class RegionSelectionView: NSView {
   var toolbarOffset: CGSize = .zero
   var toolbarDragStartOffset: CGSize?
   var toolbarFrameAnimationPending = false
+  var recordingControlOffset: CGSize = .zero
+  var recordingControlDragStartOffset: CGSize?
+  var recordingControlPanelSize: CGSize?
   var recordingControlPanel: NSPanel?
   var recordingControlHost: RegionSelectionGlassHostingView<RecordingControlBar>?
   var stitchControlPanel: NSPanel?
@@ -208,6 +213,7 @@ final class RegionSelectionView: NSView {
   }
   var recordingStartPending = false
   var recordingStartedAt: Date?
+  var recordingLiveControlState: RecordingLiveControlState?
   var pointerTrackingArea: NSTrackingArea?
 
   var session: AnnotationSession?
@@ -819,6 +825,7 @@ final class RegionSelectionView: NSView {
     recordingActive = false
     recordingStartPending = false
     recordingStartedAt = nil
+    recordingLiveControlState = nil
     windowCapturePickPending = false
     screenCapturePickPending = false
     windowCaptureHoverRect = nil
@@ -833,6 +840,9 @@ final class RegionSelectionView: NSView {
     resizeStartRect = nil
     toolbarOffset = .zero
     toolbarDragStartOffset = nil
+    recordingControlOffset = .zero
+    recordingControlDragStartOffset = nil
+    recordingControlPanelSize = nil
     stitchModeEnabled = false
     stitchCaptureInProgress = false
     stitchPassThroughOverlayActive = false
@@ -889,6 +899,7 @@ final class RegionSelectionView: NSView {
     webcamPlacementView.stopWebcamPreview()
     onStartVideoRequested = nil
     onStopVideoRequested = nil
+    onRecordingToolToggleRequested = nil
     selectedCaptureMode = .selection
     captureModeSelectionState.setSelectedMode(.selection, animated: false)
     areaCaptureRect = nil

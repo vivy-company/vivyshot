@@ -188,44 +188,78 @@ extension RegionSelectionView {
   }
 
   func makeRecordingControlBar() -> RecordingControlBar {
-    RecordingControlBar(
-      startedAt: recordingStartedAt ?? Date(),
+    let liveState = recordingLiveControlState ?? RecordingLiveControlState(
       recordSystemAudio: settings.recordSystemAudio,
       recordMicrophone: microphoneFeatureVisible && settings.recordMicrophone,
       showWebcam: webcamFeatureVisible && settings.showWebcam,
       highlightMouseClicks: settings.highlightMouseClicks,
-      highlightKeystrokes: keystrokesFeatureVisible && settings.highlightKeystrokes,
-      toolOrder: [],
+      highlightKeystrokes: keystrokesFeatureVisible && settings.highlightKeystrokes
+    )
+    return RecordingControlBar(
+      startedAt: recordingStartedAt ?? Date(),
+      recordSystemAudio: liveState.recordSystemAudio,
+      recordMicrophone: liveState.recordMicrophone,
+      showWebcam: liveState.showWebcam,
+      highlightMouseClicks: liveState.highlightMouseClicks,
+      highlightKeystrokes: liveState.highlightKeystrokes,
+      toolOrder: availableRecordingTools.filter { $0 != .countdown },
+      disabledTools: liveState.disabledTools,
       accentColor: Color(settings.toolbarAccentColor),
       usesExternalGlassSurface: true,
       onToggleSystemAudio: { [weak self] in
-        _ = self?.performToggleVideoSystemAudioShortcut()
+        self?.toggleLiveRecordingTool(.systemAudio)
       },
       onToggleMicrophone: { [weak self] in
         guard let self, self.microphoneFeatureVisible else { return }
-        _ = self.performToggleVideoMicrophoneShortcut()
+        self.toggleLiveRecordingTool(.microphone)
       },
       onToggleWebcam: { [weak self] in
         guard let self, self.webcamFeatureVisible else { return }
-        _ = self.performToggleVideoWebcamShortcut()
+        self.toggleLiveRecordingTool(.webcam)
       },
       onToggleMouseClicks: { [weak self] in
-        _ = self?.performToggleVideoMouseClicksShortcut()
+        self?.toggleLiveRecordingTool(.mouseClicks)
       },
       onToggleKeystrokes: { [weak self] in
         guard let self, self.keystrokesFeatureVisible else { return }
-        _ = self.performToggleVideoKeystrokesShortcut()
+        self.toggleLiveRecordingTool(.keystrokes)
       },
       onStop: { [weak self] in
         self?.stopVideoRecordingFromEditor()
       },
       onDrag: { [weak self] translation in
-        self?.updateToolbarDrag(translation)
+        self?.updateRecordingControlDrag(translation)
       },
       onDragEnd: { [weak self] in
         self?.finishToolbarDrag()
       }
     )
+  }
+
+  func toggleLiveRecordingTool(_ tool: RecordingTool) {
+    guard recordingActive else {
+      return
+    }
+    let currentState = recordingLiveControlState ?? RecordingLiveControlState(
+      recordSystemAudio: settings.recordSystemAudio,
+      recordMicrophone: microphoneFeatureVisible && settings.recordMicrophone,
+      showWebcam: webcamFeatureVisible && settings.showWebcam,
+      highlightMouseClicks: settings.highlightMouseClicks,
+      highlightKeystrokes: keystrokesFeatureVisible && settings.highlightKeystrokes
+    )
+    guard !currentState.disabledTools.contains(tool) else {
+      return
+    }
+    let requestedEnabled = !currentState.isEnabled(tool)
+    onRecordingToolToggleRequested?(tool, requestedEnabled) { [weak self] updatedState in
+      guard let self else {
+        return
+      }
+      self.recordingLiveControlState = updatedState
+      self.recordingControlPanelSize = nil
+      self.recordingControlHost?.rootView = self.makeRecordingControlBar()
+      self.layoutRecordingControlPanel()
+    }
   }
 
   func showRecordingControlPanel() {
@@ -237,10 +271,10 @@ extension RegionSelectionView {
     let host: RegionSelectionGlassHostingView<RecordingControlBar>
     if let recordingControlHost {
       host = recordingControlHost
-      host.rootView = makeRecordingControlBar()
     } else {
       host = RegionSelectionGlassHostingView(rootView: makeRecordingControlBar(), cornerRadius: 28)
       host.translatesAutoresizingMaskIntoConstraints = true
+      host.autoresizingMask = [.width, .height]
       host.alphaValue = 1
       recordingControlHost = host
     }
@@ -256,7 +290,7 @@ extension RegionSelectionView {
         defer: false
       )
       panel.isReleasedWhenClosed = false
-      panel.level = parentWindow.level
+      panel.level = NSWindow.Level(rawValue: max(NSWindow.Level.statusBar.rawValue, parentWindow.level.rawValue + 2))
       panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
       panel.backgroundColor = .clear
       panel.isOpaque = false
@@ -269,7 +303,7 @@ extension RegionSelectionView {
       recordingControlPanel = panel
     }
 
-    updateRecordingControlPanelFrame(toolbarHost.frame)
+    layoutRecordingControlPanel()
     panel.orderFrontRegardless()
   }
 
@@ -277,9 +311,11 @@ extension RegionSelectionView {
     recordingControlPanel?.close()
     recordingControlPanel = nil
     recordingControlHost = nil
+    recordingControlPanelSize = nil
+    recordingControlDragStartOffset = nil
   }
 
-  func updateRecordingControlPanelFrame(_ toolbarFrame: CGRect) {
+  func layoutRecordingControlPanel() {
     guard recordingActive,
           let parentWindow = window,
           let panel = recordingControlPanel,
@@ -288,23 +324,79 @@ extension RegionSelectionView {
       return
     }
 
-    host.rootView = makeRecordingControlBar()
     host.layoutSubtreeIfNeeded()
-    let fittingSize = host.fittingSize
-    let panelSize = CGSize(
-      width: max(1, fittingSize.width),
-      height: max(1, fittingSize.height)
-    )
+    let panelSize = recordingControlPanelSize ?? resolvedRecordingControlPanelSize(host.fittingSize)
+    recordingControlPanelSize = panelSize
+
+    let padding: CGFloat = 12
+    let maxX = max(padding, bounds.width - panelSize.width - padding)
+    let minY = padding
+    let maxY = max(padding, bounds.height - panelSize.height - padding)
+
+    let selection = committedSelectionRect?.standardized.integral
+    let defaultX: CGFloat
+    let defaultY: CGFloat
+    if selectedCaptureMode == .selection, let selection {
+      defaultX = min(max(padding, selection.midX - panelSize.width * 0.5), maxX)
+      let proposedBelow = selection.minY - panelSize.height - 14
+      defaultY = proposedBelow >= padding ? proposedBelow : min(maxY, selection.maxY + 14)
+    } else {
+      let bottomInset = captureSurfaceBottomInset()
+      let bottomY = padding + bottomInset + 8
+      defaultX = min(max(padding, bounds.midX - panelSize.width * 0.5), maxX)
+      defaultY = min(maxY, bottomY + 26)
+    }
+
+    let x = min(max(padding, defaultX + recordingControlOffset.width), maxX)
+    let y = min(max(minY, defaultY + recordingControlOffset.height), maxY)
+    if recordingControlDragStartOffset == nil {
+      recordingControlOffset = CGSize(width: x - defaultX, height: y - defaultY)
+    }
+
     let localFrame = CGRect(
-      x: toolbarFrame.midX - panelSize.width * 0.5,
-      y: toolbarFrame.midY - panelSize.height * 0.5,
+      x: x,
+      y: y,
       width: panelSize.width,
       height: panelSize.height
     ).integral
     let screenFrame = localFrame.offsetBy(dx: parentWindow.frame.minX, dy: parentWindow.frame.minY)
 
-    host.frame = CGRect(origin: .zero, size: screenFrame.size)
     panel.setFrame(screenFrame, display: true)
+    host.frame = CGRect(origin: .zero, size: screenFrame.size)
+    host.needsLayout = true
+    host.layoutSubtreeIfNeeded()
+  }
+
+  func updateRecordingControlDrag(_ translation: CGSize) {
+    guard mode == .editing else {
+      return
+    }
+
+    if recordingControlDragStartOffset == nil {
+      recordingControlDragStartOffset = recordingControlOffset
+    }
+
+    let start = recordingControlDragStartOffset ?? .zero
+    recordingControlOffset = CGSize(
+      width: start.width + translation.width,
+      height: start.height + translation.height
+    )
+    layoutRecordingControlPanel()
+  }
+
+  private func resolvedRecordingControlPanelSize(_ fittingSize: CGSize) -> CGSize {
+    let fallback = CGSize(width: 230, height: 52)
+    guard fittingSize.width.isFinite,
+          fittingSize.height.isFinite,
+          fittingSize.width >= 120,
+          fittingSize.height >= 36
+    else {
+      return fallback
+    }
+    return CGSize(
+      width: max(fallback.width, fittingSize.width),
+      height: max(fallback.height, fittingSize.height)
+    )
   }
 
   var availableRecordingTools: [RecordingTool] {
@@ -378,12 +470,13 @@ extension RegionSelectionView {
     recordingStartPending = true
     refreshToolbar()
     settings.setDefaultCaptureType(.video)
-    onStartVideoRequested?(selection, currentRecordingOverlayState()) { [weak self] started in
+    onStartVideoRequested?(selection, currentRecordingOverlayState()) { [weak self] started, liveState in
       guard let self else {
         return
       }
       self.recordingStartPending = false
       self.recordingStartedAt = started ? Date() : nil
+      self.recordingLiveControlState = started ? liveState : nil
       self.recordingActive = started
       if !started {
         self.layoutVideoOverlayPlacementViews(selection: self.committedSelectionRect?.standardized)
@@ -424,6 +517,7 @@ extension RegionSelectionView {
     recordingActive = false
     recordingStartPending = false
     recordingStartedAt = nil
+    recordingLiveControlState = nil
     refreshToolbar()
     onStopVideoRequested?()
   }
@@ -504,7 +598,7 @@ extension RegionSelectionView {
   }
 
   func refreshGlassHosts(redrawBackdrop: Bool = false) {
-    for host in [selectingHintHost, captureTypeHost, toolbarHost] {
+    for host in glassHostsForRefresh() {
       host.needsLayout = true
       host.layoutSubtreeIfNeeded()
       host.needsDisplay = true
@@ -525,7 +619,7 @@ extension RegionSelectionView {
   }
 
   func forceGlassBackdropResample() {
-    for host in [selectingHintHost, captureTypeHost, toolbarHost] where !host.isHidden {
+    for host in glassHostsForRefresh() where !host.isHidden {
       let frame = host.frame
       guard frame.width > 0, frame.height > 0 else {
         continue
@@ -543,7 +637,7 @@ extension RegionSelectionView {
   func scheduleGlassBackdropRefreshIfNeeded() {
     guard glassChromeReadyForBackdrop,
           !glassBackdropRefreshScheduled,
-          !selectingHintHost.isHidden || !captureTypeHost.isHidden || !toolbarHost.isHidden
+          glassHostsForRefresh().contains(where: { !$0.isHidden })
     else {
       return
     }
@@ -573,9 +667,20 @@ extension RegionSelectionView {
       height: start.height + translation.height
     )
     needsLayout = true
+    layoutEditorChrome()
   }
 
   func finishToolbarDrag() {
     toolbarDragStartOffset = nil
+    recordingControlDragStartOffset = nil
+    layoutRecordingControlPanel()
+  }
+
+  private func glassHostsForRefresh() -> [NSView] {
+    var hosts: [NSView] = [selectingHintHost, captureTypeHost, toolbarHost]
+    if let recordingControlHost {
+      hosts.append(recordingControlHost)
+    }
+    return hosts
   }
 }

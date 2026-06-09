@@ -47,6 +47,7 @@ struct RecordingControlBar: View {
   let highlightMouseClicks: Bool
   let highlightKeystrokes: Bool
   let toolOrder: [RecordingTool]
+  let disabledTools: Set<RecordingTool>
   let accentColor: Color
   let usesExternalGlassSurface: Bool
   let onToggleSystemAudio: () -> Void
@@ -66,18 +67,18 @@ struct RecordingControlBar: View {
     Group {
       if usesExternalGlassSurface {
         barContent
-          .padding(.horizontal, 9)
+          .padding(.horizontal, 8)
           .padding(.vertical, 8)
       } else if #available(macOS 26.0, *) {
         GlassEffectContainer(spacing: 0) {
           barContent
-            .padding(.horizontal, 9)
+            .padding(.horizontal, 8)
             .padding(.vertical, 8)
             .glassEffect(.regular.tint(Color.red.opacity(0.08)).interactive(), in: .capsule)
         }
       } else {
         barContent
-          .padding(.horizontal, 9)
+          .padding(.horizontal, 8)
           .padding(.vertical, 8)
           .background(.ultraThinMaterial, in: Capsule(style: .continuous))
       }
@@ -105,7 +106,7 @@ struct RecordingControlBar: View {
     Image(systemName: "line.3.horizontal")
       .font(.system(size: 12, weight: .bold))
       .foregroundStyle(toolbarSecondaryForeground)
-      .frame(width: 24, height: 28)
+      .frame(width: 24, height: 26)
       .contentShape(Rectangle())
       .gesture(dragGesture)
       .help("Drag recording controls")
@@ -119,7 +120,7 @@ struct RecordingControlBar: View {
         .font(.system(size: 11.5, weight: .semibold, design: .rounded))
     }
     .foregroundStyle(Color.red)
-    .frame(height: 28)
+    .frame(height: 26)
   }
 
   private var timerChip: some View {
@@ -127,23 +128,14 @@ struct RecordingControlBar: View {
       Text(formattedElapsedTime(at: context.date))
         .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
         .foregroundStyle(toolbarNeutralForeground)
-        .frame(minWidth: 58, minHeight: 28)
-        .padding(.horizontal, 8)
-        .background(
-          RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(Color.white.opacity(0.10))
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .stroke(Color.white.opacity(0.16), lineWidth: 1)
-        )
+        .frame(minWidth: 58, minHeight: 26)
     }
   }
 
   private var separator: some View {
     Rectangle()
       .fill(Color.white.opacity(0.18))
-      .frame(width: 1, height: 22)
+      .frame(width: 1, height: 20)
   }
 
   @ViewBuilder
@@ -152,35 +144,40 @@ struct RecordingControlBar: View {
     case .systemAudio:
       liveToggleButton(
         symbol: recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill",
-        help: recordSystemAudio ? "System audio on" : "System audio off",
+        help: helpText(recordSystemAudio ? "System audio on" : "System audio off", for: .systemAudio),
+        isDisabled: disabledTools.contains(.systemAudio),
         isSelected: recordSystemAudio,
         action: onToggleSystemAudio
       )
     case .microphone:
       liveToggleButton(
         symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
-        help: recordMicrophone ? "Microphone on" : "Microphone off",
+        help: helpText(recordMicrophone ? "Microphone on" : "Microphone off", for: .microphone),
+        isDisabled: disabledTools.contains(.microphone),
         isSelected: recordMicrophone,
         action: onToggleMicrophone
       )
     case .webcam:
       liveToggleButton(
         symbol: showWebcam ? "video.fill" : "video.slash.fill",
-        help: showWebcam ? "Camera overlay on" : "Camera overlay off",
+        help: helpText(showWebcam ? "Camera overlay on" : "Camera overlay off", for: .webcam),
+        isDisabled: disabledTools.contains(.webcam),
         isSelected: showWebcam,
         action: onToggleWebcam
       )
     case .mouseClicks:
       liveToggleButton(
         symbol: highlightMouseClicks ? "cursorarrow.rays" : "cursorarrow",
-        help: highlightMouseClicks ? "Mouse clicks on" : "Mouse clicks off",
+        help: helpText(highlightMouseClicks ? "Mouse clicks on" : "Mouse clicks off", for: .mouseClicks),
+        isDisabled: disabledTools.contains(.mouseClicks),
         isSelected: highlightMouseClicks,
         action: onToggleMouseClicks
       )
     case .keystrokes:
       liveToggleButton(
         symbol: "keyboard",
-        help: highlightKeystrokes ? "Keystrokes on" : "Keystrokes off",
+        help: helpText(highlightKeystrokes ? "Keystrokes on" : "Keystrokes off", for: .keystrokes),
+        isDisabled: disabledTools.contains(.keystrokes),
         isSelected: highlightKeystrokes,
         action: onToggleKeystrokes
       )
@@ -192,6 +189,7 @@ struct RecordingControlBar: View {
   private func liveToggleButton(
     symbol: String,
     help: String,
+    isDisabled: Bool,
     isSelected: Bool,
     action: @escaping () -> Void
   ) -> some View {
@@ -199,13 +197,14 @@ struct RecordingControlBar: View {
       symbol: symbol,
       help: help,
       isSelected: isSelected,
-      isDisabled: false,
+      isDisabled: isDisabled,
       symbolFontSize: 13,
-      size: CGSize(width: 28, height: 26),
+      size: CGSize(width: 26, height: 24),
       cornerRadius: 7,
       selectedFillOpacity: 0.18,
       selectedStrokeOpacity: 0.34,
       tintOverride: isSelected ? accentColor : toolbarNeutralForeground,
+      showsInlineTooltip: false,
       action: action
     )
   }
@@ -217,13 +216,18 @@ struct RecordingControlBar: View {
       isSelected: true,
       isDisabled: false,
       symbolFontSize: 14,
-      size: CGSize(width: 30, height: 28),
+      size: CGSize(width: 30, height: 30),
       cornerRadius: 7,
       selectedFillOpacity: 0.24,
       selectedStrokeOpacity: 0.42,
       tintOverride: Color.red,
+      showsInlineTooltip: false,
       action: onStop
     )
+  }
+
+  private func helpText(_ text: String, for tool: RecordingTool) -> String {
+    disabledTools.contains(tool) ? "\(text). Change before recording." : text
   }
 
   private var dragGesture: some Gesture {

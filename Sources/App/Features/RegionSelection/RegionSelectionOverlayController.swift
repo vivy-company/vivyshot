@@ -203,8 +203,9 @@ final class RegionSelectionOverlayController {
     selectionRectInScreen: CGRect,
     initialCaptureType: CaptureContentType,
     initialCaptureMode: CaptureMode,
-    onStartVideo: @escaping (CGRect, RecordingOverlayState, @escaping (Bool) -> Void) -> Void,
+    onStartVideo: @escaping (CGRect, RecordingOverlayState, @escaping (Bool, RecordingLiveControlState?) -> Void) -> Void,
     onStopVideo: @escaping () -> Void,
+    onToggleRecordingTool: @escaping (RecordingTool, Bool, @escaping (RecordingLiveControlState) -> Void) -> Void,
     onDone: @escaping () -> Void
   ) {
     guard let window, let selectionView else {
@@ -234,7 +235,7 @@ final class RegionSelectionOverlayController {
 
     selectionView.onStartVideoRequested = { [weak window] localRect, overlayState, completion in
       guard let window else {
-        completion(false)
+        completion(false, nil)
         return
       }
       let globalRect = localRect
@@ -247,6 +248,7 @@ final class RegionSelectionOverlayController {
       self?.closeWindow()
       onStopVideo()
     }
+    selectionView.onRecordingToolToggleRequested = onToggleRecordingTool
 
     window.makeFirstResponder(selectionView)
   }

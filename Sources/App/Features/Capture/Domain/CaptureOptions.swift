@@ -93,6 +93,35 @@ enum RecordingTool: Int, CaseIterable, Identifiable {
   }
 }
 
+/// Runtime controls for an active recording session. This is intentionally separate from
+/// `AppSettings`, which configures the next recording.
+struct RecordingLiveControlState: Equatable {
+  var recordSystemAudio: Bool
+  var recordMicrophone: Bool
+  var showWebcam: Bool
+  var highlightMouseClicks: Bool
+  var highlightKeystrokes: Bool
+  var disabledTools: Set<RecordingTool> = []
+
+  func isEnabled(_ tool: RecordingTool) -> Bool {
+    switch tool {
+    case .systemAudio:
+      return recordSystemAudio
+    case .microphone:
+      return recordMicrophone
+    case .webcam:
+      return showWebcam
+    case .mouseClicks:
+      return highlightMouseClicks
+    case .keystrokes:
+      return highlightKeystrokes
+    case .countdown:
+      return false
+    }
+  }
+
+}
+
 /// Default action for screenshot captures after the selection is confirmed.
 enum ScreenshotMainAction: Int, CaseIterable, Identifiable {
   case copy = 0

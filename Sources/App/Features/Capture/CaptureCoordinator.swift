@@ -86,7 +86,7 @@ final class CaptureCoordinator: CaptureCoordinating {
             initialCaptureMode: result.captureMode,
             onStartVideo: { [weak self] rect, overlayState, completion in
               guard let self else {
-                completion(false)
+                completion(false, nil)
                 return
               }
               var started = false
@@ -106,12 +106,12 @@ final class CaptureCoordinator: CaptureCoordinating {
                 },
                 onStarted: {
                   started = true
-                  completion(true)
+                  completion(true, self.recordingCoordinator.liveControlState)
                 },
                 onDone: finishRecordingFlow,
                 onError: { [weak self] message in
                   if !started {
-                    completion(false)
+                    completion(false, nil)
                   } else {
                     finishRecordingFlow()
                   }
@@ -121,6 +121,15 @@ final class CaptureCoordinator: CaptureCoordinating {
             },
             onStopVideo: { [weak self] in
               self?.recordingCoordinator.stopRecordingFromInlineToolbar()
+            },
+            onToggleRecordingTool: { [weak self] tool, enabled, completion in
+              Task { @MainActor [weak self] in
+                guard let self else {
+                  return
+                }
+                let state = await self.recordingCoordinator.setLiveRecordingTool(tool, enabled: enabled)
+                completion(state)
+              }
             },
             onDone: { [weak self] in
               self?.captureInProgress = false

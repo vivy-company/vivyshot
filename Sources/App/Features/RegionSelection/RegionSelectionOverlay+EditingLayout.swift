@@ -141,6 +141,14 @@ extension RegionSelectionView {
       editingMaskView.isHidden = true
     }
 
+    if recordingActive {
+      toolbarHost.isHidden = true
+      layoutRecordingControlPanel()
+      setResizeHandlesHidden(true)
+      layoutVideoOverlayPlacementViews(selection: selection)
+      return
+    }
+
     toolbarHost.layoutSubtreeIfNeeded()
     var toolbarSize = toolbarHost.fittingSize
     if toolbarSize.width < 300 || toolbarSize.height < 30 {
@@ -214,10 +222,9 @@ extension RegionSelectionView {
     } else {
       toolbarHost.frame = toolbarFrame
     }
-    toolbarHost.isHidden = recordingActive || !glassChromeReadyForBackdrop
-    updateRecordingControlPanelFrame(toolbarFrame)
+    toolbarHost.isHidden = !glassChromeReadyForBackdrop
 
-    if recordingActive || stitchModeEnabled || selection == nil || hidesSelectionFrame {
+    if stitchModeEnabled || selection == nil || hidesSelectionFrame {
       setResizeHandlesHidden(true)
     } else if let selection {
       layoutResizeHandles(for: selection)
