@@ -31,8 +31,8 @@ final class RecordingProject {
     return true
   }
 
-  var hasCustomMouseClickOverlays: Bool {
-    mouseClickHighlightStyle?.usesCustomRenderer == true && !clickEvents.isEmpty
+  var hasMouseClickOverlays: Bool {
+    mouseClickHighlightStyle != nil && !clickEvents.isEmpty
   }
 
   func setMouseClickOverlay(style: MouseClickHighlightStyle?) -> Bool {
@@ -145,7 +145,7 @@ final class RecordingProject {
       )
     }
 
-    if let mouseClickHighlightStyle, mouseClickHighlightStyle.usesCustomRenderer {
+    if let mouseClickHighlightStyle {
       let clickDurationMS = mouseClickHighlightStyle.clickVisibleWindowMS
       for clickEvent in visibleClickEvents(at: timeMS, durationMS: clickDurationMS) {
         let elapsed = timeMS.saturatingSubtract(clickEvent.timestampMS)
@@ -188,7 +188,7 @@ final class RecordingProject {
       audioTrackVisible: recordingInfo.hasAudio,
       webcamTrackVisible: webcamOverlay.enabled,
       textOverlayCount: keystrokeOverlay.enabled ? keyEvents.count : 0,
-      clickOverlaysVisible: hasCustomMouseClickOverlays
+      clickOverlaysVisible: hasMouseClickOverlays
     )
     return ExportPlanner.exportPlan(
       trimStartMS: 0,
@@ -310,42 +310,42 @@ private struct KeystrokeOverlayState {
 private extension MouseClickHighlightStyle {
   var clickVisibleWindowMS: UInt32 {
     switch self {
+    case .system:
+      return 420
     case .ripple:
       return 650
     case .pulse:
       return 280
     case .spotlight:
       return 900
-    case .system:
-      return 520
     }
   }
 
   func clickDiameter(base: CGFloat, progress: CGFloat) -> CGFloat {
     let clampedBase = max(1, base)
     switch self {
+    case .system:
+      return clampedBase * (0.040 + CGFloat(sin(Double(progress) * Double.pi)) * 0.018)
     case .ripple:
       return clampedBase * (0.030 + progress * 0.110)
     case .pulse:
       return clampedBase * (0.045 + CGFloat(sin(Double(progress) * Double.pi)) * 0.035)
     case .spotlight:
       return clampedBase * (0.135 + progress * 0.025)
-    case .system:
-      return clampedBase * 0.05
     }
   }
 
   func clickOpacity(progress: CGFloat) -> CGFloat {
     let fade = max(0, 1 - progress)
     switch self {
+    case .system:
+      return min(1, 0.92 * pow(fade, 0.50))
     case .pulse:
       return min(1, 0.90 * pow(fade, 0.65))
     case .spotlight:
       return min(0.85, 0.70 * pow(fade, 0.45))
     case .ripple:
       return min(1, fade * 0.95)
-    case .system:
-      return 0
     }
   }
 }

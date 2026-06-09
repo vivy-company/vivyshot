@@ -145,6 +145,10 @@ extension RegionSelectionView {
       showWebcam: webcamFeatureVisible && settings.showWebcam,
       highlightMouseClicks: settings.highlightMouseClicks,
       highlightKeystrokes: keystrokesFeatureVisible && settings.highlightKeystrokes,
+      selectedMicrophoneID: settings.microphoneDeviceID,
+      selectedWebcamID: settings.webcamDeviceID,
+      microphoneSources: microphoneSourceOptions,
+      webcamSources: webcamSourceOptions,
       toolOrder: availableRecordingTools,
       lockedTools: lockedRecordingTools,
       accentColor: Color(settings.toolbarAccentColor),
@@ -161,6 +165,12 @@ extension RegionSelectionView {
       onToggleWebcam: { [weak self] in
         guard let self, self.webcamFeatureVisible else { return }
         _ = self.performToggleVideoWebcamShortcut()
+      },
+      onSelectMicrophoneSource: { [weak self] deviceID in
+        self?.selectMicrophoneSource(deviceID)
+      },
+      onSelectWebcamSource: { [weak self] deviceID in
+        self?.selectWebcamSource(deviceID)
       },
       onToggleMouseClicks: { [weak self] in
         _ = self?.performToggleVideoMouseClicksShortcut()
@@ -188,13 +198,7 @@ extension RegionSelectionView {
   }
 
   func makeRecordingControlBar() -> RecordingControlBar {
-    let liveState = recordingLiveControlState ?? RecordingLiveControlState(
-      recordSystemAudio: settings.recordSystemAudio,
-      recordMicrophone: microphoneFeatureVisible && settings.recordMicrophone,
-      showWebcam: webcamFeatureVisible && settings.showWebcam,
-      highlightMouseClicks: settings.highlightMouseClicks,
-      highlightKeystrokes: keystrokesFeatureVisible && settings.highlightKeystrokes
-    )
+    let liveState = currentRecordingLiveControlState
     return RecordingControlBar(
       startedAt: recordingStartedAt ?? Date(),
       recordSystemAudio: liveState.recordSystemAudio,
@@ -202,6 +206,10 @@ extension RegionSelectionView {
       showWebcam: liveState.showWebcam,
       highlightMouseClicks: liveState.highlightMouseClicks,
       highlightKeystrokes: liveState.highlightKeystrokes,
+      selectedMicrophoneID: settings.microphoneDeviceID,
+      selectedWebcamID: settings.webcamDeviceID,
+      microphoneSources: microphoneSourceOptions,
+      webcamSources: webcamSourceOptions,
       toolOrder: availableRecordingTools.filter { $0 != .countdown },
       disabledTools: liveState.disabledTools,
       accentColor: Color(settings.toolbarAccentColor),
@@ -216,6 +224,12 @@ extension RegionSelectionView {
       onToggleWebcam: { [weak self] in
         guard let self, self.webcamFeatureVisible else { return }
         self.toggleLiveRecordingTool(.webcam)
+      },
+      onSelectMicrophoneSource: { [weak self] deviceID in
+        self?.selectMicrophoneSource(deviceID)
+      },
+      onSelectWebcamSource: { [weak self] deviceID in
+        self?.selectWebcamSource(deviceID)
       },
       onToggleMouseClicks: { [weak self] in
         self?.toggleLiveRecordingTool(.mouseClicks)
@@ -240,13 +254,7 @@ extension RegionSelectionView {
     guard recordingActive else {
       return
     }
-    let currentState = recordingLiveControlState ?? RecordingLiveControlState(
-      recordSystemAudio: settings.recordSystemAudio,
-      recordMicrophone: microphoneFeatureVisible && settings.recordMicrophone,
-      showWebcam: webcamFeatureVisible && settings.showWebcam,
-      highlightMouseClicks: settings.highlightMouseClicks,
-      highlightKeystrokes: keystrokesFeatureVisible && settings.highlightKeystrokes
-    )
+    let currentState = currentRecordingLiveControlState
     guard !currentState.disabledTools.contains(tool) else {
       return
     }
@@ -260,6 +268,41 @@ extension RegionSelectionView {
       self.recordingControlHost?.rootView = self.makeRecordingControlBar()
       self.layoutRecordingControlPanel()
     }
+  }
+
+  func selectMicrophoneSource(_ deviceID: String) {
+    settings.setVideoMicrophoneDeviceID(deviceID)
+    onRecordingMicrophoneSourceSelected?(deviceID)
+    refreshToolbar()
+    if recordingActive {
+      recordingControlPanelSize = nil
+      recordingControlHost?.rootView = makeRecordingControlBar()
+      layoutRecordingControlPanel()
+    }
+  }
+
+  func selectWebcamSource(_ deviceID: String) {
+    settings.setVideoWebcamDeviceID(deviceID)
+    onRecordingWebcamSourceSelected?(deviceID)
+    if !recordingActive {
+      layoutVideoOverlayPlacementViews(selection: committedSelectionRect?.standardized)
+    }
+    refreshToolbar()
+    if recordingActive {
+      recordingControlPanelSize = nil
+      recordingControlHost?.rootView = makeRecordingControlBar()
+      layoutRecordingControlPanel()
+    }
+  }
+
+  private var currentRecordingLiveControlState: RecordingLiveControlState {
+    recordingLiveControlState ?? RecordingLiveControlState(
+      recordSystemAudio: settings.recordSystemAudio,
+      recordMicrophone: microphoneFeatureVisible && settings.recordMicrophone,
+      showWebcam: webcamFeatureVisible && settings.showWebcam,
+      highlightMouseClicks: settings.highlightMouseClicks,
+      highlightKeystrokes: keystrokesFeatureVisible && settings.highlightKeystrokes
+    )
   }
 
   func showRecordingControlPanel() {

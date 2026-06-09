@@ -206,6 +206,8 @@ final class RegionSelectionOverlayController {
     onStartVideo: @escaping (CGRect, RecordingOverlayState, @escaping (Bool, RecordingLiveControlState?) -> Void) -> Void,
     onStopVideo: @escaping () -> Void,
     onToggleRecordingTool: @escaping (RecordingTool, Bool, @escaping (RecordingLiveControlState) -> Void) -> Void,
+    onSelectMicrophoneSource: @escaping (String) -> Void,
+    onSelectWebcamSource: @escaping (String) -> Void,
     onDone: @escaping () -> Void
   ) {
     guard let window, let selectionView else {
@@ -249,6 +251,8 @@ final class RegionSelectionOverlayController {
       onStopVideo()
     }
     selectionView.onRecordingToolToggleRequested = onToggleRecordingTool
+    selectionView.onRecordingMicrophoneSourceSelected = onSelectMicrophoneSource
+    selectionView.onRecordingWebcamSourceSelected = onSelectWebcamSource
 
     window.makeFirstResponder(selectionView)
   }

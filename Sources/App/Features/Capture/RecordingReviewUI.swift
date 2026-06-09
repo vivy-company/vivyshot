@@ -1580,6 +1580,15 @@ private struct PostRecordingMouseClickOverlayPreview: View {
       let color = clickColor
       ZStack {
         switch style {
+        case .system:
+          Circle()
+            .fill(color.opacity(0.26))
+          Circle()
+            .stroke(Color.white.opacity(0.78), lineWidth: max(1.5, lineWidth * 0.65))
+            .padding(lineWidth)
+          Circle()
+            .fill(Color.white.opacity(0.92))
+            .frame(width: max(4, side * 0.18), height: max(4, side * 0.18))
         case .ripple:
           Circle()
             .stroke(color.opacity(0.92), lineWidth: lineWidth)
@@ -1612,8 +1621,6 @@ private struct PostRecordingMouseClickOverlayPreview: View {
           Circle()
             .fill(Color.white.opacity(0.68))
             .frame(width: max(3, side * 0.10), height: max(3, side * 0.10))
-        case .system:
-          EmptyView()
         }
       }
       .opacity(opacity)

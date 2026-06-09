@@ -84,6 +84,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var exportBitrate: PostRecordingExportBitratePreset
   @Published private(set) var recordSystemAudio: Bool
   @Published private(set) var recordMicrophone: Bool
+  @Published private(set) var microphoneDeviceID: String
   @Published private(set) var showWebcam: Bool
   @Published private(set) var webcamDeviceID: String
   @Published private(set) var webcamOverlaySize: WebcamOverlaySize
@@ -222,6 +223,7 @@ final class AppSettings: ObservableObject {
     static let exportBitrate = "settings.video.export.bitrate"
     static let recordSystemAudio = "settings.video.recordSystemAudio"
     static let recordMicrophone = "settings.video.recordMicrophone"
+    static let microphoneDeviceID = "settings.video.microphone.deviceID"
     static let showWebcam = "settings.video.showWebcam"
     static let webcamDeviceID = "settings.video.webcam.deviceID"
     static let webcamOverlaySize = "settings.video.webcam.overlaySize"
@@ -406,6 +408,7 @@ final class AppSettings: ObservableObject {
     }
 
     recordMicrophone = defaults.bool(forKey: Keys.recordMicrophone)
+    microphoneDeviceID = defaults.string(forKey: Keys.microphoneDeviceID) ?? ""
     showWebcam = defaults.bool(forKey: Keys.showWebcam)
     webcamDeviceID = defaults.string(forKey: Keys.webcamDeviceID) ?? ""
 
@@ -690,6 +693,15 @@ final class AppSettings: ObservableObject {
     persistVideoCaptureSettings()
   }
 
+  func setVideoMicrophoneDeviceID(_ deviceID: String) {
+    let normalized = deviceID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard microphoneDeviceID != normalized else {
+      return
+    }
+    microphoneDeviceID = normalized
+    persistVideoCaptureSettings()
+  }
+
   func setVideoShowWebcam(_ enabled: Bool) {
     guard showWebcam != enabled else {
       return
@@ -920,6 +932,7 @@ final class AppSettings: ObservableObject {
     exportBitrate = .standard
     recordSystemAudio = true
     recordMicrophone = false
+    microphoneDeviceID = ""
     showWebcam = false
     webcamDeviceID = ""
     webcamOverlaySize = .medium
@@ -1590,6 +1603,7 @@ final class AppSettings: ObservableObject {
     defaults.set(exportBitrate.rawValue, forKey: Keys.exportBitrate)
     defaults.set(recordSystemAudio, forKey: Keys.recordSystemAudio)
     defaults.set(recordMicrophone, forKey: Keys.recordMicrophone)
+    defaults.set(microphoneDeviceID, forKey: Keys.microphoneDeviceID)
     defaults.set(showWebcam, forKey: Keys.showWebcam)
     defaults.set(webcamDeviceID, forKey: Keys.webcamDeviceID)
     defaults.set(webcamOverlaySize.rawValue, forKey: Keys.webcamOverlaySize)
@@ -1650,6 +1664,7 @@ final class AppSettings: ObservableObject {
     defaults.set(exportBitrate.rawValue, forKey: Keys.exportBitrate)
     defaults.set(recordSystemAudio, forKey: Keys.recordSystemAudio)
     defaults.set(recordMicrophone, forKey: Keys.recordMicrophone)
+    defaults.set(microphoneDeviceID, forKey: Keys.microphoneDeviceID)
     defaults.set(showWebcam, forKey: Keys.showWebcam)
     defaults.set(webcamDeviceID, forKey: Keys.webcamDeviceID)
     defaults.set(webcamOverlaySize.rawValue, forKey: Keys.webcamOverlaySize)

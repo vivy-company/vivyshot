@@ -151,8 +151,9 @@ final class AppTests: XCTestCase {
 
     XCTAssertTrue(project.setMouseClickOverlay(style: .system))
     XCTAssertTrue(project.addClickEvent(timestampMS: 500, normalizedX: 0.25, normalizedY: 0.75, button: 0))
-    XCTAssertFalse(project.hasCustomMouseClickOverlays)
-    XCTAssertEqual(project.renderPlan(timeSeconds: 0.55, renderSize: CGSize(width: 800, height: 600), target: .preview)?.items.count, 0)
+    XCTAssertTrue(project.hasMouseClickOverlays)
+    let systemPlan = project.renderPlan(timeSeconds: 0.55, renderSize: CGSize(width: 800, height: 600), target: .preview)
+    XCTAssertEqual(systemPlan?.items.first?.mouseClickStyleCode, UInt8(MouseClickHighlightStyle.system.rawValue))
     XCTAssertTrue(project.setMouseClickOverlay(style: nil))
     XCTAssertEqual(project.renderPlan(timeSeconds: 0.55, renderSize: CGSize(width: 800, height: 600), target: .preview)?.items.count, 0)
 
@@ -162,7 +163,7 @@ final class AppTests: XCTestCase {
     XCTAssertEqual(item.kind, .mouseClick)
     XCTAssertEqual(item.mouseClickStyleCode, UInt8(MouseClickHighlightStyle.ripple.rawValue))
     XCTAssertEqual(item.mouseClickButtonCode, 0)
-    XCTAssertTrue(project.hasCustomMouseClickOverlays)
+    XCTAssertTrue(project.hasMouseClickOverlays)
     XCTAssertTrue(project.exportPlan()?.needsCustomCompositor ?? false)
   }
 

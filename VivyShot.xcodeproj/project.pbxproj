@@ -13,6 +13,7 @@
 		1BCAA024E8973AD250B94723 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 6612368A4655A23B3812C0D3 /* libsqlite3.tbd */; };
 		1C957D492939DA3B97F77A54 /* CaptureGlassViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CE4D0BBFB083A127A52CEA2 /* CaptureGlassViews.swift */; };
 		1F5E57945BE846FFF19B0623 /* RecordingProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE87BF147D287EC798D8B500 /* RecordingProject.swift */; };
+		21DD6E38AE1E4A79A5AF22B5 /* RecordingSourceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE8937B077C49548C62360D /* RecordingSourceProvider.swift */; };
 		239CB83C9448A4210731AA59 /* RegionSelectionOverlay+EditingSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03F33B526AE66F6F7197D725 /* RegionSelectionOverlay+EditingSelection.swift */; };
 		2633D1CA543C31374AAA5F03 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4381897CD684559C9CB523B4 /* CrashReporter.swift */; };
 		2788719096369588DE1FF2FF /* ScreenshotImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAC19C80C205480BFEA47D5 /* ScreenshotImage.swift */; };
@@ -112,6 +113,7 @@
 		492BCB020F9636E0B127BB54 /* AnnotationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTool.swift; sourceTree = "<group>"; };
 		4993974E228FC35A7CC2C5E0 /* StatisticsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsStore.swift; sourceTree = "<group>"; };
 		4A0AA851853BE8E1D6B82BC6 /* RecordingFloatingBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingFloatingBars.swift; sourceTree = "<group>"; };
+		4AE8937B077C49548C62360D /* RecordingSourceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSourceProvider.swift; sourceTree = "<group>"; };
 		4A115B6AB5FAAD5005D17120 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		4F6372C4CA3D0FA0704513EC /* RegionSelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlay.swift; sourceTree = "<group>"; };
 		50FB603C2A45D10BEB451171 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
@@ -376,6 +378,7 @@
 			isa = PBXGroup;
 			children = (
 				BE87BF147D287EC798D8B500 /* RecordingProject.swift */,
+				4AE8937B077C49548C62360D /* RecordingSourceProvider.swift */,
 			);
 			path = Application;
 			sourceTree = "<group>";
@@ -652,6 +655,7 @@
 				5488D00F7D585DD229CEE916 /* RecordingComponents.swift in Sources */,
 				C61BB327F9FA628BBB7A3664 /* RecordingFloatingBars.swift in Sources */,
 				1F5E57945BE846FFF19B0623 /* RecordingProject.swift in Sources */,
+				21DD6E38AE1E4A79A5AF22B5 /* RecordingSourceProvider.swift in Sources */,
 				586FC8047857A410F789999C /* RecordingReviewUI.swift in Sources */,
 				CF8661FA748A6B3BF2E3D641 /* RegionSelectionDomain.swift in Sources */,
 				FFB3828F0A0BC198135CF110 /* RegionSelectionOverlay+Annotation.swift in Sources */,

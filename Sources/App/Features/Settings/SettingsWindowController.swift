@@ -85,7 +85,8 @@ struct SettingsView: View {
   @State private var selectedTab: SettingsTab = .general
   @State private var isRecordingShortcut = false
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
-  @State private var webcamDevices: [WebcamDeviceOption] = []
+  @State private var webcamDevices: [RecordingSourceOption] = []
+  @State private var microphoneDevices: [RecordingSourceOption] = []
   @State private var draggingScreenshotTool: AnnotationTool?
   @State private var draggingVideoTool: RecordingTool?
   @State private var isReviewerModeSheetPresented = false
@@ -167,6 +168,9 @@ struct SettingsView: View {
       launchAtLoginController.refresh()
       if webcamFeatureVisible {
         refreshWebcamDevices()
+      }
+      if microphoneFeatureVisible {
+        refreshMicrophoneDevices()
       }
     }
     .sheet(isPresented: $isReviewerModeSheetPresented) {
@@ -608,6 +612,27 @@ struct SettingsView: View {
       if microphoneFeatureVisible {
         Toggle("Record microphone", isOn: recordMicrophoneBinding)
           .toggleStyle(.switch)
+        if settings.recordMicrophone {
+          HStack(spacing: 10) {
+            Text("Microphone")
+              .frame(width: 78, alignment: .leading)
+            Spacer(minLength: 0)
+            Picker("Microphone Device", selection: microphoneDeviceIDBinding) {
+              Text(RecordingSourceOption.systemDefault.name).tag(RecordingSourceOption.systemDefault.id)
+              ForEach(microphoneDevices) { device in
+                Text(device.name).tag(device.id)
+              }
+              if !settings.microphoneDeviceID.isEmpty,
+                 !microphoneDevices.contains(where: { $0.id == settings.microphoneDeviceID })
+              {
+                Text("Unavailable Microphone").tag(settings.microphoneDeviceID)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 190, alignment: .trailing)
+          }
+        }
       }
       Toggle("Hide notifications (best effort)", isOn: hideNotificationsBestEffortBinding)
         .toggleStyle(.switch)
@@ -633,7 +658,7 @@ struct SettingsView: View {
             .frame(width: 78, alignment: .leading)
           Spacer(minLength: 0)
           Picker("Webcam Device", selection: webcamDeviceIDBinding) {
-            Text("System Default").tag("")
+            Text(RecordingSourceOption.systemDefault.name).tag(RecordingSourceOption.systemDefault.id)
             ForEach(webcamDevices) { device in
               Text(device.name).tag(device.id)
             }
@@ -1189,6 +1214,13 @@ struct SettingsView: View {
     )
   }
 
+  private var microphoneDeviceIDBinding: Binding<String> {
+    Binding(
+      get: { settings.microphoneDeviceID },
+      set: { settings.setVideoMicrophoneDeviceID($0) }
+    )
+  }
+
   private var showWebcamBinding: Binding<Bool> {
     Binding(
       get: { settings.showWebcam },
@@ -1345,30 +1377,16 @@ struct SettingsView: View {
   }
 
   private func refreshWebcamDevices() {
-    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
-    if #available(macOS 14.0, *) {
-      deviceTypes.append(.external)
-    } else {
-      deviceTypes.append(.externalUnknown)
-    }
-    let discovery = AVCaptureDevice.DiscoverySession(
-      deviceTypes: deviceTypes,
-      mediaType: .video,
-      position: .unspecified
-    )
-    webcamDevices = discovery.devices
-      .map { WebcamDeviceOption(id: $0.uniqueID, name: $0.localizedName) }
-      .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    webcamDevices = RecordingSourceProvider.webcamSources()
+  }
+
+  private func refreshMicrophoneDevices() {
+    microphoneDevices = RecordingSourceProvider.microphoneSources()
   }
 
   private func previewCaptureTransition() {
     CaptureTransitionPreviewCoordinator.shared.preview()
   }
-}
-
-private struct WebcamDeviceOption: Identifiable, Hashable {
-  let id: String
-  let name: String
 }
 
 private struct ReorderHandleGlyph: View {

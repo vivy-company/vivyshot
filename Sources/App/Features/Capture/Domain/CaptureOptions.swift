@@ -122,6 +122,17 @@ struct RecordingLiveControlState: Equatable {
 
 }
 
+/// A selectable recording input source. Empty IDs mean the current system default device.
+struct RecordingSourceOption: Identifiable, Hashable {
+  let id: String
+  let name: String
+
+  static let systemDefault = RecordingSourceOption(
+    id: "",
+    name: String(localized: "System Default", bundle: AppLocalizer.shared.bundle)
+  )
+}
+
 /// Default action for screenshot captures after the selection is confirmed.
 enum ScreenshotMainAction: Int, CaseIterable, Identifiable {
   case copy = 0
@@ -223,18 +234,6 @@ enum MouseClickHighlightStyle: Int, CaseIterable, Identifiable {
     }
   }
 
-  var usesSystemRenderer: Bool {
-    self == .system
-  }
-
-  var usesCustomRenderer: Bool {
-    switch self {
-    case .system:
-      return false
-    case .ripple, .pulse, .spotlight:
-      return true
-    }
-  }
 }
 
 /// Relative size for the draggable webcam overlay.

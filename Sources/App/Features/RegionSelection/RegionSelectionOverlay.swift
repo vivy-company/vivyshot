@@ -131,6 +131,8 @@ final class RegionSelectionView: NSView {
   var onStartVideoRequested: ((CGRect, RecordingOverlayState, @escaping (Bool, RecordingLiveControlState?) -> Void) -> Void)?
   var onStopVideoRequested: (() -> Void)?
   var onRecordingToolToggleRequested: ((RecordingTool, Bool, @escaping (RecordingLiveControlState) -> Void) -> Void)?
+  var onRecordingMicrophoneSourceSelected: ((String) -> Void)?
+  var onRecordingWebcamSourceSelected: ((String) -> Void)?
   let settings: AppSettings
   var settingsObserver: NSObjectProtocol?
 
@@ -214,6 +216,8 @@ final class RegionSelectionView: NSView {
   var recordingStartPending = false
   var recordingStartedAt: Date?
   var recordingLiveControlState: RecordingLiveControlState?
+  var webcamSourceOptions: [RecordingSourceOption] = []
+  var microphoneSourceOptions: [RecordingSourceOption] = []
   var pointerTrackingArea: NSTrackingArea?
 
   var session: AnnotationSession?
@@ -287,6 +291,7 @@ final class RegionSelectionView: NSView {
     super.init(frame: frameRect)
     configureEditorSubviews()
     configureCanvasCallbacks()
+    refreshRecordingSourceOptions()
     observeSettingsChanges()
     applySettingsFromPreferences()
     updateSelectingHintVisibility(animated: false)
@@ -900,6 +905,8 @@ final class RegionSelectionView: NSView {
     onStartVideoRequested = nil
     onStopVideoRequested = nil
     onRecordingToolToggleRequested = nil
+    onRecordingMicrophoneSourceSelected = nil
+    onRecordingWebcamSourceSelected = nil
     selectedCaptureMode = .selection
     captureModeSelectionState.setSelectedMode(.selection, animated: false)
     areaCaptureRect = nil
@@ -930,6 +937,11 @@ final class RegionSelectionView: NSView {
     window?.ignoresMouseEvents = false
     closeRecordingControlPanel()
     hideStitchControlPanel()
+  }
+
+  func refreshRecordingSourceOptions() {
+    webcamSourceOptions = RecordingSourceProvider.webcamSources()
+    microphoneSourceOptions = RecordingSourceProvider.microphoneSources()
   }
 
   func handleCancelShortcut() {

@@ -18,7 +18,7 @@ private protocol RegionRecordingSession: AnyObject {
   func stop() async throws -> URL
   func setSystemAudioEnabled(_ enabled: Bool) async throws
   func setMicrophoneEnabled(_ enabled: Bool) async throws
-  func setSystemMouseClickRenderingEnabled(_ enabled: Bool) async throws
+  func setMicrophoneDeviceID(_ deviceID: String) async throws
 }
 
 /// Coordinates a full recording session from permissions through capture, overlays, preview, and export handoff.
@@ -41,10 +41,12 @@ final class RecordingCoordinator {
   private var webcamPlacementChanges: [OverlayPlacementChange] = []
   private var keystrokePlacementChanges: [OverlayPlacementChange] = []
   private var webcamOverlayUsedInSession = false
+  private var webcamDeviceIDInSession = ""
   private var keystrokeOverlayEnabledInSession = false
   private var mouseClickHighlightStyleInSession: MouseClickHighlightStyle?
   private var systemAudioEnabledInSession = false
   private var microphoneEnabledInSession = false
+  private var microphoneDeviceIDInSession = ""
   private(set) var liveControlState = RecordingLiveControlState(
     recordSystemAudio: false,
     recordMicrophone: false,
@@ -120,7 +122,9 @@ final class RecordingCoordinator {
         mouseClickHighlightStyleInSession = mouseClickHighlightStyle
         systemAudioEnabledInSession = settings.recordSystemAudio
         microphoneEnabledInSession = microphoneEnabled
+        microphoneDeviceIDInSession = settings.microphoneDeviceID
         webcamOverlayUsedInSession = webcamEnabled
+        webcamDeviceIDInSession = settings.webcamDeviceID
         var webcamPreviewLayer: AVCaptureVideoPreviewLayer?
         var pendingWebcamRecorder: WebcamRecorder?
         var capturedOverlayWindowIDs: [CGWindowID] = []
@@ -170,12 +174,12 @@ final class RecordingCoordinator {
         let recordingConfig = RecordingConfig(
           encoder: settings.recordingEncoder,
           frameRate: settings.recordingFrameRate.rawValue,
-          mouseClickHighlightStyle: mouseClickHighlightStyle,
           captureSystemAudio: settings.recordSystemAudio,
           captureMicrophone: microphoneEnabled,
+          microphoneDeviceID: settings.microphoneDeviceID,
           capturedOverlayWindowIDs: capturedOverlayWindowIDs
         )
-        let recorder: any RegionRecordingSession = ScreenRegionSoftwareH264Recorder(
+        let recorder: any RegionRecordingSession = ScreenRegionAssetWriterRecorder(
           selectionRectInScreen: recordingRect,
           config: recordingConfig,
           outputURL: outputURL
@@ -195,7 +199,7 @@ final class RecordingCoordinator {
           monitorsKeystrokes: keystrokesFeatureEnabled,
           monitorsMouseClicks: true,
           captureKeystrokes: capturesKeystrokes,
-          captureMouseClicks: mouseClickHighlightStyle?.usesSystemRenderer != true && mouseClickHighlightStyle != nil,
+          captureMouseClicks: mouseClickHighlightStyle != nil,
           onKeyEvent: { [weak self] event in
             Task { @MainActor [weak self] in
               self?.recordingOverlayController?.showKeystroke(event.displayToken)
@@ -244,7 +248,7 @@ final class RecordingCoordinator {
     case .webcam:
       setWebcamEnabledForActiveRecording(enabled)
     case .mouseClicks:
-      await setMouseClicksEnabledForActiveRecording(enabled)
+      setMouseClicksEnabledForActiveRecording(enabled)
     case .keystrokes:
       setKeystrokesEnabledForActiveRecording(enabled)
     case .countdown:
@@ -285,16 +289,61 @@ final class RecordingCoordinator {
     }
   }
 
-  private func setMouseClicksEnabledForActiveRecording(_ enabled: Bool) async {
-    let style = enabled ? settings.effectiveMouseClickHighlightStyle : nil
-    do {
-      try await recorder?.setSystemMouseClickRenderingEnabled(style?.usesSystemRenderer == true)
-      liveControlState.highlightMouseClicks = enabled
-      mouseClickHighlightStyleInSession = style
-      inputMonitor?.setCaptureMouseClicks(style?.usesCustomRenderer == true)
-    } catch {
-      onError?("Failed to update mouse click highlights: \(error.localizedDescription)")
+  func setMicrophoneDeviceIDForNextRecording(_ deviceID: String) {
+    settings.setVideoMicrophoneDeviceID(deviceID)
+    guard isRecordingActive else {
+      return
     }
+    Task { [weak self] in
+      guard let self else {
+        return
+      }
+      await self.setMicrophoneDeviceIDForActiveRecording(deviceID)
+    }
+  }
+
+  private func setMicrophoneDeviceIDForActiveRecording(_ deviceID: String) async {
+    do {
+      try await recorder?.setMicrophoneDeviceID(deviceID)
+      microphoneDeviceIDInSession = deviceID
+    } catch {
+      onError?("Failed to update microphone source: \(error.localizedDescription)")
+    }
+  }
+
+  func setWebcamDeviceIDForNextRecording(_ deviceID: String) {
+    settings.setVideoWebcamDeviceID(deviceID)
+    guard isRecordingActive else {
+      return
+    }
+    Task { [weak self] in
+      guard let self else {
+        return
+      }
+      await self.setWebcamDeviceIDForActiveRecording(deviceID)
+    }
+  }
+
+  private func setWebcamDeviceIDForActiveRecording(_ deviceID: String) async {
+    guard let webcamRecorder else {
+      return
+    }
+    do {
+      try await webcamRecorder.setDeviceID(deviceID)
+      webcamDeviceIDInSession = deviceID
+      if liveControlState.showWebcam {
+        webcamOverlayUsedInSession = true
+      }
+    } catch {
+      onError?("Failed to update webcam source: \(error.localizedDescription)")
+    }
+  }
+
+  private func setMouseClicksEnabledForActiveRecording(_ enabled: Bool) {
+    let style = enabled ? settings.mouseClickHighlightStyle : nil
+    liveControlState.highlightMouseClicks = style != nil
+    mouseClickHighlightStyleInSession = style
+    inputMonitor?.setCaptureMouseClicks(style != nil)
   }
 
   private func setKeystrokesEnabledForActiveRecording(_ enabled: Bool) {
@@ -530,7 +579,7 @@ final class RecordingCoordinator {
     Task {
       do {
         let exportPlan = project.videoProject.exportPlan()
-        let shouldUseCustomCompositor = project.videoProject.hasCustomMouseClickOverlays
+        let shouldUseCustomCompositor = project.videoProject.hasMouseClickOverlays
           || (!project.overlaysBurnedIn && (exportPlan?.needsCustomCompositor ?? project.hasNativeCompositedOverlays))
         if shouldUseCustomCompositor {
           try await PostRecordingProjectExporter.exportCompositedVideo(
@@ -780,10 +829,12 @@ final class RecordingCoordinator {
     webcamPlacementChanges = []
     keystrokePlacementChanges = []
     webcamOverlayUsedInSession = false
+    webcamDeviceIDInSession = ""
     keystrokeOverlayEnabledInSession = false
     mouseClickHighlightStyleInSession = nil
     systemAudioEnabledInSession = false
     microphoneEnabledInSession = false
+    microphoneDeviceIDInSession = ""
     liveControlState = RecordingLiveControlState(
       recordSystemAudio: false,
       recordMicrophone: false,
@@ -1035,9 +1086,9 @@ final class RecordingCoordinator {
 struct RecordingConfig {
   let encoder: RecordingEncoder
   let frameRate: Int
-  let mouseClickHighlightStyle: MouseClickHighlightStyle?
   let captureSystemAudio: Bool
   let captureMicrophone: Bool
+  let microphoneDeviceID: String
   let capturedOverlayWindowIDs: [CGWindowID]
 }
 
@@ -1403,7 +1454,7 @@ final class CaptureSessionRunner: @unchecked Sendable {
 @MainActor
 final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
   private let outputURL: URL
-  private let preferredDeviceID: String
+  private var preferredDeviceID: String
   private let session = AVCaptureSession()
   private lazy var sessionRunner = CaptureSessionRunner(
     session: session,
@@ -1461,6 +1512,23 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
     let layer = AVCaptureVideoPreviewLayer(session: session)
     layer.videoGravity = .resizeAspectFill
     return layer
+  }
+
+  func setDeviceID(_ deviceID: String) async throws {
+    let normalized = deviceID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard normalized != preferredDeviceID else {
+      return
+    }
+
+    session.beginConfiguration()
+    do {
+      try replaceVideoInput(preferredDeviceID: normalized)
+      session.commitConfiguration()
+      preferredDeviceID = normalized
+    } catch {
+      session.commitConfiguration()
+      throw error
+    }
   }
 
   func cancel() {
@@ -1629,42 +1697,12 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
     session.beginConfiguration()
     session.sessionPreset = .high
 
-    var deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
-    if #available(macOS 14.0, *) {
-      deviceTypes.append(.external)
-    } else {
-      deviceTypes.append(.externalUnknown)
-    }
-    if #available(macOS 15.0, *) {
-      deviceTypes.append(.continuityCamera)
-    }
-
-    let allVideoDevices = AVCaptureDevice.DiscoverySession(
-      deviceTypes: deviceTypes,
-      mediaType: .video,
-      position: .unspecified
-    ).devices
-
-    let selectedDevice = allVideoDevices.first(where: { $0.uniqueID == preferredDeviceID })
-    guard let device = selectedDevice ?? AVCaptureDevice.default(for: .video) ?? allVideoDevices.first else {
+    do {
+      try replaceVideoInput(preferredDeviceID: preferredDeviceID)
+    } catch {
       session.commitConfiguration()
-      throw NSError(
-        domain: "com.vivyshot.video",
-        code: -70,
-        userInfo: [NSLocalizedDescriptionKey: "No camera device is available."]
-      )
+      throw error
     }
-
-    let input = try AVCaptureDeviceInput(device: device)
-    guard session.canAddInput(input) else {
-      session.commitConfiguration()
-      throw NSError(
-        domain: "com.vivyshot.video",
-        code: -71,
-        userInfo: [NSLocalizedDescriptionKey: "Unable to add webcam input."]
-      )
-    }
-    session.addInput(input)
 
     guard session.canAddOutput(movieOutput) else {
       session.commitConfiguration()
@@ -1678,6 +1716,53 @@ final class WebcamRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
 
     movieOutput.movieFragmentInterval = .invalid
     session.commitConfiguration()
+  }
+
+  private func replaceVideoInput(preferredDeviceID: String) throws {
+    let device = try Self.videoDevice(preferredDeviceID: preferredDeviceID)
+    let replacementInput = try AVCaptureDeviceInput(device: device)
+    let existingVideoInputs = session.inputs.compactMap { input -> AVCaptureDeviceInput? in
+      guard let deviceInput = input as? AVCaptureDeviceInput,
+            deviceInput.device.hasMediaType(.video)
+      else {
+        return nil
+      }
+      return deviceInput
+    }
+
+    for input in existingVideoInputs {
+      session.removeInput(input)
+    }
+
+    guard session.canAddInput(replacementInput) else {
+      for input in existingVideoInputs where session.canAddInput(input) {
+        session.addInput(input)
+      }
+      throw NSError(
+        domain: "com.vivyshot.video",
+        code: -71,
+        userInfo: [NSLocalizedDescriptionKey: "Unable to add webcam input."]
+      )
+    }
+    session.addInput(replacementInput)
+  }
+
+  private static func videoDevice(preferredDeviceID: String) throws -> AVCaptureDevice {
+    let allVideoDevices = AVCaptureDevice.DiscoverySession(
+      deviceTypes: RecordingSourceProvider.webcamDeviceTypes,
+      mediaType: .video,
+      position: .unspecified
+    ).devices
+
+    let selectedDevice = allVideoDevices.first(where: { $0.uniqueID == preferredDeviceID })
+    guard let device = selectedDevice ?? AVCaptureDevice.default(for: .video) ?? allVideoDevices.first else {
+      throw NSError(
+        domain: "com.vivyshot.video",
+        code: -70,
+        userInfo: [NSLocalizedDescriptionKey: "No camera device is available."]
+      )
+    }
+    return device
   }
 }
 
@@ -1715,7 +1800,7 @@ private final class RecordingOverlayController: NSWindowController {
     panel.isOpaque = false
     panel.backgroundColor = .clear
     panel.hasShadow = false
-    panel.ignoresMouseEvents = false
+    panel.ignoresMouseEvents = true
 
     let container = RecordingOverlayContainerView(frame: CGRect(origin: .zero, size: captureRectInScreen.size))
     container.wantsLayer = true
@@ -2648,9 +2733,6 @@ private enum PostRecordingProjectExporter {
     }
 
     let style = MouseClickHighlightStyle(rawValue: Int(item.mouseClickStyleCode)) ?? .ripple
-    guard style.usesCustomRenderer else {
-      return
-    }
 
     let color = mouseClickColor(button: item.mouseClickButtonCode)
     let alpha = max(0, min(1, item.opacity))
@@ -2660,6 +2742,21 @@ private enum PostRecordingProjectExporter {
     context.setLineJoin(.round)
 
     switch style {
+    case .system:
+      context.setFillColor(color.withAlphaComponent(0.26 * alpha).cgColor)
+      context.fillEllipse(in: rect)
+      context.setStrokeColor(NSColor.white.withAlphaComponent(0.78 * alpha).cgColor)
+      context.setLineWidth(max(1.5, lineWidth * 0.65))
+      context.strokeEllipse(in: rect.insetBy(dx: lineWidth, dy: lineWidth))
+      let dotSide = max(4, min(rect.width, rect.height) * 0.18)
+      let dotRect = CGRect(
+        x: rect.midX - dotSide * 0.5,
+        y: rect.midY - dotSide * 0.5,
+        width: dotSide,
+        height: dotSide
+      )
+      context.setFillColor(NSColor.white.withAlphaComponent(0.92 * alpha).cgColor)
+      context.fillEllipse(in: dotRect)
     case .ripple:
       context.setStrokeColor(color.withAlphaComponent(0.90 * alpha).cgColor)
       context.setLineWidth(lineWidth)
@@ -2710,8 +2807,6 @@ private enum PostRecordingProjectExporter {
       )
       context.setFillColor(NSColor.white.withAlphaComponent(0.68 * alpha).cgColor)
       context.fillEllipse(in: dotRect)
-    case .system:
-      break
     }
 
     context.restoreGState()
@@ -2820,14 +2915,14 @@ private enum PostRecordingProjectExporter {
 }
 
 @MainActor
-final class ScreenRegionRecorder: NSObject, RegionRecordingSession, SCStreamDelegate, SCRecordingOutputDelegate {
+final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, SCStreamDelegate, SCStreamOutput {
   private let selectionRectInScreen: CGRect
   private let config: RecordingConfig
   private(set) var outputURL: URL
 
   private var stream: SCStream?
   private var streamConfiguration: SCStreamConfiguration?
-  private var recordingOutput: SCRecordingOutput?
+  private let sampleWriter: RecordingAssetWriter
   private let recordingErrorLock = NSLock()
   nonisolated(unsafe) private var latestRecordingError: Error?
 
@@ -2835,210 +2930,7 @@ final class ScreenRegionRecorder: NSObject, RegionRecordingSession, SCStreamDele
     self.selectionRectInScreen = selectionRectInScreen.standardized
     self.config = config
     self.outputURL = outputURL
-    super.init()
-  }
-
-  func start() async throws {
-    if FileManager.default.fileExists(atPath: outputURL.path) {
-      try FileManager.default.removeItem(at: outputURL)
-    }
-
-    var content = try await SCShareableContent.current
-    let overlayResolution = try await resolveCapturedOverlayWindows(initialContent: content)
-    content = overlayResolution.content
-    guard let screen = activeScreenForSelection(),
-          let displayID = screen.displayID,
-          let display = content.displays.first(where: { $0.displayID == displayID })
-    else {
-      throw NSError(
-        domain: "com.vivyshot.recording",
-        code: -20,
-        userInfo: [NSLocalizedDescriptionKey: "No compatible display found for selected area."]
-      )
-    }
-
-    let excludedApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-    let filter = SCContentFilter(
-      display: display,
-      excludingApplications: excludedApps,
-      exceptingWindows: overlayResolution.windows
-    )
-
-    let streamConfig = SCStreamConfiguration()
-    let displayRect = display.frame
-    let selectionInCG = cocoaRectToCGDisplayRect(selectionRectInScreen)
-    let sourceRect = selectionInCG
-      .intersection(displayRect)
-      .offsetBy(dx: -displayRect.minX, dy: -displayRect.minY)
-      .integral
-    guard !sourceRect.isNull, sourceRect.width >= 2, sourceRect.height >= 2 else {
-      throw NSError(
-        domain: "com.vivyshot.recording",
-        code: -21,
-        userInfo: [NSLocalizedDescriptionKey: "Selected region is too small to record."]
-      )
-    }
-
-    let scale = max(1.0, screen.backingScaleFactor)
-    streamConfig.sourceRect = sourceRect
-    streamConfig.width = max(2, Int((sourceRect.width * scale).rounded()))
-    streamConfig.height = max(2, Int((sourceRect.height * scale).rounded()))
-    streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, config.frameRate)))
-    streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
-    streamConfig.queueDepth = 5
-    streamConfig.showsCursor = true
-    streamConfig.showMouseClicks = config.mouseClickHighlightStyle?.usesSystemRenderer == true
-    streamConfig.capturesAudio = config.captureSystemAudio
-    streamConfig.captureMicrophone = config.captureMicrophone
-    streamConfig.excludesCurrentProcessAudio = false
-    streamConfig.captureDynamicRange = .SDR
-    streamConfiguration = streamConfig
-
-    let stream = SCStream(filter: filter, configuration: streamConfig, delegate: self)
-    let outputConfig = SCRecordingOutputConfiguration()
-    outputConfig.outputURL = outputURL
-
-    switch config.encoder {
-    case .standardH264, .cpuH264:
-      outputConfig.videoCodecType = .h264
-    case .smallerFileHEVC:
-      if outputConfig.availableVideoCodecTypes.contains(.hevc) {
-        outputConfig.videoCodecType = .hevc
-      } else {
-        outputConfig.videoCodecType = .h264
-      }
-    }
-
-    if outputConfig.availableOutputFileTypes.contains(.mp4) {
-      outputConfig.outputFileType = .mp4
-    } else if let first = outputConfig.availableOutputFileTypes.first {
-      outputConfig.outputFileType = first
-    }
-
-    let recordingOutput = SCRecordingOutput(configuration: outputConfig, delegate: self)
-    try stream.addRecordingOutput(recordingOutput)
-
-    self.stream = stream
-    self.recordingOutput = recordingOutput
-    setRecordingError(nil)
-    try await stream.startCaptureChecked()
-  }
-
-  private func resolveCapturedOverlayWindows(
-    initialContent: SCShareableContent
-  ) async throws -> (content: SCShareableContent, windows: [SCWindow]) {
-    let requestedIDs = Set(config.capturedOverlayWindowIDs)
-    guard !requestedIDs.isEmpty else {
-      return (initialContent, [])
-    }
-
-    var content = initialContent
-    for attempt in 0..<5 {
-      let windows = content.windows.filter { requestedIDs.contains($0.windowID) }
-      if windows.count == requestedIDs.count {
-        return (content, windows)
-      }
-
-      if attempt < 4 {
-        try await Task.sleep(nanoseconds: 80_000_000)
-        content = try await SCShareableContent.current
-      }
-    }
-
-    throw NSError(
-      domain: "com.vivyshot.recording",
-      code: -22,
-      userInfo: [NSLocalizedDescriptionKey: "Recording overlay window was not available to capture."]
-    )
-  }
-
-  func stop() async throws -> URL {
-    guard let stream else {
-      return outputURL
-    }
-
-    try await stream.stopCaptureChecked()
-    self.stream = nil
-    recordingOutput = nil
-
-    if let recordingError = currentRecordingError() {
-      throw recordingError
-    }
-
-    // Give recording writer a moment to flush trailer metadata.
-    try? await Task.sleep(nanoseconds: 220_000_000)
-    return outputURL
-  }
-
-  func setSystemAudioEnabled(_ enabled: Bool) async throws {
-    guard let stream, let streamConfiguration else {
-      return
-    }
-    streamConfiguration.capturesAudio = enabled
-    try await stream.updateConfiguration(streamConfiguration)
-  }
-
-  func setMicrophoneEnabled(_ enabled: Bool) async throws {
-    guard let stream, let streamConfiguration else {
-      return
-    }
-    streamConfiguration.captureMicrophone = enabled
-    try await stream.updateConfiguration(streamConfiguration)
-  }
-
-  func setSystemMouseClickRenderingEnabled(_ enabled: Bool) async throws {
-    guard let stream, let streamConfiguration else {
-      return
-    }
-    streamConfiguration.showMouseClicks = enabled
-    try await stream.updateConfiguration(streamConfiguration)
-  }
-
-  private func activeScreenForSelection() -> NSScreen? {
-    let center = CGPoint(x: selectionRectInScreen.midX, y: selectionRectInScreen.midY)
-    return NSScreen.screens.first(where: { $0.frame.contains(center) })
-      ?? NSScreen.main
-      ?? NSScreen.screens.first
-  }
-
-  nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
-    setRecordingError(error)
-  }
-
-  nonisolated func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
-    setRecordingError(error)
-  }
-
-  nonisolated private func currentRecordingError() -> Error? {
-    recordingErrorLock.lock()
-    defer { recordingErrorLock.unlock() }
-    return latestRecordingError
-  }
-
-  nonisolated private func setRecordingError(_ error: Error?) {
-    recordingErrorLock.lock()
-    latestRecordingError = error
-    recordingErrorLock.unlock()
-  }
-}
-
-@MainActor
-final class ScreenRegionSoftwareH264Recorder: NSObject, RegionRecordingSession, SCStreamDelegate, SCStreamOutput {
-  private let selectionRectInScreen: CGRect
-  private let config: RecordingConfig
-  private(set) var outputURL: URL
-
-  private var stream: SCStream?
-  private var streamConfiguration: SCStreamConfiguration?
-  private let sampleWriter: SoftwareH264AssetWriter
-  private let recordingErrorLock = NSLock()
-  nonisolated(unsafe) private var latestRecordingError: Error?
-
-  init(selectionRectInScreen: CGRect, config: RecordingConfig, outputURL: URL) {
-    self.selectionRectInScreen = selectionRectInScreen.standardized
-    self.config = config
-    self.outputURL = outputURL
-    sampleWriter = SoftwareH264AssetWriter(
+    sampleWriter = RecordingAssetWriter(
       outputURL: outputURL,
       frameRate: config.frameRate,
       encoder: config.encoder,
@@ -3095,9 +2987,10 @@ final class ScreenRegionSoftwareH264Recorder: NSObject, RegionRecordingSession, 
     streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
     streamConfig.queueDepth = 5
     streamConfig.showsCursor = true
-    streamConfig.showMouseClicks = config.mouseClickHighlightStyle?.usesSystemRenderer == true
+    streamConfig.showMouseClicks = false
     streamConfig.capturesAudio = config.captureSystemAudio
     streamConfig.captureMicrophone = config.captureMicrophone
+    streamConfig.microphoneCaptureDeviceID = config.microphoneDeviceID.nilIfEmpty
     streamConfig.excludesCurrentProcessAudio = false
     streamConfig.captureDynamicRange = .SDR
     streamConfiguration = streamConfig
@@ -3182,12 +3075,18 @@ final class ScreenRegionSoftwareH264Recorder: NSObject, RegionRecordingSession, 
     }
   }
 
-  func setSystemMouseClickRenderingEnabled(_ enabled: Bool) async throws {
+  func setMicrophoneDeviceID(_ deviceID: String) async throws {
     guard let stream, let streamConfiguration else {
       return
     }
-    streamConfiguration.showMouseClicks = enabled
-    try await stream.updateConfiguration(streamConfiguration)
+    let previous = streamConfiguration.microphoneCaptureDeviceID
+    streamConfiguration.microphoneCaptureDeviceID = deviceID.nilIfEmpty
+    do {
+      try await stream.updateConfiguration(streamConfiguration)
+    } catch {
+      streamConfiguration.microphoneCaptureDeviceID = previous
+      throw error
+    }
   }
 
   private func resolveCapturedOverlayWindows(
@@ -3250,8 +3149,8 @@ final class ScreenRegionSoftwareH264Recorder: NSObject, RegionRecordingSession, 
   }
 }
 
-private final class SoftwareH264AssetWriter: @unchecked Sendable {
-  let queue = DispatchQueue(label: "com.vivyshot.recording.software-h264-writer", qos: .userInitiated)
+private final class RecordingAssetWriter: @unchecked Sendable {
+  let queue = DispatchQueue(label: "com.vivyshot.recording.asset-writer", qos: .userInitiated)
 
   private let outputURL: URL
   private let frameRate: Int
@@ -3294,7 +3193,7 @@ private final class SoftwareH264AssetWriter: @unchecked Sendable {
       throw NSError(
         domain: "com.vivyshot.recording",
         code: -40,
-        userInfo: [NSLocalizedDescriptionKey: "Software encoder video size was not configured."]
+        userInfo: [NSLocalizedDescriptionKey: "Recording writer video size was not configured."]
       )
     }
 
@@ -3312,7 +3211,7 @@ private final class SoftwareH264AssetWriter: @unchecked Sendable {
       throw NSError(
         domain: "com.vivyshot.recording",
         code: -41,
-        userInfo: [NSLocalizedDescriptionKey: "Unable to configure software H.264 video writer."]
+        userInfo: [NSLocalizedDescriptionKey: "Unable to configure recording video writer."]
       )
     }
     writer.add(videoInput)
@@ -3343,7 +3242,7 @@ private final class SoftwareH264AssetWriter: @unchecked Sendable {
       throw writer.error ?? NSError(
         domain: "com.vivyshot.recording",
         code: -44,
-        userInfo: [NSLocalizedDescriptionKey: "Unable to start software H.264 writer."]
+        userInfo: [NSLocalizedDescriptionKey: "Unable to start recording writer."]
       )
     }
 
@@ -3397,7 +3296,7 @@ private final class SoftwareH264AssetWriter: @unchecked Sendable {
           continuation.resume(throwing: NSError(
             domain: "com.vivyshot.recording",
             code: -45,
-            userInfo: [NSLocalizedDescriptionKey: "No video frames were captured for software H.264 recording."]
+            userInfo: [NSLocalizedDescriptionKey: "No video frames were captured for recording."]
           ))
           return
         }
@@ -3661,5 +3560,11 @@ private extension AVAssetWriter {
     default:
       throw writer.error ?? NSError(domain: "VivyShot.Export", code: -213, userInfo: [NSLocalizedDescriptionKey: "Video writer did not complete."])
     }
+  }
+}
+
+private extension String {
+  var nilIfEmpty: String? {
+    isEmpty ? nil : self
   }
 }

@@ -131,6 +131,12 @@ final class CaptureCoordinator: CaptureCoordinating {
                 completion(state)
               }
             },
+            onSelectMicrophoneSource: { [weak self] deviceID in
+              self?.recordingCoordinator.setMicrophoneDeviceIDForNextRecording(deviceID)
+            },
+            onSelectWebcamSource: { [weak self] deviceID in
+              self?.recordingCoordinator.setWebcamDeviceIDForNextRecording(deviceID)
+            },
             onDone: { [weak self] in
               self?.captureInProgress = false
             }
