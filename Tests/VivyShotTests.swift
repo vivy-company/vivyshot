@@ -123,13 +123,45 @@ final class AppTests: XCTestCase {
       sourceHasWebcamAsset: false,
       audioTrackVisible: false,
       webcamTrackVisible: true,
-      textOverlayCount: 1
+      textOverlayCount: 1,
+      clickOverlaysVisible: true
     )
     let plan = ExportPlanner.exportPlan(trimStartMS: 100, trimEndMS: 800, keyEventCount: 2, clickEventCount: 1, context: context)
     XCTAssertEqual(plan?.planMode, PlanMode.compositeMP4.rawValue)
-    XCTAssertEqual(plan?.overlayItemCount, 3)
+    XCTAssertEqual(plan?.overlayItemCount, 4)
     XCTAssertFalse(plan?.includeAudio ?? true)
     XCTAssertTrue(plan?.needsCustomCompositor ?? false)
+  }
+
+  @MainActor
+  func testCustomMouseClickOverlayRendersFromProjectEvents() throws {
+    let project = try XCTUnwrap(
+      RecordingProject(
+        recordingInfo: RecordingInfo(
+          durationMS: 2_000,
+          width: 800,
+          height: 600,
+          frameRate: 30,
+          hasAudio: false,
+          hasWebcamAsset: false,
+          hasMicrophoneAudio: false
+        )
+      )
+    )
+
+    XCTAssertTrue(project.setMouseClickOverlay(style: .system))
+    XCTAssertTrue(project.addClickEvent(timestampMS: 500, normalizedX: 0.25, normalizedY: 0.75, button: 0))
+    XCTAssertFalse(project.hasCustomMouseClickOverlays)
+    XCTAssertEqual(project.renderPlan(timeSeconds: 0.55, renderSize: CGSize(width: 800, height: 600), target: .preview)?.items.count, 0)
+
+    XCTAssertTrue(project.setMouseClickOverlay(style: .ripple))
+    let renderPlan = project.renderPlan(timeSeconds: 0.55, renderSize: CGSize(width: 800, height: 600), target: .preview)
+    let item = try XCTUnwrap(renderPlan?.items.first)
+    XCTAssertEqual(item.kind, .mouseClick)
+    XCTAssertEqual(item.mouseClickStyleCode, UInt8(MouseClickHighlightStyle.ripple.rawValue))
+    XCTAssertEqual(item.mouseClickButtonCode, 0)
+    XCTAssertTrue(project.hasCustomMouseClickOverlays)
+    XCTAssertTrue(project.exportPlan()?.needsCustomCompositor ?? false)
   }
 
   @MainActor

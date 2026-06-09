@@ -145,7 +145,7 @@ final class RecordingCoordinator {
         let recordingConfig = RecordingConfig(
           encoder: settings.recordingEncoder,
           frameRate: settings.recordingFrameRate.rawValue,
-          highlightMouseClicks: settings.highlightMouseClicks,
+          mouseClickHighlightStyle: settings.mouseClickHighlightStyle,
           captureSystemAudio: settings.recordSystemAudio,
           captureMicrophone: microphoneEnabled,
           capturedOverlayWindowIDs: capturedOverlayWindowIDs
@@ -177,7 +177,7 @@ final class RecordingCoordinator {
         let monitor = RecordingInputMonitor(
           captureRectInScreen: recordingRect,
           captureKeystrokes: capturesKeystrokes,
-          captureMouseClicks: settings.highlightMouseClicks,
+          captureMouseClicks: settings.mouseClickHighlightStyle.isEnabled,
           onKeyEvent: { [weak self] event in
             Task { @MainActor [weak self] in
               self?.recordingOverlayController?.showKeystroke(event.displayToken)
@@ -295,7 +295,7 @@ final class RecordingCoordinator {
           systemAudioEnabled: settings.recordSystemAudio,
           microphoneEnabled: effectiveCaptureMicrophoneEnabled,
           webcamEnabled: webcamOverlayEnabledInSession,
-          mouseClicksEnabled: settings.highlightMouseClicks,
+          mouseClicksEnabled: settings.mouseClickHighlightStyle.isEnabled,
           keystrokesEnabled: keystrokeOverlayEnabledInSession,
           keyEventCount: monitorResult.keyEvents.count,
           clickEventCount: monitorResult.clickEvents.count
@@ -417,8 +417,8 @@ final class RecordingCoordinator {
     Task {
       do {
         let exportPlan = project.videoProject.exportPlan()
-        let shouldUseCustomCompositor = !project.overlaysBurnedIn
-          && (exportPlan?.needsCustomCompositor ?? project.hasNativeCompositedOverlays)
+        let shouldUseCustomCompositor = project.videoProject.hasCustomMouseClickOverlays
+          || (!project.overlaysBurnedIn && (exportPlan?.needsCustomCompositor ?? project.hasNativeCompositedOverlays))
         if shouldUseCustomCompositor {
           try await PostRecordingProjectExporter.exportCompositedVideo(
             project: project,
@@ -727,6 +727,7 @@ final class RecordingCoordinator {
       )
     }
 
+    _ = videoProject.setMouseClickOverlay(style: settings.mouseClickHighlightStyle)
     for clickEvent in monitorResult.clickEvents {
       _ = videoProject.addClickEvent(
         timestampMS: Self.milliseconds(fromNanoseconds: clickEvent.timestampNS),
@@ -911,7 +912,7 @@ final class RecordingCoordinator {
 struct RecordingConfig {
   let encoder: RecordingEncoder
   let frameRate: Int
-  let highlightMouseClicks: Bool
+  let mouseClickHighlightStyle: MouseClickHighlightStyle
   let captureSystemAudio: Bool
   let captureMicrophone: Bool
   let capturedOverlayWindowIDs: [CGWindowID]
@@ -2288,10 +2289,6 @@ private enum PostRecordingProjectExporter {
     let (screenImage, _) = try await unsafeScreenGenerator.image(at: time)
     context.draw(screenImage, in: renderRect)
 
-    guard !project.overlaysBurnedIn else {
-      return
-    }
-
     let renderPlan = project.videoProject.renderPlan(
       timeSeconds: seconds,
       renderSize: renderSize,
@@ -2306,6 +2303,9 @@ private enum PostRecordingProjectExporter {
     for item in renderPlan?.items ?? [] {
       switch item.kind {
       case .webcam:
+        guard !project.overlaysBurnedIn else {
+          continue
+        }
         guard let webcamGenerator else {
           continue
         }
@@ -2328,9 +2328,17 @@ private enum PostRecordingProjectExporter {
           )
         }
       case .keystroke:
+        guard !project.overlaysBurnedIn else {
+          continue
+        }
         drawKeystrokeOverlay(
           context: context,
           renderSize: renderSize,
+          item: item
+        )
+      case .mouseClick:
+        drawMouseClickOverlay(
+          context: context,
           item: item
         )
       }
@@ -2457,6 +2465,96 @@ private enum PostRecordingProjectExporter {
     )
     NSGraphicsContext.restoreGraphicsState()
     context.restoreGState()
+  }
+
+  private static func drawMouseClickOverlay(
+    context: CGContext,
+    item: RenderItem
+  ) {
+    let rect = coreGraphicsRect(fromBottomLeft: item.rect).integral
+    guard rect.width > 1, rect.height > 1, item.opacity > 0 else {
+      return
+    }
+
+    let style = MouseClickHighlightStyle(rawValue: Int(item.mouseClickStyleCode)) ?? .ripple
+    guard style.usesCustomRenderer else {
+      return
+    }
+
+    let color = mouseClickColor(button: item.mouseClickButtonCode)
+    let alpha = max(0, min(1, item.opacity))
+    let lineWidth = max(1.5, min(rect.width, rect.height) * 0.055)
+    context.saveGState()
+    context.setLineCap(.round)
+    context.setLineJoin(.round)
+
+    switch style {
+    case .ripple:
+      context.setStrokeColor(color.withAlphaComponent(0.90 * alpha).cgColor)
+      context.setLineWidth(lineWidth)
+      context.strokeEllipse(in: rect.insetBy(dx: lineWidth, dy: lineWidth))
+      context.setStrokeColor(NSColor.white.withAlphaComponent(0.45 * alpha).cgColor)
+      context.setLineWidth(max(1, lineWidth * 0.42))
+      context.strokeEllipse(in: rect.insetBy(dx: lineWidth * 2.35, dy: lineWidth * 2.35))
+    case .pulse:
+      context.setFillColor(color.withAlphaComponent(0.44 * alpha).cgColor)
+      context.fillEllipse(in: rect)
+      context.setStrokeColor(NSColor.white.withAlphaComponent(0.82 * alpha).cgColor)
+      context.setLineWidth(max(1.5, lineWidth * 0.70))
+      context.strokeEllipse(in: rect.insetBy(dx: lineWidth * 1.25, dy: lineWidth * 1.25))
+      let dotSide = max(4, min(rect.width, rect.height) * 0.24)
+      let dotRect = CGRect(
+        x: rect.midX - dotSide * 0.5,
+        y: rect.midY - dotSide * 0.5,
+        width: dotSide,
+        height: dotSide
+      )
+      context.setFillColor(NSColor.white.withAlphaComponent(0.88 * alpha).cgColor)
+      context.fillEllipse(in: dotRect)
+    case .spotlight:
+      if let gradient = CGGradient(
+        colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
+        colors: [
+          color.withAlphaComponent(0.48 * alpha).cgColor,
+          color.withAlphaComponent(0.16 * alpha).cgColor,
+          NSColor.clear.cgColor
+        ] as CFArray,
+        locations: [0, 0.52, 1]
+      ) {
+        context.drawRadialGradient(
+          gradient,
+          startCenter: CGPoint(x: rect.midX, y: rect.midY),
+          startRadius: 0,
+          endCenter: CGPoint(x: rect.midX, y: rect.midY),
+          endRadius: min(rect.width, rect.height) * 0.5,
+          options: [.drawsAfterEndLocation]
+        )
+      }
+      let dotSide = max(3, min(rect.width, rect.height) * 0.10)
+      let dotRect = CGRect(
+        x: rect.midX - dotSide * 0.5,
+        y: rect.midY - dotSide * 0.5,
+        width: dotSide,
+        height: dotSide
+      )
+      context.setFillColor(NSColor.white.withAlphaComponent(0.68 * alpha).cgColor)
+      context.fillEllipse(in: dotRect)
+    case .off, .system:
+      break
+    }
+
+    context.restoreGState()
+  }
+
+  private static func mouseClickColor(button: UInt8) -> NSColor {
+    switch button {
+    case 1:
+      return NSColor.systemOrange
+    case 2:
+      return NSColor.systemGreen
+    default:
+      return NSColor.controlAccentColor
+    }
   }
 
   private static func coreGraphicsRect(fromBottomLeft rect: CGRect) -> CGRect {
@@ -2617,7 +2715,7 @@ final class ScreenRegionRecorder: NSObject, RegionRecordingSession, SCStreamDele
     streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
     streamConfig.queueDepth = 5
     streamConfig.showsCursor = true
-    streamConfig.showMouseClicks = config.highlightMouseClicks
+    streamConfig.showMouseClicks = config.mouseClickHighlightStyle.usesSystemRenderer
     streamConfig.capturesAudio = config.captureSystemAudio
     streamConfig.captureMicrophone = config.captureMicrophone
     streamConfig.excludesCurrentProcessAudio = false
@@ -2798,7 +2896,7 @@ final class ScreenRegionSoftwareH264Recorder: NSObject, RegionRecordingSession, 
     streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
     streamConfig.queueDepth = 5
     streamConfig.showsCursor = true
-    streamConfig.showMouseClicks = config.highlightMouseClicks
+    streamConfig.showMouseClicks = config.mouseClickHighlightStyle.usesSystemRenderer
     streamConfig.capturesAudio = config.captureSystemAudio
     streamConfig.captureMicrophone = config.captureMicrophone
     streamConfig.excludesCurrentProcessAudio = false

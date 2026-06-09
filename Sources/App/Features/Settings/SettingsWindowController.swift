@@ -720,8 +720,12 @@ struct SettingsView: View {
 
   private var mouseClickSection: some View {
     Section("Mouse Click Highlights") {
-      Toggle("Highlight mouse clicks", isOn: highlightMouseClicksBinding)
-        .toggleStyle(.switch)
+      Picker("Click Style", selection: mouseClickHighlightStyleBinding) {
+        ForEach(MouseClickHighlightStyle.allCases) { style in
+          Text(style.title).tag(style)
+        }
+      }
+      .pickerStyle(.menu)
     }
   }
 
@@ -1224,10 +1228,10 @@ struct SettingsView: View {
     )
   }
 
-  private var highlightMouseClicksBinding: Binding<Bool> {
+  private var mouseClickHighlightStyleBinding: Binding<MouseClickHighlightStyle> {
     Binding(
-      get: { settings.highlightMouseClicks },
-      set: { settings.setVideoHighlightMouseClicks($0) }
+      get: { settings.mouseClickHighlightStyle },
+      set: { settings.setMouseClickHighlightStyle($0) }
     )
   }
 

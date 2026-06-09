@@ -958,11 +958,18 @@ private struct PostRecordingActionView: View {
 
       if FileManager.default.fileExists(atPath: project.inputURL.path) {
         VStack(spacing: 0) {
-          PostRecordingPlayerPreview(
-            url: project.inputURL,
-            playbackState: playbackState,
-            isMuted: !reviewState.editState.isOutputAudioEnabled
-          )
+          ZStack {
+            PostRecordingPlayerPreview(
+              url: project.inputURL,
+              playbackState: playbackState,
+              isMuted: !reviewState.editState.isOutputAudioEnabled
+            )
+
+            PostRecordingOverlayPreviewLayer(
+              project: project,
+              playbackState: playbackState
+            )
+          }
           .frame(maxWidth: .infinity, maxHeight: .infinity)
 
           PostRecordingPlaybackControls(
@@ -1436,7 +1443,7 @@ private struct PostRecordingOverlayPreviewLayer: View {
           let itemRect = viewRect(for: item.rect, videoRect: videoRect)
           switch item.kind {
           case .webcam:
-            if let webcamURL = project.webcamURL {
+            if !project.overlaysBurnedIn, let webcamURL = project.webcamURL {
               webcamOverlay(
                 url: webcamURL,
                 seconds: playbackState.currentSeconds + project.webcamTimeOffsetSeconds,
@@ -1445,10 +1452,20 @@ private struct PostRecordingOverlayPreviewLayer: View {
               )
             }
           case .keystroke:
-            PostRecordingKeystrokeOverlayPreview(
-              text: item.text.isEmpty ? "⌘K" : item.text,
-              style: keystrokeStyle(for: item),
-              size: keystrokeSize(for: item)
+            if !project.overlaysBurnedIn {
+              PostRecordingKeystrokeOverlayPreview(
+                text: item.text.isEmpty ? "⌘K" : item.text,
+                style: keystrokeStyle(for: item),
+                size: keystrokeSize(for: item)
+              )
+              .frame(width: itemRect.width, height: itemRect.height)
+              .position(x: itemRect.midX, y: itemRect.midY)
+            }
+          case .mouseClick:
+            PostRecordingMouseClickOverlayPreview(
+              style: mouseClickStyle(for: item),
+              button: item.mouseClickButtonCode,
+              opacity: item.opacity
             )
             .frame(width: itemRect.width, height: itemRect.height)
             .position(x: itemRect.midX, y: itemRect.midY)
@@ -1529,6 +1546,11 @@ private struct PostRecordingOverlayPreviewLayer: View {
     KeystrokeSize(rawValue: Int(item.keystrokeSizeCode))
       ?? .medium
   }
+
+  private func mouseClickStyle(for item: RenderItem) -> MouseClickHighlightStyle {
+    MouseClickHighlightStyle(rawValue: Int(item.mouseClickStyleCode))
+      ?? .ripple
+  }
 }
 
 private struct PostRecordingKeystrokeOverlayPreview: View {
@@ -1543,6 +1565,71 @@ private struct PostRecordingKeystrokeOverlayPreview: View {
       size: size,
       showsResizeGrip: false
     )
+  }
+}
+
+private struct PostRecordingMouseClickOverlayPreview: View {
+  let style: MouseClickHighlightStyle
+  let button: UInt8
+  let opacity: CGFloat
+
+  var body: some View {
+    GeometryReader { proxy in
+      let side = min(proxy.size.width, proxy.size.height)
+      let lineWidth = max(1.4, side * 0.055)
+      let color = clickColor
+      ZStack {
+        switch style {
+        case .ripple:
+          Circle()
+            .stroke(color.opacity(0.92), lineWidth: lineWidth)
+          Circle()
+            .stroke(Color.white.opacity(0.52), lineWidth: max(1, lineWidth * 0.42))
+            .padding(lineWidth * 1.35)
+        case .pulse:
+          Circle()
+            .fill(color.opacity(0.44))
+          Circle()
+            .stroke(Color.white.opacity(0.82), lineWidth: max(1.5, lineWidth * 0.70))
+            .padding(lineWidth * 1.25)
+          Circle()
+            .fill(Color.white.opacity(0.88))
+            .frame(width: max(4, side * 0.24), height: max(4, side * 0.24))
+        case .spotlight:
+          Circle()
+            .fill(
+              RadialGradient(
+                colors: [
+                  color.opacity(0.48),
+                  color.opacity(0.16),
+                  .clear
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: side * 0.5
+              )
+            )
+          Circle()
+            .fill(Color.white.opacity(0.68))
+            .frame(width: max(3, side * 0.10), height: max(3, side * 0.10))
+        case .off, .system:
+          EmptyView()
+        }
+      }
+      .opacity(opacity)
+    }
+    .allowsHitTesting(false)
+  }
+
+  private var clickColor: Color {
+    switch button {
+    case 1:
+      return .orange
+    case 2:
+      return .mint
+    default:
+      return .accentColor
+    }
   }
 }
 

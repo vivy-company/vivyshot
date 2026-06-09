@@ -5,7 +5,8 @@ import Foundation
 final class RecordingProject {
   private let recordingInfo: RecordingInfo
   private var keyEvents: [KeyEvent] = []
-  private var clickEventCount = 0
+  private var clickEvents: [ClickEvent] = []
+  private var mouseClickHighlightStyle: MouseClickHighlightStyle = .off
   private var webcamOverlay = WebcamOverlayState()
   private var keystrokeOverlay = KeystrokeOverlayState()
   /// How long the most recent captured key label remains visible on the timeline.
@@ -30,11 +31,23 @@ final class RecordingProject {
     return true
   }
 
-  func addClickEvent(timestampMS _: UInt32, normalizedX: CGFloat, normalizedY: CGFloat, button _: UInt32) -> Bool {
+  var hasCustomMouseClickOverlays: Bool {
+    mouseClickHighlightStyle.usesCustomRenderer && !clickEvents.isEmpty
+  }
+
+  func setMouseClickOverlay(style: MouseClickHighlightStyle) -> Bool {
+    mouseClickHighlightStyle = style
+    return true
+  }
+
+  func addClickEvent(timestampMS: UInt32, normalizedX: CGFloat, normalizedY: CGFloat, button: UInt32) -> Bool {
     guard normalizedX.isFinite, normalizedY.isFinite else {
       return false
     }
-    clickEventCount += 1
+    let x = min(max(0, normalizedX), 1)
+    let y = min(max(0, normalizedY), 1)
+    clickEvents.append(ClickEvent(timestampMS: timestampMS, normalizedX: x, normalizedY: y, button: button))
+    clickEvents.sort { $0.timestampMS < $1.timestampMS }
     return true
   }
 
@@ -101,7 +114,10 @@ final class RecordingProject {
           kind: .webcam,
           rect: rect,
           opacity: 1,
-          styleFlags: UInt32(webcamOverlay.shape) | (UInt32(webcamOverlay.aspectRatio) << 8),
+          styleFlags: RenderItem.styleFlags(
+            primary: UInt32(webcamOverlay.shape),
+            secondary: UInt32(webcamOverlay.aspectRatio)
+          ),
           text: "",
           assetID: webcamOverlay.assetID
         )
@@ -119,11 +135,47 @@ final class RecordingProject {
           kind: .keystroke,
           rect: rect,
           opacity: 1,
-          styleFlags: UInt32(keystrokeOverlay.style) | (UInt32(keystrokeOverlay.size) << 8),
+          styleFlags: RenderItem.styleFlags(
+            primary: UInt32(keystrokeOverlay.style),
+            secondary: UInt32(keystrokeOverlay.size)
+          ),
           text: token,
           assetID: 0
         )
       )
+    }
+
+    if mouseClickHighlightStyle.usesCustomRenderer {
+      let clickDurationMS = mouseClickHighlightStyle.clickVisibleWindowMS
+      for clickEvent in visibleClickEvents(at: timeMS, durationMS: clickDurationMS) {
+        let elapsed = timeMS.saturatingSubtract(clickEvent.timestampMS)
+        let progress = min(1, CGFloat(elapsed) / CGFloat(clickDurationMS))
+        let center = CGPoint(
+          x: clickEvent.normalizedX * renderSize.width,
+          y: clickEvent.normalizedY * renderSize.height
+        )
+        let base = min(renderSize.width, renderSize.height)
+        let diameter = mouseClickHighlightStyle.clickDiameter(base: base, progress: progress)
+        let rect = CGRect(
+          x: center.x - diameter * 0.5,
+          y: center.y - diameter * 0.5,
+          width: diameter,
+          height: diameter
+        ).integral
+        items.append(
+          RenderItem(
+            kind: .mouseClick,
+            rect: rect,
+            opacity: mouseClickHighlightStyle.clickOpacity(progress: progress),
+            styleFlags: RenderItem.styleFlags(
+              primary: UInt32(mouseClickHighlightStyle.rawValue),
+              secondary: clickEvent.button
+            ),
+            text: "",
+            assetID: 0
+          )
+        )
+      }
     }
 
     return RenderPlan(items: items)
@@ -135,13 +187,14 @@ final class RecordingProject {
       sourceHasWebcamAsset: recordingInfo.hasWebcamAsset,
       audioTrackVisible: recordingInfo.hasAudio,
       webcamTrackVisible: webcamOverlay.enabled,
-      textOverlayCount: keystrokeOverlay.enabled ? keyEvents.count : 0
+      textOverlayCount: keystrokeOverlay.enabled ? keyEvents.count : 0,
+      clickOverlaysVisible: hasCustomMouseClickOverlays
     )
     return ExportPlanner.exportPlan(
       trimStartMS: 0,
       trimEndMS: Int(recordingInfo.durationMS),
       keyEventCount: keyEvents.count,
-      clickEventCount: clickEventCount,
+      clickEventCount: clickEvents.count,
       context: context
     )
   }
@@ -168,6 +221,12 @@ final class RecordingProject {
     return keyEvents.last { event in
       event.timestampMS <= timeMS && timeMS <= event.timestampMS.saturatingAdd(Self.keyLabelVisibleWindowMS)
     }?.token
+  }
+
+  private func visibleClickEvents(at timeMS: UInt32, durationMS: UInt32) -> [ClickEvent] {
+    clickEvents.filter { event in
+      event.timestampMS <= timeMS && timeMS <= event.timestampMS.saturatingAdd(durationMS)
+    }
   }
 
   private func absoluteRect(for rect: CGRect, renderSize: CGSize) -> CGRect {
@@ -213,6 +272,13 @@ private struct KeyEvent {
   let token: String
 }
 
+private struct ClickEvent {
+  let timestampMS: UInt32
+  let normalizedX: CGFloat
+  let normalizedY: CGFloat
+  let button: UInt32
+}
+
 private struct OverlayPlacement {
   let timestampMS: UInt32
   let frame: CGRect
@@ -241,10 +307,57 @@ private struct KeystrokeOverlayState {
   }
 }
 
+private extension MouseClickHighlightStyle {
+  var clickVisibleWindowMS: UInt32 {
+    switch self {
+    case .ripple:
+      return 650
+    case .pulse:
+      return 280
+    case .spotlight:
+      return 900
+    case .off, .system:
+      return 520
+    }
+  }
+
+  func clickDiameter(base: CGFloat, progress: CGFloat) -> CGFloat {
+    let clampedBase = max(1, base)
+    switch self {
+    case .ripple:
+      return clampedBase * (0.030 + progress * 0.110)
+    case .pulse:
+      return clampedBase * (0.045 + CGFloat(sin(Double(progress) * Double.pi)) * 0.035)
+    case .spotlight:
+      return clampedBase * (0.135 + progress * 0.025)
+    case .off, .system:
+      return clampedBase * 0.05
+    }
+  }
+
+  func clickOpacity(progress: CGFloat) -> CGFloat {
+    let fade = max(0, 1 - progress)
+    switch self {
+    case .pulse:
+      return min(1, 0.90 * pow(fade, 0.65))
+    case .spotlight:
+      return min(0.85, 0.70 * pow(fade, 0.45))
+    case .ripple:
+      return min(1, fade * 0.95)
+    case .off, .system:
+      return 0
+    }
+  }
+}
+
 private extension UInt32 {
   func saturatingAdd(_ value: UInt32) -> UInt32 {
     let (result, overflow) = addingReportingOverflow(value)
     return overflow ? UInt32.max : result
+  }
+
+  func saturatingSubtract(_ value: UInt32) -> UInt32 {
+    value > self ? 0 : self - value
   }
 }
 

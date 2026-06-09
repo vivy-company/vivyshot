@@ -167,7 +167,8 @@ enum ExportPlanner {
     }
     let includeAudio = context.sourceHasAudio && context.audioTrackVisible
     let includeWebcam = context.sourceHasWebcamAsset && context.webcamTrackVisible
-    let overlayCount = context.textOverlayCount + keyEventCount
+    let clickOverlayCount = context.clickOverlaysVisible ? clickEventCount : 0
+    let overlayCount = context.textOverlayCount + keyEventCount + clickOverlayCount
     let needsCompositor = includeWebcam || overlayCount > 0 || (context.sourceHasAudio && !includeAudio)
     return ExportPlan(
       trimStartMS: trimStartMS,

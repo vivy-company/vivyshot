@@ -172,6 +172,49 @@ enum RecordingCountdown: Int, CaseIterable, Identifiable {
   }
 }
 
+/// Mouse click visualization used while recording or rendered by VivyShot after recording.
+enum MouseClickHighlightStyle: Int, CaseIterable, Identifiable {
+  case off = 0
+  case system = 1
+  case ripple = 2
+  case pulse = 3
+  case spotlight = 4
+
+  var id: Int { rawValue }
+
+  var title: String {
+    switch self {
+    case .off:
+      return String(localized: "Off", bundle: AppLocalizer.shared.bundle)
+    case .system:
+      return String(localized: "System", bundle: AppLocalizer.shared.bundle)
+    case .ripple:
+      return String(localized: "Ripple", bundle: AppLocalizer.shared.bundle)
+    case .pulse:
+      return String(localized: "Pulse", bundle: AppLocalizer.shared.bundle)
+    case .spotlight:
+      return String(localized: "Spotlight", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+
+  var isEnabled: Bool {
+    self != .off
+  }
+
+  var usesSystemRenderer: Bool {
+    self == .system
+  }
+
+  var usesCustomRenderer: Bool {
+    switch self {
+    case .off, .system:
+      return false
+    case .ripple, .pulse, .spotlight:
+      return true
+    }
+  }
+}
+
 /// Relative size for the draggable webcam overlay.
 enum WebcamOverlaySize: Int, CaseIterable, Identifiable {
   case small = 0

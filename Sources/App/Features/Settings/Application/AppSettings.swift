@@ -93,7 +93,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var webcamOverlayNormalizedY: Double
   @Published private(set) var webcamOverlayNormalizedWidth: Double
   @Published private(set) var webcamOverlayNormalizedHeight: Double
-  @Published private(set) var highlightMouseClicks: Bool
+  @Published private(set) var mouseClickHighlightStyle: MouseClickHighlightStyle
   @Published private(set) var highlightKeystrokes: Bool
   @Published private(set) var keystrokeOverlayStyle: KeystrokeStyle
   @Published private(set) var keystrokeOverlaySize: KeystrokeSize
@@ -123,6 +123,10 @@ final class AppSettings: ObservableObject {
       return nil
     }
     return url
+  }
+
+  var highlightMouseClicks: Bool {
+    mouseClickHighlightStyle.isEnabled
   }
 
   var captureModifierFlags: UInt32 {
@@ -227,6 +231,7 @@ final class AppSettings: ObservableObject {
     static let webcamOverlayNormalizedWidth = "settings.video.webcam.overlay.normalizedWidth"
     static let webcamOverlayNormalizedHeight = "settings.video.webcam.overlay.normalizedHeight"
     static let highlightMouseClicks = "settings.video.highlightMouseClicks"
+    static let mouseClickHighlightStyle = "settings.video.mouseClick.highlightStyle"
     static let highlightKeystrokes = "settings.video.highlightKeystrokes"
     static let keystrokeOverlayStyle = "settings.video.keystroke.overlay.style"
     static let keystrokeOverlaySize = "settings.video.keystroke.overlay.size"
@@ -263,6 +268,7 @@ final class AppSettings: ObservableObject {
     static let webcamShape = WebcamShape.roundedRect
     static let webcamAspectRatio = WebcamAspectRatio.square
     static let highlightMouseClicks = true
+    static let mouseClickHighlightStyle = MouseClickHighlightStyle.system
     static let keystrokeStyle = KeystrokeStyle.glass
     static let keystrokeSize = KeystrokeSize.medium
     static let hideNotifications = true
@@ -423,11 +429,20 @@ final class AppSettings: ObservableObject {
     webcamOverlayNormalizedWidth = Self.clampedNormalizedDimension(defaults.object(forKey: Keys.webcamOverlayNormalizedWidth) as? Double ?? defaultWebcamFrame.width)
     webcamOverlayNormalizedHeight = Self.clampedNormalizedDimension(defaults.object(forKey: Keys.webcamOverlayNormalizedHeight) as? Double ?? defaultWebcamFrame.height)
 
+    let storedHighlightMouseClicks: Bool
     if defaults.object(forKey: Keys.highlightMouseClicks) == nil {
-      highlightMouseClicks = Defaults.highlightMouseClicks
+      storedHighlightMouseClicks = Defaults.highlightMouseClicks
     } else {
-      highlightMouseClicks = defaults.bool(forKey: Keys.highlightMouseClicks)
+      storedHighlightMouseClicks = defaults.bool(forKey: Keys.highlightMouseClicks)
     }
+    let storedMouseClickStyle = defaults.object(forKey: Keys.mouseClickHighlightStyle) as? Int
+    let resolvedMouseClickStyle: MouseClickHighlightStyle
+    if let storedMouseClickStyle {
+      resolvedMouseClickStyle = MouseClickHighlightStyle(rawValue: storedMouseClickStyle) ?? Defaults.mouseClickHighlightStyle
+    } else {
+      resolvedMouseClickStyle = storedHighlightMouseClicks ? Defaults.mouseClickHighlightStyle : .off
+    }
+    mouseClickHighlightStyle = resolvedMouseClickStyle
 
     highlightKeystrokes = defaults.bool(forKey: Keys.highlightKeystrokes)
 
@@ -786,10 +801,19 @@ final class AppSettings: ObservableObject {
   }
 
   func setVideoHighlightMouseClicks(_ enabled: Bool) {
-    guard highlightMouseClicks != enabled else {
+    let style: MouseClickHighlightStyle = enabled ? Defaults.mouseClickHighlightStyle : .off
+    guard mouseClickHighlightStyle != style else {
       return
     }
-    highlightMouseClicks = enabled
+    mouseClickHighlightStyle = style
+    persistVideoCaptureSettings()
+  }
+
+  func setMouseClickHighlightStyle(_ style: MouseClickHighlightStyle) {
+    guard mouseClickHighlightStyle != style else {
+      return
+    }
+    mouseClickHighlightStyle = style
     persistVideoCaptureSettings()
   }
 
@@ -908,7 +932,7 @@ final class AppSettings: ObservableObject {
     webcamOverlayNormalizedY = defaultWebcamFrame.minY
     webcamOverlayNormalizedWidth = defaultWebcamFrame.width
     webcamOverlayNormalizedHeight = defaultWebcamFrame.height
-    highlightMouseClicks = true
+    mouseClickHighlightStyle = Defaults.mouseClickHighlightStyle
     highlightKeystrokes = false
     keystrokeOverlayStyle = .glass
     keystrokeOverlaySize = .medium
@@ -1576,7 +1600,8 @@ final class AppSettings: ObservableObject {
     defaults.set(webcamOverlayNormalizedY, forKey: Keys.webcamOverlayNormalizedY)
     defaults.set(webcamOverlayNormalizedWidth, forKey: Keys.webcamOverlayNormalizedWidth)
     defaults.set(webcamOverlayNormalizedHeight, forKey: Keys.webcamOverlayNormalizedHeight)
-    defaults.set(highlightMouseClicks, forKey: Keys.highlightMouseClicks)
+    defaults.set(mouseClickHighlightStyle.isEnabled, forKey: Keys.highlightMouseClicks)
+    defaults.set(mouseClickHighlightStyle.rawValue, forKey: Keys.mouseClickHighlightStyle)
     defaults.set(highlightKeystrokes, forKey: Keys.highlightKeystrokes)
     defaults.set(keystrokeOverlayStyle.rawValue, forKey: Keys.keystrokeOverlayStyle)
     defaults.set(keystrokeOverlaySize.rawValue, forKey: Keys.keystrokeOverlaySize)
@@ -1635,7 +1660,8 @@ final class AppSettings: ObservableObject {
     defaults.set(webcamOverlayNormalizedY, forKey: Keys.webcamOverlayNormalizedY)
     defaults.set(webcamOverlayNormalizedWidth, forKey: Keys.webcamOverlayNormalizedWidth)
     defaults.set(webcamOverlayNormalizedHeight, forKey: Keys.webcamOverlayNormalizedHeight)
-    defaults.set(highlightMouseClicks, forKey: Keys.highlightMouseClicks)
+    defaults.set(mouseClickHighlightStyle.isEnabled, forKey: Keys.highlightMouseClicks)
+    defaults.set(mouseClickHighlightStyle.rawValue, forKey: Keys.mouseClickHighlightStyle)
     defaults.set(highlightKeystrokes, forKey: Keys.highlightKeystrokes)
     defaults.set(keystrokeOverlayStyle.rawValue, forKey: Keys.keystrokeOverlayStyle)
     defaults.set(keystrokeOverlaySize.rawValue, forKey: Keys.keystrokeOverlaySize)

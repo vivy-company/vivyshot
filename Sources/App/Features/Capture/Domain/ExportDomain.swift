@@ -62,6 +62,7 @@ enum RenderTarget: UInt8 {
 enum RenderItemKind: UInt8 {
   case webcam = 1
   case keystroke = 2
+  case mouseClick = 3
 }
 
 /// Concrete overlay draw command at a timeline position.
@@ -73,15 +74,35 @@ struct RenderItem {
   let text: String
   let assetID: UInt32
 
+  static func styleFlags(primary: UInt32, secondary: UInt32 = 0) -> UInt32 {
+    (primary & 0xFF) | ((secondary & 0xFF) << 8)
+  }
+
   var webcamShapeCode: UInt8 {
-    UInt8(styleFlags & 0xFF)
+    primaryStyleCode
   }
 
   var keystrokeStyleCode: UInt8 {
-    UInt8(styleFlags & 0xFF)
+    primaryStyleCode
   }
 
   var keystrokeSizeCode: UInt8 {
+    secondaryStyleCode
+  }
+
+  var mouseClickStyleCode: UInt8 {
+    primaryStyleCode
+  }
+
+  var mouseClickButtonCode: UInt8 {
+    secondaryStyleCode
+  }
+
+  private var primaryStyleCode: UInt8 {
+    UInt8(styleFlags & 0xFF)
+  }
+
+  private var secondaryStyleCode: UInt8 {
     UInt8((styleFlags >> 8) & 0xFF)
   }
 }
@@ -98,6 +119,7 @@ struct ExportContext {
   let audioTrackVisible: Bool
   let webcamTrackVisible: Bool
   let textOverlayCount: Int
+  let clickOverlaysVisible: Bool
 }
 
 /// Geometry needed to render the source video into the requested output canvas.
