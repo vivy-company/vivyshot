@@ -19,7 +19,7 @@
     "subtitle": "Built to make screenshots and screen recordings faster for work, docs, bug reports, and AI-agent workflows, with capture, annotation, and export in one place.",
     "primaryCta": "Download",
     "secondaryCta": "",
-    "meta": "Available now on <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>."
+    "meta": "Free to download for <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>."
   },
   "why": {
     "title": "What makes it different",
@@ -226,7 +226,7 @@
     }
   },
   "closing": {
-    "title": "Available now on macOS.",
+    "title": "Built for macOS capture workflows.",
     "subtitle": "Native macOS UI for capture, annotation, recording, and export.",
     "cta": "Download"
   },
