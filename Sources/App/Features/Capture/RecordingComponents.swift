@@ -39,6 +39,7 @@ final class RecordingCoordinator {
   private var keystrokePlacementChanges: [OverlayPlacementChange] = []
   private var webcamOverlayEnabledInSession = false
   private var keystrokeOverlayEnabledInSession = false
+  private var mouseClickHighlightStyleInSession: MouseClickHighlightStyle?
   private var isStoppingRecording = false
   var onRecordingStateChanged: ((Bool) -> Void)?
 
@@ -95,6 +96,8 @@ final class RecordingCoordinator {
         let microphoneEnabled = effectiveCaptureMicrophoneEnabled
         let webcamEnabled = effectiveShowWebcamEnabled
         let keystrokesEnabled = effectiveHighlightKeystrokesEnabled
+        let mouseClickHighlightStyle = settings.effectiveMouseClickHighlightStyle
+        mouseClickHighlightStyleInSession = mouseClickHighlightStyle
         webcamOverlayEnabledInSession = webcamEnabled
         var webcamPreviewLayer: AVCaptureVideoPreviewLayer?
         var pendingWebcamRecorder: WebcamRecorder?
@@ -145,7 +148,7 @@ final class RecordingCoordinator {
         let recordingConfig = RecordingConfig(
           encoder: settings.recordingEncoder,
           frameRate: settings.recordingFrameRate.rawValue,
-          mouseClickHighlightStyle: settings.mouseClickHighlightStyle,
+          mouseClickHighlightStyle: mouseClickHighlightStyle,
           captureSystemAudio: settings.recordSystemAudio,
           captureMicrophone: microphoneEnabled,
           capturedOverlayWindowIDs: capturedOverlayWindowIDs
@@ -177,7 +180,7 @@ final class RecordingCoordinator {
         let monitor = RecordingInputMonitor(
           captureRectInScreen: recordingRect,
           captureKeystrokes: capturesKeystrokes,
-          captureMouseClicks: settings.mouseClickHighlightStyle.isEnabled,
+          captureMouseClicks: mouseClickHighlightStyle != nil,
           onKeyEvent: { [weak self] event in
             Task { @MainActor [weak self] in
               self?.recordingOverlayController?.showKeystroke(event.displayToken)
@@ -295,7 +298,7 @@ final class RecordingCoordinator {
           systemAudioEnabled: settings.recordSystemAudio,
           microphoneEnabled: effectiveCaptureMicrophoneEnabled,
           webcamEnabled: webcamOverlayEnabledInSession,
-          mouseClicksEnabled: settings.mouseClickHighlightStyle.isEnabled,
+          mouseClicksEnabled: mouseClickHighlightStyleInSession != nil,
           keystrokesEnabled: keystrokeOverlayEnabledInSession,
           keyEventCount: monitorResult.keyEvents.count,
           clickEventCount: monitorResult.clickEvents.count
@@ -668,6 +671,7 @@ final class RecordingCoordinator {
     keystrokePlacementChanges = []
     webcamOverlayEnabledInSession = false
     keystrokeOverlayEnabledInSession = false
+    mouseClickHighlightStyleInSession = nil
     isStoppingRecording = false
   }
 
@@ -727,7 +731,7 @@ final class RecordingCoordinator {
       )
     }
 
-    _ = videoProject.setMouseClickOverlay(style: settings.mouseClickHighlightStyle)
+    _ = videoProject.setMouseClickOverlay(style: mouseClickHighlightStyleInSession)
     for clickEvent in monitorResult.clickEvents {
       _ = videoProject.addClickEvent(
         timestampMS: Self.milliseconds(fromNanoseconds: clickEvent.timestampNS),
@@ -912,7 +916,7 @@ final class RecordingCoordinator {
 struct RecordingConfig {
   let encoder: RecordingEncoder
   let frameRate: Int
-  let mouseClickHighlightStyle: MouseClickHighlightStyle
+  let mouseClickHighlightStyle: MouseClickHighlightStyle?
   let captureSystemAudio: Bool
   let captureMicrophone: Bool
   let capturedOverlayWindowIDs: [CGWindowID]
@@ -2539,7 +2543,7 @@ private enum PostRecordingProjectExporter {
       )
       context.setFillColor(NSColor.white.withAlphaComponent(0.68 * alpha).cgColor)
       context.fillEllipse(in: dotRect)
-    case .off, .system:
+    case .system:
       break
     }
 
@@ -2715,7 +2719,7 @@ final class ScreenRegionRecorder: NSObject, RegionRecordingSession, SCStreamDele
     streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
     streamConfig.queueDepth = 5
     streamConfig.showsCursor = true
-    streamConfig.showMouseClicks = config.mouseClickHighlightStyle.usesSystemRenderer
+    streamConfig.showMouseClicks = config.mouseClickHighlightStyle?.usesSystemRenderer == true
     streamConfig.capturesAudio = config.captureSystemAudio
     streamConfig.captureMicrophone = config.captureMicrophone
     streamConfig.excludesCurrentProcessAudio = false
@@ -2896,7 +2900,7 @@ final class ScreenRegionSoftwareH264Recorder: NSObject, RegionRecordingSession, 
     streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
     streamConfig.queueDepth = 5
     streamConfig.showsCursor = true
-    streamConfig.showMouseClicks = config.mouseClickHighlightStyle.usesSystemRenderer
+    streamConfig.showMouseClicks = config.mouseClickHighlightStyle?.usesSystemRenderer == true
     streamConfig.capturesAudio = config.captureSystemAudio
     streamConfig.captureMicrophone = config.captureMicrophone
     streamConfig.excludesCurrentProcessAudio = false

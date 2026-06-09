@@ -39,6 +39,216 @@ final class CaptureModeSelectionState: ObservableObject {
 }
 
 @MainActor
+struct RecordingControlBar: View {
+  let startedAt: Date
+  let recordSystemAudio: Bool
+  let recordMicrophone: Bool
+  let showWebcam: Bool
+  let highlightMouseClicks: Bool
+  let highlightKeystrokes: Bool
+  let toolOrder: [RecordingTool]
+  let accentColor: Color
+  let usesExternalGlassSurface: Bool
+  let onToggleSystemAudio: () -> Void
+  let onToggleMicrophone: () -> Void
+  let onToggleWebcam: () -> Void
+  let onToggleMouseClicks: () -> Void
+  let onToggleKeystrokes: () -> Void
+  let onStop: () -> Void
+  let onDrag: ((CGSize) -> Void)?
+  let onDragEnd: (() -> Void)?
+
+  private var hasToggleTools: Bool {
+    !toolOrder.isEmpty
+  }
+
+  var body: some View {
+    Group {
+      if usesExternalGlassSurface {
+        barContent
+          .padding(.horizontal, 9)
+          .padding(.vertical, 8)
+      } else if #available(macOS 26.0, *) {
+        GlassEffectContainer(spacing: 0) {
+          barContent
+            .padding(.horizontal, 9)
+            .padding(.vertical, 8)
+            .glassEffect(.regular.tint(Color.red.opacity(0.08)).interactive(), in: .capsule)
+        }
+      } else {
+        barContent
+          .padding(.horizontal, 9)
+          .padding(.vertical, 8)
+          .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+      }
+    }
+    .fixedSize()
+  }
+
+  private var barContent: some View {
+    HStack(spacing: 6) {
+      dragHandle
+      recordingIndicator
+      timerChip
+      if hasToggleTools {
+        separator
+        ForEach(toolOrder) { tool in
+          liveToggleButton(for: tool)
+        }
+      }
+      separator
+      stopButton
+    }
+  }
+
+  private var dragHandle: some View {
+    Image(systemName: "line.3.horizontal")
+      .font(.system(size: 12, weight: .bold))
+      .foregroundStyle(toolbarSecondaryForeground)
+      .frame(width: 24, height: 28)
+      .contentShape(Rectangle())
+      .gesture(dragGesture)
+      .help("Drag recording controls")
+  }
+
+  private var recordingIndicator: some View {
+    HStack(spacing: 5) {
+      Image(systemName: "record.circle.fill")
+        .font(.system(size: 14, weight: .semibold))
+      Text("REC")
+        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+    }
+    .foregroundStyle(Color.red)
+    .frame(height: 28)
+  }
+
+  private var timerChip: some View {
+    TimelineView(.periodic(from: startedAt, by: 1)) { context in
+      Text(formattedElapsedTime(at: context.date))
+        .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
+        .foregroundStyle(toolbarNeutralForeground)
+        .frame(minWidth: 58, minHeight: 28)
+        .padding(.horizontal, 8)
+        .background(
+          RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(Color.white.opacity(0.10))
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+        )
+    }
+  }
+
+  private var separator: some View {
+    Rectangle()
+      .fill(Color.white.opacity(0.18))
+      .frame(width: 1, height: 22)
+  }
+
+  @ViewBuilder
+  private func liveToggleButton(for tool: RecordingTool) -> some View {
+    switch tool {
+    case .systemAudio:
+      liveToggleButton(
+        symbol: recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill",
+        help: recordSystemAudio ? "System audio on" : "System audio off",
+        isSelected: recordSystemAudio,
+        action: onToggleSystemAudio
+      )
+    case .microphone:
+      liveToggleButton(
+        symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
+        help: recordMicrophone ? "Microphone on" : "Microphone off",
+        isSelected: recordMicrophone,
+        action: onToggleMicrophone
+      )
+    case .webcam:
+      liveToggleButton(
+        symbol: showWebcam ? "video.fill" : "video.slash.fill",
+        help: showWebcam ? "Camera overlay on" : "Camera overlay off",
+        isSelected: showWebcam,
+        action: onToggleWebcam
+      )
+    case .mouseClicks:
+      liveToggleButton(
+        symbol: highlightMouseClicks ? "cursorarrow.rays" : "cursorarrow",
+        help: highlightMouseClicks ? "Mouse clicks on" : "Mouse clicks off",
+        isSelected: highlightMouseClicks,
+        action: onToggleMouseClicks
+      )
+    case .keystrokes:
+      liveToggleButton(
+        symbol: "keyboard",
+        help: highlightKeystrokes ? "Keystrokes on" : "Keystrokes off",
+        isSelected: highlightKeystrokes,
+        action: onToggleKeystrokes
+      )
+    case .countdown:
+      EmptyView()
+    }
+  }
+
+  private func liveToggleButton(
+    symbol: String,
+    help: String,
+    isSelected: Bool,
+    action: @escaping () -> Void
+  ) -> some View {
+    HoverTooltipIconButton(
+      symbol: symbol,
+      help: help,
+      isSelected: isSelected,
+      isDisabled: false,
+      symbolFontSize: 13,
+      size: CGSize(width: 28, height: 26),
+      cornerRadius: 7,
+      selectedFillOpacity: 0.18,
+      selectedStrokeOpacity: 0.34,
+      tintOverride: isSelected ? accentColor : toolbarNeutralForeground,
+      action: action
+    )
+  }
+
+  private var stopButton: some View {
+    HoverTooltipIconButton(
+      symbol: "stop.fill",
+      help: "Stop recording",
+      isSelected: true,
+      isDisabled: false,
+      symbolFontSize: 14,
+      size: CGSize(width: 30, height: 28),
+      cornerRadius: 7,
+      selectedFillOpacity: 0.24,
+      selectedStrokeOpacity: 0.42,
+      tintOverride: Color.red,
+      action: onStop
+    )
+  }
+
+  private var dragGesture: some Gesture {
+    DragGesture(minimumDistance: 2, coordinateSpace: .global)
+      .onChanged { value in
+        onDrag?(value.translation)
+      }
+      .onEnded { _ in
+        onDragEnd?()
+      }
+  }
+
+  private func formattedElapsedTime(at date: Date) -> String {
+    let totalSeconds = max(0, Int(date.timeIntervalSince(startedAt)))
+    let hours = totalSeconds / 3600
+    let minutes = (totalSeconds / 60) % 60
+    let seconds = totalSeconds % 60
+    if hours > 0 {
+      return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+    return String(format: "%02d:%02d", minutes, seconds)
+  }
+}
+
+@MainActor
 struct CaptureAnnotationToolbar: View {
   let selectedCaptureMode: CaptureMode
   @ObservedObject var modeSelectionState: CaptureModeSelectionState

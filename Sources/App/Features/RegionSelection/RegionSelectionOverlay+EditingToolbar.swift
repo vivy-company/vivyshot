@@ -57,6 +57,9 @@ struct RegionSelectionToolbarHost: View {
 extension RegionSelectionView {
   func makeToolbarView(glassNamespace: Namespace.ID) -> AnyView {
     if mode == .editing, selectedCaptureType == .video {
+      if recordingActive {
+        return AnyView(makeRecordingControlBar())
+      }
       return AnyView(makeCaptureVideoToolbar(glassNamespace: glassNamespace))
     }
     return AnyView(makeScreenshotToolbar(glassNamespace: glassNamespace))
@@ -184,6 +187,126 @@ extension RegionSelectionView {
     )
   }
 
+  func makeRecordingControlBar() -> RecordingControlBar {
+    RecordingControlBar(
+      startedAt: recordingStartedAt ?? Date(),
+      recordSystemAudio: settings.recordSystemAudio,
+      recordMicrophone: microphoneFeatureVisible && settings.recordMicrophone,
+      showWebcam: webcamFeatureVisible && settings.showWebcam,
+      highlightMouseClicks: settings.highlightMouseClicks,
+      highlightKeystrokes: keystrokesFeatureVisible && settings.highlightKeystrokes,
+      toolOrder: [],
+      accentColor: Color(settings.toolbarAccentColor),
+      usesExternalGlassSurface: true,
+      onToggleSystemAudio: { [weak self] in
+        _ = self?.performToggleVideoSystemAudioShortcut()
+      },
+      onToggleMicrophone: { [weak self] in
+        guard let self, self.microphoneFeatureVisible else { return }
+        _ = self.performToggleVideoMicrophoneShortcut()
+      },
+      onToggleWebcam: { [weak self] in
+        guard let self, self.webcamFeatureVisible else { return }
+        _ = self.performToggleVideoWebcamShortcut()
+      },
+      onToggleMouseClicks: { [weak self] in
+        _ = self?.performToggleVideoMouseClicksShortcut()
+      },
+      onToggleKeystrokes: { [weak self] in
+        guard let self, self.keystrokesFeatureVisible else { return }
+        _ = self.performToggleVideoKeystrokesShortcut()
+      },
+      onStop: { [weak self] in
+        self?.stopVideoRecordingFromEditor()
+      },
+      onDrag: { [weak self] translation in
+        self?.updateToolbarDrag(translation)
+      },
+      onDragEnd: { [weak self] in
+        self?.finishToolbarDrag()
+      }
+    )
+  }
+
+  func showRecordingControlPanel() {
+    guard recordingActive, let parentWindow = window else {
+      closeRecordingControlPanel()
+      return
+    }
+
+    let host: RegionSelectionGlassHostingView<RecordingControlBar>
+    if let recordingControlHost {
+      host = recordingControlHost
+      host.rootView = makeRecordingControlBar()
+    } else {
+      host = RegionSelectionGlassHostingView(rootView: makeRecordingControlBar(), cornerRadius: 28)
+      host.translatesAutoresizingMaskIntoConstraints = true
+      host.alphaValue = 1
+      recordingControlHost = host
+    }
+
+    let panel: NSPanel
+    if let recordingControlPanel {
+      panel = recordingControlPanel
+    } else {
+      panel = NSPanel(
+        contentRect: .zero,
+        styleMask: [.nonactivatingPanel, .borderless],
+        backing: .buffered,
+        defer: false
+      )
+      panel.isReleasedWhenClosed = false
+      panel.level = parentWindow.level
+      panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+      panel.backgroundColor = .clear
+      panel.isOpaque = false
+      panel.hasShadow = false
+      panel.ignoresMouseEvents = false
+      panel.acceptsMouseMovedEvents = true
+      panel.animationBehavior = .none
+      panel.appearance = parentWindow.appearance
+      panel.contentView = host
+      recordingControlPanel = panel
+    }
+
+    updateRecordingControlPanelFrame(toolbarHost.frame)
+    panel.orderFrontRegardless()
+  }
+
+  func closeRecordingControlPanel() {
+    recordingControlPanel?.close()
+    recordingControlPanel = nil
+    recordingControlHost = nil
+  }
+
+  func updateRecordingControlPanelFrame(_ toolbarFrame: CGRect) {
+    guard recordingActive,
+          let parentWindow = window,
+          let panel = recordingControlPanel,
+          let host = recordingControlHost
+    else {
+      return
+    }
+
+    host.rootView = makeRecordingControlBar()
+    host.layoutSubtreeIfNeeded()
+    let fittingSize = host.fittingSize
+    let panelSize = CGSize(
+      width: max(1, fittingSize.width),
+      height: max(1, fittingSize.height)
+    )
+    let localFrame = CGRect(
+      x: toolbarFrame.midX - panelSize.width * 0.5,
+      y: toolbarFrame.midY - panelSize.height * 0.5,
+      width: panelSize.width,
+      height: panelSize.height
+    ).integral
+    let screenFrame = localFrame.offsetBy(dx: parentWindow.frame.minX, dy: parentWindow.frame.minY)
+
+    host.frame = CGRect(origin: .zero, size: screenFrame.size)
+    panel.setFrame(screenFrame, display: true)
+  }
+
   var availableRecordingTools: [RecordingTool] {
     settings.visibleRecordingTools.filter { tool in
       switch tool {
@@ -260,6 +383,7 @@ extension RegionSelectionView {
         return
       }
       self.recordingStartPending = false
+      self.recordingStartedAt = started ? Date() : nil
       self.recordingActive = started
       if !started {
         self.layoutVideoOverlayPlacementViews(selection: self.committedSelectionRect?.standardized)
@@ -299,6 +423,7 @@ extension RegionSelectionView {
     }
     recordingActive = false
     recordingStartPending = false
+    recordingStartedAt = nil
     refreshToolbar()
     onStopVideoRequested?()
   }
@@ -329,6 +454,7 @@ extension RegionSelectionView {
 
   func prepareGlassChromeForFirstDisplay() {
     glassChromeRevealTask?.cancel()
+    closeRecordingControlPanel()
     glassBackdropRefreshScheduled = false
     glassChromeReadyForBackdrop = false
     selectingHintHost.alphaValue = 1

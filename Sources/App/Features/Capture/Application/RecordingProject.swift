@@ -6,7 +6,7 @@ final class RecordingProject {
   private let recordingInfo: RecordingInfo
   private var keyEvents: [KeyEvent] = []
   private var clickEvents: [ClickEvent] = []
-  private var mouseClickHighlightStyle: MouseClickHighlightStyle = .off
+  private var mouseClickHighlightStyle: MouseClickHighlightStyle?
   private var webcamOverlay = WebcamOverlayState()
   private var keystrokeOverlay = KeystrokeOverlayState()
   /// How long the most recent captured key label remains visible on the timeline.
@@ -32,10 +32,10 @@ final class RecordingProject {
   }
 
   var hasCustomMouseClickOverlays: Bool {
-    mouseClickHighlightStyle.usesCustomRenderer && !clickEvents.isEmpty
+    mouseClickHighlightStyle?.usesCustomRenderer == true && !clickEvents.isEmpty
   }
 
-  func setMouseClickOverlay(style: MouseClickHighlightStyle) -> Bool {
+  func setMouseClickOverlay(style: MouseClickHighlightStyle?) -> Bool {
     mouseClickHighlightStyle = style
     return true
   }
@@ -145,7 +145,7 @@ final class RecordingProject {
       )
     }
 
-    if mouseClickHighlightStyle.usesCustomRenderer {
+    if let mouseClickHighlightStyle, mouseClickHighlightStyle.usesCustomRenderer {
       let clickDurationMS = mouseClickHighlightStyle.clickVisibleWindowMS
       for clickEvent in visibleClickEvents(at: timeMS, durationMS: clickDurationMS) {
         let elapsed = timeMS.saturatingSubtract(clickEvent.timestampMS)
@@ -316,7 +316,7 @@ private extension MouseClickHighlightStyle {
       return 280
     case .spotlight:
       return 900
-    case .off, .system:
+    case .system:
       return 520
     }
   }
@@ -330,7 +330,7 @@ private extension MouseClickHighlightStyle {
       return clampedBase * (0.045 + CGFloat(sin(Double(progress) * Double.pi)) * 0.035)
     case .spotlight:
       return clampedBase * (0.135 + progress * 0.025)
-    case .off, .system:
+    case .system:
       return clampedBase * 0.05
     }
   }
@@ -344,7 +344,7 @@ private extension MouseClickHighlightStyle {
       return min(0.85, 0.70 * pow(fade, 0.45))
     case .ripple:
       return min(1, fade * 0.95)
-    case .off, .system:
+    case .system:
       return 0
     }
   }

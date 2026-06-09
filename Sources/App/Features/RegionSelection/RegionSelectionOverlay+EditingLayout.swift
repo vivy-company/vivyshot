@@ -50,7 +50,7 @@ extension RegionSelectionView {
       }
       return activeSelection.width >= 2 && activeSelection.height >= 2
     }()
-    let shouldShow = mode == .selecting || (mode == .editing && hasSelection)
+    let shouldShow = mode == .selecting || (mode == .editing && hasSelection && !recordingActive)
 
     guard shouldShow, glassChromeReadyForBackdrop else {
       captureTypeHost.isHidden = true
@@ -93,9 +93,7 @@ extension RegionSelectionView {
       canvasView.isHidden = true
       toolbarHost.isHidden = true
       editingMaskView.isHidden = true
-      webcamPlacementView.stopWebcamPreview()
-      webcamPlacementView.isHidden = true
-      keystrokePlacementView.isHidden = true
+      hideVideoOverlayPlacementViews()
       setResizeHandlesHidden(true)
       return
     }
@@ -104,9 +102,7 @@ extension RegionSelectionView {
       canvasView.isHidden = true
       editingMaskView.isHidden = true
       toolbarHost.isHidden = true
-      webcamPlacementView.stopWebcamPreview()
-      webcamPlacementView.isHidden = true
-      keystrokePlacementView.isHidden = true
+      hideVideoOverlayPlacementViews()
       setResizeHandlesHidden(true)
       return
     }
@@ -127,11 +123,12 @@ extension RegionSelectionView {
     canvasView.frame = canvasFrame
     editingMaskView.frame = bounds
 
-    canvasView.isHidden = liveTargetPickActive
+    canvasView.isHidden = liveTargetPickActive || recordingActive
     toolbarHost.alphaValue = 1
     updateCanvasPreviewStrokeWidth()
 
-    let shouldShowSelectionMask = !liveTargetPickActive
+    let shouldShowSelectionMask = !recordingActive
+      && !liveTargetPickActive
       && selection != nil
       && (selectedCaptureMode == .selection || selectedCaptureMode == .window)
 
@@ -217,9 +214,10 @@ extension RegionSelectionView {
     } else {
       toolbarHost.frame = toolbarFrame
     }
-    toolbarHost.isHidden = !glassChromeReadyForBackdrop
+    toolbarHost.isHidden = recordingActive || !glassChromeReadyForBackdrop
+    updateRecordingControlPanelFrame(toolbarFrame)
 
-    if stitchModeEnabled || selection == nil || hidesSelectionFrame {
+    if recordingActive || stitchModeEnabled || selection == nil || hidesSelectionFrame {
       setResizeHandlesHidden(true)
     } else if let selection {
       layoutResizeHandles(for: selection)
@@ -237,11 +235,10 @@ extension RegionSelectionView {
           selection.height >= 2,
           !windowCapturePickPending,
           !screenCapturePickPending,
-          !stitchPassThroughOverlayActive
+          !stitchPassThroughOverlayActive,
+          !recordingActive
     else {
-      webcamPlacementView.stopWebcamPreview()
-      webcamPlacementView.isHidden = true
-      keystrokePlacementView.isHidden = true
+      hideVideoOverlayPlacementViews()
       return
     }
 
@@ -266,6 +263,12 @@ extension RegionSelectionView {
     } else {
       keystrokePlacementView.isHidden = true
     }
+  }
+
+  func hideVideoOverlayPlacementViews() {
+    webcamPlacementView.stopWebcamPreview()
+    webcamPlacementView.isHidden = true
+    keystrokePlacementView.isHidden = true
   }
 
   func resolvedOverlayFrame(_ normalized: CGRect, in container: CGRect) -> CGRect {

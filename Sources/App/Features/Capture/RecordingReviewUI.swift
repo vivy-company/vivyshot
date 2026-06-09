@@ -1612,7 +1612,7 @@ private struct PostRecordingMouseClickOverlayPreview: View {
           Circle()
             .fill(Color.white.opacity(0.68))
             .frame(width: max(3, side * 0.10), height: max(3, side * 0.10))
-        case .off, .system:
+        case .system:
           EmptyView()
         }
       }

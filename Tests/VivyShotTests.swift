@@ -153,6 +153,8 @@ final class AppTests: XCTestCase {
     XCTAssertTrue(project.addClickEvent(timestampMS: 500, normalizedX: 0.25, normalizedY: 0.75, button: 0))
     XCTAssertFalse(project.hasCustomMouseClickOverlays)
     XCTAssertEqual(project.renderPlan(timeSeconds: 0.55, renderSize: CGSize(width: 800, height: 600), target: .preview)?.items.count, 0)
+    XCTAssertTrue(project.setMouseClickOverlay(style: nil))
+    XCTAssertEqual(project.renderPlan(timeSeconds: 0.55, renderSize: CGSize(width: 800, height: 600), target: .preview)?.items.count, 0)
 
     XCTAssertTrue(project.setMouseClickOverlay(style: .ripple))
     let renderPlan = project.renderPlan(timeSeconds: 0.55, renderSize: CGSize(width: 800, height: 600), target: .preview)

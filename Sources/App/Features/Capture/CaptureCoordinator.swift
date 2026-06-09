@@ -90,31 +90,30 @@ final class CaptureCoordinator: CaptureCoordinating {
                 return
               }
               var started = false
+              let finishRecordingFlow = { [weak self] in
+                self?.selectionOverlay.closeFlow(animated: false)
+                self?.captureInProgress = false
+              }
               self.recordingCoordinator.startRecording(
                 selectionRectInScreen: rect,
                 overlayState: overlayState,
-                showFloatingHUD: true,
+                showFloatingHUD: false,
                 onBeforeWebcamCaptureStart: { [weak self] in
                   guard let self else {
                     return
                   }
                   await self.selectionOverlay.stopVideoWebcamPreviewForRecordingStart()
                 },
-                onStarted: { [weak self] in
+                onStarted: {
                   started = true
-                  // Close the frozen selection overlay once recording is live so
-                  // the user can interact with the captured app region directly.
-                  self?.selectionOverlay.closeFlow()
                   completion(true)
                 },
-                onDone: { [weak self] in
-                  self?.captureInProgress = false
-                },
+                onDone: finishRecordingFlow,
                 onError: { [weak self] message in
                   if !started {
                     completion(false)
                   } else {
-                    self?.captureInProgress = false
+                    finishRecordingFlow()
                   }
                   self?.showCaptureError(message)
                 }

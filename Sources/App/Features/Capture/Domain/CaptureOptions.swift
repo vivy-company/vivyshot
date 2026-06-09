@@ -174,7 +174,6 @@ enum RecordingCountdown: Int, CaseIterable, Identifiable {
 
 /// Mouse click visualization used while recording or rendered by VivyShot after recording.
 enum MouseClickHighlightStyle: Int, CaseIterable, Identifiable {
-  case off = 0
   case system = 1
   case ripple = 2
   case pulse = 3
@@ -184,8 +183,6 @@ enum MouseClickHighlightStyle: Int, CaseIterable, Identifiable {
 
   var title: String {
     switch self {
-    case .off:
-      return String(localized: "Off", bundle: AppLocalizer.shared.bundle)
     case .system:
       return String(localized: "System", bundle: AppLocalizer.shared.bundle)
     case .ripple:
@@ -197,17 +194,13 @@ enum MouseClickHighlightStyle: Int, CaseIterable, Identifiable {
     }
   }
 
-  var isEnabled: Bool {
-    self != .off
-  }
-
   var usesSystemRenderer: Bool {
     self == .system
   }
 
   var usesCustomRenderer: Bool {
     switch self {
-    case .off, .system:
+    case .system:
       return false
     case .ripple, .pulse, .spotlight:
       return true

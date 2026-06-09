@@ -39,6 +39,7 @@ final class RegionSelectionOverlayController {
       return
     }
 
+    let previouslyFrontmostApp = NSWorkspace.shared.frontmostApplication
     closeWindow(animated: false)
 
     let window = RegionSelectionWindow(
@@ -56,6 +57,9 @@ final class RegionSelectionOverlayController {
     window.ignoresMouseEvents = false
     window.acceptsMouseMovedEvents = true
     window.animationBehavior = .none
+    if previouslyFrontmostApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+      window.passthroughActivationApp = previouslyFrontmostApp
+    }
 
     let selectionView = RegionSelectionView(
       frame: CGRect(origin: .zero, size: frame.size),
@@ -783,6 +787,18 @@ final class RegionSelectionWindow: NSPanel {
   var onToggleVideoRecording: (() -> Bool)?
   var onPerformDefaultCaptureAction: (() -> Bool)?
   var onCancel: (() -> Void)?
+  var passthroughActivationApp: NSRunningApplication?
+  var passesEventsThrough = false {
+    didSet {
+      ignoresMouseEvents = passesEventsThrough
+      if passesEventsThrough, isKeyWindow {
+        resignKey()
+      }
+      if passesEventsThrough {
+        passthroughActivationApp?.activate(options: [])
+      }
+    }
+  }
 
   // Native Liquid Glass renders its dark variant correctly here but is washed-out/white in Light
   // Aqua inside this borderless screen-saver-level panel. Pin every overlay window to dark so the
@@ -799,8 +815,8 @@ final class RegionSelectionWindow: NSPanel {
     appearance = Self.overlayAppearance
   }
 
-  override var canBecomeKey: Bool { true }
-  override var canBecomeMain: Bool { true }
+  override var canBecomeKey: Bool { !passesEventsThrough }
+  override var canBecomeMain: Bool { !passesEventsThrough }
 
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
     if handleCommandShortcuts(event) {

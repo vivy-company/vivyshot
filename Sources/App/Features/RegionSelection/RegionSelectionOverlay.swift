@@ -184,6 +184,8 @@ final class RegionSelectionView: NSView {
   var toolbarOffset: CGSize = .zero
   var toolbarDragStartOffset: CGSize?
   var toolbarFrameAnimationPending = false
+  var recordingControlPanel: NSPanel?
+  var recordingControlHost: RegionSelectionGlassHostingView<RecordingControlBar>?
   var stitchControlPanel: NSPanel?
   var selectedCaptureType: CaptureContentType
   var selectedCaptureMode: CaptureMode = .selection
@@ -196,8 +198,16 @@ final class RegionSelectionView: NSView {
   var smartMouseDownWindowRect: CGRect?
   var smartDragActivated = false
   var smartWindowHoverRect: CGRect?
-  var recordingActive = false
+  var recordingActive = false {
+    didSet {
+      guard oldValue != recordingActive else {
+        return
+      }
+      updateRecordingFocusPresentation()
+    }
+  }
   var recordingStartPending = false
+  var recordingStartedAt: Date?
   var pointerTrackingArea: NSTrackingArea?
 
   var session: AnnotationSession?
@@ -304,6 +314,10 @@ final class RegionSelectionView: NSView {
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard bounds.contains(point) else {
       return nil
+    }
+
+    if recordingActive {
+      return toolbarHost.frame.contains(point) ? super.hitTest(point) : nil
     }
 
     // In live pick mode, route clicks on the capture surface to this view so
@@ -631,6 +645,11 @@ final class RegionSelectionView: NSView {
       scheduleGlassBackdropRefreshIfNeeded()
     }
 
+    if recordingActive, mode == .editing {
+      drawRecordingFocusOverlay(in: context)
+      return
+    }
+
     if stitchPassThroughOverlayActive, mode == .editing {
       drawStitchPassThroughFocus(in: context)
       return
@@ -718,6 +737,50 @@ final class RegionSelectionView: NSView {
     context.restoreGState()
   }
 
+  func drawRecordingFocusOverlay(in context: CGContext) {
+    guard let selection = committedSelectionRect?.standardized.integral,
+          !selection.isNull,
+          selection.width >= 2,
+          selection.height >= 2
+    else {
+      return
+    }
+
+    let dimPath = CGMutablePath()
+    dimPath.addRect(bounds)
+    dimPath.addRect(selection)
+
+    context.saveGState()
+    context.addPath(dimPath)
+    context.setFillColor(NSColor.black.withAlphaComponent(0.42).cgColor)
+    context.drawPath(using: .eoFill)
+    context.restoreGState()
+
+    context.saveGState()
+    context.setStrokeColor(NSColor.systemRed.withAlphaComponent(0.96).cgColor)
+    context.setLineWidth(2.2)
+    context.setLineDash(phase: 0, lengths: [8, 5])
+    context.stroke(selection.insetBy(dx: -0.5, dy: -0.5))
+    context.setLineDash(phase: 0, lengths: [])
+    context.restoreGState()
+  }
+
+  func updateRecordingFocusPresentation() {
+    if let window = window as? RegionSelectionWindow {
+      window.passesEventsThrough = recordingActive
+    } else {
+      window?.ignoresMouseEvents = recordingActive
+    }
+    if recordingActive {
+      showRecordingControlPanel()
+    } else {
+      closeRecordingControlPanel()
+    }
+    layoutEditorChrome()
+    needsDisplay = true
+    window?.invalidateCursorRects(for: self)
+  }
+
   func enterEditing(
     session: AnnotationSession?,
     selectionRect: CGRect,
@@ -755,6 +818,7 @@ final class RegionSelectionView: NSView {
     captureModeSelectionState.setSelectedMode(initialCaptureMode, animated: false)
     recordingActive = false
     recordingStartPending = false
+    recordingStartedAt = nil
     windowCapturePickPending = false
     screenCapturePickPending = false
     windowCaptureHoverRect = nil
@@ -835,6 +899,8 @@ final class RegionSelectionView: NSView {
     syncLiveCaptureTargetPickingState()
     recordingActive = false
     recordingStartPending = false
+    recordingStartedAt = nil
+    closeRecordingControlPanel()
     stitchModeEnabled = false
     stitchCaptureInProgress = false
     stitchPassThroughOverlayActive = false
@@ -851,6 +917,7 @@ final class RegionSelectionView: NSView {
     preStitchSelectionRect = nil
     postStitchEditorMode = false
     window?.ignoresMouseEvents = false
+    closeRecordingControlPanel()
     hideStitchControlPanel()
   }
 
@@ -1122,6 +1189,9 @@ final class RegionSelectionView: NSView {
 
   func performCycleVideoCountdownShortcut() -> Bool {
     guard canUseVideoToolbarSettingsShortcut else {
+      return false
+    }
+    guard !recordingActive else {
       return false
     }
 

@@ -93,6 +93,7 @@ final class AppSettings: ObservableObject {
   @Published private(set) var webcamOverlayNormalizedY: Double
   @Published private(set) var webcamOverlayNormalizedWidth: Double
   @Published private(set) var webcamOverlayNormalizedHeight: Double
+  @Published private(set) var highlightMouseClicks: Bool
   @Published private(set) var mouseClickHighlightStyle: MouseClickHighlightStyle
   @Published private(set) var highlightKeystrokes: Bool
   @Published private(set) var keystrokeOverlayStyle: KeystrokeStyle
@@ -125,8 +126,8 @@ final class AppSettings: ObservableObject {
     return url
   }
 
-  var highlightMouseClicks: Bool {
-    mouseClickHighlightStyle.isEnabled
+  var effectiveMouseClickHighlightStyle: MouseClickHighlightStyle? {
+    highlightMouseClicks ? mouseClickHighlightStyle : nil
   }
 
   var captureModifierFlags: UInt32 {
@@ -436,12 +437,10 @@ final class AppSettings: ObservableObject {
       storedHighlightMouseClicks = defaults.bool(forKey: Keys.highlightMouseClicks)
     }
     let storedMouseClickStyle = defaults.object(forKey: Keys.mouseClickHighlightStyle) as? Int
-    let resolvedMouseClickStyle: MouseClickHighlightStyle
-    if let storedMouseClickStyle {
-      resolvedMouseClickStyle = MouseClickHighlightStyle(rawValue: storedMouseClickStyle) ?? Defaults.mouseClickHighlightStyle
-    } else {
-      resolvedMouseClickStyle = storedHighlightMouseClicks ? Defaults.mouseClickHighlightStyle : .off
-    }
+    let resolvedMouseClickStyle = storedMouseClickStyle
+      .flatMap(MouseClickHighlightStyle.init(rawValue:))
+      ?? Defaults.mouseClickHighlightStyle
+    highlightMouseClicks = storedHighlightMouseClicks
     mouseClickHighlightStyle = resolvedMouseClickStyle
 
     highlightKeystrokes = defaults.bool(forKey: Keys.highlightKeystrokes)
@@ -801,11 +800,10 @@ final class AppSettings: ObservableObject {
   }
 
   func setVideoHighlightMouseClicks(_ enabled: Bool) {
-    let style: MouseClickHighlightStyle = enabled ? Defaults.mouseClickHighlightStyle : .off
-    guard mouseClickHighlightStyle != style else {
+    guard highlightMouseClicks != enabled else {
       return
     }
-    mouseClickHighlightStyle = style
+    highlightMouseClicks = enabled
     persistVideoCaptureSettings()
   }
 
@@ -932,6 +930,7 @@ final class AppSettings: ObservableObject {
     webcamOverlayNormalizedY = defaultWebcamFrame.minY
     webcamOverlayNormalizedWidth = defaultWebcamFrame.width
     webcamOverlayNormalizedHeight = defaultWebcamFrame.height
+    highlightMouseClicks = Defaults.highlightMouseClicks
     mouseClickHighlightStyle = Defaults.mouseClickHighlightStyle
     highlightKeystrokes = false
     keystrokeOverlayStyle = .glass
@@ -1600,7 +1599,7 @@ final class AppSettings: ObservableObject {
     defaults.set(webcamOverlayNormalizedY, forKey: Keys.webcamOverlayNormalizedY)
     defaults.set(webcamOverlayNormalizedWidth, forKey: Keys.webcamOverlayNormalizedWidth)
     defaults.set(webcamOverlayNormalizedHeight, forKey: Keys.webcamOverlayNormalizedHeight)
-    defaults.set(mouseClickHighlightStyle.isEnabled, forKey: Keys.highlightMouseClicks)
+    defaults.set(highlightMouseClicks, forKey: Keys.highlightMouseClicks)
     defaults.set(mouseClickHighlightStyle.rawValue, forKey: Keys.mouseClickHighlightStyle)
     defaults.set(highlightKeystrokes, forKey: Keys.highlightKeystrokes)
     defaults.set(keystrokeOverlayStyle.rawValue, forKey: Keys.keystrokeOverlayStyle)
@@ -1660,7 +1659,7 @@ final class AppSettings: ObservableObject {
     defaults.set(webcamOverlayNormalizedY, forKey: Keys.webcamOverlayNormalizedY)
     defaults.set(webcamOverlayNormalizedWidth, forKey: Keys.webcamOverlayNormalizedWidth)
     defaults.set(webcamOverlayNormalizedHeight, forKey: Keys.webcamOverlayNormalizedHeight)
-    defaults.set(mouseClickHighlightStyle.isEnabled, forKey: Keys.highlightMouseClicks)
+    defaults.set(highlightMouseClicks, forKey: Keys.highlightMouseClicks)
     defaults.set(mouseClickHighlightStyle.rawValue, forKey: Keys.mouseClickHighlightStyle)
     defaults.set(highlightKeystrokes, forKey: Keys.highlightKeystrokes)
     defaults.set(keystrokeOverlayStyle.rawValue, forKey: Keys.keystrokeOverlayStyle)
