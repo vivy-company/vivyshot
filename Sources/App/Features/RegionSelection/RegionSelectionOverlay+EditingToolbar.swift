@@ -241,11 +241,11 @@ extension RegionSelectionView {
       onStop: { [weak self] in
         self?.stopVideoRecordingFromEditor()
       },
-      onDrag: { [weak self] translation in
-        self?.updateRecordingControlDrag(translation)
+      onDrag: { [weak self] mouseLocation in
+        self?.updateRecordingControlDrag(mouseLocation: mouseLocation)
       },
       onDragEnd: { [weak self] in
-        self?.finishToolbarDrag()
+        self?.finishRecordingControlDrag()
       }
     )
   }
@@ -356,6 +356,7 @@ extension RegionSelectionView {
     recordingControlHost = nil
     recordingControlPanelSize = nil
     recordingControlDragStartOffset = nil
+    recordingControlDragStartMouseLocation = nil
   }
 
   func layoutRecordingControlPanel() {
@@ -392,9 +393,7 @@ extension RegionSelectionView {
 
     let x = min(max(padding, defaultX + recordingControlOffset.width), maxX)
     let y = min(max(minY, defaultY + recordingControlOffset.height), maxY)
-    if recordingControlDragStartOffset == nil {
-      recordingControlOffset = CGSize(width: x - defaultX, height: y - defaultY)
-    }
+    recordingControlOffset = CGSize(width: x - defaultX, height: y - defaultY)
 
     let localFrame = CGRect(
       x: x,
@@ -402,28 +401,41 @@ extension RegionSelectionView {
       width: panelSize.width,
       height: panelSize.height
     ).integral
-    let screenFrame = localFrame.offsetBy(dx: parentWindow.frame.minX, dy: parentWindow.frame.minY)
+    let windowFrame = convert(localFrame, to: nil)
+    let screenFrame = parentWindow.convertToScreen(windowFrame)
 
     panel.setFrame(screenFrame, display: true)
-    host.frame = CGRect(origin: .zero, size: screenFrame.size)
+    host.frame = CGRect(origin: .zero, size: panelSize)
     host.needsLayout = true
     host.layoutSubtreeIfNeeded()
   }
 
-  func updateRecordingControlDrag(_ translation: CGSize) {
+  func updateRecordingControlDrag(mouseLocation: CGPoint) {
     guard mode == .editing else {
       return
     }
 
     if recordingControlDragStartOffset == nil {
       recordingControlDragStartOffset = recordingControlOffset
+      recordingControlDragStartMouseLocation = mouseLocation
     }
 
     let start = recordingControlDragStartOffset ?? .zero
-    recordingControlOffset = CGSize(
-      width: start.width + translation.width,
-      height: start.height + translation.height
+    let startMouseLocation = recordingControlDragStartMouseLocation ?? mouseLocation
+    let delta = CGSize(
+      width: mouseLocation.x - startMouseLocation.x,
+      height: mouseLocation.y - startMouseLocation.y
     )
+    recordingControlOffset = CGSize(
+      width: start.width + delta.width,
+      height: start.height + delta.height
+    )
+    layoutRecordingControlPanel()
+  }
+
+  func finishRecordingControlDrag() {
+    recordingControlDragStartOffset = nil
+    recordingControlDragStartMouseLocation = nil
     layoutRecordingControlPanel()
   }
 
@@ -716,6 +728,7 @@ extension RegionSelectionView {
   func finishToolbarDrag() {
     toolbarDragStartOffset = nil
     recordingControlDragStartOffset = nil
+    recordingControlDragStartMouseLocation = nil
     layoutRecordingControlPanel()
   }
 

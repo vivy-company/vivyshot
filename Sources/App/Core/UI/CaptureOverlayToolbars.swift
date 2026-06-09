@@ -179,7 +179,7 @@ struct RecordingControlBar: View {
   let onToggleMouseClicks: () -> Void
   let onToggleKeystrokes: () -> Void
   let onStop: () -> Void
-  let onDrag: ((CGSize) -> Void)?
+  let onDrag: ((CGPoint) -> Void)?
   let onDragEnd: (() -> Void)?
 
   private var hasToggleTools: Bool {
@@ -372,8 +372,8 @@ struct RecordingControlBar: View {
 
   private var dragGesture: some Gesture {
     DragGesture(minimumDistance: 2, coordinateSpace: .global)
-      .onChanged { value in
-        onDrag?(value.translation)
+      .onChanged { _ in
+        onDrag?(NSEvent.mouseLocation)
       }
       .onEnded { _ in
         onDragEnd?()

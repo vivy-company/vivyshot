@@ -190,6 +190,7 @@ final class RegionSelectionView: NSView {
   var toolbarFrameAnimationPending = false
   var recordingControlOffset: CGSize = .zero
   var recordingControlDragStartOffset: CGSize?
+  var recordingControlDragStartMouseLocation: CGPoint?
   var recordingControlPanelSize: CGSize?
   var recordingControlPanel: NSPanel?
   var recordingControlHost: RegionSelectionGlassHostingView<RecordingControlBar>?
@@ -847,6 +848,7 @@ final class RegionSelectionView: NSView {
     toolbarDragStartOffset = nil
     recordingControlOffset = .zero
     recordingControlDragStartOffset = nil
+    recordingControlDragStartMouseLocation = nil
     recordingControlPanelSize = nil
     stitchModeEnabled = false
     stitchCaptureInProgress = false
@@ -1536,6 +1538,17 @@ final class CaptureOverlayPlacementView: NSView {
 
   override func resetCursorRects() {
     addCursorRect(bounds, cursor: .openHand)
+  }
+
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+    true
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard !isHidden, bounds.contains(point) else {
+      return nil
+    }
+    return self
   }
 
   override func mouseDown(with event: NSEvent) {

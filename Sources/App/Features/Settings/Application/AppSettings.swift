@@ -150,6 +150,14 @@ final class AppSettings: ObservableObject {
     )
   }
 
+  static var webcamOverlaySizeRange: ClosedRange<Double> {
+    Limits.webcamWidth
+  }
+
+  static var keystrokeOverlaySizeRange: ClosedRange<Double> {
+    Limits.keystrokeWidth
+  }
+
   var visibleTools: [AnnotationTool] {
     let visible = toolOrder.filter { !hiddenTools.contains($0) }
     return visible.isEmpty ? [.move] : visible
@@ -891,6 +899,23 @@ final class AppSettings: ObservableObject {
         y: current.minY,
         width: normalizedWidth,
         height: current.height
+      )
+    )
+  }
+
+  func setKeystrokeOverlayScale(_ width: Double) {
+    let current = keystrokeOverlayNormalizedFrame
+    let normalizedWidth = Self.clampedKeystrokeOverlayWidth(width)
+    let ratio = current.width > 0
+      ? current.height / current.width
+      : Self.defaultKeystrokeOverlayFrame.height / Self.defaultKeystrokeOverlayFrame.width
+    let normalizedHeight = Self.clampedKeystrokeOverlayHeight(normalizedWidth * Double(ratio))
+    setKeystrokeOverlayFrame(
+      CGRect(
+        x: current.midX - normalizedWidth * 0.5,
+        y: current.midY - normalizedHeight * 0.5,
+        width: normalizedWidth,
+        height: normalizedHeight
       )
     )
   }
