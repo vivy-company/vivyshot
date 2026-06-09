@@ -1482,6 +1482,11 @@ final class AppSettings: ObservableObject {
   }
 
   private static func normalizeRecordingToolOrder(rawValues: [Int]?) -> [RecordingTool] {
+    let legacyDefaultOrder = [0, 1, 2, 3, 4, 5]
+    if rawValues == nil || rawValues == legacyDefaultOrder {
+      return RecordingTool.allCases
+    }
+
     var seen = Set<RecordingTool>()
     var ordered: [RecordingTool] = []
 

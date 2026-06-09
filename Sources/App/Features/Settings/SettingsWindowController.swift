@@ -85,8 +85,6 @@ struct SettingsView: View {
   @State private var selectedTab: SettingsTab = .general
   @State private var isRecordingShortcut = false
   @State private var availableFamilies: [String] = AppSettings.availableTextFontFamilyNames()
-  @State private var webcamDevices: [RecordingSourceOption] = []
-  @State private var microphoneDevices: [RecordingSourceOption] = []
   @State private var draggingScreenshotTool: AnnotationTool?
   @State private var draggingVideoTool: RecordingTool?
   @State private var isReviewerModeSheetPresented = false
@@ -133,13 +131,8 @@ struct SettingsView: View {
 
       settingsContainer {
         recordingSection
-        if webcamFeatureVisible {
-          webcamSection
-        }
+        recordingOverlaySection
         mouseClickSection
-        if keystrokesFeatureVisible {
-          keystrokeSection
-        }
         recordingToolbarSection
       }
       .tabItem { Label(SettingsTab.video.title, systemImage: "record.circle") }
@@ -166,12 +159,6 @@ struct SettingsView: View {
     .onAppear {
       availableFamilies = AppSettings.availableTextFontFamilyNames()
       launchAtLoginController.refresh()
-      if webcamFeatureVisible {
-        refreshWebcamDevices()
-      }
-      if microphoneFeatureVisible {
-        refreshMicrophoneDevices()
-      }
     }
     .sheet(isPresented: $isReviewerModeSheetPresented) {
       ReviewerModeSheet()
@@ -612,27 +599,6 @@ struct SettingsView: View {
       if microphoneFeatureVisible {
         Toggle("Record microphone", isOn: recordMicrophoneBinding)
           .toggleStyle(.switch)
-        if settings.recordMicrophone {
-          HStack(spacing: 10) {
-            Text("Microphone")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Microphone Device", selection: microphoneDeviceIDBinding) {
-              Text(RecordingSourceOption.systemDefault.name).tag(RecordingSourceOption.systemDefault.id)
-              ForEach(microphoneDevices) { device in
-                Text(device.name).tag(device.id)
-              }
-              if !settings.microphoneDeviceID.isEmpty,
-                 !microphoneDevices.contains(where: { $0.id == settings.microphoneDeviceID })
-              {
-                Text("Unavailable Microphone").tag(settings.microphoneDeviceID)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 190, alignment: .trailing)
-          }
-        }
       }
       Toggle("Hide notifications (best effort)", isOn: hideNotificationsBestEffortBinding)
         .toggleStyle(.switch)
@@ -646,35 +612,26 @@ struct SettingsView: View {
     }
   }
 
-  private var webcamSection: some View {
+  private var recordingOverlaySection: some View {
     Section {
-      if webcamFeatureVisible {
-        Toggle("Show webcam", isOn: showWebcamBinding)
-          .toggleStyle(.switch)
+      RecordingOverlayPlayground(
+        settings: settings,
+        showsWebcam: webcamFeatureVisible,
+        showsKeystrokes: keystrokesFeatureVisible
+      )
+        .frame(height: 230)
+        .padding(.vertical, 4)
+
+      if webcamFeatureVisible || keystrokesFeatureVisible {
+        Divider()
       }
-      if webcamFeatureVisible, settings.showWebcam {
-        HStack(spacing: 10) {
-          Text("Camera")
-            .frame(width: 78, alignment: .leading)
-          Spacer(minLength: 0)
-          Picker("Webcam Device", selection: webcamDeviceIDBinding) {
-            Text(RecordingSourceOption.systemDefault.name).tag(RecordingSourceOption.systemDefault.id)
-            ForEach(webcamDevices) { device in
-              Text(device.name).tag(device.id)
-            }
-            if !settings.webcamDeviceID.isEmpty,
-               !webcamDevices.contains(where: { $0.id == settings.webcamDeviceID })
-            {
-              Text("Unavailable Camera").tag(settings.webcamDeviceID)
-            }
-          }
-          .labelsHidden()
-          .pickerStyle(.menu)
-          .frame(width: 190, alignment: .trailing)
-        }
+
+      if webcamFeatureVisible {
+        Toggle("Show camera by default", isOn: showWebcamBinding)
+          .toggleStyle(.switch)
 
         HStack(spacing: 10) {
-          Text("Webcam Size")
+          Text("Camera Size")
             .frame(width: 78, alignment: .leading)
           Spacer(minLength: 0)
           Picker("Webcam Overlay Size", selection: webcamOverlaySizeBinding) {
@@ -688,7 +645,7 @@ struct SettingsView: View {
         }
 
         HStack(spacing: 10) {
-          Text("Webcam Shape")
+          Text("Camera Shape")
             .frame(width: 78, alignment: .leading)
           Spacer(minLength: 0)
           Picker("Webcam Overlay Shape", selection: webcamOverlayShapeBinding) {
@@ -716,30 +673,57 @@ struct SettingsView: View {
           .disabled(settings.webcamOverlayShape == .circle)
         }
 
-        LabeledContent("Size") {
-          HStack(spacing: 10) {
-            Slider(
-              value: webcamOverlayWidthBinding,
-              in: 0.12 ... 0.50,
-              step: 0.01
-            )
-            Text(String(format: "%.0f%%", settings.webcamOverlayNormalizedWidth * 100))
-              .font(.system(.callout, design: .monospaced).weight(.semibold))
-              .frame(width: 46, alignment: .trailing)
-          }
-        }
-
         HStack {
           Spacer()
-          Button("Reset Webcam Placement") {
+          Button("Reset Camera Placement") {
             settings.resetWebcamOverlayPlacement()
           }
         }
       }
+
+      if keystrokesFeatureVisible {
+        Divider()
+
+        Toggle("Show keystrokes by default", isOn: highlightKeystrokesBinding)
+          .toggleStyle(.switch)
+
+        HStack(spacing: 10) {
+          Text("Key Style")
+            .frame(width: 78, alignment: .leading)
+          Spacer(minLength: 0)
+          Picker("Keystroke Overlay Style", selection: keystrokeOverlayStyleBinding) {
+            ForEach(KeystrokeStyle.allCases) { style in
+              Text(style.title).tag(style)
+            }
+          }
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .frame(width: 190, alignment: .trailing)
+        }
+
+        HStack(spacing: 10) {
+          Text("Key Size")
+            .frame(width: 78, alignment: .leading)
+          Spacer(minLength: 0)
+          Picker("Keystroke Overlay Size", selection: keystrokeOverlaySizeBinding) {
+            ForEach(KeystrokeSize.allCases) { size in
+              Text(size.title).tag(size)
+            }
+          }
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .frame(width: 190, alignment: .trailing)
+        }
+
+        HStack {
+          Spacer()
+          Button("Reset Key Placement") {
+            settings.resetKeystrokeOverlayPlacement()
+          }
+        }
+      }
     } header: {
-      Text("Webcam Overlay")
-    } footer: {
-      Text("Webcam overlays require camera permission.")
+      Text("Recording Overlays")
     }
   }
 
@@ -754,81 +738,6 @@ struct SettingsView: View {
       }
       .pickerStyle(.menu)
       .disabled(!settings.highlightMouseClicks)
-    }
-  }
-
-  private var keystrokeSection: some View {
-    Section {
-      if keystrokesFeatureVisible {
-        Toggle("Highlight keystrokes", isOn: highlightKeystrokesBinding)
-          .toggleStyle(.switch)
-        if settings.highlightKeystrokes {
-          HStack(spacing: 10) {
-            Text("Key Style")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Keystroke Overlay Style", selection: keystrokeOverlayStyleBinding) {
-              ForEach(KeystrokeStyle.allCases) { style in
-                Text(style.title).tag(style)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 190, alignment: .trailing)
-          }
-
-          HStack(spacing: 10) {
-            Text("Key Size")
-              .frame(width: 78, alignment: .leading)
-            Spacer(minLength: 0)
-            Picker("Keystroke Overlay Size", selection: keystrokeOverlaySizeBinding) {
-              ForEach(KeystrokeSize.allCases) { size in
-                Text(size.title).tag(size)
-              }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 190, alignment: .trailing)
-          }
-
-          LabeledContent("Width") {
-            HStack(spacing: 10) {
-              Slider(
-                value: keystrokeOverlayWidthBinding,
-                in: 0.20 ... 0.72,
-                step: 0.01
-              )
-              Text(String(format: "%.0f%%", settings.keystrokeOverlayNormalizedWidth * 100))
-                .font(.system(.callout, design: .monospaced).weight(.semibold))
-                .frame(width: 46, alignment: .trailing)
-            }
-          }
-
-          LabeledContent("Height") {
-            HStack(spacing: 10) {
-              Slider(
-                value: keystrokeOverlayHeightBinding,
-                in: 0.07 ... 0.28,
-                step: 0.01
-              )
-              Text(String(format: "%.0f%%", settings.keystrokeOverlayNormalizedHeight * 100))
-                .font(.system(.callout, design: .monospaced).weight(.semibold))
-                .frame(width: 46, alignment: .trailing)
-            }
-          }
-
-          HStack {
-            Spacer()
-            Button("Reset Key Placement") {
-              settings.resetKeystrokeOverlayPlacement()
-            }
-          }
-        }
-      }
-    } header: {
-      Text("Keystroke Overlay")
-    } footer: {
-      Text("Keystroke overlays require accessibility permission.")
     }
   }
 
@@ -1214,24 +1123,10 @@ struct SettingsView: View {
     )
   }
 
-  private var microphoneDeviceIDBinding: Binding<String> {
-    Binding(
-      get: { settings.microphoneDeviceID },
-      set: { settings.setVideoMicrophoneDeviceID($0) }
-    )
-  }
-
   private var showWebcamBinding: Binding<Bool> {
     Binding(
       get: { settings.showWebcam },
       set: { settings.setVideoShowWebcam($0) }
-    )
-  }
-
-  private var webcamDeviceIDBinding: Binding<String> {
-    Binding(
-      get: { settings.webcamDeviceID },
-      set: { settings.setVideoWebcamDeviceID($0) }
     )
   }
 
@@ -1253,13 +1148,6 @@ struct SettingsView: View {
     Binding(
       get: { settings.webcamOverlayAspectRatio },
       set: { settings.setWebcamOverlayAspectRatio($0) }
-    )
-  }
-
-  private var webcamOverlayWidthBinding: Binding<Double> {
-    Binding(
-      get: { settings.webcamOverlayNormalizedWidth },
-      set: { settings.setWebcamOverlayWidth($0) }
     )
   }
 
@@ -1295,20 +1183,6 @@ struct SettingsView: View {
     Binding(
       get: { settings.keystrokeOverlaySize },
       set: { settings.setKeystrokeOverlaySize($0) }
-    )
-  }
-
-  private var keystrokeOverlayWidthBinding: Binding<Double> {
-    Binding(
-      get: { settings.keystrokeOverlayNormalizedWidth },
-      set: { settings.setKeystrokeOverlayWidth($0) }
-    )
-  }
-
-  private var keystrokeOverlayHeightBinding: Binding<Double> {
-    Binding(
-      get: { settings.keystrokeOverlayNormalizedHeight },
-      set: { settings.setKeystrokeOverlayHeight($0) }
     )
   }
 
@@ -1376,16 +1250,199 @@ struct SettingsView: View {
     NSWorkspace.shared.activateFileViewerSelecting([url])
   }
 
-  private func refreshWebcamDevices() {
-    webcamDevices = RecordingSourceProvider.webcamSources()
-  }
-
-  private func refreshMicrophoneDevices() {
-    microphoneDevices = RecordingSourceProvider.microphoneSources()
-  }
-
   private func previewCaptureTransition() {
     CaptureTransitionPreviewCoordinator.shared.preview()
+  }
+}
+
+private struct RecordingOverlayPlayground: NSViewRepresentable {
+  @ObservedObject var settings: AppSettings
+  let showsWebcam: Bool
+  let showsKeystrokes: Bool
+
+  func makeNSView(context: Context) -> RecordingOverlayPlaygroundView {
+    let view = RecordingOverlayPlaygroundView()
+    view.update(settings: settings, showsWebcam: showsWebcam, showsKeystrokes: showsKeystrokes)
+    return view
+  }
+
+  func updateNSView(_ nsView: RecordingOverlayPlaygroundView, context: Context) {
+    nsView.update(settings: settings, showsWebcam: showsWebcam, showsKeystrokes: showsKeystrokes)
+  }
+
+  static func dismantleNSView(_ nsView: RecordingOverlayPlaygroundView, coordinator: ()) {
+    nsView.stopPreview()
+  }
+}
+
+@MainActor
+private final class RecordingOverlayPlaygroundView: NSView {
+  private let webcamPlacementView = CaptureOverlayPlacementView(kind: .webcam)
+  private let keystrokePlacementView = CaptureOverlayPlacementView(kind: .keystroke)
+  private weak var settings: AppSettings?
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    layer?.cornerRadius = 10
+    layer?.masksToBounds = true
+    layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+
+    addSubview(webcamPlacementView)
+    addSubview(keystrokePlacementView)
+
+    webcamPlacementView.onFrameChanged = { [weak self] frame in
+      guard let self, let settings else {
+        return
+      }
+      settings.setWebcamOverlayFrame(self.normalizedOverlayFrame(frame, in: self.previewFrame))
+    }
+
+    keystrokePlacementView.onFrameChanged = { [weak self] frame in
+      guard let self, let settings else {
+        return
+      }
+      settings.setKeystrokeOverlayFrame(self.normalizedOverlayFrame(frame, in: self.previewFrame))
+    }
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  override var isOpaque: Bool { false }
+
+  func update(settings: AppSettings, showsWebcam: Bool, showsKeystrokes: Bool) {
+    self.settings = settings
+
+    webcamPlacementView.webcamShape = settings.webcamOverlayShape
+    webcamPlacementView.webcamAspectRatio = settings.webcamOverlayAspectRatio
+    webcamPlacementView.isHidden = !showsWebcam
+    webcamPlacementView.alphaValue = settings.showWebcam ? 1 : 0.48
+    if showsWebcam && settings.showWebcam {
+      webcamPlacementView.updateWebcamPreview(preferredDeviceID: settings.webcamDeviceID)
+    } else {
+      webcamPlacementView.stopWebcamPreview()
+    }
+
+    keystrokePlacementView.keystrokeStyle = settings.keystrokeOverlayStyle
+    keystrokePlacementView.keystrokeSize = settings.keystrokeOverlaySize
+    keystrokePlacementView.isHidden = !showsKeystrokes
+    keystrokePlacementView.alphaValue = settings.highlightKeystrokes ? 1 : 0.48
+
+    needsLayout = true
+    needsDisplay = true
+  }
+
+  func stopPreview() {
+    webcamPlacementView.stopWebcamPreview()
+  }
+
+  override func layout() {
+    super.layout()
+    guard let settings else {
+      return
+    }
+
+    let previewFrame = previewFrame
+    webcamPlacementView.containerFrame = previewFrame
+    webcamPlacementView.frame = resolvedWebcamOverlayFrame(settings.webcamOverlayNormalizedFrame, in: previewFrame)
+    keystrokePlacementView.containerFrame = previewFrame
+    keystrokePlacementView.frame = resolvedOverlayFrame(settings.keystrokeOverlayNormalizedFrame, in: previewFrame)
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    super.draw(dirtyRect)
+
+    let previewFrame = previewFrame
+    NSColor.controlBackgroundColor.setFill()
+    NSBezierPath(roundedRect: previewFrame, xRadius: 8, yRadius: 8).fill()
+
+    let stripeColor = NSColor.separatorColor.withAlphaComponent(0.18)
+    stripeColor.setStroke()
+    let path = NSBezierPath()
+    let stride: CGFloat = 28
+    var x = previewFrame.minX + stride
+    while x < previewFrame.maxX {
+      path.move(to: CGPoint(x: x, y: previewFrame.minY))
+      path.line(to: CGPoint(x: x, y: previewFrame.maxY))
+      x += stride
+    }
+    var y = previewFrame.minY + stride
+    while y < previewFrame.maxY {
+      path.move(to: CGPoint(x: previewFrame.minX, y: y))
+      path.line(to: CGPoint(x: previewFrame.maxX, y: y))
+      y += stride
+    }
+    path.lineWidth = 1
+    path.stroke()
+
+    NSColor.controlAccentColor.withAlphaComponent(0.28).setStroke()
+    let outline = NSBezierPath(roundedRect: previewFrame.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8)
+    outline.lineWidth = 1
+    outline.stroke()
+  }
+
+  private var previewFrame: CGRect {
+    let insetBounds = bounds.insetBy(dx: 14, dy: 14)
+    guard insetBounds.width > 0, insetBounds.height > 0 else {
+      return .zero
+    }
+
+    let targetRatio: CGFloat = 16.0 / 9.0
+    var width = insetBounds.width
+    var height = width / targetRatio
+    if height > insetBounds.height {
+      height = insetBounds.height
+      width = height * targetRatio
+    }
+
+    return CGRect(
+      x: insetBounds.midX - width * 0.5,
+      y: insetBounds.midY - height * 0.5,
+      width: width,
+      height: height
+    ).integral
+  }
+
+  private func resolvedOverlayFrame(_ normalized: CGRect, in container: CGRect) -> CGRect {
+    guard container.width > 0, container.height > 0 else {
+      return .zero
+    }
+
+    let source = normalized.standardized
+    let width = min(max(container.width * source.width, 36), container.width)
+    let height = min(max(container.height * source.height, 28), container.height)
+    let x = min(max(container.minX, container.minX + container.width * source.minX), container.maxX - width)
+    let y = min(max(container.minY, container.minY + container.height * source.minY), container.maxY - height)
+    return CGRect(x: x, y: y, width: width, height: height).integral
+  }
+
+  private func resolvedWebcamOverlayFrame(_ normalized: CGRect, in container: CGRect) -> CGRect {
+    guard let settings else {
+      return resolvedOverlayFrame(normalized, in: container)
+    }
+
+    let frame = resolvedOverlayFrame(normalized, in: container)
+    let aspectRatio = settings.webcamOverlayShape == .circle
+      ? WebcamAspectRatio.square
+      : settings.webcamOverlayAspectRatio
+    return aspectRatio.constrainedFrame(frame, in: container, minimumSize: CGSize(width: 84, height: 84))
+  }
+
+  private func normalizedOverlayFrame(_ frame: CGRect, in container: CGRect) -> CGRect {
+    guard container.width > 0, container.height > 0 else {
+      return .zero
+    }
+
+    let standardized = frame.standardized
+    return CGRect(
+      x: (standardized.minX - container.minX) / container.width,
+      y: (standardized.minY - container.minY) / container.height,
+      width: standardized.width / container.width,
+      height: standardized.height / container.height
+    )
   }
 }
 

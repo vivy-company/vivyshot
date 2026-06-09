@@ -41,12 +41,10 @@ final class RecordingCoordinator {
   private var webcamPlacementChanges: [OverlayPlacementChange] = []
   private var keystrokePlacementChanges: [OverlayPlacementChange] = []
   private var webcamOverlayUsedInSession = false
-  private var webcamDeviceIDInSession = ""
   private var keystrokeOverlayEnabledInSession = false
   private var mouseClickHighlightStyleInSession: MouseClickHighlightStyle?
   private var systemAudioEnabledInSession = false
   private var microphoneEnabledInSession = false
-  private var microphoneDeviceIDInSession = ""
   private(set) var liveControlState = RecordingLiveControlState(
     recordSystemAudio: false,
     recordMicrophone: false,
@@ -122,9 +120,7 @@ final class RecordingCoordinator {
         mouseClickHighlightStyleInSession = mouseClickHighlightStyle
         systemAudioEnabledInSession = settings.recordSystemAudio
         microphoneEnabledInSession = microphoneEnabled
-        microphoneDeviceIDInSession = settings.microphoneDeviceID
         webcamOverlayUsedInSession = webcamEnabled
-        webcamDeviceIDInSession = settings.webcamDeviceID
         var webcamPreviewLayer: AVCaptureVideoPreviewLayer?
         var pendingWebcamRecorder: WebcamRecorder?
         var capturedOverlayWindowIDs: [CGWindowID] = []
@@ -305,7 +301,6 @@ final class RecordingCoordinator {
   private func setMicrophoneDeviceIDForActiveRecording(_ deviceID: String) async {
     do {
       try await recorder?.setMicrophoneDeviceID(deviceID)
-      microphoneDeviceIDInSession = deviceID
     } catch {
       onError?("Failed to update microphone source: \(error.localizedDescription)")
     }
@@ -330,7 +325,6 @@ final class RecordingCoordinator {
     }
     do {
       try await webcamRecorder.setDeviceID(deviceID)
-      webcamDeviceIDInSession = deviceID
       if liveControlState.showWebcam {
         webcamOverlayUsedInSession = true
       }
@@ -340,10 +334,11 @@ final class RecordingCoordinator {
   }
 
   private func setMouseClicksEnabledForActiveRecording(_ enabled: Bool) {
+    settings.setVideoHighlightMouseClicks(enabled)
     let style = enabled ? settings.mouseClickHighlightStyle : nil
-    liveControlState.highlightMouseClicks = style != nil
+    liveControlState.highlightMouseClicks = enabled
     mouseClickHighlightStyleInSession = style
-    inputMonitor?.setCaptureMouseClicks(style != nil)
+    inputMonitor?.setCaptureMouseClicks(enabled)
   }
 
   private func setKeystrokesEnabledForActiveRecording(_ enabled: Bool) {
@@ -829,12 +824,10 @@ final class RecordingCoordinator {
     webcamPlacementChanges = []
     keystrokePlacementChanges = []
     webcamOverlayUsedInSession = false
-    webcamDeviceIDInSession = ""
     keystrokeOverlayEnabledInSession = false
     mouseClickHighlightStyleInSession = nil
     systemAudioEnabledInSession = false
     microphoneEnabledInSession = false
-    microphoneDeviceIDInSession = ""
     liveControlState = RecordingLiveControlState(
       recordSystemAudio: false,
       recordMicrophone: false,
@@ -1771,6 +1764,9 @@ private final class RecordingOverlayController: NSWindowController {
   private let captureRectInScreen: CGRect
   private var webcamOverlayView: RecordingWebcamOverlayView?
   private var keystrokeOverlayView: RecordingKeystrokeOverlayView?
+  private var localPointerMonitor: Any?
+  private var globalPointerMonitor: Any?
+  private var isDraggingOverlay = false
 
   init(
     captureRectInScreen: CGRect,
@@ -1801,6 +1797,7 @@ private final class RecordingOverlayController: NSWindowController {
     panel.backgroundColor = .clear
     panel.hasShadow = false
     panel.ignoresMouseEvents = true
+    panel.acceptsMouseMovedEvents = true
 
     let container = RecordingOverlayContainerView(frame: CGRect(origin: .zero, size: captureRectInScreen.size))
     container.wantsLayer = true
@@ -1839,6 +1836,13 @@ private final class RecordingOverlayController: NSWindowController {
     keystrokeOverlayView = keystrokeView
 
     super.init(window: panel)
+    webcamOverlayView?.onDragStateChanged = { [weak self] isDragging in
+      self?.setOverlayDragging(isDragging)
+    }
+    keystrokeOverlayView?.onDragStateChanged = { [weak self] isDragging in
+      self?.setOverlayDragging(isDragging)
+    }
+    installPointerMonitors()
   }
 
   @available(*, unavailable)
@@ -1852,6 +1856,12 @@ private final class RecordingOverlayController: NSWindowController {
     }
     panel.setFrame(captureRectInScreen, display: true)
     panel.orderFrontRegardless()
+    updateMouseEventPassthroughAtCurrentPointerLocation()
+  }
+
+  override func close() {
+    removePointerMonitors()
+    super.close()
   }
 
   var capturedWindowID: CGWindowID? {
@@ -1871,6 +1881,7 @@ private final class RecordingOverlayController: NSWindowController {
       return false
     }
     webcamOverlayView.isHidden = !visible
+    updateMouseEventPassthroughAtCurrentPointerLocation()
     return true
   }
 
@@ -1880,7 +1891,60 @@ private final class RecordingOverlayController: NSWindowController {
       return false
     }
     keystrokeOverlayView.isHidden = !visible
+    updateMouseEventPassthroughAtCurrentPointerLocation()
     return true
+  }
+
+  private func setOverlayDragging(_ isDragging: Bool) {
+    isDraggingOverlay = isDragging
+    updateMouseEventPassthroughAtCurrentPointerLocation()
+  }
+
+  private func installPointerMonitors() {
+    let mask: NSEvent.EventTypeMask = [
+      .mouseMoved,
+      .leftMouseDragged,
+      .rightMouseDragged,
+      .otherMouseDragged
+    ]
+    localPointerMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+      MainActor.assumeIsolated {
+        self?.updateMouseEventPassthroughAtCurrentPointerLocation()
+      }
+      return event
+    }
+    globalPointerMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
+      Task { @MainActor in
+        self?.updateMouseEventPassthroughAtCurrentPointerLocation()
+      }
+    }
+  }
+
+  private func removePointerMonitors() {
+    if let localPointerMonitor {
+      NSEvent.removeMonitor(localPointerMonitor)
+      self.localPointerMonitor = nil
+    }
+    if let globalPointerMonitor {
+      NSEvent.removeMonitor(globalPointerMonitor)
+      self.globalPointerMonitor = nil
+    }
+  }
+
+  private func updateMouseEventPassthroughAtCurrentPointerLocation() {
+    updateMouseEventPassthrough(atScreenPoint: NSEvent.mouseLocation)
+  }
+
+  private func updateMouseEventPassthrough(atScreenPoint screenPoint: NSPoint) {
+    guard let panel = window,
+          let container = panel.contentView as? RecordingOverlayContainerView
+    else {
+      return
+    }
+
+    let pointInWindow = panel.convertPoint(fromScreen: screenPoint)
+    let shouldCaptureMouse = isDraggingOverlay || container.containsInteractiveOverlay(at: pointInWindow)
+    panel.ignoresMouseEvents = !shouldCaptureMouse
   }
 
   private static func denormalizedFrame(_ normalized: CGRect, in bounds: CGRect) -> CGRect {
@@ -1908,12 +1972,34 @@ private final class RecordingOverlayController: NSWindowController {
 @MainActor
 private final class RecordingOverlayContainerView: NSView {
   override var isOpaque: Bool { false }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard bounds.contains(point) else {
+      return nil
+    }
+    return hitInteractiveOverlay(at: point)
+  }
+
+  func containsInteractiveOverlay(at point: NSPoint) -> Bool {
+    hitInteractiveOverlay(at: point) != nil
+  }
+
+  private func hitInteractiveOverlay(at point: NSPoint) -> NSView? {
+    for subview in subviews.reversed() where !subview.isHidden {
+      let pointInSubview = subview.convert(point, from: self)
+      if let hitView = subview.hitTest(pointInSubview) {
+        return hitView
+      }
+    }
+    return nil
+  }
 }
 
 @MainActor
 private class RecordingDraggableOverlayView: NSView {
   var normalizedFrame: CGRect
   var onNormalizedFrameChanged: ((CGRect) -> Void)?
+  var onDragStateChanged: ((Bool) -> Void)?
 
   private var dragStartPoint: CGPoint?
   private var dragStartFrame: CGRect = .zero
@@ -1943,10 +2029,22 @@ private class RecordingDraggableOverlayView: NSView {
     addCursorRect(bounds, cursor: .openHand)
   }
 
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+    true
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard !isHidden, bounds.contains(point) else {
+      return nil
+    }
+    return self
+  }
+
   override func mouseDown(with event: NSEvent) {
     guard let superview else {
       return
     }
+    onDragStateChanged?(true)
     dragStartPoint = superview.convert(event.locationInWindow, from: nil)
     dragStartFrame = frame
     let localPoint = convert(event.locationInWindow, from: nil)
@@ -1979,6 +2077,7 @@ private class RecordingDraggableOverlayView: NSView {
     dragStartPoint = nil
     activeInteraction = .move
     NSCursor.openHand.set()
+    onDragStateChanged?(false)
     guard let superview else {
       return
     }

@@ -20,16 +20,34 @@ private func captureModeHelpText(_ mode: CaptureMode) -> String {
 private func recordingSourceMenuItems(
   selectedSourceID: String,
   sources: [RecordingSourceOption],
+  isSourceEnabled: Bool,
+  onToggleSource: @escaping () -> Void,
   onSelectSource: @escaping (String) -> Void
 ) -> some View {
-  Button {
-    onSelectSource(RecordingSourceOption.systemDefault.id)
-  } label: {
-    if selectedSourceID.isEmpty {
-      Label(RecordingSourceOption.systemDefault.name, systemImage: "checkmark")
-    } else {
-      Text(RecordingSourceOption.systemDefault.name)
+  let selectSource: (String) -> Void = { sourceID in
+    if !isSourceEnabled {
+      onToggleSource()
     }
+    onSelectSource(sourceID)
+  }
+
+  Button {
+    if isSourceEnabled {
+      onToggleSource()
+    }
+  } label: {
+    recordingSourceMenuLabel("Off", isSelected: !isSourceEnabled)
+  }
+
+  Divider()
+
+  Button {
+    selectSource(RecordingSourceOption.systemDefault.id)
+  } label: {
+    recordingSourceMenuLabel(
+      RecordingSourceOption.systemDefault.name,
+      isSelected: isSourceEnabled && selectedSourceID.isEmpty
+    )
   }
   if sources.isEmpty {
     Text("No devices found")
@@ -37,55 +55,80 @@ private func recordingSourceMenuItems(
   } else {
     ForEach(sources) { source in
       Button {
-        onSelectSource(source.id)
+        selectSource(source.id)
       } label: {
-        if source.id == selectedSourceID {
-          Label(source.name, systemImage: "checkmark")
-        } else {
-          Text(source.name)
-        }
+        recordingSourceMenuLabel(source.name, isSelected: isSourceEnabled && source.id == selectedSourceID)
       }
     }
   }
 }
 
-private struct RecordingSourceMenuLabel: View {
+@ViewBuilder
+@MainActor
+private func recordingSourceMenuLabel(_ title: String, isSelected: Bool) -> some View {
+  if isSelected {
+    Label(title, systemImage: "checkmark")
+  } else {
+    Text(title)
+  }
+}
+
+private struct RecordingSourceMenuButton: View {
+  let title: String
+  let labelText: String
   let symbol: String
-  let isSelected: Bool
+  let help: String
   let isDisabled: Bool
   let isLocked: Bool
-  let symbolFontSize: CGFloat
-  let size: CGSize
   let accentColor: Color
+  let selectedSourceID: String
+  let sources: [RecordingSourceOption]
+  let isSourceEnabled: Bool
+  let onToggle: () -> Void
+  let onSelectSource: (String) -> Void
 
   var body: some View {
-    ZStack(alignment: .topTrailing) {
-      RoundedRectangle(cornerRadius: 7, style: .continuous)
-        .fill(isSelected ? Color.white.opacity(0.18) : Color.white.opacity(0.05))
-        .overlay(
-          RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .stroke(isSelected ? Color.white.opacity(0.34) : Color.white.opacity(0.12), lineWidth: 1)
-        )
+    Menu {
+      recordingSourceMenuItems(
+        selectedSourceID: selectedSourceID,
+        sources: sources,
+        isSourceEnabled: isSourceEnabled,
+        onToggleSource: onToggle,
+        onSelectSource: onSelectSource
+      )
+    } label: {
+      label
+    }
+    .buttonStyle(.plain)
+    .disabled(isDisabled || isLocked)
+    .help(help)
+    .accessibilityLabel(title)
+  }
 
+  private var label: some View {
+    HStack(spacing: 4) {
       Image(systemName: symbol)
-        .font(.system(size: symbolFontSize, weight: .semibold))
-        .foregroundStyle(isSelected ? accentColor : toolbarNeutralForeground)
+        .font(.system(size: 13.5, weight: .semibold))
+        .foregroundStyle(isSourceEnabled ? accentColor : toolbarNeutralForeground)
+
+      Text(labelText)
+        .font(.system(size: 11.5, weight: .semibold))
+        .foregroundStyle(isSourceEnabled ? accentColor : toolbarNeutralForeground)
 
       if isLocked {
         Image(systemName: "lock.fill")
-          .font(.system(size: 7, weight: .bold))
+          .font(.system(size: 9, weight: .bold))
           .foregroundStyle(Color.yellow.opacity(0.92))
-          .offset(x: 1, y: -1)
       } else {
         Image(systemName: "chevron.down")
-          .font(.system(size: 6.5, weight: .bold))
+          .font(.system(size: 9, weight: .bold))
           .foregroundStyle(toolbarSecondaryForeground)
-          .offset(x: 1, y: -1)
       }
     }
-    .frame(width: size.width, height: size.height)
-    .opacity(isDisabled ? 0.45 : 1)
-    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    .frame(height: 26)
+    .padding(.horizontal, 10)
+    .contentShape(Rectangle())
+    .opacity((isDisabled || isLocked) ? 0.45 : 1)
   }
 }
 
@@ -173,8 +216,11 @@ struct RecordingControlBar: View {
       timerChip
       if hasToggleTools {
         separator
-        ForEach(toolOrder) { tool in
+        ForEach(Array(toolOrder.enumerated()), id: \.element.id) { index, tool in
           liveToggleButton(for: tool)
+          if toolOrder.shouldSeparateInputSources(after: index) {
+            separator
+          }
         }
       }
       separator
@@ -230,28 +276,32 @@ struct RecordingControlBar: View {
         action: onToggleSystemAudio
       )
     case .microphone:
-      liveSourceMenuButton(
-        tool: .microphone,
+      RecordingSourceMenuButton(
+        title: RecordingTool.microphone.title,
+        labelText: "Mic",
         symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
         help: helpText(recordMicrophone ? "Microphone on" : "Microphone off", for: .microphone),
         isDisabled: disabledTools.contains(.microphone),
-        isSelected: recordMicrophone,
+        isLocked: false,
+        accentColor: accentColor,
         selectedSourceID: selectedMicrophoneID,
         sources: microphoneSources,
-        toggleTitle: recordMicrophone ? "Turn Microphone Off" : "Turn Microphone On",
+        isSourceEnabled: recordMicrophone,
         onToggle: onToggleMicrophone,
         onSelectSource: onSelectMicrophoneSource
       )
     case .webcam:
-      liveSourceMenuButton(
-        tool: .webcam,
+      RecordingSourceMenuButton(
+        title: RecordingTool.webcam.title,
+        labelText: "Camera",
         symbol: showWebcam ? "video.fill" : "video.slash.fill",
         help: helpText(showWebcam ? "Camera overlay on" : "Camera overlay off", for: .webcam),
         isDisabled: disabledTools.contains(.webcam),
-        isSelected: showWebcam,
+        isLocked: false,
+        accentColor: accentColor,
         selectedSourceID: selectedWebcamID,
         sources: webcamSources,
-        toggleTitle: showWebcam ? "Hide Camera Overlay" : "Show Camera Overlay",
+        isSourceEnabled: showWebcam,
         onToggle: onToggleWebcam,
         onSelectSource: onSelectWebcamSource
       )
@@ -297,43 +347,6 @@ struct RecordingControlBar: View {
       showsInlineTooltip: false,
       action: action
     )
-  }
-
-  private func liveSourceMenuButton(
-    tool: RecordingTool,
-    symbol: String,
-    help: String,
-    isDisabled: Bool,
-    isSelected: Bool,
-    selectedSourceID: String,
-    sources: [RecordingSourceOption],
-    toggleTitle: String,
-    onToggle: @escaping () -> Void,
-    onSelectSource: @escaping (String) -> Void
-  ) -> some View {
-    Menu {
-      Button(toggleTitle, action: onToggle)
-      Divider()
-      recordingSourceMenuItems(
-        selectedSourceID: selectedSourceID,
-        sources: sources,
-        onSelectSource: onSelectSource
-      )
-    } label: {
-      RecordingSourceMenuLabel(
-        symbol: symbol,
-        isSelected: isSelected,
-        isDisabled: isDisabled,
-        isLocked: false,
-        symbolFontSize: 13,
-        size: CGSize(width: 30, height: 24),
-        accentColor: accentColor
-      )
-    }
-    .buttonStyle(.plain)
-    .disabled(isDisabled)
-    .help(help)
-    .accessibilityLabel(tool.title)
   }
 
   private var stopButton: some View {
@@ -816,8 +829,11 @@ struct CaptureVideoToolbar: View {
       captureModeButtons
       if hasConfigurableTools {
         separator
-        ForEach(toolOrder) { tool in
+        ForEach(Array(toolOrder.enumerated()), id: \.element.id) { index, tool in
           recordingToolButton(tool, fallback: false)
+          if toolOrder.shouldSeparateInputSources(after: index) {
+            separator
+          }
         }
       }
       separator
@@ -963,63 +979,37 @@ struct CaptureVideoToolbar: View {
 
     case .microphone:
       let locked = lockedTools.contains(.microphone)
-      if fallback {
-        fallbackSourceMenuButton(
-          symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
-          help: locked ? "Microphone (Paid)" : "Microphone (⌥⌘M)",
-          isSelected: recordMicrophone,
-          isDisabled: isRecordingActive || isRecordingPending,
-          isLocked: locked,
-          selectedSourceID: selectedMicrophoneID,
-          sources: microphoneSources,
-          toggleTitle: recordMicrophone ? "Turn Microphone Off" : "Turn Microphone On",
-          onToggle: onToggleMicrophone,
-          onSelectSource: onSelectMicrophoneSource
-        )
-      } else {
-        toolbarSourceMenuButton(
-          symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
-          help: locked ? "Microphone (Paid)" : "Microphone (⌥⌘M)",
-          isSelected: recordMicrophone,
-          isDisabled: isRecordingActive || isRecordingPending,
-          isLocked: locked,
-          selectedSourceID: selectedMicrophoneID,
-          sources: microphoneSources,
-          toggleTitle: recordMicrophone ? "Turn Microphone Off" : "Turn Microphone On",
-          onToggle: onToggleMicrophone,
-          onSelectSource: onSelectMicrophoneSource
-        )
-      }
+      RecordingSourceMenuButton(
+        title: RecordingTool.microphone.title,
+        labelText: "Mic",
+        symbol: recordMicrophone ? "mic.fill" : "mic.slash.fill",
+        help: locked ? "Microphone (Paid)" : "Microphone (⌥⌘M)",
+        isDisabled: isRecordingActive || isRecordingPending,
+        isLocked: locked,
+        accentColor: accentColor,
+        selectedSourceID: selectedMicrophoneID,
+        sources: microphoneSources,
+        isSourceEnabled: recordMicrophone,
+        onToggle: onToggleMicrophone,
+        onSelectSource: onSelectMicrophoneSource
+      )
 
     case .webcam:
       let locked = lockedTools.contains(.webcam)
-      if fallback {
-        fallbackSourceMenuButton(
-          symbol: showWebcam ? "video.fill" : "video.slash.fill",
-          help: locked ? "Webcam Overlay (Paid)" : "Webcam Overlay (⌥⌘W)",
-          isSelected: showWebcam,
-          isDisabled: isRecordingActive || isRecordingPending,
-          isLocked: locked,
-          selectedSourceID: selectedWebcamID,
-          sources: webcamSources,
-          toggleTitle: showWebcam ? "Hide Camera Overlay" : "Show Camera Overlay",
-          onToggle: onToggleWebcam,
-          onSelectSource: onSelectWebcamSource
-        )
-      } else {
-        toolbarSourceMenuButton(
-          symbol: showWebcam ? "video.fill" : "video.slash.fill",
-          help: locked ? "Webcam Overlay (Paid)" : "Webcam Overlay (⌥⌘W)",
-          isSelected: showWebcam,
-          isDisabled: isRecordingActive || isRecordingPending,
-          isLocked: locked,
-          selectedSourceID: selectedWebcamID,
-          sources: webcamSources,
-          toggleTitle: showWebcam ? "Hide Camera Overlay" : "Show Camera Overlay",
-          onToggle: onToggleWebcam,
-          onSelectSource: onSelectWebcamSource
-        )
-      }
+      RecordingSourceMenuButton(
+        title: RecordingTool.webcam.title,
+        labelText: "Camera",
+        symbol: showWebcam ? "video.fill" : "video.slash.fill",
+        help: locked ? "Webcam Overlay (Paid)" : "Webcam Overlay (⌥⌘W)",
+        isDisabled: isRecordingActive || isRecordingPending,
+        isLocked: locked,
+        accentColor: accentColor,
+        selectedSourceID: selectedWebcamID,
+        sources: webcamSources,
+        isSourceEnabled: showWebcam,
+        onToggle: onToggleWebcam,
+        onSelectSource: onSelectWebcamSource
+      )
 
     case .mouseClicks:
       if fallback {
@@ -1091,42 +1081,6 @@ struct CaptureVideoToolbar: View {
     )
   }
 
-  private func toolbarSourceMenuButton(
-    symbol: String,
-    help: String,
-    isSelected: Bool,
-    isDisabled: Bool = false,
-    isLocked: Bool = false,
-    selectedSourceID: String,
-    sources: [RecordingSourceOption],
-    toggleTitle: String,
-    onToggle: @escaping () -> Void,
-    onSelectSource: @escaping (String) -> Void
-  ) -> some View {
-    Menu {
-      Button(toggleTitle, action: onToggle)
-      Divider()
-      recordingSourceMenuItems(
-        selectedSourceID: selectedSourceID,
-        sources: sources,
-        onSelectSource: onSelectSource
-      )
-    } label: {
-      RecordingSourceMenuLabel(
-        symbol: symbol,
-        isSelected: isSelected,
-        isDisabled: isDisabled,
-        isLocked: isLocked,
-        symbolFontSize: 13,
-        size: CGSize(width: 28, height: 24),
-        accentColor: accentColor
-      )
-    }
-    .buttonStyle(.plain)
-    .disabled(isDisabled || isLocked)
-    .help(help)
-  }
-
   private func fallbackIconButton(
     symbol: String,
     help: String,
@@ -1148,42 +1102,6 @@ struct CaptureVideoToolbar: View {
       isLocked: isLocked,
       action: action
     )
-  }
-
-  private func fallbackSourceMenuButton(
-    symbol: String,
-    help: String,
-    isSelected: Bool,
-    isDisabled: Bool = false,
-    isLocked: Bool = false,
-    selectedSourceID: String,
-    sources: [RecordingSourceOption],
-    toggleTitle: String,
-    onToggle: @escaping () -> Void,
-    onSelectSource: @escaping (String) -> Void
-  ) -> some View {
-    Menu {
-      Button(toggleTitle, action: onToggle)
-      Divider()
-      recordingSourceMenuItems(
-        selectedSourceID: selectedSourceID,
-        sources: sources,
-        onSelectSource: onSelectSource
-      )
-    } label: {
-      RecordingSourceMenuLabel(
-        symbol: symbol,
-        isSelected: isSelected,
-        isDisabled: isDisabled,
-        isLocked: isLocked,
-        symbolFontSize: 13,
-        size: CGSize(width: 27, height: 23),
-        accentColor: accentColor
-      )
-    }
-    .buttonStyle(.plain)
-    .disabled(isDisabled || isLocked)
-    .help(help)
   }
 
   private var dragGesture: some Gesture {
@@ -1214,5 +1132,16 @@ struct CaptureVideoToolbar: View {
     ) {
       onSelectCaptureMode(mode)
     }
+  }
+}
+
+private extension Array where Element == RecordingTool {
+  func shouldSeparateInputSources(after index: Int) -> Bool {
+    guard indices.contains(index), self[index].isInputSource else {
+      return false
+    }
+
+    let nextIndex = index + 1
+    return indices.contains(nextIndex) && !self[nextIndex].isInputSource
   }
 }

@@ -49,14 +49,23 @@ enum CaptureContentType: Int, CaseIterable, Identifiable {
 
 /// Optional controls that can appear in the recording toolbar.
 enum RecordingTool: Int, CaseIterable, Identifiable {
-  case systemAudio = 0
   case microphone = 1
   case webcam = 2
+  case systemAudio = 0
   case mouseClicks = 3
   case keystrokes = 4
   case countdown = 5
 
   var id: Int { rawValue }
+
+  var isInputSource: Bool {
+    switch self {
+    case .microphone, .webcam:
+      return true
+    case .systemAudio, .mouseClicks, .keystrokes, .countdown:
+      return false
+    }
+  }
 
   var title: String {
     switch self {
