@@ -1399,7 +1399,7 @@ private final class RecordingOverlaySettingsPreviewView: NSView {
 
   private let kind: RecordingOverlaySettingsPreviewKind
   private let placementView: CaptureOverlayPlacementView
-  private let closeButton = SettingsPreviewCloseButton(title: "Close Preview", target: nil, action: nil)
+  private let closeButton = SettingsPreviewCloseButton()
   private weak var settings: AppSettings?
 
   init(frame frameRect: NSRect, kind: RecordingOverlaySettingsPreviewKind, settings: AppSettings) {
@@ -1417,9 +1417,6 @@ private final class RecordingOverlaySettingsPreviewView: NSView {
     }
     addSubview(placementView)
 
-    closeButton.translatesAutoresizingMaskIntoConstraints = true
-    closeButton.bezelStyle = .rounded
-    closeButton.font = .systemFont(ofSize: 12, weight: .semibold)
     addSubview(closeButton)
 
     update(settings: settings)
@@ -1587,7 +1584,75 @@ private final class RecordingOverlaySettingsPreviewView: NSView {
   }
 }
 
-private final class SettingsPreviewCloseButton: NSButton {
+private final class SettingsPreviewCloseButton: NSView {
+  private let shellView: NSView
+  private let iconView = NSImageView()
+  private let titleLabel = NSTextField(labelWithString: "Close Preview")
+
+  init() {
+    if #available(macOS 26.0, *) {
+      let glassView = NSGlassEffectView()
+      glassView.style = .regular
+      glassView.cornerRadius = 15
+      shellView = glassView
+    } else {
+      let visualEffectView = NSVisualEffectView()
+      visualEffectView.blendingMode = .behindWindow
+      visualEffectView.material = .hudWindow
+      visualEffectView.state = .active
+      visualEffectView.wantsLayer = true
+      visualEffectView.layer?.cornerRadius = 15
+      visualEffectView.layer?.masksToBounds = true
+      shellView = visualEffectView
+    }
+
+    super.init(frame: .zero)
+
+    wantsLayer = true
+    layer?.backgroundColor = NSColor.clear.cgColor
+    translatesAutoresizingMaskIntoConstraints = true
+
+    shellView.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(shellView)
+
+    iconView.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)
+    iconView.contentTintColor = .white.withAlphaComponent(0.88)
+    iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+    iconView.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(iconView)
+
+    titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+    titleLabel.textColor = .white.withAlphaComponent(0.92)
+    titleLabel.backgroundColor = .clear
+    titleLabel.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(titleLabel)
+
+    NSLayoutConstraint.activate([
+      shellView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      shellView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      shellView.topAnchor.constraint(equalTo: topAnchor),
+      shellView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+      iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 11),
+      iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+      iconView.widthAnchor.constraint(equalToConstant: 14),
+      iconView.heightAnchor.constraint(equalToConstant: 14),
+
+      titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
+      titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+      titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor)
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  override var isOpaque: Bool {
+    false
+  }
+
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
     true
   }
