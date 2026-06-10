@@ -2,9 +2,15 @@ import AppKit
 import CryptoKit
 import Foundation
 
+protocol CrashReporting: AnyObject {
+  func install()
+  func markCleanShutdown()
+  @MainActor func presentRecoveredCrashNoticeIfNeeded()
+}
+
 /// Local crash-recovery marker and anonymized diagnostic summary helper.
-final class CrashReporter {
-  nonisolated(unsafe) static let shared = CrashReporter()
+final class CrashReporter: CrashReporting {
+  nonisolated(unsafe) private static weak var installedReporter: CrashReporter?
 
   private struct SessionMarker: Codable {
     let pid: Int32
@@ -35,7 +41,7 @@ final class CrashReporter {
   private let sessionMarkerURL: URL
   private var pendingRecovery: PendingRecovery?
 
-  private init() {
+  init() {
     let appSupportRoot = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
       ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
     let executable = Self.executableName
@@ -46,11 +52,12 @@ final class CrashReporter {
   }
 
   func install() {
+    Self.installedReporter = self
     ensureDiagnosticsDirectoryExists()
     recoverUnexpectedTerminationIfNeeded()
     writeCurrentSessionMarker()
     NSSetUncaughtExceptionHandler { exception in
-      CrashReporter.shared.recordUncaughtException(exception)
+      CrashReporter.installedReporter?.recordUncaughtException(exception)
     }
   }
 

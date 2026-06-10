@@ -19,31 +19,31 @@ enum SelectionGeometry {
     ResizableRect.resizeRect(
       start: start,
       bounds: bounds,
-      cornerCode: resizeCornerCode(corner),
+      edge: resizeEdge(corner),
       delta: delta,
       minWidth: minWidth,
       minHeight: minHeight
     )
   }
 
-  private static func resizeCornerCode(_ corner: ResizeCorner) -> UInt8 {
+  private static func resizeEdge(_ corner: ResizeCorner) -> ResizeEdge {
     switch corner {
     case .topLeft:
-      return 0
+      return .topLeft
     case .top:
-      return 1
+      return .top
     case .topRight:
-      return 2
+      return .topRight
     case .right:
-      return 3
+      return .right
     case .bottom:
-      return 4
+      return .bottom
     case .left:
-      return 5
+      return .left
     case .bottomLeft:
-      return 6
+      return .bottomLeft
     case .bottomRight:
-      return 7
+      return .bottomRight
     }
   }
 }

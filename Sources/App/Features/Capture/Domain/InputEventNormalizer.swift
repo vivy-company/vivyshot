@@ -1,6 +1,12 @@
-import AppKit
 import CoreGraphics
 import Foundation
+
+enum RecordedInputModifierMask {
+  static let command: UInt32 = 1 << 0
+  static let shift: UInt32 = 1 << 1
+  static let option: UInt32 = 1 << 2
+  static let control: UInt32 = 1 << 3
+}
 
 /// Normalizes keyboard and pointer events before they are stored as recording overlays.
 enum InputEventNormalizer {
@@ -9,10 +15,10 @@ enum InputEventNormalizer {
 
   static func normalizeKeyToken(keyCode _: UInt16, modifiers: UInt32, characters: String?) -> String? {
     var parts: [String] = []
-    if modifiers & UInt32(NSEvent.ModifierFlags.command.rawValue) != 0 { parts.append("⌘") }
-    if modifiers & UInt32(NSEvent.ModifierFlags.shift.rawValue) != 0 { parts.append("⇧") }
-    if modifiers & UInt32(NSEvent.ModifierFlags.option.rawValue) != 0 { parts.append("⌥") }
-    if modifiers & UInt32(NSEvent.ModifierFlags.control.rawValue) != 0 { parts.append("⌃") }
+    if modifiers & RecordedInputModifierMask.command != 0 { parts.append("⌘") }
+    if modifiers & RecordedInputModifierMask.shift != 0 { parts.append("⇧") }
+    if modifiers & RecordedInputModifierMask.option != 0 { parts.append("⌥") }
+    if modifiers & RecordedInputModifierMask.control != 0 { parts.append("⌃") }
     if let key = characters?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(), !key.isEmpty {
       parts.append(String(key.prefix(maximumKeyCharacters)))
     } else {

@@ -8,12 +8,14 @@
 - Related:
   - `docs/video-editor-spec.md`
   - `docs/post-recording-export-options-spec.md`
-  - `Sources/App/Features/Capture/RecordingComponents.swift`
-  - `Sources/App/Features/Capture/RecordingReviewUI.swift`
-  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay.swift`
-  - `Sources/App/Features/Settings/SettingsWindowController.swift`
-  - `Sources/App/Features/Store/StoreDomain.swift`
-  - `Sources/App/Features/Store/StoreViews.swift`
+  - `Sources/App/Features/Capture/Application/RecordingCoordinator.swift`
+  - `Sources/App/Features/Capture/UI/PostRecordingActionPanel.swift`
+  - `Sources/App/Features/Capture/UI/PostRecordingReviewView.swift`
+  - `Sources/App/Features/RegionSelection/UI/RegionSelectionOverlay.swift`
+  - `Sources/App/Features/Settings/UI/SettingsWindowController.swift`
+  - `Sources/App/Features/Settings/UI`
+  - `Sources/App/Features/Store/Domain/StoreDomain.swift`
+  - `Sources/App/Features/Store/UI`
 
 This document describes the first lock-first paid-feature implementation. The current product direction is now preview-first with a central Pro export gate. Use `docs/pro-preview-and-export-trial-spec.md` for future implementation decisions.
 

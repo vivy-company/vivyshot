@@ -3,7 +3,7 @@
 - Status: Active Draft
 - Date: 2026-04-07
 - Owner: VivyShot
-- Related: `docs/capture-history-spec.md`, `docs/video-editor-spec.md`, `Sources/App/Features/Store/StoreDomain.swift`
+- Related: `docs/capture-history-spec.md`, `docs/video-editor-spec.md`, `Sources/App/Features/Store/Domain/StoreDomain.swift`
 
 ## 1. Problem Statement
 

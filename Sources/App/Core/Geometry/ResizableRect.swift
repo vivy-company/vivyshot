@@ -1,20 +1,20 @@
 import CoreGraphics
 
+enum ResizeEdge {
+  case topLeft
+  case top
+  case topRight
+  case right
+  case bottom
+  case left
+  case bottomLeft
+  case bottomRight
+}
+
 /// Shared rectangle-resize primitive used by selection and annotation handles.
 enum ResizableRect {
-  private enum CornerCode {
-    static let topLeft: UInt8 = 0
-    static let top: UInt8 = 1
-    static let topRight: UInt8 = 2
-    static let right: UInt8 = 3
-    static let bottom: UInt8 = 4
-    static let left: UInt8 = 5
-    static let bottomLeft: UInt8 = 6
-    static let bottomRight: UInt8 = 7
-  }
-
-  /// Applies a drag delta from a handle code, then clamps the result inside bounds and minimum size.
-  static func resizeRect(start: CGRect, bounds: CGRect, cornerCode: UInt8, delta: CGPoint, minWidth: CGFloat, minHeight: CGFloat) -> CGRect? {
+  /// Applies a drag delta from a resize edge, then clamps the result inside bounds and minimum size.
+  static func resizeRect(start: CGRect, bounds: CGRect, edge: ResizeEdge, delta: CGPoint, minWidth: CGFloat, minHeight: CGFloat) -> CGRect? {
     guard delta.x.isFinite, delta.y.isFinite, minWidth.isFinite, minHeight.isFinite, minWidth > 0, minHeight > 0 else {
       return nil
     }
@@ -25,46 +25,42 @@ enum ResizableRect {
     var minY = start.minY
     var maxY = start.maxY
 
-    switch cornerCode {
-    case CornerCode.topLeft:
+    switch edge {
+    case .topLeft:
       minX += delta.x; maxY += delta.y
-    case CornerCode.top:
+    case .top:
       maxY += delta.y
-    case CornerCode.topRight:
+    case .topRight:
       maxX += delta.x; maxY += delta.y
-    case CornerCode.right:
+    case .right:
       maxX += delta.x
-    case CornerCode.bottom:
+    case .bottom:
       minY += delta.y
-    case CornerCode.left:
+    case .left:
       minX += delta.x
-    case CornerCode.bottomLeft:
+    case .bottomLeft:
       minX += delta.x; minY += delta.y
-    case CornerCode.bottomRight:
+    case .bottomRight:
       maxX += delta.x; minY += delta.y
-    default:
-      break
     }
 
-    switch cornerCode {
-    case CornerCode.topLeft:
+    switch edge {
+    case .topLeft:
       minX = min(minX, maxX - minWidth); maxY = max(maxY, minY + minHeight)
-    case CornerCode.top:
+    case .top:
       maxY = max(maxY, minY + minHeight)
-    case CornerCode.topRight:
+    case .topRight:
       maxX = max(maxX, minX + minWidth); maxY = max(maxY, minY + minHeight)
-    case CornerCode.right:
+    case .right:
       maxX = max(maxX, minX + minWidth)
-    case CornerCode.bottom:
+    case .bottom:
       minY = min(minY, maxY - minHeight)
-    case CornerCode.left:
+    case .left:
       minX = min(minX, maxX - minWidth)
-    case CornerCode.bottomLeft:
+    case .bottomLeft:
       minX = min(minX, maxX - minWidth); minY = min(minY, maxY - minHeight)
-    case CornerCode.bottomRight:
+    case .bottomRight:
       maxX = max(maxX, minX + minWidth); minY = min(minY, maxY - minHeight)
-    default:
-      break
     }
 
     minX = max(minX, bounds.minX)

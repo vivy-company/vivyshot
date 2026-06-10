@@ -3,6 +3,8 @@ import SwiftUI
 
 /// AppKit lifecycle adapter for menu-bar activation, UI-test presentation, and crash shutdown state.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+  @MainActor
+  var environment: AppEnvironment?
   private var uiTestWindow: NSWindow?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -15,23 +17,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     } else {
       NSApp.setActivationPolicy(.accessory)
       DispatchQueue.main.async {
-        CrashReporter.shared.presentRecoveredCrashNoticeIfNeeded()
+        self.environment?.crashReporter.presentRecoveredCrashNoticeIfNeeded()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-          presentWelcomeWindowIfNeeded(
-            onStartCapture: {
-              AppRuntime.statusController?.startCapturePressed()
-            },
-            onOpenSettings: {
-              presentSettingsWindow()
-            }
-          )
+          self.environment?.router.presentWelcomeIfNeeded()
         }
       }
     }
   }
 
   func applicationWillTerminate(_ notification: Notification) {
-    CrashReporter.shared.markCleanShutdown()
+    environment?.crashReporter.markCleanShutdown()
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -40,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   private func presentUITestHarnessWindowIfNeeded() {
-    guard let statusController = UITestRuntime.statusController else {
+    guard let statusController = environment?.statusController else {
       return
     }
 

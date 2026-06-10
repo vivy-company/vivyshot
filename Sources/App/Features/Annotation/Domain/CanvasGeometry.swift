@@ -74,11 +74,11 @@ enum CanvasGeometry {
     return CGPoint(x: min(max(-maxX, candidate.x), maxX), y: min(max(-maxY, candidate.y), maxY))
   }
 
-  static func resizeRect(start: CGRect, bounds: CGRect, cornerCode: UInt8, delta: CGPoint, minWidth: CGFloat, minHeight: CGFloat) -> CGRect? {
+  static func resizeRect(start: CGRect, bounds: CGRect, edge: ResizeEdge, delta: CGPoint, minWidth: CGFloat, minHeight: CGFloat) -> CGRect? {
     ResizableRect.resizeRect(
       start: start,
       bounds: bounds,
-      cornerCode: cornerCode,
+      edge: edge,
       delta: delta,
       minWidth: minWidth,
       minHeight: minHeight

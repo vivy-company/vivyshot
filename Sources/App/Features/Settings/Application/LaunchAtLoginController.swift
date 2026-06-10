@@ -51,15 +51,18 @@ struct MainAppLaunchAtLoginService: LaunchAtLoginService {
 /// Observable settings controller for enabling or disabling launch at login.
 @MainActor
 final class LaunchAtLoginController: ObservableObject {
-  static let shared = LaunchAtLoginController()
-
   @Published private(set) var isEnabled = false
   @Published private(set) var detailText: String?
 
   private let service: LaunchAtLoginService
+  private let localizer: AppLocalizer
 
-  init(service: LaunchAtLoginService = MainAppLaunchAtLoginService()) {
+  init(
+    service: LaunchAtLoginService = MainAppLaunchAtLoginService(),
+    localizer: AppLocalizer
+  ) {
     self.service = service
+    self.localizer = localizer
     refresh()
   }
 
@@ -72,7 +75,7 @@ final class LaunchAtLoginController: ObservableObject {
       isEnabled = true
       detailText = String(
         localized: "Finish enabling startup in System Settings > General > Login Items.",
-        bundle: AppLocalizer.shared.bundle
+        bundle: localizer.bundle
       )
     case .notRegistered:
       isEnabled = false
@@ -81,7 +84,7 @@ final class LaunchAtLoginController: ObservableObject {
       isEnabled = false
       detailText = String(
         localized: "Launch at login is unavailable for this app installation.",
-        bundle: AppLocalizer.shared.bundle
+        bundle: localizer.bundle
       )
     }
   }
@@ -100,12 +103,12 @@ final class LaunchAtLoginController: ObservableObject {
       if errorDescription.isEmpty {
         detailText = String(
           localized: "Unable to update launch at login.",
-          bundle: AppLocalizer.shared.bundle
+          bundle: localizer.bundle
         )
       } else {
         let messageTemplate = String(
           localized: "Unable to update launch at login. %@",
-          bundle: AppLocalizer.shared.bundle
+          bundle: localizer.bundle
         )
         detailText = String(format: messageTemplate, locale: .current, errorDescription)
       }

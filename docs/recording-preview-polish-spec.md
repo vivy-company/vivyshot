@@ -6,10 +6,12 @@
 - Related:
   - `docs/pro-preview-and-export-trial-spec.md`
   - `docs/post-recording-export-options-spec.md`
-  - `Sources/App/Features/Capture/RecordingReviewUI.swift`
-  - `Sources/App/Features/Capture/RecordingComponents.swift`
-  - `Sources/App/Features/RegionSelection/RegionSelectionOverlayController.swift`
-  - `Sources/App/Shared/UI/CaptureGlassViews.swift`
+  - `Sources/App/Features/Capture/UI/PostRecordingActionPanel.swift`
+  - `Sources/App/Features/Capture/UI/PostRecordingReviewView.swift`
+  - `Sources/App/Features/Capture/Application/RecordingCoordinator.swift`
+  - `Sources/App/Features/Capture/Application/PostRecordingProjectExporter.swift`
+  - `Sources/App/Features/RegionSelection/UI/RegionSelectionOverlayController.swift`
+  - `Sources/App/Features/RegionSelection/UI/CaptureGlassViews.swift`
 
 ## 1. Product Goal
 

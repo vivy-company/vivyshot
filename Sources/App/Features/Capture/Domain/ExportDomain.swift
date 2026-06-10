@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 /// Minimum visible duration for text overlays in exported video.
 let textMinimumVisibleSeconds: Float = 0.15
@@ -144,6 +145,114 @@ enum PlanMode: UInt8 {
 enum ExportTarget: UInt8 {
   case mp4 = 0
   case gif = 1
+}
+
+/// User decision target for a post-recording save action.
+enum PostRecordingExportTarget {
+  case video
+  case gif
+
+  var paidFeature: PaidFeature? {
+    switch self {
+    case .video:
+      return nil
+    case .gif:
+      return .gifExport
+    }
+  }
+}
+
+/// Export options that affect codec, frame rate, quality, scale, and bitrate for video output.
+struct PostRecordingExportOptions: Equatable {
+  var codec: PostRecordingExportCodec
+  var frameRate: PostRecordingExportFrameRate
+  var quality: PostRecordingExportQuality
+  var scale: PostRecordingExportScale
+  var bitrate: PostRecordingExportBitratePreset
+}
+
+enum PostRecordingExportCodec: String, CaseIterable, Identifiable {
+  case h264
+  case hevc
+
+  var id: String { rawValue }
+
+  var paidFeature: PaidFeature? {
+    switch self {
+    case .h264:
+      return nil
+    case .hevc:
+      return .hevcExport
+    }
+  }
+}
+
+enum PostRecordingExportFrameRate: Int, CaseIterable, Identifiable {
+  case fps30 = 30
+  case fps60 = 60
+
+  var id: Int { rawValue }
+
+  var paidFeature: PaidFeature? {
+    switch self {
+    case .fps30:
+      return nil
+    case .fps60:
+      return .sixtyFPSExport
+    }
+  }
+}
+
+enum PostRecordingExportQuality: String, CaseIterable, Identifiable {
+  case standard
+  case high
+
+  var id: String { rawValue }
+
+  var paidFeature: PaidFeature? {
+    switch self {
+    case .standard:
+      return nil
+    case .high:
+      return .highQualityExport
+    }
+  }
+}
+
+enum PostRecordingExportScale: String, CaseIterable, Identifiable {
+  case full
+  case percent75
+  case percent50
+
+  var id: String { rawValue }
+
+  var factor: CGFloat {
+    switch self {
+    case .full:
+      return 1.0
+    case .percent75:
+      return 0.75
+    case .percent50:
+      return 0.5
+    }
+  }
+}
+
+enum PostRecordingExportBitratePreset: String, CaseIterable, Identifiable {
+  case standard
+  case high
+  case veryHigh
+
+  var id: String { rawValue }
+
+  var paidFeature: PaidFeature? {
+    switch self {
+    case .standard:
+      return nil
+    case .high, .veryHigh:
+      return .highBitrateExport
+    }
+  }
 }
 
 /// Trim handle being manipulated in the review timeline.

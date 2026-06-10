@@ -1,10 +1,66 @@
 import AppKit
 import AVFoundation
+import Combine
 import SQLite3
 import XCTest
 @testable import VivyShot
 
 final class AppTests: XCTestCase {
+  @MainActor
+  private final class SettingsChangeRecorder {
+    var shortcutCount = 0
+    var regionCount = 0
+    var videoCount = 0
+    var languageCount = 0
+
+    private var cancellables: [AnyCancellable] = []
+
+    init(settings: AppSettings) {
+      cancellables = [
+        settings.captureShortcutChanges.sink { [weak self] in
+          MainActor.assumeIsolated {
+            self?.shortcutCount += 1
+          }
+        },
+        settings.regionSelectionSettingsChanges.sink { [weak self] in
+          MainActor.assumeIsolated {
+            self?.regionCount += 1
+          }
+        },
+        settings.videoSettingsChanges.sink { [weak self] in
+          MainActor.assumeIsolated {
+            self?.videoCount += 1
+          }
+        },
+        settings.appLanguageChanges.sink { [weak self] in
+          MainActor.assumeIsolated {
+            self?.languageCount += 1
+          }
+        }
+      ]
+    }
+  }
+
+  @MainActor
+  private final class RecordingStateSpy: RecordingStateObserving {
+    var states: [Bool] = []
+
+    func recordingStateDidChange(isRecording: Bool) {
+      states.append(isRecording)
+    }
+  }
+
+  private final class NoopCrashReporter: CrashReporting {
+    func install() {}
+    func markCleanShutdown() {}
+    @MainActor func presentRecoveredCrashNoticeIfNeeded() {}
+  }
+
+  @MainActor
+  private final class NoopToastPresenter: ToastPresenting {
+    func show(_ message: String, duration: TimeInterval) {}
+  }
+
   private final class StubLaunchAtLoginService: LaunchAtLoginService {
     var status: LaunchAtLoginServiceStatus
     var registerError: Error?
@@ -66,6 +122,219 @@ final class AppTests: XCTestCase {
     XCTAssertEqual(entitlement.badgeTitle, "Supporter")
   }
 
+  func testPaywallComparisonRowsIncludePaidFeatureCatalogOnce() {
+    let rows = paywallComparisonRows()
+
+    for feature in PaidFeature.paywallComparisonOrder {
+      XCTAssertEqual(
+        rows.filter { $0.title == feature.comparisonTitle }.count,
+        1,
+        "\(feature) should appear once in the paywall comparison table"
+      )
+    }
+  }
+
+  @MainActor
+  func testStoreManagerCanInitializeWithoutStartingStoreKitTasks() {
+    let storeManager = StoreManager(localizer: AppLocalizer.shared, automaticallyStartsStoreKit: false)
+
+    XCTAssertFalse(storeManager.storeKitTasksStarted)
+    XCTAssertEqual(storeManager.entitlement, .free)
+    XCTAssertTrue(storeManager.products.isEmpty)
+    XCTAssertEqual(storeManager.purchaseState, .idle)
+    XCTAssertEqual(storeManager.restoreState, .idle)
+  }
+
+  @MainActor
+  func testCaptureCoordinatorReportsRecordingStateThroughObserver() {
+    let coordinator = UITestCaptureCoordinator()
+    let observer = RecordingStateSpy()
+
+    coordinator.recordingStateObserver = observer
+    coordinator.startRegionCapture()
+    coordinator.stopActiveRecordingFromStatusItem()
+
+    XCTAssertEqual(observer.states, [false, true, false])
+  }
+
+  @MainActor
+  func testAppSettingsInitDoesNotWriteDefaults() {
+    let suiteName = "vivyshot-settings-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    _ = AppSettings(defaults: defaults)
+
+    XCTAssertNil(defaults.object(forKey: AppSettings.Keys.captureKeyCode))
+    XCTAssertNil(defaults.object(forKey: AppSettings.Keys.captureUseCommand))
+    XCTAssertNil(defaults.object(forKey: AppSettings.Keys.recordingFrameRate))
+    XCTAssertNil(defaults.object(forKey: AppSettings.Keys.webcamOverlayNormalizedX))
+  }
+
+  @MainActor
+  func testWelcomeStateStorePersistsSeenStateOutsideAppSettings() {
+    let suiteName = "vivyshot-welcome-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+    }
+    let store = WelcomeStateStore(defaults: defaults)
+
+    XCTAssertFalse(store.hasSeenWelcome)
+
+    store.markSeen()
+
+    XCTAssertTrue(store.hasSeenWelcome)
+    XCTAssertTrue(WelcomeStateStore(defaults: defaults).hasSeenWelcome)
+  }
+
+  @MainActor
+  func testProExportTrialStorePersistsConsumptionOutsideAppSettings() {
+    let suiteName = "vivyshot-pro-export-trial-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+    }
+    let store = ProExportTrialStore(defaults: defaults)
+    let consumedAt = Date(timeIntervalSince1970: 1_720_000_000)
+
+    XCTAssertTrue(store.isAvailable)
+
+    store.markConsumed(at: consumedAt)
+
+    XCTAssertFalse(store.isAvailable)
+    XCTAssertEqual(store.consumedAt, consumedAt)
+    XCTAssertEqual(ProExportTrialStore(defaults: defaults).consumedAt, consumedAt)
+
+    store.reset()
+
+    XCTAssertTrue(store.isAvailable)
+    XCTAssertTrue(ProExportTrialStore(defaults: defaults).isAvailable)
+  }
+
+  @MainActor
+  func testAppSettingsPublishesSpecificChangeSlices() {
+    let suiteName = "vivyshot-settings-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+    }
+    let settings = AppSettings(defaults: defaults)
+    let changes = SettingsChangeRecorder(settings: settings)
+
+    settings.setCaptureShortcut(keyCode: 0, command: true, shift: true, option: false, control: false)
+    XCTAssertEqual(changes.shortcutCount, 1)
+    XCTAssertEqual(changes.regionCount, 0)
+    XCTAssertEqual(changes.videoCount, 0)
+
+    settings.setCaptureShowHelper(false)
+    XCTAssertEqual(changes.shortcutCount, 1)
+    XCTAssertEqual(changes.regionCount, 1)
+    XCTAssertEqual(changes.videoCount, 0)
+
+    settings.setVideoShowWebcam(true)
+    XCTAssertEqual(changes.shortcutCount, 1)
+    XCTAssertEqual(changes.regionCount, 1)
+    XCTAssertEqual(changes.videoCount, 1)
+    XCTAssertEqual(changes.languageCount, 0)
+
+    settings.setAppLanguage(.english)
+    XCTAssertEqual(changes.shortcutCount, 1)
+    XCTAssertEqual(changes.regionCount, 1)
+    XCTAssertEqual(changes.videoCount, 1)
+    XCTAssertEqual(changes.languageCount, 1)
+    XCTAssertEqual(defaults.string(forKey: AppSettings.Keys.appLanguage), AppLanguage.english.rawValue)
+  }
+
+  @MainActor
+  func testAppEnvironmentOwnsLanguagePropagationToLocalizer() {
+    let suiteName = "vivyshot-environment-language-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+      AppLocalizer.shared.update(language: .system)
+    }
+    let settings = AppSettings(defaults: defaults)
+    let localizer = AppLocalizer.shared
+    let environment = AppEnvironment(
+      settings: settings,
+      localizer: localizer,
+      storeManager: StoreManager(localizer: localizer, automaticallyStartsStoreKit: false),
+      proExportTrialStore: ProExportTrialStore(defaults: defaults),
+      statisticsStore: StatisticsStore(),
+      welcomeStateStore: WelcomeStateStore(defaults: defaults),
+      launchAtLoginController: LaunchAtLoginController(localizer: localizer),
+      crashReporter: NoopCrashReporter(),
+      toastPresenter: NoopToastPresenter(),
+      isUITestMode: true
+    )
+
+    XCTAssertEqual(localizer.language, .system)
+
+    settings.setAppLanguage(.english)
+
+    XCTAssertEqual(localizer.language, .english)
+    _ = environment
+  }
+
+  @MainActor
+  func testAppSettingsOverlayPlacementPersistsVideoSlice() {
+    let suiteName = "vivyshot-settings-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+    }
+    let settings = AppSettings(defaults: defaults)
+    let changes = SettingsChangeRecorder(settings: settings)
+
+    settings.setWebcamOverlayFrame(CGRect(x: 0.12, y: 0.16, width: 0.28, height: 0.24))
+
+    XCTAssertEqual(defaults.double(forKey: AppSettings.Keys.webcamOverlayNormalizedX), settings.webcamOverlayNormalizedX)
+    XCTAssertEqual(defaults.double(forKey: AppSettings.Keys.webcamOverlayNormalizedY), settings.webcamOverlayNormalizedY)
+    XCTAssertEqual(defaults.double(forKey: AppSettings.Keys.webcamOverlayNormalizedWidth), settings.webcamOverlayNormalizedWidth)
+    XCTAssertEqual(defaults.double(forKey: AppSettings.Keys.webcamOverlayNormalizedHeight), settings.webcamOverlayNormalizedHeight)
+    XCTAssertEqual(changes.shortcutCount, 0)
+    XCTAssertEqual(changes.regionCount, 0)
+    XCTAssertEqual(changes.videoCount, 1)
+  }
+
+  @MainActor
+  func testAppSettingsVideoResetPersistsDefaultSnapshot() {
+    let suiteName = "vivyshot-settings-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+    }
+    let settings = AppSettings(defaults: defaults)
+
+    settings.setVideoRecordMicrophone(true)
+    settings.setVideoShowWebcam(true)
+    settings.setWebcamOverlayFrame(CGRect(x: 0.2, y: 0.25, width: 0.3, height: 0.35))
+    settings.setVideoExportCodec(.hevc)
+    settings.resetVideoCaptureSettings()
+
+    XCTAssertEqual(settings.defaultCaptureType, .screenshot)
+    XCTAssertEqual(settings.exportCodec, .h264)
+    XCTAssertEqual(settings.recordSystemAudio, true)
+    XCTAssertEqual(settings.recordMicrophone, false)
+    XCTAssertEqual(settings.showWebcam, false)
+    XCTAssertEqual(settings.webcamOverlayNormalizedFrame, AppSettings.defaultWebcamOverlayFrame)
+    XCTAssertEqual(settings.keystrokeOverlayNormalizedFrame, AppSettings.defaultKeystrokeOverlayFrame)
+
+    XCTAssertEqual(
+      defaults.object(forKey: AppSettings.Keys.defaultCaptureType) as? Int,
+      CaptureContentType.screenshot.rawValue
+    )
+    XCTAssertEqual(defaults.string(forKey: AppSettings.Keys.exportCodec), PostRecordingExportCodec.h264.rawValue)
+    XCTAssertEqual(defaults.bool(forKey: AppSettings.Keys.recordSystemAudio), true)
+    XCTAssertEqual(defaults.bool(forKey: AppSettings.Keys.recordMicrophone), false)
+    XCTAssertEqual(defaults.bool(forKey: AppSettings.Keys.showWebcam), false)
+    XCTAssertEqual(defaults.double(forKey: AppSettings.Keys.webcamOverlayNormalizedX), AppSettings.defaultWebcamOverlayFrame.minX)
+    XCTAssertEqual(defaults.double(forKey: AppSettings.Keys.keystrokeOverlayNormalizedWidth), AppSettings.defaultKeystrokeOverlayFrame.width)
+  }
+
   func testCaptureStatisticsStorePersistsLedgerAndDerivesDashboard() async throws {
     let tempDirectory = FileManager.default.temporaryDirectory
       .appendingPathComponent("vivyshot-stats-tests", isDirectory: true)
@@ -96,6 +365,42 @@ final class AppTests: XCTestCase {
     }
     defer { sqlite3_close(db) }
     XCTAssertEqual(try queryInt64(db, sql: "SELECT COUNT(*) FROM stats_ingested_events;"), 3)
+  }
+
+  func testCaptureStatisticsStoreEmitsChangeStreamEvents() async throws {
+    let tempDirectory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("vivyshot-stats-change-tests", isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    let databaseURL = tempDirectory.appendingPathComponent("\(UUID().uuidString).sqlite")
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let store = StatisticsStore(databaseURL: databaseURL)
+    let changes = await store.changeStream()
+    let nextChange = Task {
+      var iterator = changes.makeAsyncIterator()
+      return await iterator.next() != nil
+    }
+
+    await store.recordScreenshotCaptured(
+      captureID: "capture-change",
+      occurredAt: Date(timeIntervalSince1970: 1_710_000_000),
+      bytesProduced: 128
+    )
+
+    let emitted = await withTaskGroup(of: Bool.self) { group in
+      group.addTask {
+        await nextChange.value
+      }
+      group.addTask {
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        return false
+      }
+      let result = await group.next() ?? false
+      group.cancelAll()
+      return result
+    }
+
+    XCTAssertTrue(emitted)
   }
 
   @MainActor
@@ -181,6 +486,123 @@ final class AppTests: XCTestCase {
 
     let layout = OverlayLayout.keyLabel(renderSize: CGSize(width: 1920, height: 1080), charCount: 6)
     XCTAssertEqual(layout?.height ?? 0, 58, accuracy: 0.01)
+  }
+
+  func testRecordingOverlayFrameGeometryMatchesEditorAndSettingsPreviewRules() {
+    let container = CGRect(x: 100, y: 50, width: 800, height: 450)
+
+    let generic = RecordingOverlayFrameGeometry.resolvedOverlayFrame(
+      CGRect(x: 0.95, y: 0.95, width: 0.2, height: 0.12),
+      in: container
+    )
+    XCTAssertEqual(generic, CGRect(x: 740, y: 446, width: 160, height: 54))
+
+    let normalized = RecordingOverlayFrameGeometry.normalizedOverlayFrame(generic, in: container)
+    XCTAssertEqual(normalized.minX, 0.8, accuracy: 0.001)
+    XCTAssertEqual(normalized.minY, 0.88, accuracy: 0.001)
+    XCTAssertEqual(normalized.width, 0.2, accuracy: 0.001)
+    XCTAssertEqual(normalized.height, 0.12, accuracy: 0.001)
+
+    let circularWebcam = RecordingOverlayFrameGeometry.resolvedWebcamOverlayFrame(
+      CGRect(x: 0.80, y: 0.10, width: 0.30, height: 0.12),
+      in: container,
+      shape: .circle,
+      aspectRatio: .sixteenNine
+    )
+    XCTAssertEqual(circularWebcam.width, circularWebcam.height, accuracy: 0.001)
+    XCTAssertGreaterThanOrEqual(circularWebcam.width, 84)
+    XCTAssertTrue(container.contains(circularWebcam))
+
+    XCTAssertEqual(
+      RecordingOverlayFrameGeometry.normalizedUnitFrame(CGRect(x: 0.99, y: -0.2, width: 0.01, height: 2)),
+      CGRect(x: 0.96, y: 0, width: 0.04, height: 1)
+    )
+
+    XCTAssertEqual(
+      RecordingOverlayFrameGeometry.denormalizedOverlayFrame(CGRect(x: 0.25, y: 0.4, width: 0.5, height: 0.2), in: container),
+      CGRect(x: 300, y: 230, width: 400, height: 90)
+    )
+
+    XCTAssertEqual(
+      RecordingOverlayFrameGeometry.clampedOverlayFrame(
+        CGRect(x: 850, y: 480, width: 20, height: 10),
+        in: container,
+        minimumSize: CGSize(width: 112, height: 42)
+      ),
+      CGRect(x: 788, y: 458, width: 112, height: 42)
+    )
+  }
+
+  func testDisplayCoordinateConversionFlipsAroundPrimaryDisplayHeight() {
+    let cocoaRect = CGRect(x: 24, y: 80, width: 320, height: 180)
+    let cgRect = DisplayCoordinateConversion.cocoaRectToCGDisplayRect(
+      cocoaRect,
+      primaryDisplayHeight: 900
+    )
+
+    XCTAssertEqual(cgRect, CGRect(x: 24, y: 640, width: 320, height: 180))
+    XCTAssertEqual(
+      DisplayCoordinateConversion.cgDisplayRectToCocoaRect(cgRect, primaryDisplayHeight: 900),
+      cocoaRect
+    )
+  }
+
+  func testScreenshotImageMapsScreenRectToCapturedImageCropRect() throws {
+    let cropRect = try XCTUnwrap(ScreenshotImage.imageCropRect(
+      forScreenRect: CGRect(x: 100, y: 50, width: 200, height: 100),
+      screenFrame: CGRect(x: 0, y: 0, width: 1000, height: 500),
+      imageSize: CGSize(width: 2000, height: 1000)
+    ))
+
+    XCTAssertEqual(cropRect, CGRect(x: 200, y: 700, width: 400, height: 200))
+  }
+
+  func testRegionSelectionInteractionStateOwnsSelectingTransitions() {
+    var state = RegionSelectionInteractionState()
+
+    state.beginManualSelection(at: CGPoint(x: 10, y: 20))
+    XCTAssertEqual(state.dragStart, CGPoint(x: 10, y: 20))
+    XCTAssertEqual(state.dragCurrent, CGPoint(x: 10, y: 20))
+    XCTAssertFalse(state.isIdle)
+
+    state.beginSmartSelection(
+      at: CGPoint(x: 30, y: 40),
+      windowRect: CGRect(x: 1, y: 2, width: 100, height: 80)
+    )
+    XCTAssertNil(state.dragStart)
+    XCTAssertEqual(state.smartMouseDownPoint, CGPoint(x: 30, y: 40))
+    XCTAssertEqual(state.smartWindowHoverRect, CGRect(x: 1, y: 2, width: 100, height: 80))
+
+    state.activateSmartSelectionDrag(from: CGPoint(x: 30, y: 40))
+    XCTAssertTrue(state.smartDragActivated)
+    XCTAssertEqual(state.dragStart, CGPoint(x: 30, y: 40))
+    XCTAssertNil(state.smartWindowHoverRect)
+
+    state.commitSelectingOverlay(rect: CGRect(x: 10, y: 20, width: 50, height: 60))
+    XCTAssertNil(state.dragStart)
+    XCTAssertNil(state.dragCurrent)
+    XCTAssertEqual(state.committedSelectionRect, CGRect(x: 10, y: 20, width: 50, height: 60))
+    XCTAssertFalse(state.isIdle)
+
+    state.commitSelectingOverlay(rect: nil)
+    state.resetSmartSelection()
+    XCTAssertTrue(state.isIdle)
+  }
+
+  func testInputEventNormalizerBuildsModifierTokenFromDomainMask() {
+    let modifiers = RecordedInputModifierMask.command
+      | RecordedInputModifierMask.shift
+      | RecordedInputModifierMask.option
+      | RecordedInputModifierMask.control
+
+    XCTAssertEqual(
+      InputEventNormalizer.normalizeKeyToken(keyCode: 8, modifiers: modifiers, characters: "c"),
+      "⌘⇧⌥⌃C"
+    )
+    XCTAssertEqual(
+      InputEventNormalizer.normalizeKeyToken(keyCode: 40, modifiers: 0, characters: nil),
+      "K"
+    )
   }
 
   func testCanvasGeometryFlipsYForImageRectsAndDeltas() throws {
@@ -295,7 +717,7 @@ final class AppTests: XCTestCase {
     let resized = try XCTUnwrap(ResizableRect.resizeRect(
       start: CGRect(x: 100, y: 100, width: 80, height: 60),
       bounds: CGRect(x: 0, y: 0, width: 500, height: 500),
-      cornerCode: 5,
+      edge: .left,
       delta: CGPoint(x: 120, y: 0),
       minWidth: 20,
       minHeight: 20
@@ -309,7 +731,7 @@ final class AppTests: XCTestCase {
     service.statusAfterRegister = .requiresApproval
     service.statusAfterUnregister = .notRegistered
 
-    let controller = LaunchAtLoginController(service: service)
+    let controller = LaunchAtLoginController(service: service, localizer: AppLocalizer.shared)
     controller.setEnabled(true)
     XCTAssertTrue(controller.isEnabled)
     XCTAssertEqual(controller.detailText, "Finish enabling startup in System Settings > General > Login Items.")
@@ -331,7 +753,7 @@ final class AppTests: XCTestCase {
 
     let service = StubLaunchAtLoginService(status: .notRegistered)
     service.registerError = StubError.blocked
-    let controller = LaunchAtLoginController(service: service)
+    let controller = LaunchAtLoginController(service: service, localizer: AppLocalizer.shared)
     controller.setEnabled(true)
     XCTAssertFalse(controller.isEnabled)
     XCTAssertEqual(controller.detailText, "Unable to update launch at login. Blocked")

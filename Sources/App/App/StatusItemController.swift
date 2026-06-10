@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 /// Menu-bar controller that connects the global shortcut, capture coordinator, and menu actions.
 @MainActor
@@ -6,15 +7,15 @@ final class StatusItemController: ObservableObject {
   private let settings: AppSettings
   private let captureCoordinator: CaptureCoordinating
   private let hotKeyManager = GlobalHotKeyManager()
-  private var settingsObserver: NSObjectProtocol?
+  private var settingsChangeCancellable: AnyCancellable?
   @Published private(set) var isRecordingActive = false
 
   init(
-    settings: AppSettings = .shared,
-    captureCoordinatorFactory: ((AppSettings) -> CaptureCoordinating)? = nil
+    settings: AppSettings,
+    captureCoordinator: CaptureCoordinating
   ) {
     self.settings = settings
-    self.captureCoordinator = captureCoordinatorFactory?(settings) ?? CaptureCoordinator(settings: settings)
+    self.captureCoordinator = captureCoordinator
     configureHotKey()
     observeSettingsChanges()
     observeRecordingState()
@@ -34,21 +35,14 @@ final class StatusItemController: ObservableObject {
   }
 
   private func observeSettingsChanges() {
-    settingsObserver = NotificationCenter.default.addObserver(
-      forName: .vivyShotSettingsDidChange,
-      object: settings,
-      queue: .main
-    ) { [weak self] _ in
-      MainActor.assumeIsolated {
+    settingsChangeCancellable = settings.captureShortcutChanges
+      .sink { [weak self] in
         self?.applyHotKeyFromSettings()
       }
-    }
   }
 
   private func observeRecordingState() {
-    captureCoordinator.onRecordingStateChanged = { [weak self] isRecording in
-      self?.isRecordingActive = isRecording
-    }
+    captureCoordinator.recordingStateObserver = self
   }
 
   private func applyHotKeyFromSettings() {
@@ -84,5 +78,11 @@ final class StatusItemController: ObservableObject {
 
   func quitPressed() {
     NSApplication.shared.terminate(nil)
+  }
+}
+
+extension StatusItemController: RecordingStateObserving {
+  func recordingStateDidChange(isRecording: Bool) {
+    isRecordingActive = isRecording
   }
 }

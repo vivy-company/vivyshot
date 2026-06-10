@@ -3,7 +3,7 @@
 - Status: Active Draft
 - Date: 2026-04-06
 - Owner: VivyShot
-- Related: `SPEC.md`, `docs/video-editor-spec.md`, `Sources/App/Features/Capture/RecordingReviewUI.swift`, `Sources/App/Features/Capture/RecordingComponents.swift`
+- Related: `SPEC.md`, `docs/video-editor-spec.md`, `Sources/App/Features/Capture/UI/PostRecordingActionPanel.swift`, `Sources/App/Features/Capture/UI/PostRecordingReviewView.swift`, `Sources/App/Features/Capture/Application/PostRecordingProjectExporter.swift`
 
 ## 1. Problem Statement
 
@@ -88,7 +88,8 @@ This spec is based on the current macOS code, not a hypothetical future architec
 
 ### 5.1 Current Review Window
 
-`Sources/App/Features/Capture/RecordingReviewUI.swift`
+`Sources/App/Features/Capture/UI/PostRecordingActionPanel.swift`
+`Sources/App/Features/Capture/UI/PostRecordingReviewView.swift`
 
 Relevant types:
 
@@ -108,7 +109,7 @@ Current behavior:
 
 ### 5.2 Current Recording Configuration
 
-`Sources/App/Configuration/CaptureMode.swift`
+`Sources/App/Features/Capture/Domain/RecordingSettingsDomain.swift`
 
 Current enums:
 
@@ -121,7 +122,7 @@ Current enums:
    - `fps60`
    - `fps120`
 
-`Sources/App/Configuration/AppSettings.swift`
+`Sources/App/Features/Settings/Application/AppSettings.swift`
 
 Current persisted settings already include:
 
@@ -130,7 +131,9 @@ Current persisted settings already include:
 
 ### 5.3 Current Recording Output Path
 
-`Sources/App/Features/Capture/RecordingComponents.swift`
+`Sources/App/Features/Capture/Application/RecordingCoordinator.swift`
+`Sources/App/Features/Capture/Application/ScreenRegionAssetWriterRecorder.swift`
+`Sources/App/Features/Capture/Application/PostRecordingProjectExporter.swift`
 
 Current facts:
 
@@ -333,14 +336,15 @@ Behavior:
 
 Primary files:
 
-1. `Sources/App/Features/Capture/RecordingReviewUI.swift`
-2. `Sources/App/Features/Capture/RecordingComponents.swift`
-3. `Sources/App/Features/Store/StoreManager.swift`
+1. `Sources/App/Features/Capture/UI/PostRecordingActionPanel.swift`
+2. `Sources/App/Features/Capture/UI/PostRecordingReviewView.swift`
+3. `Sources/App/Features/Capture/Application/PostRecordingProjectExporter.swift`
+4. `Sources/App/Features/Store/Application/StoreManager.swift`
 
 Supporting files:
 
-1. `Sources/App/Configuration/CaptureMode.swift`
-2. `Sources/App/Configuration/AppSettings.swift`
+1. `Sources/App/Features/Capture/Domain/RecordingSettingsDomain.swift`
+2. `Sources/App/Features/Settings/Application/AppSettings.swift`
 
 ### 11.2 Review Panel Changes
 

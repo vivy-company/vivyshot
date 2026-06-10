@@ -1,14 +1,13 @@
 import AppKit
 import CoreGraphics
-import CoreImage
 import CoreText
 import Foundation
 
 /// Command-based annotation renderer with undo and redo for one screenshot image.
 final class AnnotationSession {
   private let baseImage: CGImage
-  private var commands: [Command] = []
-  private var undone: [Command] = []
+  private var commands: [AnnotationCommand] = []
+  private var undone: [AnnotationCommand] = []
   private var renderedImage: CGImage
 
   init?(image: CGImage) {
@@ -91,7 +90,7 @@ final class AnnotationSession {
 
   func listAnnotations() -> [AnnotationInfo] {
     commands.enumerated().map { index, command in
-      AnnotationInfo(index: index, kind: command.kind, bounds: command.bounds)
+      AnnotationInfo(index: index, bounds: command.bounds)
     }
   }
 
@@ -103,7 +102,7 @@ final class AnnotationSession {
     guard commands.indices.contains(index) else {
       return nil
     }
-    return AnnotationInfo(index: index, kind: commands[index].kind, bounds: commands[index].bounds)
+    return AnnotationInfo(index: index, bounds: commands[index].bounds)
   }
 
   func moveAnnotation(index: Int, delta: CGPoint) -> CGImage? {
@@ -131,7 +130,7 @@ final class AnnotationSession {
     return render()
   }
 
-  private func append(_ command: Command) -> CGImage? {
+  private func append(_ command: AnnotationCommand) -> CGImage? {
     commands.append(command)
     undone.removeAll()
     return render()
@@ -198,71 +197,7 @@ final class AnnotationSession {
   }
 }
 
-private enum Command {
-  case rect(CGRect, NSColor, CGFloat, Bool)
-  case ellipse(CGRect, NSColor, CGFloat, Bool)
-  case line(CGPoint, CGPoint, NSColor, CGFloat)
-  case path([CGPoint], NSColor, CGFloat)
-  case arrow(CGPoint, CGPoint, NSColor, CGFloat, CGFloat)
-  case text(String, CGPoint, TextAnnotationStyle)
-  case pixelate(CGRect)
-  case blur(CGRect)
-
-  var kind: Int {
-    switch self {
-    case .rect(_, _, _, let filled): return filled ? 2 : 1
-    case .ellipse(_, _, _, let filled): return filled ? 4 : 3
-    case .line: return 5
-    case .arrow: return 6
-    case .path: return 7
-    case .text: return 8
-    case .pixelate: return 9
-    case .blur: return 10
-    }
-  }
-
-  var bounds: CGRect {
-    switch self {
-    case .rect(let rect, _, _, _), .ellipse(let rect, _, _, _), .pixelate(let rect), .blur(let rect):
-      return rect.standardized
-    case .line(let start, let end, _, let width):
-      return CGRect(
-        x: min(start.x, end.x) - width,
-        y: min(start.y, end.y) - width,
-        width: abs(end.x - start.x) + width * 2,
-        height: abs(end.y - start.y) + width * 2
-      )
-    case .arrow(let start, let end, _, let width, let minimumHeadLength):
-      let points = [start, end] + {
-        guard let (left, right) = AnnotationArrowGeometry.headPoints(
-          start: start,
-          end: end,
-          strokeWidth: width,
-          minimumHeadLength: minimumHeadLength
-        ) else {
-          return []
-        }
-        return [left, right]
-      }()
-      let xs = points.map(\.x)
-      let ys = points.map(\.y)
-      guard let minX = xs.min(), let maxX = xs.max(), let minY = ys.min(), let maxY = ys.max() else {
-        return .zero
-      }
-      return CGRect(x: minX - width, y: minY - width, width: maxX - minX + width * 2, height: maxY - minY + width * 2)
-    case .path(let points, _, let width):
-      let xs = points.map(\.x)
-      let ys = points.map(\.y)
-      guard let minX = xs.min(), let maxX = xs.max(), let minY = ys.min(), let maxY = ys.max() else {
-        return .zero
-      }
-      return CGRect(x: minX - width, y: minY - width, width: maxX - minX + width * 2, height: maxY - minY + width * 2)
-    case .text(let text, let point, let style):
-      let width = max(24, CGFloat(text.count) * style.fontSize * 0.58)
-      return CGRect(x: point.x, y: point.y, width: width, height: style.fontSize * 1.35)
-    }
-  }
-
+private extension AnnotationCommand {
   func draw(in context: CGContext) {
     switch self {
     case .rect(let rect, let color, let width, let filled):
@@ -329,101 +264,4 @@ private enum Command {
     context.setLineJoin(.round)
     context.setLineWidth(max(1, width))
   }
-
-  mutating func move(by delta: CGPoint) {
-    switch self {
-    case .rect(let rect, let color, let width, let filled):
-      self = .rect(rect.offsetBy(dx: delta.x, dy: delta.y), color, width, filled)
-    case .ellipse(let rect, let color, let width, let filled):
-      self = .ellipse(rect.offsetBy(dx: delta.x, dy: delta.y), color, width, filled)
-    case .line(let start, let end, let color, let width):
-      self = .line(start + delta, end + delta, color, width)
-    case .path(let points, let color, let width):
-      self = .path(points.map { $0 + delta }, color, width)
-    case .arrow(let start, let end, let color, let width, let minimumHeadLength):
-      self = .arrow(start + delta, end + delta, color, width, minimumHeadLength)
-    case .text(let text, let point, let style):
-      self = .text(text, point + delta, style)
-    case .pixelate(let rect):
-      self = .pixelate(rect.offsetBy(dx: delta.x, dy: delta.y))
-    case .blur(let rect):
-      self = .blur(rect.offsetBy(dx: delta.x, dy: delta.y))
-    }
-  }
-
-  mutating func resize(to rect: CGRect) {
-    switch self {
-    case .rect(_, let color, let width, let filled):
-      self = .rect(rect, color, width, filled)
-    case .ellipse(_, let color, let width, let filled):
-      self = .ellipse(rect, color, width, filled)
-    case .pixelate:
-      self = .pixelate(rect)
-    case .blur:
-      self = .blur(rect)
-    default:
-      break
-    }
-  }
-}
-
-private enum ImageRegionEffect {
-  private static let pixelateBlockSize = 12
-  private static let blurRadius = 4
-  private static let context = CIContext()
-
-  static func pixelate(_ image: CGImage, rect: CGRect) -> CGImage? {
-    apply(to: image, rect: rect) { input, region in
-      input
-        .cropped(to: region)
-        .applyingFilter("CIPixellate", parameters: [
-          kCIInputScaleKey: pixelateBlockSize,
-          kCIInputCenterKey: CIVector(x: region.midX, y: region.midY)
-        ])
-        .cropped(to: region)
-    }
-  }
-
-  static func blur(_ image: CGImage, rect: CGRect) -> CGImage? {
-    apply(to: image, rect: rect) { input, region in
-      let sample = region
-        .insetBy(dx: -CGFloat(blurRadius), dy: -CGFloat(blurRadius))
-        .intersection(input.extent)
-
-      return input
-        .cropped(to: sample)
-        .clampedToExtent()
-        .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: blurRadius])
-        .cropped(to: region)
-    }
-  }
-
-  private static func apply(
-    to image: CGImage,
-    rect: CGRect,
-    effect: (CIImage, CGRect) -> CIImage?
-  ) -> CGImage? {
-    let input = CIImage(cgImage: image)
-    let region = coreImageRect(fromTopLeftImageRect: rect, imageHeight: image.height).intersection(input.extent)
-    guard !region.isNull, !region.isEmpty, let filteredRegion = effect(input, region) else {
-      return nil
-    }
-
-    let output = filteredRegion.composited(over: input)
-    return context.createCGImage(output, from: input.extent)
-  }
-
-  private static func coreImageRect(fromTopLeftImageRect rect: CGRect, imageHeight: Int) -> CGRect {
-    let standardized = rect.standardized
-    return CGRect(
-      x: standardized.minX.rounded(.down),
-      y: CGFloat(imageHeight) - standardized.maxY.rounded(.up),
-      width: standardized.width.rounded(.up),
-      height: standardized.height.rounded(.up)
-    )
-  }
-}
-
-private func + (lhs: CGPoint, rhs: CGPoint) -> CGPoint {
-  CGPoint(x: lhs.x + rhs.x, y: lhs.y + rhs.y)
 }

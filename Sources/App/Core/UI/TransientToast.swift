@@ -1,13 +1,23 @@
 import AppKit
 
-/// Lightweight centered toast panel for short-lived app feedback.
 @MainActor
-enum TransientToast {
-  private static var panel: NSPanel?
-  private static var label: NSTextField?
-  private static var hideTask: Task<Void, Never>?
+protocol ToastPresenting: AnyObject {
+  func show(_ message: String, duration: TimeInterval)
+}
 
-  static func show(_ message: String, duration: TimeInterval = 1.25) {
+extension ToastPresenting {
+  func show(_ message: String) {
+    show(message, duration: 1.25)
+  }
+}
+
+@MainActor
+final class TransientToastPresenter: ToastPresenting {
+  private var panel: NSPanel?
+  private var label: NSTextField?
+  private var hideTask: Task<Void, Never>?
+
+  func show(_ message: String, duration: TimeInterval = 1.25) {
     hideTask?.cancel()
     hideTask = nil
     let panel = ensurePanel()
@@ -31,10 +41,7 @@ enum TransientToast {
       height: label.frame.height
     )
 
-    let anchorScreen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
-      ?? NSScreen.main
-      ?? NSScreen.screens.first
-    if let screen = anchorScreen {
+    if let screen = DisplayCoordinateConversion.activeScreen(containing: NSEvent.mouseLocation) {
       let frame = screen.visibleFrame
       let origin = CGPoint(
         x: frame.midX - width * 0.5,
@@ -57,13 +64,16 @@ enum TransientToast {
     }
 
     let delay = max(0, duration)
-    hideTask = Task { @MainActor in
+    hideTask = Task { @MainActor [weak self] in
       do {
         try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
       } catch {
         return
       }
 
+      guard let self else {
+        return
+      }
       guard !Task.isCancelled, let panel = self.panel else {
         hideTask = nil
         return
@@ -82,7 +92,7 @@ enum TransientToast {
     }
   }
 
-  private static func ensurePanel() -> NSPanel {
+  private func ensurePanel() -> NSPanel {
     if let panel {
       return panel
     }

@@ -207,7 +207,7 @@ struct NativeColorWell: NSViewRepresentable {
   }
 
   func makeNSView(context: Context) -> NSColorWell {
-    let well = OverlayColorWell(frame: NSRect(x: 0, y: 0, width: 30, height: 24))
+    let well = ElevatedColorWell(frame: NSRect(x: 0, y: 0, width: 30, height: 24))
     well.color = color
     well.isBordered = true
     well.wantsLayer = true
@@ -239,7 +239,7 @@ struct NativeColorWell: NSViewRepresentable {
   }
 }
 
-final class OverlayColorWell: NSColorWell {
+final class ElevatedColorWell: NSColorWell {
   override func activate(_ exclusive: Bool) {
     super.activate(exclusive)
     elevateColorPanel()

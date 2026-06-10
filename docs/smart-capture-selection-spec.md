@@ -5,13 +5,13 @@
 - Owner: VivyShot
 - Related:
   - `AGENTS.md`
-  - `Sources/App/Features/Capture/CaptureCoordinator.swift`
-  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay.swift`
-  - `Sources/App/Features/RegionSelection/RegionSelectionOverlayController.swift`
-  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay+EditingTargetPicking.swift`
-  - `Sources/App/Features/RegionSelection/RegionSelectionOverlay+EditingSelection.swift`
-  - `Sources/App/Shared/UI/CaptureGlassViews.swift`
-  - `Sources/App/Shared/UI/CaptureOverlayToolbars.swift`
+  - `Sources/App/Features/Capture/Application/CaptureCoordinator.swift`
+  - `Sources/App/Features/RegionSelection/UI/RegionSelectionOverlay.swift`
+  - `Sources/App/Features/RegionSelection/UI/RegionSelectionOverlayController.swift`
+  - `Sources/App/Features/RegionSelection/UI/RegionSelectionOverlay+EditingTargetPicking.swift`
+  - `Sources/App/Features/RegionSelection/UI/RegionSelectionOverlay+EditingSelection.swift`
+  - `Sources/App/Features/RegionSelection/UI/CaptureGlassViews.swift`
+  - `Sources/App/Features/RegionSelection/UI/CaptureOverlayToolbars.swift`
 
 ## 1. Problem Statement
 
