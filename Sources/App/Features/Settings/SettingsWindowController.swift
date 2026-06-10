@@ -127,6 +127,7 @@ struct SettingsView: View {
       .tag(SettingsTab.appearance)
 
       settingsContainer {
+        screenshotDrawingSection
         screenshotToolbarSection
         textToolSection
         if captureTransitionEffectsVisible {
@@ -499,6 +500,23 @@ struct SettingsView: View {
       Text("Applied to screenshot main action and video record button.")
         .font(.caption)
         .foregroundStyle(.secondary)
+    }
+  }
+
+  private var screenshotDrawingSection: some View {
+    Section {
+      HStack(spacing: 10) {
+        Text("Line Width")
+          .frame(width: 90, alignment: .leading)
+        Slider(value: drawingStrokeWidthBinding, in: AppSettings.drawingStrokeWidthRange, step: 0.5)
+        Text(String(format: "%.1f pt", settings.drawingStrokeWidth))
+          .font(.system(.callout, design: .monospaced).weight(.semibold))
+          .frame(width: 62, alignment: .trailing)
+      }
+    } header: {
+      Text("Drawing")
+    } footer: {
+      Text("Applied to rectangle, circle, line, arrow, and paint tools.")
     }
   }
 
@@ -922,6 +940,13 @@ struct SettingsView: View {
     Binding(
       get: { settings.textFontName },
       set: { settings.setTextFontName($0) }
+    )
+  }
+
+  private var drawingStrokeWidthBinding: Binding<Double> {
+    Binding(
+      get: { settings.drawingStrokeWidth },
+      set: { settings.setDrawingStrokeWidth($0) }
     )
   }
 

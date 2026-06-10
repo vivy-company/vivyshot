@@ -74,27 +74,13 @@ extension AnnotationCanvasView {
     context.addLine(to: end)
     context.strokePath()
 
-    let dx = end.x - start.x
-    let dy = end.y - start.y
-    let len = hypot(dx, dy)
-    guard len > 0.5 else {
+    guard let (p1, p2) = AnnotationArrowGeometry.headPoints(
+      start: start,
+      end: end,
+      strokeWidth: previewStrokeWidth
+    ) else {
       return
     }
-
-    let ux = dx / len
-    let uy = dy / len
-    let headLen: CGFloat = max(16.0, previewStrokeWidth * 6.0)
-    let angle: CGFloat = .pi / 6.0
-    let cosA = cos(angle)
-    let sinA = sin(angle)
-
-    let rx1 = ux * cosA - uy * sinA
-    let ry1 = ux * sinA + uy * cosA
-    let rx2 = ux * cosA + uy * sinA
-    let ry2 = -ux * sinA + uy * cosA
-
-    let p1 = CGPoint(x: end.x - rx1 * headLen, y: end.y - ry1 * headLen)
-    let p2 = CGPoint(x: end.x - rx2 * headLen, y: end.y - ry2 * headLen)
 
     context.move(to: end)
     context.addLine(to: p1)

@@ -192,6 +192,7 @@ extension RegionSelectionView {
     }
 
     refreshToolbar()
+    updateCanvasPreviewStrokeWidth()
     needsLayout = true
     if mode == .editing {
       layoutEditorChrome()

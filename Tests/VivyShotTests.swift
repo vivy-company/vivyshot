@@ -247,6 +247,38 @@ final class AppTests: XCTestCase {
     XCTAssertEqual(unaffected, RGBPixel(red: 255, green: 0, blue: 0))
   }
 
+  func testArrowHeadGeometryMatchesOpenPreviewShape() throws {
+    let points = try XCTUnwrap(AnnotationArrowGeometry.headPoints(
+      start: CGPoint(x: 10, y: 50),
+      end: CGPoint(x: 70, y: 50),
+      strokeWidth: 5
+    ))
+
+    XCTAssertEqual(points.0.x, points.1.x, accuracy: 0.01)
+    XCTAssertEqual(points.0.x, 44.02, accuracy: 0.01)
+    XCTAssertEqual(points.0.y, 35, accuracy: 0.01)
+    XCTAssertEqual(points.1.y, 65, accuracy: 0.01)
+  }
+
+  func testArrowHeadGeometryScalesMinimumLengthForCommittedImage() throws {
+    let preview = try XCTUnwrap(AnnotationArrowGeometry.headPoints(
+      start: CGPoint(x: 10, y: 20),
+      end: CGPoint(x: 60, y: 20),
+      strokeWidth: 1
+    ))
+    let committed = try XCTUnwrap(AnnotationArrowGeometry.headPoints(
+      start: CGPoint(x: 20, y: 40),
+      end: CGPoint(x: 120, y: 40),
+      strokeWidth: 2,
+      minimumHeadLength: AnnotationArrowGeometry.minimumHeadLength * 2
+    ))
+
+    XCTAssertEqual(committed.0.x / 2, preview.0.x, accuracy: 0.01)
+    XCTAssertEqual(committed.0.y / 2, preview.0.y, accuracy: 0.01)
+    XCTAssertEqual(committed.1.x / 2, preview.1.x, accuracy: 0.01)
+    XCTAssertEqual(committed.1.y / 2, preview.1.y, accuracy: 0.01)
+  }
+
   func testCanvasGeometryClampsPanUsingFittedDrawSize() throws {
     let clamped = try XCTUnwrap(CanvasGeometry.clampPanOffset(
       boundsSize: CGSize(width: 1_000, height: 500),

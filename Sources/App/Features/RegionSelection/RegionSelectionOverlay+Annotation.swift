@@ -17,29 +17,22 @@ extension RegionSelectionView {
     )
   }
 
-  func scaledStrokeWidth(base: CGFloat) -> UInt32 {
-    UInt32(max(1, Int((base * canvasPixelScale()).rounded())))
+  func scaledStrokeWidth() -> UInt32 {
+    UInt32(max(1, Int((CGFloat(settings.drawingStrokeWidth) * canvasPixelScale()).rounded())))
   }
 
-  func displayedStrokeWidth(base: CGFloat) -> CGFloat {
+  func scaledArrowHeadMinimumLength() -> CGFloat {
+    AnnotationArrowGeometry.minimumHeadLength * canvasPixelScale()
+  }
+
+  func displayedStrokeWidth() -> CGFloat {
     let scale = max(1, canvasPixelScale())
-    let committedWidth = CGFloat(scaledStrokeWidth(base: base))
+    let committedWidth = CGFloat(scaledStrokeWidth())
     return max(1, committedWidth / scale)
   }
 
-  func baseStrokeWidth(for tool: AnnotationTool) -> CGFloat {
-    switch tool {
-    case .arrow:
-      return 5
-    case .paint:
-      return 6
-    default:
-      return 4
-    }
-  }
-
   func updateCanvasPreviewStrokeWidth() {
-    canvasView.previewStrokeWidth = displayedStrokeWidth(base: baseStrokeWidth(for: currentTool))
+    canvasView.previewStrokeWidth = displayedStrokeWidth()
   }
 
   func canvasPixelScale() -> CGFloat {
@@ -47,12 +40,15 @@ extension RegionSelectionView {
       return 1
     }
 
-    guard canvasView.bounds.width > 0, canvasView.bounds.height > 0 else {
+    guard let destination = canvasView.imageDestinationRect(),
+          destination.width > 0,
+          destination.height > 0
+    else {
       return 1
     }
 
-    let scaleX = CGFloat(image.width) / canvasView.bounds.width
-    let scaleY = CGFloat(image.height) / canvasView.bounds.height
+    let scaleX = CGFloat(image.width) / destination.width
+    let scaleY = CGFloat(image.height) / destination.height
     return max(1, (scaleX + scaleY) * 0.5)
   }
 
@@ -83,7 +79,7 @@ extension RegionSelectionView {
     guard let image = session.addRect(
       imageRect: imageRect,
       color: annotationColor,
-      strokeWidth: scaledStrokeWidth(base: 4)
+      strokeWidth: scaledStrokeWidth()
     ) else {
       NSSound.beep()
       return
@@ -116,7 +112,7 @@ extension RegionSelectionView {
     guard let image = session.addCircle(
       imageRect: imageRect,
       color: annotationColor,
-      strokeWidth: scaledStrokeWidth(base: 4)
+      strokeWidth: scaledStrokeWidth()
     ) else {
       NSSound.beep()
       return
@@ -150,7 +146,7 @@ extension RegionSelectionView {
       from: start,
       to: end,
       color: annotationColor,
-      strokeWidth: scaledStrokeWidth(base: 4)
+      strokeWidth: scaledStrokeWidth()
     ) else {
       NSSound.beep()
       return
@@ -168,7 +164,8 @@ extension RegionSelectionView {
       from: start,
       to: end,
       color: annotationColor,
-      strokeWidth: scaledStrokeWidth(base: 5)
+      strokeWidth: scaledStrokeWidth(),
+      minimumHeadLength: scaledArrowHeadMinimumLength()
     ) else {
       NSSound.beep()
       return
@@ -185,7 +182,7 @@ extension RegionSelectionView {
     guard let image = session.addPath(
       points,
       color: annotationColor,
-      strokeWidth: scaledStrokeWidth(base: 6)
+      strokeWidth: scaledStrokeWidth()
     ) else {
       NSSound.beep()
       return

@@ -47,8 +47,14 @@ final class AnnotationSession {
     return append(.path(points, color, CGFloat(strokeWidth)))
   }
 
-  func addArrow(from start: CGPoint, to end: CGPoint, color: NSColor = .systemOrange, strokeWidth: UInt32 = 5) -> CGImage? {
-    append(.arrow(start, end, color, CGFloat(strokeWidth)))
+  func addArrow(
+    from start: CGPoint,
+    to end: CGPoint,
+    color: NSColor = .systemOrange,
+    strokeWidth: UInt32 = 5,
+    minimumHeadLength: CGFloat = AnnotationArrowGeometry.minimumHeadLength
+  ) -> CGImage? {
+    append(.arrow(start, end, color, CGFloat(strokeWidth), minimumHeadLength))
   }
 
   func addText(_ text: String, at point: CGPoint, style: TextAnnotationStyle) -> CGImage? {
@@ -197,7 +203,7 @@ private enum Command {
   case ellipse(CGRect, NSColor, CGFloat, Bool)
   case line(CGPoint, CGPoint, NSColor, CGFloat)
   case path([CGPoint], NSColor, CGFloat)
-  case arrow(CGPoint, CGPoint, NSColor, CGFloat)
+  case arrow(CGPoint, CGPoint, NSColor, CGFloat, CGFloat)
   case text(String, CGPoint, TextAnnotationStyle)
   case pixelate(CGRect)
   case blur(CGRect)
@@ -219,13 +225,31 @@ private enum Command {
     switch self {
     case .rect(let rect, _, _, _), .ellipse(let rect, _, _, _), .pixelate(let rect), .blur(let rect):
       return rect.standardized
-    case .line(let start, let end, _, let width), .arrow(let start, let end, _, let width):
+    case .line(let start, let end, _, let width):
       return CGRect(
         x: min(start.x, end.x) - width,
         y: min(start.y, end.y) - width,
         width: abs(end.x - start.x) + width * 2,
         height: abs(end.y - start.y) + width * 2
       )
+    case .arrow(let start, let end, _, let width, let minimumHeadLength):
+      let points = [start, end] + {
+        guard let (left, right) = AnnotationArrowGeometry.headPoints(
+          start: start,
+          end: end,
+          strokeWidth: width,
+          minimumHeadLength: minimumHeadLength
+        ) else {
+          return []
+        }
+        return [left, right]
+      }()
+      let xs = points.map(\.x)
+      let ys = points.map(\.y)
+      guard let minX = xs.min(), let maxX = xs.max(), let minY = ys.min(), let maxY = ys.max() else {
+        return .zero
+      }
+      return CGRect(x: minX - width, y: minY - width, width: maxX - minX + width * 2, height: maxY - minY + width * 2)
     case .path(let points, _, let width):
       let xs = points.map(\.x)
       let ys = points.map(\.y)
@@ -252,37 +276,31 @@ private enum Command {
       context.setLineWidth(max(1, width))
       filled ? context.fillEllipse(in: rect) : context.strokeEllipse(in: rect)
     case .line(let start, let end, let color, let width):
-      context.setStrokeColor(color.cgColor)
-      context.setLineCap(.round)
-      context.setLineJoin(.round)
-      context.setLineWidth(max(1, width))
-      context.move(to: start)
-      context.addLine(to: end)
-      context.strokePath()
+      Self.strokeLine(from: start, to: end, color: color, width: width, in: context)
     case .path(let points, let color, let width):
       guard let first = points.first else { return }
-      context.setStrokeColor(color.cgColor)
-      context.setLineCap(.round)
-      context.setLineJoin(.round)
-      context.setLineWidth(max(1, width))
+      Self.configureStroke(color: color, width: width, in: context)
       context.move(to: first)
       for point in points.dropFirst() {
         context.addLine(to: point)
       }
       context.strokePath()
-    case .arrow(let start, let end, let color, let width):
-      Command.line(start, end, color, width).draw(in: context)
-      let angle = atan2(end.y - start.y, end.x - start.x)
-      let length = max(width * 4, 14)
-      let left = CGPoint(x: end.x - cos(angle - .pi / 6) * length, y: end.y - sin(angle - .pi / 6) * length)
-      let right = CGPoint(x: end.x - cos(angle + .pi / 6) * length, y: end.y - sin(angle + .pi / 6) * length)
-      context.setFillColor(color.cgColor)
-      context.beginPath()
+    case .arrow(let start, let end, let color, let width, let minimumHeadLength):
+      Self.strokeLine(from: start, to: end, color: color, width: width, in: context)
+      guard let (left, right) = AnnotationArrowGeometry.headPoints(
+        start: start,
+        end: end,
+        strokeWidth: width,
+        minimumHeadLength: minimumHeadLength
+      ) else {
+        return
+      }
+      Self.configureStroke(color: color, width: width, in: context)
       context.move(to: end)
       context.addLine(to: left)
+      context.move(to: end)
       context.addLine(to: right)
-      context.closePath()
-      context.fillPath()
+      context.strokePath()
     case .text(let text, let point, let style):
       let attributes: [NSAttributedString.Key: Any] = [
         .font: NSFont.systemFont(ofSize: style.fontSize, weight: .semibold),
@@ -298,6 +316,20 @@ private enum Command {
     }
   }
 
+  private static func strokeLine(from start: CGPoint, to end: CGPoint, color: NSColor, width: CGFloat, in context: CGContext) {
+    configureStroke(color: color, width: width, in: context)
+    context.move(to: start)
+    context.addLine(to: end)
+    context.strokePath()
+  }
+
+  private static func configureStroke(color: NSColor, width: CGFloat, in context: CGContext) {
+    context.setStrokeColor(color.cgColor)
+    context.setLineCap(.round)
+    context.setLineJoin(.round)
+    context.setLineWidth(max(1, width))
+  }
+
   mutating func move(by delta: CGPoint) {
     switch self {
     case .rect(let rect, let color, let width, let filled):
@@ -308,8 +340,8 @@ private enum Command {
       self = .line(start + delta, end + delta, color, width)
     case .path(let points, let color, let width):
       self = .path(points.map { $0 + delta }, color, width)
-    case .arrow(let start, let end, let color, let width):
-      self = .arrow(start + delta, end + delta, color, width)
+    case .arrow(let start, let end, let color, let width, let minimumHeadLength):
+      self = .arrow(start + delta, end + delta, color, width, minimumHeadLength)
     case .text(let text, let point, let style):
       self = .text(text, point + delta, style)
     case .pixelate(let rect):

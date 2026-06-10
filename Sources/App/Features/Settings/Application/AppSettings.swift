@@ -60,6 +60,7 @@ final class AppSettings: ObservableObject {
 
   @Published private(set) var textFontSize: Double
   @Published private(set) var textFontName: String
+  @Published private(set) var drawingStrokeWidth: Double
 
   @Published private(set) var defaultSaveDirectoryPath: String
   @Published private(set) var alwaysSaveToDefaultDirectory: Bool
@@ -158,6 +159,10 @@ final class AppSettings: ObservableObject {
     Limits.keystrokeWidth
   }
 
+  static var drawingStrokeWidthRange: ClosedRange<Double> {
+    Limits.drawingStrokeWidth
+  }
+
   var visibleTools: [AnnotationTool] {
     let visible = toolOrder.filter { !hiddenTools.contains($0) }
     return visible.isEmpty ? [.move] : visible
@@ -207,6 +212,7 @@ final class AppSettings: ObservableObject {
 
     static let textFontSize = "settings.text.fontSize"
     static let textFontName = "settings.text.fontName"
+    static let drawingStrokeWidth = "settings.drawing.strokeWidth"
 
     static let defaultSaveDirectoryPath = "settings.save.defaultDirectoryPath"
     static let alwaysSaveToDefaultDirectory = "settings.save.alwaysSaveToDefaultDirectory"
@@ -262,6 +268,7 @@ final class AppSettings: ObservableObject {
     static let captureShowHelper = true
     static let smartWindowSelection = true
     static let textFontSize = 16.0
+    static let drawingStrokeWidth = 4.0
     static let transitionStyle = CaptureTransitionStyle.ripple
     static let transitionSpeed = 1.25
     static let transitionIntensity = 0.72
@@ -289,6 +296,7 @@ final class AppSettings: ObservableObject {
   private enum Limits {
     static let normalized = 0.0...1.0
     static let textFontSize = 10.0...72.0
+    static let drawingStrokeWidth = 1.0...12.0
     static let transitionSpeed = 0.5...2.4
     static let transitionIntensity = 0.2...1.0
     static let minimumOverlayDimension = 0.04
@@ -354,6 +362,9 @@ final class AppSettings: ObservableObject {
 
     let storedFontName = defaults.string(forKey: Keys.textFontName)
     textFontName = Self.normalizedTextFontName(storedFontName)
+
+    let storedDrawingStrokeWidth = defaults.object(forKey: Keys.drawingStrokeWidth) as? Double
+    drawingStrokeWidth = Self.clampedDrawingStrokeWidth(storedDrawingStrokeWidth ?? Defaults.drawingStrokeWidth)
 
     defaultSaveDirectoryPath = defaults.string(forKey: Keys.defaultSaveDirectoryPath) ?? ""
     alwaysSaveToDefaultDirectory = defaults.bool(forKey: Keys.alwaysSaveToDefaultDirectory)
@@ -1119,8 +1130,17 @@ final class AppSettings: ObservableObject {
     persistTextSettings()
   }
 
+  func setDrawingStrokeWidth(_ width: Double) {
+    let clamped = Self.clampedDrawingStrokeWidth(width)
+    guard abs(drawingStrokeWidth - clamped) > .ulpOfOne else {
+      return
+    }
+    drawingStrokeWidth = clamped
+    persistDrawingSettings()
+  }
+
   func resetTextSettings() {
-    textFontSize = 16
+    textFontSize = Defaults.textFontSize
     textFontName = Self.systemFontFamilyName
     persistTextSettings()
   }
@@ -1398,6 +1418,10 @@ final class AppSettings: ObservableObject {
     max(Limits.textFontSize.lowerBound, min(Limits.textFontSize.upperBound, value))
   }
 
+  private static func clampedDrawingStrokeWidth(_ value: Double) -> Double {
+    max(Limits.drawingStrokeWidth.lowerBound, min(Limits.drawingStrokeWidth.upperBound, value))
+  }
+
   private static func clampedCaptureTransitionSpeed(_ value: Double) -> Double {
     max(Limits.transitionSpeed.lowerBound, min(Limits.transitionSpeed.upperBound, value))
   }
@@ -1589,6 +1613,11 @@ final class AppSettings: ObservableObject {
     notifySettingsChanged()
   }
 
+  private func persistDrawingSettings() {
+    defaults.set(drawingStrokeWidth, forKey: Keys.drawingStrokeWidth)
+    notifySettingsChanged()
+  }
+
   private func persistSaveSettings() {
     defaults.set(defaultSaveDirectoryPath, forKey: Keys.defaultSaveDirectoryPath)
     defaults.set(alwaysSaveToDefaultDirectory, forKey: Keys.alwaysSaveToDefaultDirectory)
@@ -1673,6 +1702,7 @@ final class AppSettings: ObservableObject {
     defaults.set(Array(hiddenRecordingTools).map(\.rawValue), forKey: Keys.hiddenRecordingTools)
     defaults.set(textFontSize, forKey: Keys.textFontSize)
     defaults.set(textFontName, forKey: Keys.textFontName)
+    defaults.set(drawingStrokeWidth, forKey: Keys.drawingStrokeWidth)
     defaults.set(defaultSaveDirectoryPath, forKey: Keys.defaultSaveDirectoryPath)
     defaults.set(alwaysSaveToDefaultDirectory, forKey: Keys.alwaysSaveToDefaultDirectory)
     defaults.set(saveCopiedScreenshotsToDefaultDirectory, forKey: Keys.saveCopiedScreenshotsToDefaultDirectory)
