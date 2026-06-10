@@ -62,7 +62,6 @@ final class AppEnvironment: ObservableObject {
       storeManager: storeManager,
       statisticsStore: statisticsStore,
       welcomeStateStore: welcomeStateStore,
-      launchAtLoginController: launchAtLoginController,
       toastPresenter: toastPresenter
     )
     let presentPaywall = { [windowPresenter] in
@@ -135,23 +134,17 @@ final class AppRouter {
 
   func presentWelcome() {
     windowPresenter.presentWelcome(
-      onStartCapture: { [weak self] in self?.startCapture() },
-      onOpenSettings: { [weak self] in self?.presentSettings() }
+      onStartCapture: { [weak self] in self?.startCapture() }
     )
   }
 
   func presentWelcomeIfNeeded() {
     windowPresenter.presentWelcomeIfNeeded(
-      onStartCapture: { [weak self] in self?.startCapture() },
-      onOpenSettings: { [weak self] in self?.presentSettings() }
+      onStartCapture: { [weak self] in self?.startCapture() }
     )
   }
 
   func presentStatistics() {
     windowPresenter.presentStatistics()
-  }
-
-  func presentSettings() {
-    windowPresenter.presentSettings()
   }
 }

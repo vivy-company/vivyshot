@@ -54,6 +54,7 @@ struct AppRoot: App {
 
 private struct MenuBarMenuContent: View {
   @ObservedObject var environment: AppEnvironment
+  @Environment(\.openSettings) private var openSettings
 
   private var statusController: StatusItemController {
     environment.statusController
@@ -115,7 +116,7 @@ private struct MenuBarMenuContent: View {
       }
 
       Button {
-        environment.router.presentSettings()
+        openSettings()
       } label: {
         Label("Settings…", systemImage: "gearshape")
       }

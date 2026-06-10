@@ -9,13 +9,11 @@ final class AppWindowPresenter {
   private let storeManager: StoreManager
   private let statisticsStore: StatisticsStore
   private let welcomeStateStore: WelcomeStateStore
-  private let launchAtLoginController: LaunchAtLoginController
   private let paywallWindowController: PaywallWindowController
   private let welcomeWindowController: WelcomeWindowController
   private let statisticsWindowController: StatisticsWindowController
   private let captureTransitionPreviewCoordinator: CaptureTransitionPreviewCoordinator
   private let recordingOverlaySettingsPreviewCoordinator = RecordingOverlaySettingsPreviewCoordinator()
-  private var settingsWindowController: NSWindowController?
 
   init(
     settings: AppSettings,
@@ -23,7 +21,6 @@ final class AppWindowPresenter {
     storeManager: StoreManager,
     statisticsStore: StatisticsStore,
     welcomeStateStore: WelcomeStateStore,
-    launchAtLoginController: LaunchAtLoginController,
     toastPresenter: ToastPresenting
   ) {
     self.settings = settings
@@ -31,7 +28,6 @@ final class AppWindowPresenter {
     self.storeManager = storeManager
     self.statisticsStore = statisticsStore
     self.welcomeStateStore = welcomeStateStore
-    self.launchAtLoginController = launchAtLoginController
     let paywallWindowController = PaywallWindowController(
       localizer: localizer,
       storeManager: storeManager
@@ -75,40 +71,6 @@ final class AppWindowPresenter {
     )
   }
 
-  func presentSettings() {
-    if let window = settingsWindowController?.window {
-      NSApp.activate(ignoringOtherApps: true)
-      window.makeKeyAndOrderFront(nil)
-      return
-    }
-
-    let rootView = PresentedSettingsView(
-      localizer: localizer,
-      settings: settings,
-      storeManager: storeManager,
-      statisticsStore: statisticsStore,
-      launchAtLoginController: launchAtLoginController,
-      presentPaywall: { [weak self] in
-        self?.presentPaywall()
-      },
-      previewActions: settingsPreviewActions
-    )
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 980, height: 720),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
-      backing: .buffered,
-      defer: false
-    )
-    window.center()
-    window.title = "VivyShot Settings"
-    window.isReleasedWhenClosed = false
-    window.contentView = NSHostingView(rootView: rootView)
-    let controller = NSWindowController(window: window)
-    settingsWindowController = controller
-    NSApp.activate(ignoringOtherApps: true)
-    controller.showWindow(nil)
-  }
-
   func presentPaywall() {
     paywallWindowController.show()
   }
@@ -118,49 +80,23 @@ final class AppWindowPresenter {
   }
 
   func presentWelcome(
-    onStartCapture: @escaping () -> Void = {},
-    onOpenSettings: @escaping () -> Void
+    onStartCapture: @escaping () -> Void = {}
   ) {
     welcomeWindowController.show(
-      onStartCapture: onStartCapture,
-      onOpenSettings: onOpenSettings
+      onStartCapture: onStartCapture
     )
   }
 
   func presentWelcomeIfNeeded(
-    onStartCapture: @escaping () -> Void = {},
-    onOpenSettings: @escaping () -> Void
+    onStartCapture: @escaping () -> Void = {}
   ) {
     guard !welcomeStateStore.hasSeenWelcome else {
       return
     }
-    presentWelcome(onStartCapture: onStartCapture, onOpenSettings: onOpenSettings)
+    presentWelcome(onStartCapture: onStartCapture)
   }
 
   func presentStatistics() {
     statisticsWindowController.show()
-  }
-}
-
-private struct PresentedSettingsView: View {
-  @ObservedObject var localizer: AppLocalizer
-  @ObservedObject var settings: AppSettings
-  @ObservedObject var storeManager: StoreManager
-  let statisticsStore: StatisticsStore
-  @ObservedObject var launchAtLoginController: LaunchAtLoginController
-  let presentPaywall: () -> Void
-  let previewActions: SettingsPreviewActions
-
-  var body: some View {
-    SettingsView(
-      settings: settings,
-      localizer: localizer,
-      storeManager: storeManager,
-      statisticsStore: statisticsStore,
-      launchAtLoginController: launchAtLoginController,
-      presentPaywall: presentPaywall,
-      previewActions: previewActions
-    )
-    .environment(\.locale, localizer.locale)
   }
 }

@@ -38,8 +38,7 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
   }
 
   func show(
-    onStartCapture: @escaping () -> Void,
-    onOpenSettings: @escaping () -> Void
+    onStartCapture: @escaping () -> Void
   ) {
     guard let window else { return }
 
@@ -59,7 +58,6 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
           },
           onOpenSettings: { [weak self] in
             self?.completeWelcome()
-            onOpenSettings()
           },
           onOpenScreenRecordingSettings: {
             openScreenRecordingSettings()
@@ -104,6 +102,7 @@ private struct WelcomeView: View {
   @ObservedObject var settings: AppSettings
   @State var screenRecordingAllowed: Bool
   @State private var screenRecordingRequestInProgress = false
+  @Environment(\.openSettings) private var openSettings
 
   let onStartCapture: () -> Void
   let onOpenSettings: () -> Void
@@ -260,6 +259,7 @@ private struct WelcomeView: View {
 
       Button {
         onOpenSettings()
+        openSettings()
       } label: {
         Text(localized("Settings"))
           .frame(maxWidth: .infinity)
