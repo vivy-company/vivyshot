@@ -7,25 +7,11 @@ struct StitchRecordingFloatingBar: View {
   let onStop: () -> Void
 
   var body: some View {
-    Group {
-      if #available(macOS 26.0, *) {
-        GlassEffectContainer(spacing: 0) {
-          barContent
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .glassEffect(.regular.tint(Color.red.opacity(0.08)).interactive(), in: .capsule)
-        }
-      } else {
-        barContent
-          .padding(.horizontal, 8)
-          .padding(.vertical, 8)
-          .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-          .overlay(
-            Capsule(style: .continuous)
-              .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-          )
-      }
-    }
+    barContent
+      .floatingCapsuleGlassSurface(
+        tint: Color.red.opacity(0.08),
+        fallbackStroke: Color.primary.opacity(0.12)
+      )
     .fixedSize()
   }
 
@@ -68,25 +54,13 @@ struct RecordingFloatingBar: View {
   let onStop: () -> Void
 
   var body: some View {
-    Group {
-      if #available(macOS 26.0, *) {
-        GlassEffectContainer(spacing: 0) {
-          barContent
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
-            .glassEffect(.regular.tint(Color.red.opacity(0.08)).interactive(), in: .capsule)
-        }
-      } else {
-        barContent
-          .padding(.horizontal, 10)
-          .padding(.vertical, 10)
-          .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-          .overlay(
-            Capsule(style: .continuous)
-              .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-          )
-      }
-    }
+    barContent
+      .floatingCapsuleGlassSurface(
+        horizontalPadding: 10,
+        verticalPadding: 10,
+        tint: Color.red.opacity(0.08),
+        fallbackStroke: Color.primary.opacity(0.12)
+      )
     .fixedSize()
   }
 

@@ -8,32 +8,16 @@ struct CaptureHintGlassCard: View {
   var usesExternalGlassSurface = false
 
   var body: some View {
-    Group {
-      if usesExternalGlassSurface {
-        panelContent
-          .padding(.horizontal, 12)
-          .padding(.vertical, 9)
-      } else if #available(macOS 26.0, *) {
-        GlassEffectContainer(spacing: 0) {
-          panelContent
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .glassEffect(.regular.tint(Color.white.opacity(0.08)), in: .rect(cornerRadius: 12, style: .continuous))
-        }
-      } else {
-        panelContent
-          .padding(.horizontal, 12)
-          .padding(.vertical, 9)
-          .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-              .fill(.ultraThinMaterial)
-              .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                  .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-              )
-          )
-      }
-    }
+    panelContent
+      .floatingRoundedGlassSurface(
+        usesExternalSurface: usesExternalGlassSurface,
+        horizontalPadding: 12,
+        verticalPadding: 9,
+        cornerRadius: 12,
+        tint: Color.white.opacity(0.08),
+        isInteractive: false,
+        fallbackStroke: Color.primary.opacity(0.12)
+      )
     .fixedSize()
     .allowsHitTesting(false)
     .shadow(color: Color.black.opacity(0.26), radius: 12, x: 0, y: 5)
@@ -67,29 +51,13 @@ struct CaptureTypeSidebar: View {
   let onSelectType: (CaptureContentType) -> Void
 
   var body: some View {
-    Group {
-      if usesExternalGlassSurface {
-        panelContent
-          .padding(6)
-      } else if #available(macOS 26.0, *) {
-        GlassEffectContainer(spacing: 0) {
-          panelContent
-            .padding(6)
-            .glassEffect(.regular.interactive(), in: .capsule)
-        }
-      } else {
-        panelContent
-          .padding(6)
-          .background(
-            Capsule(style: .continuous)
-              .fill(.ultraThinMaterial)
-              .overlay(
-                Capsule(style: .continuous)
-                  .stroke(Color.white.opacity(0.1), lineWidth: 1)
-              )
-          )
-      }
-    }
+    panelContent
+      .floatingCapsuleGlassSurface(
+        usesExternalSurface: usesExternalGlassSurface,
+        horizontalPadding: 6,
+        verticalPadding: 6,
+        fallbackStroke: Color.white.opacity(0.1)
+      )
     .fixedSize()
     .shadow(color: Color.black.opacity(0.24), radius: 12, x: 0, y: 6)
   }

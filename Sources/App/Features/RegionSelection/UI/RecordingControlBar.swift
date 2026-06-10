@@ -12,25 +12,11 @@ struct RecordingControlBar: View {
   }
 
   var body: some View {
-    Group {
-      if usesExternalGlassSurface {
-        barContent
-          .padding(.horizontal, 8)
-          .padding(.vertical, 8)
-      } else if #available(macOS 26.0, *) {
-        GlassEffectContainer(spacing: 0) {
-          barContent
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .glassEffect(.regular.tint(Color.red.opacity(0.08)).interactive(), in: .capsule)
-        }
-      } else {
-        barContent
-          .padding(.horizontal, 8)
-          .padding(.vertical, 8)
-          .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-      }
-    }
+    barContent
+      .floatingCapsuleGlassSurface(
+        usesExternalSurface: usesExternalGlassSurface,
+        tint: Color.red.opacity(0.08)
+      )
     .fixedSize()
   }
 

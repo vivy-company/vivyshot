@@ -1,6 +1,147 @@
 import AppKit
 import SwiftUI
 
+extension View {
+  @MainActor
+  @ViewBuilder
+  func floatingCapsuleGlassSurface(
+    usesExternalSurface: Bool = false,
+    horizontalPadding: CGFloat = 8,
+    verticalPadding: CGFloat = 8,
+    tint: Color? = nil,
+    isInteractive: Bool = true,
+    glassNamespace: Namespace.ID? = nil,
+    glassID: String? = nil,
+    fallbackStroke: Color? = nil
+  ) -> some View {
+    if usesExternalSurface {
+      padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+    } else if #available(macOS 26.0, *) {
+      if let glassNamespace, let glassID {
+        padding(.horizontal, horizontalPadding)
+          .padding(.vertical, verticalPadding)
+          .regularCapsuleGlass(tint: tint, isInteractive: isInteractive)
+          .glassEffectID(glassID, in: glassNamespace)
+          .glassEffectTransition(.matchedGeometry)
+      } else {
+        GlassEffectContainer(spacing: 0) {
+          padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .regularCapsuleGlass(tint: tint, isInteractive: isInteractive)
+        }
+      }
+    } else if let fallbackStroke {
+      padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .overlay(
+          Capsule(style: .continuous)
+            .stroke(fallbackStroke, lineWidth: 1)
+        )
+    } else {
+      padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+    }
+  }
+
+  @MainActor
+  @ViewBuilder
+  func floatingRoundedGlassSurface(
+    usesExternalSurface: Bool = false,
+    horizontalPadding: CGFloat,
+    verticalPadding: CGFloat,
+    cornerRadius: CGFloat,
+    tint: Color? = nil,
+    isInteractive: Bool = true,
+    fallbackStroke: Color? = nil
+  ) -> some View {
+    if usesExternalSurface {
+      padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+    } else if #available(macOS 26.0, *) {
+      GlassEffectContainer(spacing: 0) {
+        padding(.horizontal, horizontalPadding)
+          .padding(.vertical, verticalPadding)
+          .regularRoundedGlass(
+            cornerRadius: cornerRadius,
+            tint: tint,
+            isInteractive: isInteractive
+          )
+      }
+    } else if let fallbackStroke {
+      padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .background(
+          RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .overlay(
+              RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(fallbackStroke, lineWidth: 1)
+            )
+        )
+    } else {
+      padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .background(
+          RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(.ultraThinMaterial)
+        )
+    }
+  }
+
+  @available(macOS 26.0, *)
+  @MainActor
+  @ViewBuilder
+  private func regularCapsuleGlass(tint: Color?, isInteractive: Bool) -> some View {
+    if let tint {
+      if isInteractive {
+        glassEffect(.regular.tint(tint).interactive(), in: .capsule)
+      } else {
+        glassEffect(.regular.tint(tint), in: .capsule)
+      }
+    } else if isInteractive {
+      glassEffect(.regular.interactive(), in: .capsule)
+    } else {
+      glassEffect(.regular, in: .capsule)
+    }
+  }
+
+  @available(macOS 26.0, *)
+  @MainActor
+  @ViewBuilder
+  private func regularRoundedGlass(
+    cornerRadius: CGFloat,
+    tint: Color?,
+    isInteractive: Bool
+  ) -> some View {
+    if let tint {
+      if isInteractive {
+        glassEffect(
+          .regular.tint(tint).interactive(),
+          in: .rect(cornerRadius: cornerRadius, style: .continuous)
+        )
+      } else {
+        glassEffect(
+          .regular.tint(tint),
+          in: .rect(cornerRadius: cornerRadius, style: .continuous)
+        )
+      }
+    } else if isInteractive {
+      glassEffect(
+        .regular.interactive(),
+        in: .rect(cornerRadius: cornerRadius, style: .continuous)
+      )
+    } else {
+      glassEffect(
+        .regular,
+        in: .rect(cornerRadius: cornerRadius, style: .continuous)
+      )
+    }
+  }
+}
+
 /// Circular toolbar button with hover tooltip and optional matched glass selection state.
 @MainActor
 struct HoverTooltipCircleModeButton: View {

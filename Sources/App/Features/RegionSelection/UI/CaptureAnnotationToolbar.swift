@@ -21,26 +21,12 @@ struct CaptureAnnotationToolbar: View {
   }
 
   var body: some View {
-    Group {
-      if usesExternalGlassSurface {
-        toolbarContent
-          .padding(.horizontal, 8)
-          .padding(.vertical, 8)
-      } else if #available(macOS 26.0, *) {
-        if glassNamespace != nil {
-          glassToolbarSurface
-        } else {
-          GlassEffectContainer(spacing: 0) {
-            glassToolbarSurface
-          }
-        }
-      } else {
-        toolbarContent
-          .padding(.horizontal, 8)
-          .padding(.vertical, 8)
-          .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-      }
-    }
+    toolbarContent
+      .floatingCapsuleGlassSurface(
+        usesExternalSurface: usesExternalGlassSurface,
+        glassNamespace: glassNamespace,
+        glassID: "region-selection-toolbar-shell"
+      )
     .fixedSize()
     .contentShape(Rectangle())
     .highPriorityGesture(dragGesture, including: .subviews)
@@ -49,24 +35,6 @@ struct CaptureAnnotationToolbar: View {
   private var closeCaptureButton: some View {
     toolbarIconButton(symbol: "xmark.circle.fill", help: "Exit capture (Esc)") {
       onAction(.closeCapture)
-    }
-  }
-
-  @available(macOS 26.0, *)
-  @ViewBuilder
-  private var glassToolbarSurface: some View {
-    if let glassNamespace {
-      toolbarContent
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .glassEffect(.regular.interactive(), in: .capsule)
-        .glassEffectID("region-selection-toolbar-shell", in: glassNamespace)
-        .glassEffectTransition(.matchedGeometry)
-    } else {
-      toolbarContent
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .glassEffect(.regular.interactive(), in: .capsule)
     }
   }
 
