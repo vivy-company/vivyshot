@@ -1,7 +1,23 @@
 import AppKit
+import Carbon
 
 @MainActor
 extension RegionSelectionView {
+  func isPlainReturnKeyEvent(_ event: NSEvent) -> Bool {
+    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    let disallowedFlags: NSEvent.ModifierFlags = [.shift, .control, .option, .command]
+    guard flags.intersection(disallowedFlags).isEmpty else {
+      return false
+    }
+
+    switch event.keyCode {
+    case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter):
+      return true
+    default:
+      return false
+    }
+  }
+
   func handleCancelShortcut() {
     switch mode {
     case .selecting:

@@ -8,6 +8,22 @@ extension RegionSelectionView {
     microphoneSourceOptions = RecordingSourceProvider.microphoneSources()
   }
 
+  func updateRecordingFocusPresentation() {
+    if let window = window as? RegionSelectionWindow {
+      window.passesEventsThrough = recordingActive
+    } else {
+      window?.ignoresMouseEvents = recordingActive
+    }
+    if recordingActive {
+      showRecordingControlPanel()
+    } else {
+      closeRecordingControlPanel()
+    }
+    layoutEditorChrome()
+    needsDisplay = true
+    window?.invalidateCursorRects(for: self)
+  }
+
   func makeRecordingControlBar() -> RecordingControlBar {
     return RecordingControlBar(
       state: recordingControlBarState,

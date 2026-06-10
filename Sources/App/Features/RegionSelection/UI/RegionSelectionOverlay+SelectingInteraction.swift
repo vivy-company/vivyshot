@@ -57,4 +57,8 @@ extension RegionSelectionView {
     needsLayout = true
     needsDisplay = true
   }
+
+  func resetSmartSelectionState() {
+    interactionState.resetSmartSelection()
+  }
 }

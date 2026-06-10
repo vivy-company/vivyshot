@@ -35,18 +35,6 @@ final class RegionSelectionView: NSView {
   }
 
   var interactionState = RegionSelectionInteractionState()
-  var dragStart: CGPoint? {
-    get { interactionState.dragStart }
-    set { interactionState.dragStart = newValue }
-  }
-  var dragCurrent: CGPoint? {
-    get { interactionState.dragCurrent }
-    set { interactionState.dragCurrent = newValue }
-  }
-  var committedSelectionRect: CGRect? {
-    get { interactionState.committedSelectionRect }
-    set { interactionState.committedSelectionRect = newValue }
-  }
 
   var activeResizeCorner: ResizeCorner?
   var resizeStartRect: CGRect?
@@ -76,31 +64,7 @@ final class RegionSelectionView: NSView {
   var glassBackdropRefreshScheduled = false
   var glassChromeReadyForBackdrop = false
   var floatingChromeState = RegionSelectionFloatingChromeState()
-  var toolbarOffset: CGSize {
-    get { floatingChromeState.toolbarOffset }
-    set { floatingChromeState.toolbarOffset = newValue }
-  }
-  var toolbarDragStartOffset: CGSize? {
-    get { floatingChromeState.toolbarDragStartOffset }
-    set { floatingChromeState.toolbarDragStartOffset = newValue }
-  }
   var toolbarFrameAnimationPending = false
-  var recordingControlOffset: CGSize {
-    get { floatingChromeState.recordingControlOffset }
-    set { floatingChromeState.recordingControlOffset = newValue }
-  }
-  var recordingControlDragStartOffset: CGSize? {
-    get { floatingChromeState.recordingControlDragStartOffset }
-    set { floatingChromeState.recordingControlDragStartOffset = newValue }
-  }
-  var recordingControlDragStartMouseLocation: CGPoint? {
-    get { floatingChromeState.recordingControlDragStartMouseLocation }
-    set { floatingChromeState.recordingControlDragStartMouseLocation = newValue }
-  }
-  var recordingControlPanelSize: CGSize? {
-    get { floatingChromeState.recordingControlPanelSize }
-    set { floatingChromeState.recordingControlPanelSize = newValue }
-  }
   var recordingControlPanel: NSPanel?
   var recordingControlHost: RegionSelectionGlassHostingView<RecordingControlBar>?
   var stitchControlPanel: NSPanel?
@@ -111,50 +75,7 @@ final class RegionSelectionView: NSView {
   var screenCapturePickPending = false
   var windowCaptureHoverRect: CGRect?
   let smartCaptureDragActivationDistance: CGFloat = 5
-  var smartMouseDownPoint: CGPoint? {
-    get { interactionState.smartMouseDownPoint }
-    set { interactionState.smartMouseDownPoint = newValue }
-  }
-  var smartMouseDownWindowRect: CGRect? {
-    get { interactionState.smartMouseDownWindowRect }
-    set { interactionState.smartMouseDownWindowRect = newValue }
-  }
-  var smartDragActivated: Bool {
-    get { interactionState.smartDragActivated }
-    set { interactionState.smartDragActivated = newValue }
-  }
-  var smartWindowHoverRect: CGRect? {
-    get { interactionState.smartWindowHoverRect }
-    set { interactionState.smartWindowHoverRect = newValue }
-  }
   var recordingState = RegionSelectionRecordingState()
-  var recordingActive: Bool {
-    get { recordingState.active }
-    set {
-      let oldValue = recordingState.active
-      recordingState.active = newValue
-      guard oldValue != newValue else {
-        return
-      }
-      updateRecordingFocusPresentation()
-    }
-  }
-  var recordingStartPending: Bool {
-    get { recordingState.startPending }
-    set { recordingState.startPending = newValue }
-  }
-  var recordingFlowHasStarted: Bool {
-    get { recordingState.flowHasStarted }
-    set { recordingState.flowHasStarted = newValue }
-  }
-  var recordingStartedAt: Date? {
-    get { recordingState.startedAt }
-    set { recordingState.startedAt = newValue }
-  }
-  var recordingLiveControlState: RecordingLiveControlState? {
-    get { recordingState.liveControls }
-    set { recordingState.liveControls = newValue }
-  }
   var webcamSourceOptions: [RecordingSourceOption] = []
   var microphoneSourceOptions: [RecordingSourceOption] = []
   var pointerTrackingArea: NSTrackingArea?
@@ -304,46 +225,6 @@ final class RegionSelectionView: NSView {
         addCursorRect(bounds, cursor: .arrow)
       }
     }
-  }
-
-  func applyEditingHoverCursor(at point: CGPoint?) {
-    guard mode == .editing else {
-      return
-    }
-
-    if let point,
-       (toolbarHost.frame.contains(point) || captureTypeHost.frame.contains(point))
-    {
-      NSCursor.arrow.set()
-      return
-    }
-
-    if selectedCaptureMode == .screen || selectedCaptureMode == .window {
-      Self.captureCameraCursor.set()
-    } else {
-      NSCursor.arrow.set()
-    }
-  }
-
-  func applySelectingHoverCursor(at point: CGPoint?) {
-    guard mode == .selecting else {
-      return
-    }
-
-    if let point, captureTypeHost.frame.contains(point) {
-      NSCursor.arrow.set()
-      return
-    }
-
-    if smartWindowHoverRect != nil, !smartDragActivated {
-      Self.captureCameraCursor.set()
-    } else {
-      NSCursor.crosshair.set()
-    }
-  }
-
-  func resetSmartSelectionState() {
-    interactionState.resetSmartSelection()
   }
 
   override func mouseDown(with event: NSEvent) {
@@ -517,21 +398,6 @@ final class RegionSelectionView: NSView {
     super.keyDown(with: event)
   }
 
-  private func isPlainReturnKeyEvent(_ event: NSEvent) -> Bool {
-    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-    let disallowedFlags: NSEvent.ModifierFlags = [.shift, .control, .option, .command]
-    guard flags.intersection(disallowedFlags).isEmpty else {
-      return false
-    }
-
-    switch event.keyCode {
-    case UInt16(kVK_Return), UInt16(kVK_ANSI_KeypadEnter):
-      return true
-    default:
-      return false
-    }
-  }
-
   override func draw(_ dirtyRect: NSRect) {
     super.draw(dirtyRect)
 
@@ -569,22 +435,6 @@ final class RegionSelectionView: NSView {
         drawWindowCaptureOverlay(in: context)
       }
     }
-  }
-
-  func updateRecordingFocusPresentation() {
-    if let window = window as? RegionSelectionWindow {
-      window.passesEventsThrough = recordingActive
-    } else {
-      window?.ignoresMouseEvents = recordingActive
-    }
-    if recordingActive {
-      showRecordingControlPanel()
-    } else {
-      closeRecordingControlPanel()
-    }
-    layoutEditorChrome()
-    needsDisplay = true
-    window?.invalidateCursorRects(for: self)
   }
 
 }

@@ -26,4 +26,40 @@ extension RegionSelectionView {
     image.unlockFocus()
     return NSCursor(image: image, hotSpot: NSPoint(x: size.width * 0.5, y: size.height * 0.5))
   }()
+
+  func applyEditingHoverCursor(at point: CGPoint?) {
+    guard mode == .editing else {
+      return
+    }
+
+    if let point,
+       (toolbarHost.frame.contains(point) || captureTypeHost.frame.contains(point))
+    {
+      NSCursor.arrow.set()
+      return
+    }
+
+    if selectedCaptureMode == .screen || selectedCaptureMode == .window {
+      Self.captureCameraCursor.set()
+    } else {
+      NSCursor.arrow.set()
+    }
+  }
+
+  func applySelectingHoverCursor(at point: CGPoint?) {
+    guard mode == .selecting else {
+      return
+    }
+
+    if let point, captureTypeHost.frame.contains(point) {
+      NSCursor.arrow.set()
+      return
+    }
+
+    if smartWindowHoverRect != nil, !smartDragActivated {
+      Self.captureCameraCursor.set()
+    } else {
+      NSCursor.crosshair.set()
+    }
+  }
 }

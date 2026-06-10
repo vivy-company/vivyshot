@@ -136,6 +136,7 @@
 		95AB3CE979DF98807F54F4BC /* OverlayLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6DF191140401E9E87B843A /* OverlayLayout.swift */; };
 		9666C7A0FF46592EECC94852 /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DAA48E37787848D024FF0CE /* CaptureCoordinator.swift */; };
 		96E37C11CF69C4C8BF464DAE /* PostRecordingExportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCFDD6C6AB0592DA967D8639 /* PostRecordingExportPresentation.swift */; };
+		96F24FAB98B3D588C15AC3A9 /* RegionSelectionOverlay+StateAccessors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E7F456676A2A1D49D51279 /* RegionSelectionOverlay+StateAccessors.swift */; };
 		979ED9EC910A49C75C33E303 /* RegionSelectionOverlayController+Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377F2A9DC9DCF96F719A6C79 /* RegionSelectionOverlayController+Commands.swift */; };
 		9CA4972A4B65D768366F18CD /* RecordingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96504BAFC1EBF48B154B7F6 /* RecordingCoordinator.swift */; };
 		9D0E7F94E81700BFBB91855F /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3A8758905CCFED04D32538 /* StatusItemController.swift */; };
@@ -372,6 +373,7 @@
 		852BB341060503A8DDDA99B6 /* ExportPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPlanner.swift; sourceTree = "<group>"; };
 		853987247C48B7C864D7A011 /* RegionSelectionOverlay+StitchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+StitchOverlay.swift"; sourceTree = "<group>"; };
 		87DDD3092A3054C25A0C2680 /* LiquidGlassViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassViews.swift; sourceTree = "<group>"; };
+		87E7F456676A2A1D49D51279 /* RegionSelectionOverlay+StateAccessors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+StateAccessors.swift"; sourceTree = "<group>"; };
 		8961060FC9130F463965D147 /* ScreenRegionAssetWriterRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRegionAssetWriterRecorder.swift; sourceTree = "<group>"; };
 		89A7E15A5E664EB119B87AF0 /* UITestHarnessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHarnessView.swift; sourceTree = "<group>"; };
 		8AF6AFA34F28C17CC7B6AFDA /* VivyShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VivyShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -880,6 +882,7 @@
 				AB28835413E9DD935AEE4F65 /* RegionSelectionOverlay+ScreenshotStatistics.swift */,
 				33435877FD027CE07C8B9EAA /* RegionSelectionOverlay+SelectingInteraction.swift */,
 				097A30E51392D9EAF61D1BFA /* RegionSelectionOverlay+Shortcuts.swift */,
+				87E7F456676A2A1D49D51279 /* RegionSelectionOverlay+StateAccessors.swift */,
 				92AE014938F8C1AEB70BD590 /* RegionSelectionOverlay+Stitch.swift */,
 				83B674614D5629A13CD33335 /* RegionSelectionOverlay+StitchAutoScroll.swift */,
 				853987247C48B7C864D7A011 /* RegionSelectionOverlay+StitchOverlay.swift */,
@@ -1303,6 +1306,7 @@
 				B4F9E50E0EEFB05055EC0467 /* RegionSelectionOverlay+ScreenshotStatistics.swift in Sources */,
 				5486E71B38835A32B62C7484 /* RegionSelectionOverlay+SelectingInteraction.swift in Sources */,
 				B1859DF8ED08DB8D8A605924 /* RegionSelectionOverlay+Shortcuts.swift in Sources */,
+				96F24FAB98B3D588C15AC3A9 /* RegionSelectionOverlay+StateAccessors.swift in Sources */,
 				08366BB2B1B18CA8A7A36324 /* RegionSelectionOverlay+Stitch.swift in Sources */,
 				94E4DC2AEB518BE04B85EEDA /* RegionSelectionOverlay+StitchAutoScroll.swift in Sources */,
 				362C9D53721AE534C90DCEE3 /* RegionSelectionOverlay+StitchOverlay.swift in Sources */,
