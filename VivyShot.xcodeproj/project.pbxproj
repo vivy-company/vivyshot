@@ -138,6 +138,7 @@
 		96E37C11CF69C4C8BF464DAE /* PostRecordingExportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCFDD6C6AB0592DA967D8639 /* PostRecordingExportPresentation.swift */; };
 		96F24FAB98B3D588C15AC3A9 /* RegionSelectionOverlay+StateAccessors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E7F456676A2A1D49D51279 /* RegionSelectionOverlay+StateAccessors.swift */; };
 		979ED9EC910A49C75C33E303 /* RegionSelectionOverlayController+Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377F2A9DC9DCF96F719A6C79 /* RegionSelectionOverlayController+Commands.swift */; };
+		9C0629EF62D08EDDFE95CB69 /* RecordingCoordinator+Start.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF23EC87E45CEC002F45821E /* RecordingCoordinator+Start.swift */; };
 		9CA4972A4B65D768366F18CD /* RecordingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96504BAFC1EBF48B154B7F6 /* RecordingCoordinator.swift */; };
 		9D0E7F94E81700BFBB91855F /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3A8758905CCFED04D32538 /* StatusItemController.swift */; };
 		9DCA7C814CA03F674EE148B1 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DAB9F76610201EDA3E58B3 /* AppEnvironment.swift */; };
@@ -215,6 +216,7 @@
 		EBBB6607DF8A6E7CBC5A29F1 /* InputEventNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A8B57BEF1A5BF764E93942 /* InputEventNormalizer.swift */; };
 		EBE3733B689534D0A8961031 /* CaptureSessionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DA110EDB9E4C1C389CEC345 /* CaptureSessionRunner.swift */; };
 		EBE6154B4A8C159B888FC550 /* RecordingFloatingBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60B8CE7A38E572282213A16E /* RecordingFloatingBars.swift */; };
+		EC5E2FDC8FB34CD14C487D1F /* RecordingCoordinator+Stop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4895847C5D9BB1DCB3FC0A1C /* RecordingCoordinator+Stop.swift */; };
 		ED8FD4B8BD986A9CE648BFC0 /* RegionSelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C1E22EAC500AF1C810E9885 /* RegionSelectionOverlay.swift */; };
 		EE316F90325AAF77050D630B /* RecordingSessionDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F0968B2EE5EB62D75CAC73 /* RecordingSessionDomain.swift */; };
 		EE55A06AD08BA49820A7E118 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE1805B7EE88482FA0E241F /* PaywallView.swift */; };
@@ -309,6 +311,7 @@
 		463F9728866CEF73642F1A39 /* RegionSelectionWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionWindow.swift; sourceTree = "<group>"; };
 		4654130461BEDF2BF4E54215 /* RegionSelectionToolbarHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionToolbarHost.swift; sourceTree = "<group>"; };
 		46E700759D88543B39BED03E /* RegionSelectionInteractionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionInteractionViews.swift; sourceTree = "<group>"; };
+		4895847C5D9BB1DCB3FC0A1C /* RecordingCoordinator+Stop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingCoordinator+Stop.swift"; sourceTree = "<group>"; };
 		492BCB020F9636E0B127BB54 /* AnnotationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationTool.swift; sourceTree = "<group>"; };
 		4A115B6AB5FAAD5005D17120 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		4A129B75A099D2BD24D1698F /* RegionSelectionOverlay+ScreenshotPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+ScreenshotPersistence.swift"; sourceTree = "<group>"; };
@@ -409,6 +412,7 @@
 		AB28835413E9DD935AEE4F65 /* RegionSelectionOverlay+ScreenshotStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+ScreenshotStatistics.swift"; sourceTree = "<group>"; };
 		ACE7E190B7A7510926A93141 /* AppSettingsStorageAppearanceMutations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStorageAppearanceMutations.swift; sourceTree = "<group>"; };
 		AEDA5EC7F163F174BDC85E7F /* CaptureShaderTransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureShaderTransitionView.swift; sourceTree = "<group>"; };
+		AF23EC87E45CEC002F45821E /* RecordingCoordinator+Start.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingCoordinator+Start.swift"; sourceTree = "<group>"; };
 		B192702613D550AC47A51E51 /* ShortcutRecorderField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorderField.swift; sourceTree = "<group>"; };
 		B1C4BCC44088708B3E127590 /* RegionSelectionOverlay+CaptureTargetResolution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+CaptureTargetResolution.swift"; sourceTree = "<group>"; };
 		B2D2004A366F05AFEEEF12BB /* CaptureTemporaryFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureTemporaryFiles.swift; sourceTree = "<group>"; };
@@ -829,6 +833,8 @@
 				0AA6E1C06BE4F38AE275A38B /* RecordingAssetWriter.swift */,
 				A96504BAFC1EBF48B154B7F6 /* RecordingCoordinator.swift */,
 				B6BC5A4F209A0F425162492C /* RecordingCoordinator+LiveControls.swift */,
+				AF23EC87E45CEC002F45821E /* RecordingCoordinator+Start.swift */,
+				4895847C5D9BB1DCB3FC0A1C /* RecordingCoordinator+Stop.swift */,
 				7FB55B880570D66F3401D71C /* RecordingCoordinatorDependencies.swift */,
 				F01E9C26CD7200CD1423B1BA /* RecordingCoordinatorHelpers.swift */,
 				82AFCA07B5233E4F1F934472 /* RecordingInputMonitor.swift */,
@@ -1256,6 +1262,8 @@
 				939711CC285E324819CFCBD3 /* RecordingControlBar.swift in Sources */,
 				55418B72BE53648B72A70636 /* RecordingControlDomain.swift in Sources */,
 				5B52A14D68D7A6F6E21C0307 /* RecordingCoordinator+LiveControls.swift in Sources */,
+				9C0629EF62D08EDDFE95CB69 /* RecordingCoordinator+Start.swift in Sources */,
+				EC5E2FDC8FB34CD14C487D1F /* RecordingCoordinator+Stop.swift in Sources */,
 				9CA4972A4B65D768366F18CD /* RecordingCoordinator.swift in Sources */,
 				50DC1A6AC50C51951AAD6FC8 /* RecordingCoordinatorDependencies.swift in Sources */,
 				76EDECED702202088D8D5506 /* RecordingCoordinatorHelpers.swift in Sources */,
