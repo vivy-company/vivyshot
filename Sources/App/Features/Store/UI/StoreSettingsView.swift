@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct StoreSettingsView: View {
   @ObservedObject var storeManager: StoreManager
+  @ObservedObject var localizer: AppLocalizer
   let presentPaywall: () -> Void
 
   var body: some View {
@@ -27,7 +28,7 @@ struct StoreSettingsView: View {
               .font(.subheadline)
               .foregroundStyle(.secondary)
 
-            if let badgeTitle = storeManager.badgeTitle {
+            if let badgeTitle = storeManager.badgeTitle(localizer: localizer) {
               Text("\(badgeTitle) is active on this Mac.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -36,7 +37,7 @@ struct StoreSettingsView: View {
 
           Spacer(minLength: 0)
 
-          if let badgeTitle = storeManager.badgeTitle {
+          if let badgeTitle = storeManager.badgeTitle(localizer: localizer) {
             StoreBadgeChip(title: badgeTitle, prominence: badgeTitle == "Supporter" ? .supporter : .lifetime)
           } else {
             Button("Purchase License") {
@@ -51,7 +52,7 @@ struct StoreSettingsView: View {
       Section("Access") {
         LabeledContent("Current Plan") {
           HStack(spacing: 8) {
-            if let badgeTitle = storeManager.badgeTitle {
+            if let badgeTitle = storeManager.badgeTitle(localizer: localizer) {
               StoreBadgeChip(
                 title: badgeTitle,
                 prominence: badgeTitle == "Supporter" ? .supporter : .lifetime
@@ -105,22 +106,22 @@ struct StoreSettingsView: View {
 
   private var primaryActionTitle: String {
     if storeManager.hasSupporterBadge {
-      return String(localized: "License Details", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "License Details", bundle: localizer.bundle)
     }
     if storeManager.hasLifetimeUnlock {
-      return String(localized: "License Options", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "License Options", bundle: localizer.bundle)
     }
-    return String(localized: "Purchase License", bundle: AppLocalizer.shared.bundle)
+    return String(localized: "Purchase License", bundle: localizer.bundle)
   }
 
   private var storeHeadline: String {
     if storeManager.hasSupporterBadge {
-      return String(localized: "Thanks for supporting VivyShot.", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Thanks for supporting VivyShot.", bundle: localizer.bundle)
     }
     if storeManager.hasLifetimeUnlock {
-      return String(localized: "Lifetime access is unlocked.", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Lifetime access is unlocked.", bundle: localizer.bundle)
     }
-    return String(localized: "Free forever for the core workflow.", bundle: AppLocalizer.shared.bundle)
+    return String(localized: "Free forever for the core workflow.", bundle: localizer.bundle)
   }
 
   private var headerGradient: LinearGradient {

@@ -2,17 +2,25 @@ import Foundation
 
 extension StoreEntitlement {
   var badgeTitle: String? {
+    badgeTitle(localizer: AppLocalizer.shared)
+  }
+
+  func badgeTitle(localizer: AppLocalizer) -> String? {
     if hasSupporterBadge {
-      return String(localized: "Supporter", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Supporter", bundle: localizer.bundle)
     }
     if hasLifetimeUnlock {
-      return String(localized: "Lifetime", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Lifetime", bundle: localizer.bundle)
     }
     return nil
   }
 
   var tierTitle: String {
-    badgeTitle ?? String(localized: "Free", bundle: AppLocalizer.shared.bundle)
+    tierTitle(localizer: AppLocalizer.shared)
+  }
+
+  func tierTitle(localizer: AppLocalizer) -> String {
+    badgeTitle(localizer: localizer) ?? String(localized: "Free", bundle: localizer.bundle)
   }
 }
 

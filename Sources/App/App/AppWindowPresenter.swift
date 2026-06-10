@@ -154,6 +154,7 @@ private struct PresentedSettingsView: View {
   var body: some View {
     SettingsView(
       settings: settings,
+      localizer: localizer,
       storeManager: storeManager,
       statisticsStore: statisticsStore,
       launchAtLoginController: launchAtLoginController,

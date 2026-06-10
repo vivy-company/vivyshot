@@ -35,6 +35,7 @@ struct SettingsView: View {
   }
 
   @ObservedObject var settings: AppSettings
+  @ObservedObject var localizer: AppLocalizer
   @ObservedObject var storeManager: StoreManager
   let statisticsStore: StatisticsStore
   @ObservedObject var launchAtLoginController: LaunchAtLoginController
@@ -105,7 +106,7 @@ struct SettingsView: View {
         .tabItem { Label(SettingsTab.statistics.title, systemImage: "chart.bar.xaxis") }
         .tag(SettingsTab.statistics)
 
-      StoreSettingsView(storeManager: storeManager, presentPaywall: presentPaywall)
+      StoreSettingsView(storeManager: storeManager, localizer: localizer, presentPaywall: presentPaywall)
       .tabItem { Label(SettingsTab.license.title, systemImage: "sparkles") }
       .tag(SettingsTab.license)
 

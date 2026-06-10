@@ -38,6 +38,7 @@ struct AppRoot: App {
     Settings {
       SettingsView(
         settings: environment.settings,
+        localizer: environment.localizer,
         storeManager: environment.storeManager,
         statisticsStore: environment.statisticsStore,
         launchAtLoginController: environment.launchAtLoginController,

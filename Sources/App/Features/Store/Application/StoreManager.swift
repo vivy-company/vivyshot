@@ -28,6 +28,14 @@ final class StoreManager: ObservableObject {
   var badgeTitle: String? { entitlement.badgeTitle }
   var tierTitle: String { entitlement.tierTitle }
 
+  func badgeTitle(localizer: AppLocalizer) -> String? {
+    entitlement.badgeTitle(localizer: localizer)
+  }
+
+  func tierTitle(localizer: AppLocalizer) -> String {
+    entitlement.tierTitle(localizer: localizer)
+  }
+
   func canUse(_ feature: PaidFeature) -> Bool {
     entitlement.canUse(feature)
   }
