@@ -29,83 +29,106 @@ extension PaidFeature {
     .statistics
   ]
 
+  static func paywallComparisonFeatures(localizer: AppLocalizer) -> [ComparisonFeature] {
+    paywallComparisonOrder.map { $0.paywallComparisonFeature(localizer: localizer) }
+  }
+
   static var paywallComparisonFeatures: [ComparisonFeature] {
-    paywallComparisonOrder.map(\.paywallComparisonFeature)
+    paywallComparisonFeatures(localizer: AppLocalizer.shared)
   }
 
   var paywallComparisonFeature: ComparisonFeature {
+    paywallComparisonFeature(localizer: AppLocalizer.shared)
+  }
+
+  func paywallComparisonFeature(localizer: AppLocalizer) -> ComparisonFeature {
     switch self {
     case .captureTransitions:
       return ComparisonFeature(
         icon: PaidFeature.captureTransitions.symbolName,
-        title: PaidFeature.captureTransitions.comparisonTitle,
-        free: .text(String(localized: "Preview", bundle: AppLocalizer.shared.bundle), emphasized: false),
-        pro: .included(accessibilityLabel: PaidFeature.captureTransitions.includedAccessibilityLabel)
+        title: PaidFeature.captureTransitions.comparisonTitle(localizer: localizer),
+        free: .text(String(localized: "Preview", bundle: localizer.bundle), emphasized: false),
+        pro: .included(accessibilityLabel: PaidFeature.captureTransitions.includedAccessibilityLabel(localizer: localizer))
       )
     case .hevcExport:
       return ComparisonFeature(
         icon: PaidFeature.hevcExport.symbolName,
-        title: PaidFeature.hevcExport.comparisonTitle,
+        title: PaidFeature.hevcExport.comparisonTitle(localizer: localizer),
         free: .text("H.264", emphasized: false),
         pro: .text("H.264 + HEVC", emphasized: true)
       )
     case .sixtyFPSExport:
       return ComparisonFeature(
         icon: PaidFeature.sixtyFPSExport.symbolName,
-        title: PaidFeature.sixtyFPSExport.comparisonTitle,
+        title: PaidFeature.sixtyFPSExport.comparisonTitle(localizer: localizer),
         free: .text("30 fps", emphasized: false),
         pro: .text("30/60 fps", emphasized: true)
       )
     case .highQualityExport:
       return ComparisonFeature(
         icon: PaidFeature.highQualityExport.symbolName,
-        title: PaidFeature.highQualityExport.comparisonTitle,
-        free: .text(String(localized: "Standard", bundle: AppLocalizer.shared.bundle), emphasized: false),
-        pro: .text(String(localized: "High", bundle: AppLocalizer.shared.bundle), emphasized: true)
+        title: PaidFeature.highQualityExport.comparisonTitle(localizer: localizer),
+        free: .text(String(localized: "Standard", bundle: localizer.bundle), emphasized: false),
+        pro: .text(String(localized: "High", bundle: localizer.bundle), emphasized: true)
       )
     case .highBitrateExport:
       return ComparisonFeature(
         icon: PaidFeature.highBitrateExport.symbolName,
-        title: PaidFeature.highBitrateExport.comparisonTitle,
-        free: .text(String(localized: "Standard", bundle: AppLocalizer.shared.bundle), emphasized: false),
-        pro: .text(String(localized: "High bitrate", bundle: AppLocalizer.shared.bundle), emphasized: true)
+        title: PaidFeature.highBitrateExport.comparisonTitle(localizer: localizer),
+        free: .text(String(localized: "Standard", bundle: localizer.bundle), emphasized: false),
+        pro: .text(String(localized: "High bitrate", bundle: localizer.bundle), emphasized: true)
       )
     case .microphoneAudioExport, .webcamOverlay, .keystrokeOverlay, .gifExport, .statistics:
-      return .paidOnly(self)
+      return .paidOnly(self, localizer: localizer)
     }
   }
 
+  func includedAccessibilityLabel(localizer: AppLocalizer) -> String {
+    String(
+      format: String(localized: "%@ included on Paid", bundle: localizer.bundle),
+      comparisonTitle(localizer: localizer)
+    )
+  }
+
   var includedAccessibilityLabel: String {
-    String(format: String(localized: "%@ included on Paid", bundle: AppLocalizer.shared.bundle), comparisonTitle)
+    includedAccessibilityLabel(localizer: AppLocalizer.shared)
+  }
+
+  func notIncludedAccessibilityLabel(localizer: AppLocalizer) -> String {
+    String(
+      format: String(localized: "%@ not included on Free", bundle: localizer.bundle),
+      comparisonTitle(localizer: localizer)
+    )
   }
 
   var notIncludedAccessibilityLabel: String {
-    String(format: String(localized: "%@ not included on Free", bundle: AppLocalizer.shared.bundle), comparisonTitle)
+    notIncludedAccessibilityLabel(localizer: AppLocalizer.shared)
   }
 }
 
 extension ComparisonFeature {
-  static func paidOnly(_ feature: PaidFeature) -> ComparisonFeature {
+  static func paidOnly(_ feature: PaidFeature, localizer: AppLocalizer) -> ComparisonFeature {
     ComparisonFeature(
       icon: feature.symbolName,
-      title: feature.comparisonTitle,
-      free: .notIncluded(accessibilityLabel: feature.notIncludedAccessibilityLabel),
-      pro: .included(accessibilityLabel: feature.includedAccessibilityLabel)
+      title: feature.comparisonTitle(localizer: localizer),
+      free: .notIncluded(accessibilityLabel: feature.notIncludedAccessibilityLabel(localizer: localizer)),
+      pro: .included(accessibilityLabel: feature.includedAccessibilityLabel(localizer: localizer))
     )
   }
 }
 
 struct ComparisonTable: View {
   let rows: [ComparisonFeature]
+  let localizer: AppLocalizer
 
   var body: some View {
     VStack(spacing: 0) {
       ComparisonTableRow(isHeader: true) {
-        ComparisonHeaderCell(title: String(localized: "Feature", bundle: AppLocalizer.shared.bundle), alignment: .leading)
+        ComparisonHeaderCell(title: String(localized: "Feature", bundle: localizer.bundle), alignment: .leading)
       } free: {
-        ComparisonHeaderCell(title: String(localized: "Free", bundle: AppLocalizer.shared.bundle), alignment: .center)
+        ComparisonHeaderCell(title: String(localized: "Free", bundle: localizer.bundle), alignment: .center)
       } pro: {
-        ComparisonHeaderCell(title: String(localized: "Paid", bundle: AppLocalizer.shared.bundle), alignment: .center)
+        ComparisonHeaderCell(title: String(localized: "Paid", bundle: localizer.bundle), alignment: .center)
       }
 
       separator

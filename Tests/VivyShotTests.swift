@@ -123,7 +123,7 @@ final class AppTests: XCTestCase {
   }
 
   func testPaywallComparisonRowsIncludePaidFeatureCatalogOnce() {
-    let rows = paywallComparisonRows()
+    let rows = paywallComparisonRows(localizer: AppLocalizer.shared)
 
     for feature in PaidFeature.paywallComparisonOrder {
       XCTAssertEqual(

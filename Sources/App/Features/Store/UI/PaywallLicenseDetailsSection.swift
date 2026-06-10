@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct PaywallLicenseDetailsSection: View {
+  let localizer: AppLocalizer
+
   var body: some View {
     NativeSectionCard {
       VStack(alignment: .leading, spacing: 14) {
@@ -12,14 +14,14 @@ struct PaywallLicenseDetailsSection: View {
 
           VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-              Text(PlanKind.supporter.title)
+              Text(PlanKind.supporter.title(localizer: localizer))
                 .font(.headline)
                 .fontWeight(.semibold)
 
-              StoreBadgeChip(title: PlanKind.supporter.title, prominence: .supporter)
+              StoreBadgeChip(title: PlanKind.supporter.title(localizer: localizer), prominence: .supporter)
             }
 
-            Text(String(localized: "Supporter badge and Lifetime features are active.", bundle: AppLocalizer.shared.bundle))
+            Text(String(localized: "Supporter badge and Lifetime features are active.", bundle: localizer.bundle))
               .font(.subheadline)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -36,7 +38,7 @@ struct PaywallLicenseDetailsSection: View {
 
           LazyVGrid(columns: licenseFeatureColumns, alignment: .leading, spacing: 7) {
             ForEach(PaidFeature.licenseFeatures, id: \.self) { feature in
-              LicenseFeatureItem(feature: feature)
+              LicenseFeatureItem(feature: feature, localizer: localizer)
             }
           }
         }
@@ -45,8 +47,8 @@ struct PaywallLicenseDetailsSection: View {
 
         LicenseDetailRow(
           icon: "creditcard",
-          title: String(localized: "Billing", bundle: AppLocalizer.shared.bundle),
-          detail: String(localized: "One-time purchase. No subscription renewal.", bundle: AppLocalizer.shared.bundle)
+          title: String(localized: "Billing", bundle: localizer.bundle),
+          detail: String(localized: "One-time purchase. No subscription renewal.", bundle: localizer.bundle)
         )
       }
     }
@@ -62,6 +64,7 @@ struct PaywallLicenseDetailsSection: View {
 
 private struct LicenseFeatureItem: View {
   let feature: PaidFeature
+  let localizer: AppLocalizer
 
   var body: some View {
     HStack(spacing: 7) {
@@ -70,7 +73,7 @@ private struct LicenseFeatureItem: View {
         .foregroundStyle(.secondary)
         .frame(width: 16)
 
-      Text(feature.title)
+      Text(feature.title(localizer: localizer))
         .font(.caption)
         .foregroundStyle(.primary)
         .lineLimit(1)

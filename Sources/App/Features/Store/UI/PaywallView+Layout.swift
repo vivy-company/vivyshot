@@ -5,7 +5,7 @@ extension PaywallView {
   var contentStack: some View {
     VStack(alignment: .leading, spacing: 18) {
       if storeManager.hasSupporterBadge {
-        PaywallLicenseDetailsSection()
+        PaywallLicenseDetailsSection(localizer: localizer)
       } else {
         comparisonSection
         planSection
@@ -17,19 +17,19 @@ extension PaywallView {
   var comparisonSection: some View {
     VStack(alignment: .leading, spacing: 10) {
       sectionHeader(
-        title: String(localized: "Compare plans", bundle: AppLocalizer.shared.bundle),
-        subtitle: String(localized: "Try Pro features before buying. Your first Pro export is free.", bundle: AppLocalizer.shared.bundle)
+        title: localized("Compare plans"),
+        subtitle: localized("Try Pro features before buying. Your first Pro export is free.")
       )
 
       NativeSectionCard(padding: 0) {
-        ComparisonTable(rows: comparisonRows)
+        ComparisonTable(rows: comparisonRows, localizer: localizer)
       }
     }
   }
 
   var planSection: some View {
     VStack(alignment: .leading, spacing: 10) {
-      sectionHeader(title: String(localized: "Choose a license", bundle: AppLocalizer.shared.bundle))
+      sectionHeader(title: localized("Choose a license"))
 
       if availablePlans.isEmpty {
         NativeSectionCard {
@@ -47,6 +47,7 @@ extension PaywallView {
               PlanSelectionCard(
                 product: product,
                 plan: plan,
+                localizer: localizer,
                 isSelected: selectedPlan == plan,
                 isOwned: isOwned(plan)
               ) {
@@ -146,15 +147,15 @@ extension PaywallView {
       ZStack(alignment: .leading) {
         HStack(spacing: 5) {
           restoreIcon(isRestoring: false)
-          Text(String(localized: "Restore Purchases", bundle: AppLocalizer.shared.bundle))
+          Text(localized("Restore Purchases"))
         }
         .hidden()
 
         HStack(spacing: 5) {
           restoreIcon(isRestoring: storeManager.restoreState == .restoring)
           Text(storeManager.restoreState == .restoring
-               ? String(localized: "Restoring...", bundle: AppLocalizer.shared.bundle)
-               : String(localized: "Restore Purchases", bundle: AppLocalizer.shared.bundle))
+               ? localized("Restoring...")
+               : localized("Restore Purchases"))
         }
       }
       .font(.footnote.weight(.semibold))
@@ -247,5 +248,9 @@ extension PaywallView {
 
   var sheetBackground: Color {
     Color(nsColor: .windowBackgroundColor)
+  }
+
+  func localized(_ value: String.LocalizationValue) -> String {
+    String(localized: value, bundle: localizer.bundle)
   }
 }

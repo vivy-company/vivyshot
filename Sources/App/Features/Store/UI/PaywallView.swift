@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct PaywallView: View {
   @ObservedObject var storeManager: StoreManager
+  @ObservedObject var localizer: AppLocalizer
   let dismissPaywall: () -> Void
 
   @State var selectedPlan: PlanKind = .lifetime

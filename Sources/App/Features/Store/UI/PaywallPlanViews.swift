@@ -10,29 +10,41 @@ enum PlanKind: String, CaseIterable, Identifiable {
   var id: String { rawValue }
 
   var title: String {
-    switch self {
-    case .lifetime:
-      return String(localized: "Lifetime", bundle: AppLocalizer.shared.bundle)
-    case .supporter:
-      return String(localized: "Supporter", bundle: AppLocalizer.shared.bundle)
-    }
+    title(localizer: AppLocalizer.shared)
   }
 
   var detail: String {
-    switch self {
-    case .lifetime:
-      return String(localized: "Unlock capture effects, overlays, GIF, statistics, HEVC, 60 fps, and high-bitrate exports.", bundle: AppLocalizer.shared.bundle)
-    case .supporter:
-      return String(localized: "Everything in Lifetime, plus a supporter badge and extra support for independent development.", bundle: AppLocalizer.shared.bundle)
-    }
+    detail(localizer: AppLocalizer.shared)
   }
 
   var badge: String? {
+    badge(localizer: AppLocalizer.shared)
+  }
+
+  func title(localizer: AppLocalizer) -> String {
+    switch self {
+    case .lifetime:
+      return String(localized: "Lifetime", bundle: localizer.bundle)
+    case .supporter:
+      return String(localized: "Supporter", bundle: localizer.bundle)
+    }
+  }
+
+  func detail(localizer: AppLocalizer) -> String {
+    switch self {
+    case .lifetime:
+      return String(localized: "Unlock capture effects, overlays, GIF, statistics, HEVC, 60 fps, and high-bitrate exports.", bundle: localizer.bundle)
+    case .supporter:
+      return String(localized: "Everything in Lifetime, plus a supporter badge and extra support for independent development.", bundle: localizer.bundle)
+    }
+  }
+
+  func badge(localizer: AppLocalizer) -> String? {
     switch self {
     case .lifetime:
       return nil
     case .supporter:
-      return String(localized: "Supporter", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Supporter", bundle: localizer.bundle)
     }
   }
 }
@@ -40,6 +52,7 @@ enum PlanKind: String, CaseIterable, Identifiable {
 struct PlanSelectionCard: View {
   let product: Product
   let plan: PlanKind
+  let localizer: AppLocalizer
   let isSelected: Bool
   let isOwned: Bool
   let onSelect: () -> Void
@@ -49,11 +62,11 @@ struct PlanSelectionCard: View {
       HStack(alignment: .top, spacing: 12) {
         VStack(alignment: .leading, spacing: 3) {
           HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(plan.title)
+            Text(plan.title(localizer: localizer))
               .font(.headline)
               .fontWeight(.semibold)
 
-            if let badge = plan.badge {
+            if let badge = plan.badge(localizer: localizer) {
               Text(badge)
                 .font(.caption2)
                 .fontWeight(.medium)
@@ -68,7 +81,7 @@ struct PlanSelectionCard: View {
             .font(.body)
             .foregroundStyle(.primary)
 
-          Text(plan.detail)
+          Text(plan.detail(localizer: localizer))
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -109,9 +122,9 @@ struct PlanSelectionCard: View {
 
   private var priceLine: String {
     if isOwned {
-      return String(localized: "Owned", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Owned", bundle: localizer.bundle)
     }
-    return String(format: String(localized: "%@ one time", bundle: AppLocalizer.shared.bundle), product.displayPrice)
+    return String(format: String(localized: "%@ one time", bundle: localizer.bundle), product.displayPrice)
   }
 
   private var cardFill: Color {

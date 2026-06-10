@@ -31,48 +31,56 @@ extension PaidFeature {
   static let licenseFeatures = Array(PaidFeature.allCases)
 
   var title: String {
+    title(localizer: AppLocalizer.shared)
+  }
+
+  func title(localizer: AppLocalizer) -> String {
     switch self {
     case .captureTransitions:
-      return String(localized: "Capture transitions", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Capture transitions", bundle: localizer.bundle)
     case .microphoneAudioExport:
-      return String(localized: "Microphone audio", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Microphone audio", bundle: localizer.bundle)
     case .webcamOverlay:
-      return String(localized: "Webcam overlay", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Webcam overlay", bundle: localizer.bundle)
     case .keystrokeOverlay:
-      return String(localized: "Keystroke overlay", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Keystroke overlay", bundle: localizer.bundle)
     case .gifExport:
-      return String(localized: "GIF export", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "GIF export", bundle: localizer.bundle)
     case .hevcExport:
-      return String(localized: "HEVC export", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "HEVC export", bundle: localizer.bundle)
     case .sixtyFPSExport:
-      return String(localized: "60 fps export", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "60 fps export", bundle: localizer.bundle)
     case .highQualityExport:
-      return String(localized: "High quality export", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "High quality export", bundle: localizer.bundle)
     case .highBitrateExport:
-      return String(localized: "High bitrate export", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "High bitrate export", bundle: localizer.bundle)
     case .statistics:
-      return String(localized: "Statistics", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Statistics", bundle: localizer.bundle)
     }
   }
 
   var comparisonTitle: String {
+    comparisonTitle(localizer: AppLocalizer.shared)
+  }
+
+  func comparisonTitle(localizer: AppLocalizer) -> String {
     switch self {
     case .microphoneAudioExport:
-      return String(localized: "Microphone audio export", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Microphone audio export", bundle: localizer.bundle)
     case .webcamOverlay:
-      return String(localized: "Webcam overlay export", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Webcam overlay export", bundle: localizer.bundle)
     case .keystrokeOverlay:
-      return String(localized: "Keystroke overlay export", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Keystroke overlay export", bundle: localizer.bundle)
     case .hevcExport:
-      return String(localized: "Video codec", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Video codec", bundle: localizer.bundle)
     case .sixtyFPSExport:
-      return String(localized: "Frame rate", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Frame rate", bundle: localizer.bundle)
     case .highQualityExport:
-      return String(localized: "Export quality", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Export quality", bundle: localizer.bundle)
     case .highBitrateExport:
-      return String(localized: "Export bitrate", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Export bitrate", bundle: localizer.bundle)
     default:
-      return title
+      return title(localizer: localizer)
     }
   }
 

@@ -129,7 +129,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
     dismissPaywall: @escaping () -> Void
   ) -> some View {
     NavigationStack {
-      PaywallView(storeManager: storeManager, dismissPaywall: dismissPaywall)
+      PaywallView(storeManager: storeManager, localizer: localizer, dismissPaywall: dismissPaywall)
         .navigationTitle(copy.title)
         .navigationSubtitle(copy.subtitle)
     }
