@@ -188,7 +188,31 @@ final class RegionSelectionView: NSView {
       return self
     }
 
-    return super.hitTest(point)
+    let hitView = super.hitTest(point)
+    guard hitView === canvasView else {
+      return hitView
+    }
+    return hitVideoOverlayPlacementView(at: point) ?? hitView
+  }
+
+  private func hitVideoOverlayPlacementView(at point: NSPoint) -> NSView? {
+    guard mode == .editing,
+          selectedCaptureType == .video,
+          selectedCaptureMode == .selection,
+          !windowCapturePickPending,
+          !screenCapturePickPending,
+          !recordingActive
+    else {
+      return nil
+    }
+
+    for placementView in [keystrokePlacementView, webcamPlacementView] where !placementView.isHidden {
+      let pointInPlacementView = placementView.convert(point, from: self)
+      if let hitView = placementView.hitTest(pointInPlacementView) {
+        return hitView
+      }
+    }
+    return nil
   }
 
   override func layout() {
