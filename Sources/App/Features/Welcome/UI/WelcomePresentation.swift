@@ -102,6 +102,7 @@ private struct WelcomeView: View {
   @ObservedObject var settings: AppSettings
   @State var screenRecordingAllowed: Bool
   @State private var screenRecordingRequestInProgress = false
+  @State private var screenRecordingRequestCompleted = false
   @Environment(\.openSettings) private var openSettings
 
   let onStartCapture: () -> Void
@@ -205,7 +206,7 @@ private struct WelcomeView: View {
       VStack(alignment: .leading, spacing: 3) {
         Text(localized("Screen Recording Permission"))
           .font(.callout.weight(.semibold))
-        Text(localized("Grant access so macOS can list VivyShot in Screen Recording settings."))
+        Text(localized("Needed before VivyShot can capture your screen."))
           .font(.footnote)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -219,21 +220,21 @@ private struct WelcomeView: View {
           let allowed = requestScreenRecordingPermission()
           screenRecordingAllowed = allowed
           screenRecordingRequestInProgress = false
-          if !allowed {
-            onOpenScreenRecordingSettings()
-          }
+          screenRecordingRequestCompleted = !allowed
         }
         .buttonStyle(.borderedProminent)
         .disabled(screenRecordingRequestInProgress)
         .controlSize(.regular)
 
-        Button(localized("Open System Settings")) {
-          screenRecordingAllowed = ScreenRecordingPermission.isGranted
-          if !screenRecordingAllowed {
-            onOpenScreenRecordingSettings()
+        if screenRecordingRequestCompleted {
+          Button(localized("Open System Settings")) {
+            screenRecordingAllowed = ScreenRecordingPermission.isGranted
+            if !screenRecordingAllowed {
+              onOpenScreenRecordingSettings()
+            }
           }
+          .controlSize(.small)
         }
-        .controlSize(.small)
       }
     }
     .padding(12)
