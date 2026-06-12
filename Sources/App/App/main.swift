@@ -27,13 +27,10 @@ struct AppRoot: App {
   }
 
   var body: some Scene {
-    MenuBarExtra {
-      MenuBarMenuContent(environment: environment)
-        .environment(\.locale, environment.localizer.locale)
-    } label: {
-      MenuBarStatusLabel(statusController: environment.statusController)
-    }
-    .menuBarExtraStyle(.menu)
+    AppMenuBarScene(
+      environment: environment,
+      statusController: environment.statusController
+    )
 
     Settings {
       SettingsView(
@@ -49,6 +46,28 @@ struct AppRoot: App {
       )
         .environment(\.locale, environment.localizer.locale)
     }
+  }
+}
+
+private struct AppMenuBarScene: Scene {
+  @ObservedObject var environment: AppEnvironment
+  @ObservedObject var statusController: StatusItemController
+
+  var body: some Scene {
+    MenuBarExtra(isInserted: menuInserted) {
+      MenuBarMenuContent(environment: environment)
+        .environment(\.locale, environment.localizer.locale)
+    } label: {
+      MenuBarStatusLabel(statusController: statusController)
+    }
+    .menuBarExtraStyle(.menu)
+  }
+
+  private var menuInserted: Binding<Bool> {
+    Binding(
+      get: { !statusController.isRecordingActive },
+      set: { _ in }
+    )
   }
 }
 

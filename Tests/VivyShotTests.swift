@@ -50,6 +50,61 @@ final class AppTests: XCTestCase {
     }
   }
 
+  @MainActor
+  private final class RecordingControllerSpy: RegionSelectionRecordingControlling {
+    var stopCallCount = 0
+    var liveControlState = RecordingLiveControlState(
+      recordSystemAudio: false,
+      recordMicrophone: false,
+      showWebcam: false,
+      highlightMouseClicks: false,
+      highlightKeystrokes: false
+    )
+
+    func startRecording(
+      selectionRectInScreen: CGRect,
+      overlayState: RecordingOverlayState?,
+      showFloatingHUD: Bool,
+      flowHandler: any RecordingFlowHandling
+    ) {}
+
+    func stopRecordingFromInlineToolbar() {
+      stopCallCount += 1
+    }
+
+    func setLiveRecordingTool(_ tool: RecordingTool, enabled: Bool) async -> RecordingLiveControlState {
+      liveControlState
+    }
+
+    func setMicrophoneDeviceIDForNextRecording(_ deviceID: String) {}
+
+    func setWebcamDeviceIDForNextRecording(_ deviceID: String) {}
+  }
+
+  @MainActor
+  private final class ClosingRegionSelectionDelegate: RegionSelectionViewDelegate {
+    func regionSelectionView(
+      _ view: RegionSelectionView,
+      didFinishSelection localRect: CGRect?,
+      captureType: CaptureContentType,
+      captureMode: CaptureMode
+    ) {}
+
+    func regionSelectionViewDidRequestCancel(_ view: RegionSelectionView) {}
+
+    func regionSelectionViewDidRequestImmediateCancel(_ view: RegionSelectionView) {}
+
+    func regionSelectionViewWillStartRecordingWebcamCapture(_ view: RegionSelectionView) async {}
+
+    func regionSelectionViewDidFinishRecordingFlow(_ view: RegionSelectionView) {}
+
+    func regionSelectionView(_ view: RegionSelectionView, didFailRecordingWithMessage message: String) {}
+
+    func regionSelectionView(_ view: RegionSelectionView, didFinishEditingAnimatedClose animatedClose: Bool) {
+      view.prepareForClose()
+    }
+  }
+
   private final class NoopCrashReporter: CrashReporting {
     func install() {}
     func markCleanShutdown() {}
@@ -155,6 +210,29 @@ final class AppTests: XCTestCase {
     coordinator.stopActiveRecordingFromStatusItem()
 
     XCTAssertEqual(observer.states, [false, true, false])
+  }
+
+  @MainActor
+  func testInlineRecordingStopReachesControllerBeforeEditorCleanup() throws {
+    let image = try XCTUnwrap(makeSolidImage(width: 8, height: 8))
+    let view = RegionSelectionView(
+      frame: CGRect(x: 0, y: 0, width: 320, height: 240),
+      frozenImage: image,
+      settings: AppSettings(),
+      storeManager: StoreManager(localizer: AppLocalizer.shared, automaticallyStartsStoreKit: false),
+      statisticsStore: StatisticsStore(),
+      toastPresenter: NoopToastPresenter()
+    )
+    let controller = RecordingControllerSpy()
+    let delegate = ClosingRegionSelectionDelegate()
+    view.delegate = delegate
+    view.recordingController = controller
+    view.recordingActive = true
+
+    view.stopVideoRecordingFromEditor()
+
+    XCTAssertEqual(controller.stopCallCount, 1)
+    XCTAssertNil(view.recordingController)
   }
 
   @MainActor

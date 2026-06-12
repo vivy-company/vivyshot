@@ -3,10 +3,11 @@ import Combine
 
 /// Menu-bar controller that connects the global shortcut, capture coordinator, and menu actions.
 @MainActor
-final class StatusItemController: ObservableObject {
+final class StatusItemController: NSObject, ObservableObject {
   private let settings: AppSettings
   private let captureCoordinator: CaptureCoordinating
   private let hotKeyManager = GlobalHotKeyManager()
+  private var recordingStopStatusItem: NSStatusItem?
   private var settingsChangeCancellable: AnyCancellable?
   @Published private(set) var isRecordingActive = false
 
@@ -16,6 +17,7 @@ final class StatusItemController: ObservableObject {
   ) {
     self.settings = settings
     self.captureCoordinator = captureCoordinator
+    super.init()
     configureHotKey()
     observeSettingsChanges()
     observeRecordingState()
@@ -79,10 +81,47 @@ final class StatusItemController: ObservableObject {
   func quitPressed() {
     NSApplication.shared.terminate(nil)
   }
+
+  private func updateRecordingStopStatusItem() {
+    if isRecordingActive {
+      installRecordingStopStatusItemIfNeeded()
+    } else {
+      removeRecordingStopStatusItem()
+    }
+  }
+
+  private func installRecordingStopStatusItemIfNeeded() {
+    guard recordingStopStatusItem == nil else {
+      return
+    }
+
+    let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    recordingStopStatusItem = statusItem
+    statusItem.button?.target = self
+    statusItem.button?.action = #selector(recordingStopStatusItemPressed)
+    statusItem.button?.sendAction(on: [.leftMouseUp])
+    statusItem.button?.image = NSImage(systemSymbolName: "stop.circle.fill", accessibilityDescription: "Stop Recording")
+    statusItem.button?.imagePosition = .imageOnly
+    statusItem.button?.toolTip = "Stop Recording"
+  }
+
+  private func removeRecordingStopStatusItem() {
+    guard let recordingStopStatusItem else {
+      return
+    }
+    NSStatusBar.system.removeStatusItem(recordingStopStatusItem)
+    self.recordingStopStatusItem = nil
+  }
+
+  @objc
+  private func recordingStopStatusItemPressed() {
+    captureCoordinator.stopActiveRecordingFromStatusItem()
+  }
 }
 
 extension StatusItemController: RecordingStateObserving {
   func recordingStateDidChange(isRecording: Bool) {
     isRecordingActive = isRecording
+    updateRecordingStopStatusItem()
   }
 }

@@ -218,13 +218,14 @@ extension RegionSelectionView {
     guard recordingActive else {
       return
     }
+    let activeRecordingController = recordingController
     recordingActive = false
     recordingStartPending = false
     recordingStartedAt = nil
     recordingLiveControlState = nil
     refreshToolbar()
+    activeRecordingController?.stopRecordingFromInlineToolbar()
     finishEditing()
-    recordingController?.stopRecordingFromInlineToolbar()
   }
 }
 
