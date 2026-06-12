@@ -42,6 +42,7 @@ final class RecordingCoordinator: RegionSelectionRecordingControlling {
     highlightKeystrokes: false
   )
   var isStoppingRecording = false
+  var startTask: Task<Void, Never>?
   weak var recordingStateObserver: (any RecordingStateObserving)?
 
   var isRecordingActive = false {

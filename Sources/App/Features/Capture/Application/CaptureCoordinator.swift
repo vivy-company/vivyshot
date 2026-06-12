@@ -228,6 +228,7 @@ final class CaptureCoordinator: CaptureCoordinating, RecordingStateObserving {
     if captureInProgress {
       toastPresenter.show(message, duration: 3.0)
     } else {
+      NSApp.activate(ignoringOtherApps: true)
       let alert = NSAlert()
       alert.messageText = "Capture Failed"
       alert.informativeText = message

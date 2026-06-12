@@ -3,19 +3,31 @@ import CoreGraphics
 import CoreMedia
 import CoreVideo
 import Foundation
+import os
 import ScreenCaptureKit
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.vivyshot", category: "Recording")
 
 @MainActor
 final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, SCStreamDelegate, SCStreamOutput {
+  private static let stopCaptureTimeoutSeconds: Double = 5.0
+
   private let selectionRectInScreen: CGRect
   private let config: RecordingConfig
   private(set) var outputURL: URL
+  var onStreamStopped: (() -> Void)?
 
   private var stream: SCStream?
   private var streamConfiguration: SCStreamConfiguration?
   private let sampleWriter: RecordingAssetWriter
+  private var stopContinuation: CheckedContinuation<Void, Error>?
+  private var stopTimeoutTask: Task<Void, Never>?
   private let recordingErrorLock = NSLock()
   nonisolated(unsafe) private var latestRecordingError: Error?
+
+  var interruptionError: Error? {
+    currentRecordingError()
+  }
 
   init(selectionRectInScreen: CGRect, config: RecordingConfig, outputURL: URL) {
     self.selectionRectInScreen = selectionRectInScreen.standardized
@@ -98,27 +110,38 @@ final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, S
     setRecordingError(nil)
     do {
       try await stream.startCaptureChecked()
+      logger.info("Screen capture started: \(outputWidth)x\(outputHeight) @\(self.config.frameRate)fps")
     } catch {
+      logger.error("Screen capture failed to start: \(error.localizedDescription, privacy: .public)")
       sampleWriter.cancel()
       throw error
     }
   }
 
   func stop() async throws -> URL {
+    onStreamStopped = nil
     guard let stream else {
       return outputURL
     }
 
-    try await stream.stopCaptureChecked()
+    // stopCapture's callback can never arrive when the capture service dies
+    // mid-session; a hung stop must not leave the app unable to record again,
+    // so the wait is bounded and the writer is finalized either way to keep
+    // the frames captured so far.
+    do {
+      try await stopCapture(stream)
+    } catch {
+      logger.error("stopCapture did not complete cleanly: \(error.localizedDescription, privacy: .public)")
+    }
     self.stream = nil
     streamConfiguration = nil
 
     if let recordingError = currentRecordingError() {
-      sampleWriter.cancel()
-      throw recordingError
+      logger.error("Stream reported mid-session error: \(recordingError.localizedDescription, privacy: .public)")
     }
 
     try await sampleWriter.finish()
+    logger.info("Recording finalized at \(self.outputURL.lastPathComponent, privacy: .public)")
     return outputURL
   }
 
@@ -222,7 +245,52 @@ final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, S
   }
 
   nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
+    logger.error("Stream stopped externally: \(error.localizedDescription, privacy: .public)")
     setRecordingError(error)
+    Task { @MainActor [weak self] in
+      guard let self, let callback = self.onStreamStopped else {
+        return
+      }
+      self.onStreamStopped = nil
+      callback()
+    }
+  }
+
+  private func stopCapture(_ stream: SCStream) async throws {
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      stopContinuation = continuation
+      scheduleStopTimeout()
+      stream.stopCapture { [weak self] error in
+        Task { @MainActor in
+          self?.finishStopCapture(error.map(Result.failure) ?? .success(()))
+        }
+      }
+    }
+  }
+
+  private func scheduleStopTimeout() {
+    stopTimeoutTask?.cancel()
+    stopTimeoutTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(nanoseconds: UInt64(Self.stopCaptureTimeoutSeconds * 1_000_000_000))
+      guard !Task.isCancelled else {
+        return
+      }
+      self?.finishStopCapture(.failure(NSError(
+        domain: "com.vivyshot.recording",
+        code: -33,
+        userInfo: [NSLocalizedDescriptionKey: "Screen capture did not stop in time."]
+      )))
+    }
+  }
+
+  private func finishStopCapture(_ result: Result<Void, Error>) {
+    stopTimeoutTask?.cancel()
+    stopTimeoutTask = nil
+    guard let continuation = stopContinuation else {
+      return
+    }
+    stopContinuation = nil
+    continuation.resume(with: result)
   }
 
   nonisolated private func currentRecordingError() -> Error? {
@@ -261,17 +329,6 @@ private extension SCStream {
     }
   }
 
-  func stopCaptureChecked() async throws {
-    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-      stopCapture { error in
-        if let error {
-          continuation.resume(throwing: error)
-        } else {
-          continuation.resume(returning: ())
-        }
-      }
-    }
-  }
 }
 
 private extension String {

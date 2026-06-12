@@ -1,5 +1,8 @@
 import AppKit
 import Foundation
+import os
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.vivyshot", category: "Recording")
 
 @MainActor
 extension RecordingCoordinator {
@@ -24,6 +27,7 @@ extension RecordingCoordinator {
 
   func stopRecordingAndOpenEditor() {
     guard !isStoppingRecording else {
+      logger.info("Stop ignored: a stop is already in progress")
       return
     }
     isStoppingRecording = true
@@ -34,11 +38,16 @@ extension RecordingCoordinator {
     recordingOverlayController = nil
 
     guard let activeRecorder = recorder else {
+      // Stop arrived before the start flow finished: abort it so the capture
+      // it is about to begin does not keep running with no UI attached.
+      logger.info("Stop requested before capture began; cancelling start flow")
+      startTask?.cancel()
       activeOverlayController?.close()
       markCaptureFlowFinished()
       cleanupRecordingSession()
       return
     }
+    logger.info("Stop requested; finalizing recording")
     recorder = nil
     let activeWebcamRecorder = webcamRecorder
     webcamRecorder = nil
@@ -69,6 +78,11 @@ extension RecordingCoordinator {
         } catch {
           _ = await webcamStopTask.value
           throw error
+        }
+        if let interruption = activeRecorder.interruptionError {
+          // The system ended the capture mid-session (Stop Sharing, sleep, lock);
+          // the frames up to that point were still finalized above.
+          toastPresenter.show("Recording ended early: \(interruption.localizedDescription)", duration: 2.8)
         }
 
         let webcamURL: URL?
@@ -111,11 +125,13 @@ extension RecordingCoordinator {
           overlaysBurnedIn: webcamOverlayUsedInSession || keystrokeOverlayEnabledInSession
         )
 
+        logger.info("Presenting post-recording review: \(assetInfo.durationSeconds, format: .fixed(precision: 1))s")
         await self.presentPostRecordingDialog(
           project: project,
           thumbnail: assetInfo.thumbnail
         )
       } catch {
+        logger.error("Recording stop failed: \(error.localizedDescription, privacy: .public)")
         let activeFlowHandler = self.flowHandler
         self.isStoppingRecording = false
         self.isRecordingActive = false
@@ -151,6 +167,7 @@ extension RecordingCoordinator {
     hudController?.close()
     hudController = nil
     recorder = nil
+    startTask = nil
     webcamRecorder?.cancel()
     webcamRecorder = nil
     inputMonitor = nil

@@ -1,6 +1,9 @@
 import AVFoundation
 import CoreGraphics
 import Foundation
+import os
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.vivyshot", category: "Recording")
 
 @MainActor
 extension RecordingCoordinator {
@@ -12,8 +15,10 @@ extension RecordingCoordinator {
   ) {
     self.flowHandler = flowHandler
     recordingRect = selectionRectInScreen.standardized
+    logger.info("Recording start requested: \(Int(self.recordingRect.width))x\(Int(self.recordingRect.height))")
 
-    Task { [weak self] in
+    startTask?.cancel()
+    startTask = Task { [weak self] in
       guard let self else {
         return
       }
@@ -23,6 +28,7 @@ extension RecordingCoordinator {
         }
         try await runCountdownIfNeeded()
         try await runtimePermissions.ensureRuntimePermissions()
+        try Task.checkCancellation()
 
         let startPlan = RecordingStartPlan.make(
           selectionSize: recordingRect.size,
@@ -56,6 +62,7 @@ extension RecordingCoordinator {
 
         if webcamEnabled {
           await self.flowHandler?.recordingFlowWillStartWebcamCapture()
+          try Task.checkCancellation()
 
           let webcamOutputURL = makeTemporaryWebcamURL()
           let webcamRecorder = try dependencies.makeWebcamRecorder(webcamOutputURL, settings.webcamDeviceID)
@@ -105,8 +112,20 @@ extension RecordingCoordinator {
           await Task.yield()
           try await pendingWebcamRecorder.start()
         }
+        try Task.checkCancellation()
 
         try await recorder.start()
+        if Task.isCancelled {
+          // A stop raced this start after capture began: tear the capture down
+          // instead of leaving an orphaned stream recording with no UI.
+          _ = try? await recorder.stop()
+          try? FileManager.default.removeItem(at: outputURL)
+          throw CancellationError()
+        }
+        recorder.onStreamStopped = { [weak self] in
+          logger.error("Stream stopped externally; finishing recording flow")
+          self?.stopRecordingAndOpenEditor()
+        }
         self.recorder = recorder
         self.recordingStartUptime = ProcessInfo.processInfo.systemUptime
 
@@ -128,12 +147,18 @@ extension RecordingCoordinator {
         inputMonitor = monitor
         keystrokeOverlayEnabledInSession = keystrokesEnabled
 
+        self.startTask = nil
         self.isRecordingActive = true
         self.flowHandler?.recordingFlowDidStart(liveState: liveControlState)
+        logger.info("Recording started")
         if showFloatingHUD {
           showHUD()
         }
+      } catch is CancellationError {
+        // A stop raced this start; the stop path already cleaned up session state.
+        logger.info("Recording start cancelled by stop")
       } catch {
+        logger.error("Recording start failed: \(error.localizedDescription, privacy: .public)")
         let activeFlowHandler = self.flowHandler
         self.isRecordingActive = false
         cleanupRecordingSession()

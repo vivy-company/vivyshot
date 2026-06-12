@@ -54,6 +54,9 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     panel.isMovableByWindowBackground = false
     panel.isReleasedWhenClosed = false
     panel.minSize = NSSize(width: 820, height: 620)
+    // The review panel must reach the user even when the recording was stopped
+    // from a fullscreen app's Space.
+    panel.collectionBehavior.insert([.moveToActiveSpace, .fullScreenAuxiliary])
 
     super.init(window: panel)
     panel.delegate = self
@@ -79,9 +82,15 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
   required init?(coder: NSCoder) { nil }
 
   func present() {
-    window?.center()
-    window?.makeKeyAndOrderFront(nil)
+    guard let window else {
+      return
+    }
+    window.center()
     NSApp.activate(ignoringOtherApps: true)
+    window.makeKeyAndOrderFront(nil)
+    // Cooperative activation can be refused while another app is frontmost;
+    // order the panel above regardless so the recording is never reviewable-but-invisible.
+    window.orderFrontRegardless()
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {

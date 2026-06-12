@@ -2,8 +2,11 @@ import AVFoundation
 import CoreGraphics
 import CoreMedia
 import Foundation
+import os
 import ScreenCaptureKit
 import VideoToolbox
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.vivyshot", category: "Recording")
 
 final class RecordingAssetWriter: @unchecked Sendable {
   let queue = DispatchQueue(label: "com.vivyshot.recording.asset-writer", qos: .userInitiated)
@@ -148,6 +151,7 @@ final class RecordingAssetWriter: @unchecked Sendable {
         }
 
         guard sessionStartTime != nil else {
+          logger.error("Recording writer finished with zero video frames")
           writer.cancelWriting()
           continuation.resume(throwing: NSError(
             domain: "com.vivyshot.recording",
@@ -163,6 +167,9 @@ final class RecordingAssetWriter: @unchecked Sendable {
 
         nonisolated(unsafe) let unsafeWriter = writer
         unsafeWriter.finishWriting {
+          if unsafeWriter.status != .completed {
+            logger.error("Recording writer finished with status \(unsafeWriter.status.rawValue): \(unsafeWriter.error?.localizedDescription ?? "no error", privacy: .public)")
+          }
           switch unsafeWriter.status {
           case .completed:
             continuation.resume(returning: ())
