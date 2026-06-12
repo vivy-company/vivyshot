@@ -215,7 +215,7 @@ private struct WelcomeView: View {
       Spacer(minLength: 8)
 
       VStack(alignment: .trailing, spacing: 6) {
-        Button(screenRecordingRequestInProgress ? localized("Checking…") : localized("Grant Access")) {
+        Button(screenRecordingRequestInProgress ? localized("Checking…") : localized("Continue")) {
           screenRecordingRequestInProgress = true
           let allowed = requestScreenRecordingPermission()
           screenRecordingAllowed = allowed
