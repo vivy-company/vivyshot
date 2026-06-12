@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Root settings UI for app, capture, recording, statistics, license, and about sections.
@@ -128,6 +129,7 @@ struct SettingsView: View {
       previewActions.closeAllRecordingOverlayPreviews()
       visibleOverlayPreviews.removeAll()
     }
+    .background(SettingsWindowFocusReader())
     .sheet(isPresented: $isReviewerModeSheetPresented) {
       ReviewerModeSheet(storeManager: storeManager)
     }
@@ -145,4 +147,66 @@ struct SettingsView: View {
   }
 
 
+}
+
+@MainActor
+enum SettingsWindowFocus {
+  private static weak var settingsWindow: NSWindow?
+
+  static func present(_ openSettings: OpenSettingsAction) {
+    NSApp.activate(ignoringOtherApps: true)
+    openSettings()
+    focusSoon()
+  }
+
+  static func register(_ window: NSWindow) {
+    let shouldFocus = settingsWindow !== window
+    settingsWindow = window
+    if shouldFocus {
+      focus(window)
+    }
+  }
+
+  private static func focusSoon() {
+    DispatchQueue.main.async {
+      focusRegisteredWindow()
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+      focusRegisteredWindow()
+    }
+  }
+
+  private static func focusRegisteredWindow() {
+    guard let settingsWindow else {
+      return
+    }
+    focus(settingsWindow)
+  }
+
+  private static func focus(_ window: NSWindow) {
+    NSApp.activate(ignoringOtherApps: true)
+    window.deminiaturize(nil)
+    window.makeKeyAndOrderFront(nil)
+  }
+}
+
+private struct SettingsWindowFocusReader: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    updateWindow(for: view)
+    return view
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    updateWindow(for: nsView)
+  }
+
+  private func updateWindow(for view: NSView) {
+    DispatchQueue.main.async {
+      guard let window = view.window else {
+        return
+      }
+      SettingsWindowFocus.register(window)
+    }
+  }
 }

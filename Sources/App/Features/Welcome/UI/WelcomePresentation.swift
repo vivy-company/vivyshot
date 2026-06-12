@@ -260,7 +260,7 @@ private struct WelcomeView: View {
 
       Button {
         onOpenSettings()
-        openSettings()
+        SettingsWindowFocus.present(openSettings)
       } label: {
         Text(localized("Settings"))
           .frame(maxWidth: .infinity)

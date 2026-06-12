@@ -116,7 +116,7 @@ private struct MenuBarMenuContent: View {
       }
 
       Button {
-        openSettings()
+        SettingsWindowFocus.present(openSettings)
       } label: {
         Label("Settings…", systemImage: "gearshape")
       }
