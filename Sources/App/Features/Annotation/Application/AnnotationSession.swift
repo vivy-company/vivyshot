@@ -242,8 +242,13 @@ private extension AnnotationCommand {
         .foregroundColor: style.color
       ]
       let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes))
+      var ascent: CGFloat = 0
+      CTLineGetTypographicBounds(line, &ascent, nil, nil)
       context.saveGState()
-      context.textPosition = point
+      context.translateBy(x: point.x, y: point.y + ascent)
+      context.scaleBy(x: 1, y: -1)
+      context.textMatrix = .identity
+      context.textPosition = .zero
       CTLineDraw(line, context)
       context.restoreGState()
     case .pixelate, .blur:

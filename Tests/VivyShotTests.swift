@@ -116,6 +116,41 @@ final class AppTests: XCTestCase {
     func show(_ message: String, duration: TimeInterval) {}
   }
 
+  @MainActor
+  private final class AnnotationCanvasDelegateSpy: AnnotationCanvasViewDelegate {
+    var commits: [AnnotationCanvasCommit] = []
+
+    func annotationCanvasViewDidChangeViewport(_ canvasView: AnnotationCanvasView) {}
+
+    func annotationCanvasView(_ canvasView: AnnotationCanvasView, didCommit commit: AnnotationCanvasCommit) {
+      commits.append(commit)
+    }
+
+    func annotationCanvasView(_ canvasView: AnnotationCanvasView, hitTestAnnotationAt point: CGPoint) -> AnnotationInfo? {
+      nil
+    }
+
+    func annotationCanvasView(_ canvasView: AnnotationCanvasView, moveAnnotationAt index: Int, by delta: CGPoint) -> CGImage? {
+      nil
+    }
+
+    func annotationCanvasView(_ canvasView: AnnotationCanvasView, resizeAnnotationAt index: Int, to imageRect: CGRect) -> CGImage? {
+      nil
+    }
+
+    func annotationCanvasView(_ canvasView: AnnotationCanvasView, deleteAnnotationAt index: Int) -> CGImage? {
+      nil
+    }
+
+    func annotationCanvasViewWillMoveCaptureArea(_ canvasView: AnnotationCanvasView) {}
+
+    func annotationCanvasView(_ canvasView: AnnotationCanvasView, moveCaptureAreaBy delta: CGPoint) -> Bool {
+      false
+    }
+
+    func annotationCanvasViewDidFinishMovingCaptureArea(_ canvasView: AnnotationCanvasView) {}
+  }
+
   private final class StubLaunchAtLoginService: LaunchAtLoginService {
     var status: LaunchAtLoginServiceStatus
     var registerError: Error?
@@ -723,6 +758,52 @@ final class AppTests: XCTestCase {
     XCTAssertFalse(try isDarkPixel(in: rendered, x: 4, y: 20))
   }
 
+  func testAnnotationSessionRendersTextUprightInImageSpace() throws {
+    let image = try XCTUnwrap(makeSolidImage(width: 80, height: 80, color: .white))
+    let session = try XCTUnwrap(AnnotationSession(image: image))
+    let rendered = try XCTUnwrap(session.addText(
+      "F",
+      at: CGPoint(x: 10, y: 10),
+      style: TextAnnotationStyle(fontSize: 48, color: .black)
+    ))
+
+    let upperRightInk = try darkPixelCount(in: rendered, rect: CGRect(x: 30, y: 12, width: 20, height: 14))
+    let lowerRightInk = try darkPixelCount(in: rendered, rect: CGRect(x: 30, y: 48, width: 20, height: 14))
+    XCTAssertGreaterThan(upperRightInk, 8)
+    XCTAssertLessThan(lowerRightInk, 3)
+  }
+
+  @MainActor
+  func testInlineTextCommitUsesEditorTextRectAnchor() throws {
+    let canvasView = AnnotationCanvasView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    canvasView.image = try XCTUnwrap(makeSolidImage(width: 100, height: 100, color: .white))
+    canvasView.textStyle = EditorTextStyle(fontSize: 16, color: .black)
+
+    let delegate = AnnotationCanvasDelegateSpy()
+    canvasView.delegate = delegate
+
+    canvasView.beginInlineTextEditor(
+      at: CGPoint(x: 95, y: 95),
+      imagePoint: CGPoint(x: 95, y: 5)
+    )
+    let textField = try XCTUnwrap(canvasView.inlineTextField)
+    textField.stringValue = "Hello"
+
+    let textRect = try XCTUnwrap(textField.cell?.titleRect(forBounds: textField.bounds))
+    let expectedAnchor = try XCTUnwrap(canvasView.imagePointFromViewPoint(CGPoint(
+      x: textField.frame.minX + textRect.minX,
+      y: textField.frame.minY + textRect.maxY
+    )))
+
+    canvasView.finishInlineTextEditing(commit: true)
+
+    guard case .text("Hello", let committedPoint) = try XCTUnwrap(delegate.commits.first) else {
+      return XCTFail("Expected text commit")
+    }
+    XCTAssertEqual(committedPoint.x, expectedAnchor.x, accuracy: 0.01)
+    XCTAssertEqual(committedPoint.y, expectedAnchor.y, accuracy: 0.01)
+  }
+
   func testAnnotationSessionPixelatesImageSpaceAtTopLeft() throws {
     let image = try XCTUnwrap(makePrivacyEffectTestImage(width: 24, height: 24))
     let session = try XCTUnwrap(AnnotationSession(image: image))
@@ -898,6 +979,22 @@ final class AppTests: XCTestCase {
   private func isDarkPixel(in image: CGImage, x: Int, y: Int) throws -> Bool {
     let pixel = try rgbPixel(in: image, x: x, y: y)
     return pixel.red < 64 && pixel.green < 64 && pixel.blue < 64
+  }
+
+  private func darkPixelCount(in image: CGImage, rect: CGRect) throws -> Int {
+    let normalized = rect.standardized
+    let minX = max(0, Int(normalized.minX.rounded(.down)))
+    let maxX = min(image.width, Int(normalized.maxX.rounded(.up)))
+    let minY = max(0, Int(normalized.minY.rounded(.down)))
+    let maxY = min(image.height, Int(normalized.maxY.rounded(.up)))
+    var count = 0
+
+    for y in minY..<maxY {
+      for x in minX..<maxX where try isDarkPixel(in: image, x: x, y: y) {
+        count += 1
+      }
+    }
+    return count
   }
 
   private func rgbPixel(in image: CGImage, x: Int, y: Int) throws -> RGBPixel {

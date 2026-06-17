@@ -77,7 +77,7 @@ extension AnnotationCanvasView {
 
   private func commitInlineTextEditor(text: String) {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let imagePoint = inlineTextAnchorInView else {
+    guard let imagePoint = committedInlineTextAnchor() else {
       removeInlineTextEditor()
       return
     }
@@ -88,6 +88,19 @@ extension AnnotationCanvasView {
       return
     }
     delegate?.annotationCanvasView(self, didCommit: .text(trimmed, imagePoint))
+  }
+
+  private func committedInlineTextAnchor() -> CGPoint? {
+    guard let inlineTextField else {
+      return inlineTextAnchorInView
+    }
+
+    let textRect = inlineTextField.cell?.titleRect(forBounds: inlineTextField.bounds) ?? inlineTextField.bounds
+    let textTopLeftInView = CGPoint(
+      x: inlineTextField.frame.minX + textRect.minX,
+      y: inlineTextField.frame.minY + textRect.maxY
+    )
+    return imagePointFromViewPoint(textTopLeftInView) ?? inlineTextAnchorInView
   }
 
   private func removeInlineTextEditor() {
