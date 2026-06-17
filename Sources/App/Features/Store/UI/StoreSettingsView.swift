@@ -21,7 +21,7 @@ struct StoreSettingsView: View {
           }
 
           VStack(alignment: .leading, spacing: 4) {
-            Text("VivyShot Access")
+            Text(localized("VivyShot Access"))
               .font(.headline)
 
             Text(storeHeadline)
@@ -29,7 +29,7 @@ struct StoreSettingsView: View {
               .foregroundStyle(.secondary)
 
             if let badgeTitle = storeManager.badgeTitle(localizer: localizer) {
-              Text("\(badgeTitle) is active on this Mac.")
+              Text(String(format: localized("%@ is active on this Mac."), badgeTitle))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
@@ -40,7 +40,7 @@ struct StoreSettingsView: View {
           if let badgeTitle = storeManager.badgeTitle(localizer: localizer) {
             StoreBadgeChip(title: badgeTitle, prominence: badgeTitle == "Supporter" ? .supporter : .lifetime)
           } else {
-            Button("Purchase License") {
+            Button(localized("Purchase License")) {
               presentPaywall()
             }
             .buttonStyle(.borderedProminent)
@@ -49,8 +49,8 @@ struct StoreSettingsView: View {
         .padding(.vertical, 6)
       }
 
-      Section("Access") {
-        LabeledContent("Current Plan") {
+      Section(localized("Access")) {
+        LabeledContent(localized("Current Plan")) {
           HStack(spacing: 8) {
             if let badgeTitle = storeManager.badgeTitle(localizer: localizer) {
               StoreBadgeChip(
@@ -58,40 +58,40 @@ struct StoreSettingsView: View {
                 prominence: badgeTitle == "Supporter" ? .supporter : .lifetime
               )
             } else {
-              StoreBadgeChip(title: "Free", prominence: .free)
+              StoreBadgeChip(title: localized("Free"), prominence: .free)
             }
           }
         }
 
-        LabeledContent("Lifetime Features") {
-          Text(storeManager.hasPaidAccess ? "Available" : "Not unlocked")
+        LabeledContent(localized("Lifetime Features")) {
+          Text(localized(storeManager.hasPaidAccess ? "Available" : "Not unlocked"))
             .foregroundStyle(.secondary)
         }
 
-        LabeledContent("Supporter Badge") {
-          Text(storeManager.hasSupporterBadge ? "Active" : "Not active")
+        LabeledContent(localized("Supporter Badge")) {
+          Text(localized(storeManager.hasSupporterBadge ? "Active" : "Not active"))
             .foregroundStyle(.secondary)
         }
       }
 
       if storeManager.hasLifetimeUnlock && !storeManager.hasSupporterBadge {
-        Section("Supporter") {
-          Text("Lifetime is already active. Supporter can still be purchased separately if you want the badge and an extra way to fund VivyShot development.")
+        Section(localized("Supporter")) {
+          Text(localized("Lifetime is already active. Supporter can still be purchased separately if you want the badge and an extra way to fund VivyShot development."))
             .foregroundStyle(.secondary)
 
-          Button("Purchase Supporter Badge") {
+          Button(localized("Purchase Supporter Badge")) {
             presentPaywall()
           }
           .buttonStyle(.bordered)
         }
       }
 
-      Section("Actions") {
+      Section(localized("Actions")) {
         Button(primaryActionTitle) {
           presentPaywall()
         }
 
-        Button("Restore Purchases") {
+        Button(localized("Restore Purchases")) {
           Task { await storeManager.restorePurchases() }
         }
         .disabled(storeManager.restoreState == .restoring)
@@ -112,6 +112,14 @@ struct StoreSettingsView: View {
       return String(localized: "License Options", bundle: localizer.bundle)
     }
     return String(localized: "Purchase License", bundle: localizer.bundle)
+  }
+
+  private func localized(_ value: String.LocalizationValue) -> String {
+    String(localized: value, bundle: localizer.bundle)
+  }
+
+  private func localized(_ value: String) -> String {
+    String(localized: String.LocalizationValue(value), bundle: localizer.bundle)
   }
 
   private var storeHeadline: String {

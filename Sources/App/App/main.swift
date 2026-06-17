@@ -73,6 +73,7 @@ private struct AppMenuBarScene: Scene {
 
 private struct MenuBarMenuContent: View {
   @ObservedObject var environment: AppEnvironment
+  @ObservedObject private var localizer = AppLocalizer.shared
   @Environment(\.openSettings) private var openSettings
 
   private var statusController: StatusItemController {
@@ -89,14 +90,14 @@ private struct MenuBarMenuContent: View {
         Button {
           environment.router.captureOrStop()
         } label: {
-          Label("Stop Recording", systemImage: "stop.circle")
+          Label(localized("Stop Recording"), systemImage: "stop.circle")
         }
         .keyboardShortcut("s", modifiers: .command)
       } else {
         Button {
           environment.router.captureOrStop()
         } label: {
-          Label("Capture Region", systemImage: "camera.viewfinder")
+          Label(localized("Capture Region"), systemImage: "camera.viewfinder")
         }
         .keyboardShortcut("c", modifiers: .command)
       }
@@ -108,7 +109,10 @@ private struct MenuBarMenuContent: View {
           environment.router.presentPaywall()
         } label: {
           Label(
-            "Plan: \(storeManager.badgeTitle ?? storeManager.tierTitle)",
+            String(
+              format: localized("Plan: %@"),
+              storeManager.badgeTitle ?? storeManager.tierTitle
+            ),
             systemImage: storeManager.hasSupporterBadge ? "heart.circle.fill" : "checkmark.seal.fill"
           )
         }
@@ -116,7 +120,7 @@ private struct MenuBarMenuContent: View {
         Button {
           environment.router.presentPaywall()
         } label: {
-          Label("Purchase License", systemImage: "sparkles")
+          Label(localized("Purchase License"), systemImage: "sparkles")
         }
       }
 
@@ -125,19 +129,19 @@ private struct MenuBarMenuContent: View {
       Button {
         environment.router.presentWelcome()
       } label: {
-        Label("Getting Started…", systemImage: "questionmark.circle")
+        Label(localized("Getting Started…"), systemImage: "questionmark.circle")
       }
 
       Button {
         environment.router.presentStatistics()
       } label: {
-        Label("Statistics…", systemImage: "chart.bar.xaxis")
+        Label(localized("Statistics…"), systemImage: "chart.bar.xaxis")
       }
 
       Button {
         SettingsWindowFocus.present(openSettings)
       } label: {
-        Label("Settings…", systemImage: "gearshape")
+        Label(localized("Settings…"), systemImage: "gearshape")
       }
       .keyboardShortcut(",", modifiers: .command)
 
@@ -146,10 +150,14 @@ private struct MenuBarMenuContent: View {
       Button {
         environment.router.quit()
       } label: {
-        Label("Quit VivyShot", systemImage: "power")
+        Label(localized("Quit VivyShot"), systemImage: "power")
       }
       .keyboardShortcut("q", modifiers: .command)
     }
+  }
+
+  private func localized(_ value: String.LocalizationValue) -> String {
+    String(localized: value, bundle: localizer.bundle)
   }
 
 }

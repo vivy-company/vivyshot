@@ -5,8 +5,8 @@ import SwiftUI
 extension SettingsView {
   var languageSection: some View {
     Section {
-      LabeledContent("Language") {
-        Picker("App Language", selection: appLanguageBinding) {
+      LabeledContent(localized("Language")) {
+        Picker(localized("App Language"), selection: appLanguageBinding) {
           ForEach(AppLanguage.allCases) { language in
             Text(languageLabel(for: language)).tag(language)
           }
@@ -16,15 +16,15 @@ extension SettingsView {
         .frame(width: 220, alignment: .trailing)
       }
     } header: {
-      Text("App Language")
+      Text(localized("App Language"))
     } footer: {
-      Text(String(localized: "System Default follows your macOS language.", bundle: AppLocalizer.shared.bundle))
+      Text(localized("System Default follows your macOS language."))
     }
   }
 
   var shortcutSection: some View {
     Section {
-      LabeledContent("Shortcut") {
+      LabeledContent(localized("Shortcut")) {
         ShortcutRecorderFieldRepresentable(
           displayText: settings.captureShortcutDisplay,
           isRecording: $isRecordingShortcut,
@@ -37,13 +37,13 @@ extension SettingsView {
       }
 
       HStack(spacing: 8) {
-        Button(isRecordingShortcut ? "Stop" : "Record") {
+        Button(localized(isRecordingShortcut ? "Stop" : "Record")) {
           isRecordingShortcut.toggle()
         }
         .buttonStyle(.borderedProminent)
         .tint(isRecordingShortcut ? .red : .accentColor)
 
-        Button("Reset") {
+        Button(localized("Reset")) {
           settings.resetCaptureShortcut()
           isRecordingShortcut = false
         }
@@ -52,14 +52,13 @@ extension SettingsView {
         Spacer(minLength: 0)
       }
     } header: {
-      Text("Capture Shortcut")
+      Text(localized("Capture Shortcut"))
     } footer: {
       Text(
-        String(
-          localized: isRecordingShortcut
+        localized(
+          isRecordingShortcut
             ? "Press the shortcut you want to use now. Esc cancels."
-            : "Used to start capture from anywhere. Hold Command, Shift, Option, or Control while pressing a key.",
-          bundle: AppLocalizer.shared.bundle
+            : "Used to start capture from anywhere. Hold Command, Shift, Option, or Control while pressing a key."
         )
       )
     }
@@ -67,34 +66,31 @@ extension SettingsView {
 
   var startupSection: some View {
     Section {
-      Toggle("Start VivyShot at login", isOn: launchAtLoginBinding)
+      Toggle(localized("Start VivyShot at login"), isOn: launchAtLoginBinding)
         .toggleStyle(.switch)
         .controlSize(.small)
     } header: {
-      Text("Startup")
+      Text(localized("Startup"))
     } footer: {
       Text(
         launchAtLoginController.detailText
-          ?? String(
-            localized: "Automatically launches the menu bar app after you sign in.",
-            bundle: AppLocalizer.shared.bundle
-          )
+          ?? localized("Automatically launches the menu bar app after you sign in.")
       )
     }
   }
 
   var captureDefaultsSection: some View {
     Section {
-      Toggle("Show Capture Helper", isOn: captureShowHelperBinding)
+      Toggle(localized("Show Capture Helper"), isOn: captureShowHelperBinding)
         .toggleStyle(.switch)
         .controlSize(.small)
 
-      Toggle("Smart Window Selection", isOn: captureSmartWindowSelectionBinding)
+      Toggle(localized("Smart Window Selection"), isOn: captureSmartWindowSelectionBinding)
         .toggleStyle(.switch)
         .controlSize(.small)
 
-      LabeledContent("Start In") {
-        Picker("Default Capture Type", selection: defaultCaptureTypeBinding) {
+      LabeledContent(localized("Start In")) {
+        Picker(localized("Default Capture Type"), selection: defaultCaptureTypeBinding) {
           ForEach(CaptureContentType.allCases) { type in
             Text(type.title).tag(type)
           }
@@ -104,14 +100,9 @@ extension SettingsView {
         .frame(width: 220, alignment: .trailing)
       }
     } header: {
-      Text("Capture Defaults")
+      Text(localized("Capture Defaults"))
     } footer: {
-      Text(
-        String(
-          localized: "Turn off smart window selection if you prefer to draw an area before choosing a window.",
-          bundle: AppLocalizer.shared.bundle
-        )
-      )
+      Text(localized("Turn off smart window selection if you prefer to draw an area before choosing a window."))
     }
   }
 
@@ -127,7 +118,7 @@ extension SettingsView {
 
     return Section {
       saveFolderRow(
-        title: "Folder",
+        title: localized("Folder"),
         displayText: defaultSaveDirectoryDisplay,
         hasLocation: hasScreenshotSaveLocation,
         choose: chooseDefaultSaveDirectory,
@@ -135,17 +126,17 @@ extension SettingsView {
         clear: { settings.setDefaultSaveDirectory(nil) }
       )
 
-      Toggle("Save screenshots without asking", isOn: alwaysSaveToDefaultDirectoryBinding)
+      Toggle(localized("Save screenshots without asking"), isOn: alwaysSaveToDefaultDirectoryBinding)
         .toggleStyle(.switch)
         .disabled(!hasScreenshotSaveLocation)
 
-      Toggle("Also save copied screenshots", isOn: saveCopiedScreenshotsToDefaultDirectoryBinding)
+      Toggle(localized("Also save copied screenshots"), isOn: saveCopiedScreenshotsToDefaultDirectoryBinding)
         .toggleStyle(.switch)
         .disabled(!hasScreenshotSaveLocation)
     } header: {
-      Text("Screenshot Saving")
+      Text(localized("Screenshot Saving"))
     } footer: {
-      Text("Choose where screenshot Save and copied-screenshot auto-saves write files.")
+      Text(localized("Choose where screenshot Save and copied-screenshot auto-saves write files."))
     }
   }
 
@@ -154,7 +145,7 @@ extension SettingsView {
 
     return Section {
       saveFolderRow(
-        title: "Folder",
+        title: localized("Folder"),
         displayText: videoSaveDirectoryDisplay,
         hasLocation: hasVideoSaveLocation,
         choose: chooseVideoSaveDirectory,
@@ -162,26 +153,26 @@ extension SettingsView {
         clear: { settings.setVideoSaveDirectory(nil) }
       )
 
-      Toggle("Save videos without asking", isOn: videoSaveSkipsDialogBinding)
+      Toggle(localized("Save videos without asking"), isOn: videoSaveSkipsDialogBinding)
         .toggleStyle(.switch)
         .disabled(!hasVideoSaveLocation)
 
-      Toggle("Also save copied videos", isOn: saveCopiedVideosToDefaultDirectoryBinding)
+      Toggle(localized("Also save copied videos"), isOn: saveCopiedVideosToDefaultDirectoryBinding)
         .toggleStyle(.switch)
         .disabled(!hasVideoSaveLocation)
 
-      Text("When enabled, the post-recording Save menu writes to the video folder instead of opening the save dialog.")
+      Text(localized("When enabled, the post-recording Save menu writes to the video folder instead of opening the save dialog."))
         .font(.footnote)
         .foregroundStyle(.secondary)
     } header: {
-      Text("Video Saving")
+      Text(localized("Video Saving"))
     } footer: {
-      Text("Video exports still use the selected Save menu format, such as MP4, MOV, or GIF.")
+      Text(localized("Video exports still use the selected Save menu format, such as MP4, MOV, or GIF."))
     }
   }
 
   func saveFolderRow(
-    title: LocalizedStringKey,
+    title: String,
     displayText: String,
     hasLocation: Bool,
     choose: @escaping () -> Void,
@@ -208,10 +199,10 @@ extension SettingsView {
         .buttonStyle(.bordered)
 
         if hasLocation {
-          Button("Show in Finder", action: reveal)
+          Button(localized("Show in Finder"), action: reveal)
             .buttonStyle(.bordered)
 
-          Button("Clear", action: clear)
+          Button(localized("Clear"), action: clear)
             .buttonStyle(.bordered)
         }
 

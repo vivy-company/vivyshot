@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReviewerModeSheet: View {
   @ObservedObject var storeManager: StoreManager
+  @ObservedObject private var localizer = AppLocalizer.shared
   @Environment(\.dismiss) private var dismiss
   @State private var reviewCode = ""
   @State private var reviewError: String?
@@ -19,10 +20,10 @@ struct ReviewerModeSheet: View {
         }
 
         VStack(alignment: .leading, spacing: 4) {
-          Text("App Review")
+          Text(localized("App Review"))
             .font(.title3)
             .fontWeight(.semibold)
-          Text("Temporarily unlocks Lifetime and Supporter access.")
+          Text(localized("Temporarily unlocks Lifetime and Supporter access."))
             .font(.footnote)
             .foregroundStyle(.secondary)
         }
@@ -38,7 +39,7 @@ struct ReviewerModeSheet: View {
 
       HStack {
         Spacer()
-        Button("Done") {
+        Button(localized("Done")) {
           dismiss()
         }
         .keyboardShortcut(.defaultAction)
@@ -50,11 +51,11 @@ struct ReviewerModeSheet: View {
 
   private var statusCard: some View {
     HStack {
-      Text("Reviewer Mode")
+      Text(localized("Reviewer Mode"))
         .font(.subheadline)
         .foregroundStyle(.secondary)
       Spacer()
-      Text(storeManager.isReviewModeEnabled ? "Enabled" : "Disabled")
+      Text(localized(storeManager.isReviewModeEnabled ? "Enabled" : "Disabled"))
         .font(.caption)
         .fontWeight(.semibold)
         .padding(.horizontal, 10)
@@ -74,13 +75,13 @@ struct ReviewerModeSheet: View {
 
   private var enabledSection: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text("Reviewer mode is active on this device.")
+      Text(localized("Reviewer mode is active on this device."))
         .font(.subheadline)
       Text(reviewModeExpiryText)
         .font(.footnote)
         .foregroundStyle(.secondary)
 
-      Button("Disable Reviewer Mode") {
+      Button(localized("Disable Reviewer Mode")) {
         storeManager.setReviewModeEnabled(false)
       }
       .buttonStyle(.bordered)
@@ -94,18 +95,18 @@ struct ReviewerModeSheet: View {
 
   private var codeSection: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text("Enter the review code to enable full access for App Review.")
+      Text(localized("Enter the review code to enable full access for App Review."))
         .font(.subheadline)
-      TextField("Review Code", text: $reviewCode)
+      TextField(localized("Review Code"), text: $reviewCode)
         .textFieldStyle(.roundedBorder)
 
-      Button("Enable Reviewer Mode") {
+      Button(localized("Enable Reviewer Mode")) {
         let success = storeManager.enableReviewMode(code: reviewCode)
         if success {
           reviewError = nil
           reviewCode = ""
         } else {
-          reviewError = "Invalid review code."
+          reviewError = localized("Invalid review code.")
         }
       }
       .buttonStyle(.borderedProminent)
@@ -117,7 +118,7 @@ struct ReviewerModeSheet: View {
           .foregroundStyle(.red)
       }
 
-      Text("Reviewer mode is local-only and expires after 2 hours or when the app restarts.")
+      Text(localized("Reviewer mode is local-only and expires after 2 hours or when the app restarts."))
         .font(.footnote)
         .foregroundStyle(.secondary)
     }
@@ -132,14 +133,22 @@ struct ReviewerModeSheet: View {
     guard let expiresAt = storeManager.reviewModeExpiresAt else {
       return String(
         localized: "Lifetime and Supporter access are unlocked until the app restarts.",
-        bundle: AppLocalizer.shared.bundle
+        bundle: localizer.bundle
       )
     }
 
     let format = String(
       localized: "Lifetime and Supporter access are unlocked until %@.",
-      bundle: AppLocalizer.shared.bundle
+      bundle: localizer.bundle
     )
     return String(format: format, expiresAt.formatted(date: .omitted, time: .shortened))
+  }
+
+  private func localized(_ value: String.LocalizationValue) -> String {
+    String(localized: value, bundle: localizer.bundle)
+  }
+
+  private func localized(_ value: String) -> String {
+    String(localized: String.LocalizationValue(value), bundle: localizer.bundle)
   }
 }

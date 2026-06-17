@@ -35,7 +35,7 @@ extension PaywallView {
         NativeSectionCard {
           HStack(spacing: 10) {
             ProgressView()
-            Text("Loading plans...")
+            Text(localized("Loading plans..."))
               .foregroundStyle(.secondary)
           }
           .frame(maxWidth: .infinity, minHeight: 82)
@@ -69,7 +69,7 @@ extension PaywallView {
       footerSupportRow
 
       if !storeManager.hasSupporterBadge {
-        Text("One-time purchase. No subscription renewal.")
+        Text(localized("One-time purchase. No subscription renewal."))
           .font(.caption2)
           .foregroundStyle(.tertiary)
       }
@@ -101,7 +101,7 @@ extension PaywallView {
             .controlSize(.small)
             .tint(.white)
 
-          Text("Processing...")
+          Text(localized("Processing..."))
             .fontWeight(.semibold)
         }
         .opacity(storeManager.purchaseState == .purchasing ? 1 : 0)

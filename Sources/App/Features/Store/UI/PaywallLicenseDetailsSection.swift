@@ -33,7 +33,7 @@ struct PaywallLicenseDetailsSection: View {
         Divider()
 
         VStack(alignment: .leading, spacing: 8) {
-          Text("Included paid features")
+          Text(String(localized: "Included paid features", bundle: localizer.bundle))
             .font(.subheadline.weight(.semibold))
 
           LazyVGrid(columns: licenseFeatureColumns, alignment: .leading, spacing: 7) {

@@ -5,10 +5,10 @@ extension SettingsView {
   var windowScreenshotSection: some View {
     Section {
       HStack(spacing: 10) {
-        Text("Style")
+        Text(localized("Style"))
           .frame(width: 90, alignment: .leading)
         Spacer(minLength: 0)
-        Picker("Window Screenshot Style", selection: screenshotWindowCaptureStyleBinding) {
+        Picker(localized("Window Screenshot Style"), selection: screenshotWindowCaptureStyleBinding) {
           ForEach(ScreenshotWindowCaptureStyle.allCases) { style in
             Text(style.title).tag(style)
           }
@@ -18,16 +18,16 @@ extension SettingsView {
         .frame(width: 220, alignment: .trailing)
       }
     } header: {
-      Text("Window Screenshots")
+      Text(localized("Window Screenshots"))
     } footer: {
-      Text("With Shadow matches the macOS window screenshot style and removes the background. Selected Area captures the window's visible rectangle from the screen.")
+      Text(localized("With Shadow matches the macOS window screenshot style and removes the background. Selected Area captures the window's visible rectangle from the screen."))
     }
   }
 
   var screenshotDrawingSection: some View {
     Section {
       HStack(spacing: 10) {
-        Text("Line Width")
+        Text(localized("Line Width"))
           .frame(width: 90, alignment: .leading)
         Slider(value: drawingStrokeWidthBinding, in: AppSettings.drawingStrokeWidthRange, step: 0.5)
         Text(String(format: "%.1f pt", settings.drawingStrokeWidth))
@@ -35,15 +35,15 @@ extension SettingsView {
           .frame(width: 62, alignment: .trailing)
       }
     } header: {
-      Text("Drawing")
+      Text(localized("Drawing"))
     } footer: {
-      Text("Applied to rectangle, circle, line, arrow, and paint tools.")
+      Text(localized("Applied to rectangle, circle, line, arrow, and paint tools."))
     }
   }
 
   var screenshotToolbarSection: some View {
-    Section("Toolbar") {
-      Text("Drag rows to reorder. Hidden tools won’t appear in screenshot toolbar.")
+    Section(localized("Toolbar")) {
+      Text(localized("Drag rows to reorder. Hidden tools won’t appear in screenshot toolbar."))
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -57,7 +57,7 @@ extension SettingsView {
 
       HStack {
         Spacer()
-        Button("Reset Toolbar") {
+        Button(localized("Reset Toolbar")) {
           settings.resetToolbarConfiguration()
         }
       }
@@ -65,12 +65,12 @@ extension SettingsView {
   }
 
   var textToolSection: some View {
-    Section("Text Tool") {
+    Section(localized("Text Tool")) {
       HStack(spacing: 10) {
-        Text("Font")
+        Text(localized("Font"))
           .frame(width: 78, alignment: .leading)
         Spacer(minLength: 0)
-        Picker("Font", selection: textFontNameBinding) {
+        Picker(localized("Font"), selection: textFontNameBinding) {
           ForEach(availableFamilies, id: \.self) { family in
             Text(family).tag(family)
           }
@@ -81,7 +81,7 @@ extension SettingsView {
       }
 
       HStack(spacing: 10) {
-        Text("Size")
+        Text(localized("Size"))
           .frame(width: 78, alignment: .leading)
         Slider(value: textFontSizeBinding, in: 10 ... 48, step: 1)
         Text("\(Int(settings.textFontSize)) pt")
@@ -89,14 +89,14 @@ extension SettingsView {
           .frame(width: 48, alignment: .trailing)
       }
 
-      LabeledContent("Preview") {
+      LabeledContent(localized("Preview")) {
         textPreview
           .frame(maxWidth: .infinity, alignment: .leading)
       }
 
       HStack {
         Spacer()
-        Button("Reset Text") {
+        Button(localized("Reset Text")) {
           settings.resetTextSettings()
         }
       }
@@ -104,12 +104,12 @@ extension SettingsView {
   }
 
   var effectsSection: some View {
-    Section("Effects") {
+    Section(localized("Effects")) {
       HStack(spacing: 10) {
-        Text("Transition")
+        Text(localized("Transition"))
           .frame(width: 78, alignment: .leading)
         Spacer(minLength: 0)
-        Picker("Transition", selection: captureTransitionStyleBinding) {
+        Picker(localized("Transition"), selection: captureTransitionStyleBinding) {
           ForEach(CaptureTransitionStyle.allCases) { style in
             Text(style.title).tag(style)
           }
@@ -119,7 +119,7 @@ extension SettingsView {
         .frame(width: 150, alignment: .trailing)
       }
 
-      LabeledContent("Speed") {
+      LabeledContent(localized("Speed")) {
         HStack(spacing: 10) {
           Slider(
             value: captureTransitionSpeedBinding,
@@ -133,7 +133,7 @@ extension SettingsView {
         }
       }
 
-      LabeledContent("Strength") {
+      LabeledContent(localized("Strength")) {
         HStack(spacing: 10) {
           Slider(
             value: captureTransitionIntensityBinding,
@@ -152,11 +152,11 @@ extension SettingsView {
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
-        Button("Preview") {
+        Button(localized("Preview")) {
           previewCaptureTransition()
         }
         .disabled(settings.captureTransitionStyle == .none)
-        Button("Reset Effects") {
+        Button(localized("Reset Effects")) {
           settings.resetCaptureTransitionSettings()
         }
       }

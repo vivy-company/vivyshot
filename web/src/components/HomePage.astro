@@ -454,6 +454,9 @@ const highlightAnswer = (text: string) =>
             <option value="de">Deutsch</option>
             <option value="fr">Français</option>
             <option value="es">Español</option>
+            <option value="ru">Русский</option>
+            <option value="be">Беларуская</option>
+            <option value="uk">Українська</option>
           </select>
           <Icon class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" name="lucide:chevron-down" />
         </div>
@@ -474,7 +477,10 @@ const highlightAnswer = (text: string) =>
     ko: "ko",
     de: "de",
     fr: "fr",
-    es: "es"
+    es: "es",
+    ru: "ru",
+    be: "be",
+    uk: "uk"
   };
   const getByPath = (object, path) =>
     path.split(".").reduce((value, part) => (value == null ? value : value[part]), object);
@@ -542,6 +548,9 @@ const highlightAnswer = (text: string) =>
       : browserLanguage.startsWith("de") ? "de"
       : browserLanguage.startsWith("fr") ? "fr"
       : browserLanguage.startsWith("es") ? "es"
+      : browserLanguage.startsWith("ru") ? "ru"
+      : browserLanguage.startsWith("be") ? "be"
+      : browserLanguage.startsWith("uk") ? "uk"
       : "en";
     const preferredLanguage = storedLanguage || inferredLanguage;
     applyLanguage(preferredLanguage);

@@ -3,6 +3,7 @@ import SwiftUI
 struct StatisticsRootView: View {
   @ObservedObject var viewModel: StatisticsViewModel
   @ObservedObject var storeManager: StoreManager
+  @ObservedObject private var localizer = AppLocalizer.shared
   let accentColor: Color
   let presentation: StatisticsView.Presentation
   let hasFullAccess: Bool
@@ -17,7 +18,9 @@ struct StatisticsRootView: View {
   }
 
   private var windowSubtitle: String {
-    hasFullAccess ? "Local capture totals, streaks, history, and milestones for this Mac." : "Local capture totals and recent activity for this Mac."
+    hasFullAccess
+      ? localized("Local capture totals, streaks, history, and milestones for this Mac.")
+      : localized("Local capture totals and recent activity for this Mac.")
   }
 
   var body: some View {
@@ -47,7 +50,7 @@ struct StatisticsRootView: View {
       }
     }
     .formStyle(.grouped)
-    .navigationTitle("Statistics")
+    .navigationTitle(localized("Statistics"))
     .modifier(StatisticsNavigationSubtitleModifier(subtitle: presentation == .window ? windowSubtitle : nil))
     .frame(maxWidth: presentation == .settings ? 560 : .infinity, maxHeight: .infinity, alignment: .top)
   }
@@ -62,7 +65,7 @@ struct StatisticsRootView: View {
 
         VStack(alignment: .leading, spacing: 4) {
           HStack(spacing: 8) {
-            Text("Statistics")
+            Text(localized("Statistics"))
               .font(.title3.weight(.semibold))
 
             if let badgeTitle = currentBadgeTitle {
@@ -70,7 +73,9 @@ struct StatisticsRootView: View {
             }
           }
 
-          Text(hasFullAccess ? "Local capture totals, streaks, history, and milestones for this Mac." : "Today, this week, and recent capture activity stored locally on this Mac.")
+          Text(hasFullAccess
+               ? localized("Local capture totals, streaks, history, and milestones for this Mac.")
+               : localized("Today, this week, and recent capture activity stored locally on this Mac."))
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -86,7 +91,9 @@ struct StatisticsRootView: View {
           Text(error).font(.caption).foregroundStyle(.secondary)
         } else {
           let total = viewModel.dashboardData.summary.totalScreenshotsCaptured + viewModel.dashboardData.summary.totalRecordingsCompleted
-          Text(total == 0 ? "No captures tracked yet" : "\(total.formatted()) captures tracked locally")
+          Text(total == 0
+               ? localized("No captures tracked yet")
+               : String(format: localized("%@ captures tracked locally"), total.formatted()))
             .font(.caption).foregroundStyle(.secondary)
         }
         Spacer(minLength: 0)
@@ -121,10 +128,10 @@ struct StatisticsRootView: View {
   private var debugPreviewBanner: some View {
   #if DEBUG
     HStack(spacing: 10) {
-      Label("Debug preview is forcing the paid statistics UI.", systemImage: "hammer")
+      Label(localized("Debug preview is forcing the paid statistics UI."), systemImage: "hammer")
         .font(.subheadline).foregroundStyle(.secondary)
       Spacer(minLength: 0)
-      Button("Hide") { viewModel.debugPreviewEnabled = false }
+      Button(localized("Hide")) { viewModel.debugPreviewEnabled = false }
         .buttonStyle(.bordered)
     }
   #else
@@ -135,68 +142,68 @@ struct StatisticsRootView: View {
   private var statsLiteDashboardSection: some View {
     Section {
       StatisticsMetricRow(
-        title: "Today",
+        title: localized("Today"),
         value: dashboardPresentation.todayAggregate.totalCaptureCount.formatted(),
         detail: StatisticsDashboardPresentation.captureMixLabel(dashboardPresentation.todayAggregate),
         systemImage: "sun.max",
         recentValues: dashboardPresentation.recentMetricValues(dayCount: 7) { Double($0.screenshotCount + $0.recordingCount) }
       )
       StatisticsMetricRow(
-        title: "This Week",
+        title: localized("This Week"),
         value: dashboardPresentation.currentWeekAggregate.totalCaptureCount.formatted(),
         detail: StatisticsDashboardPresentation.captureMixLabel(dashboardPresentation.currentWeekAggregate),
         systemImage: "calendar",
         recentValues: dashboardPresentation.recentMetricValues(dayCount: 7) { Double($0.screenshotCount + $0.recordingCount) }
       )
       StatisticsMetricRow(
-        title: "Current Streak",
+        title: localized("Current Streak"),
         value: StatisticsDashboardPresentation.dayCountLabel(viewModel.dashboardData.summary.currentCaptureStreakDays),
-        detail: "Consecutive active days",
+        detail: localized("Consecutive active days"),
         systemImage: "flame"
       )
       StatisticsMetricRow(
-        title: "Active Days",
+        title: localized("Active Days"),
         value: viewModel.dashboardData.summary.activeCaptureDays.formatted(),
-        detail: "Days with captures on this Mac",
+        detail: localized("Days with captures on this Mac"),
         systemImage: "checkmark.circle"
       )
     } header: {
-      Text("Current Snapshot")
+      Text(localized("Current Snapshot"))
     } footer: {
-      Text("Recent statistics are free. Everything is computed from local events stored on this Mac.")
+      Text(localized("Recent statistics are free. Everything is computed from local events stored on this Mac."))
     }
   }
 
   private var habitsSection: some View {
     Section {
       StatisticsMetricRow(
-        title: "Average Screenshot Time",
+        title: localized("Average Screenshot Time"),
         value: StatisticsFormatting.formatDuration(viewModel.dashboardData.summary.averageScreenshotEditorCompletionDurationMS),
-        detail: "Editor entry to copy/save",
+        detail: localized("Editor entry to copy/save"),
         systemImage: "stopwatch"
       )
       StatisticsMetricRow(
-        title: "Current Streak",
+        title: localized("Current Streak"),
         value: StatisticsDashboardPresentation.dayCountLabel(viewModel.dashboardData.summary.currentCaptureStreakDays),
-        detail: "Consecutive active days",
+        detail: localized("Consecutive active days"),
         systemImage: "flame"
       )
       StatisticsMetricRow(
-        title: "Best Streak",
+        title: localized("Best Streak"),
         value: StatisticsDashboardPresentation.dayCountLabel(viewModel.dashboardData.summary.bestCaptureStreakDays),
-        detail: "Personal best",
+        detail: localized("Personal best"),
         systemImage: "trophy"
       )
       StatisticsMetricRow(
-        title: "Active Days",
+        title: localized("Active Days"),
         value: viewModel.dashboardData.summary.activeCaptureDays.formatted(),
-        detail: "Days with captures",
+        detail: localized("Days with captures"),
         systemImage: "calendar"
       )
     } header: {
-      Text("Habits")
+      Text(localized("Habits"))
     } footer: {
-      Text("Usage rhythm and editing pace across your capture sessions.")
+      Text(localized("Usage rhythm and editing pace across your capture sessions."))
     }
   }
 
@@ -214,16 +221,16 @@ struct StatisticsRootView: View {
       activitySectionHeader
     } footer: {
       let description = dashboardPresentation.dayRangeDescription(for: effectiveSelectedRange)
-      Text(hasFullAccess ? description : "\(description). Unlock full statistics for 3 months, 6 months, 1 year, and all-time history.")
+      Text(hasFullAccess ? description : String(format: localized("%@. Unlock full statistics for 3 months, 6 months, 1 year, and all-time history."), description))
     }
   }
 
   private var activitySectionHeader: some View {
     HStack {
-      Text("Activity")
+      Text(localized("Activity"))
       Spacer(minLength: 12)
       if hasFullAccess {
-        Picker("Activity Range", selection: $selectedRange) {
+        Picker(localized("Activity Range"), selection: $selectedRange) {
           ForEach(StatisticsGraphRange.allCases) { range in
             Text(range.title).tag(range)
           }
@@ -231,7 +238,7 @@ struct StatisticsRootView: View {
         .pickerStyle(.menu)
         .labelsHidden()
       } else {
-        Text("Last 7 days")
+        Text(localized("Last 7 days"))
           .font(.caption.weight(.semibold))
           .foregroundStyle(.secondary)
       }
@@ -265,9 +272,11 @@ struct StatisticsRootView: View {
           .frame(maxWidth: .infinity, alignment: .leading)
         } else {
           ContentUnavailableView {
-            Label("No activity in this range", systemImage: "calendar.badge.exclamationmark")
+            Label(localized("No activity in this range"), systemImage: "calendar.badge.exclamationmark")
           } description: {
-            Text(hasFullAccess ? "Try a wider range to see older capture sessions on this Mac." : "Older activity is still tracked locally. Unlock full statistics to browse longer history.")
+            Text(hasFullAccess
+                 ? localized("Try a wider range to see older capture sessions on this Mac.")
+                 : localized("Older activity is still tracked locally. Unlock full statistics to browse longer history."))
           }
           .frame(maxWidth: .infinity).padding(.vertical, 18)
         }
@@ -275,9 +284,9 @@ struct StatisticsRootView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     } else {
       ContentUnavailableView {
-        Label("No capture activity yet", systemImage: "chart.xyaxis.line")
+        Label(localized("No capture activity yet"), systemImage: "chart.xyaxis.line")
       } description: {
-        Text("Take a screenshot or record a video, and your activity history will start building here.")
+        Text(localized("Take a screenshot or record a video, and your activity history will start building here."))
       }
       .frame(maxWidth: .infinity).padding(.vertical, 18)
     }
@@ -311,7 +320,7 @@ struct StatisticsRootView: View {
     HStack {
       Text(metric.sectionTitle)
       Spacer(minLength: 12)
-      Picker("\(metric.menuTitle) Range", selection: $selectedDetailRange) {
+      Picker(String(format: localized("%@ Range"), metric.menuTitle), selection: $selectedDetailRange) {
         ForEach(StatisticsGraphRange.allCases) { range in
           Text(range.title).tag(range)
         }
@@ -331,9 +340,9 @@ struct StatisticsRootView: View {
             .frame(width: 28, height: 28)
 
           VStack(alignment: .leading, spacing: 4) {
-            Text("History & Insights")
+            Text(localized("History & Insights"))
               .font(.body.weight(.semibold))
-            Text("\(dashboardPresentation.totalCaptureCount.formatted()) captures are already tracked locally. Unlock long-term trends, storage growth, timing, milestones, and metric drilldowns.")
+            Text(String(format: localized("%@ captures are already tracked locally. Unlock long-term trends, storage growth, timing, milestones, and metric drilldowns."), dashboardPresentation.totalCaptureCount.formatted()))
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -343,16 +352,16 @@ struct StatisticsRootView: View {
         }
 
         HStack(spacing: 10) {
-          StatisticsInsightPill(title: "Tracked", value: dashboardPresentation.totalCaptureCount.formatted())
-          StatisticsInsightPill(title: "Active Days", value: viewModel.dashboardData.summary.activeCaptureDays.formatted())
-          StatisticsInsightPill(title: "Storage", value: StatisticsFormatting.formatBytes(viewModel.dashboardData.summary.totalCaptureBytesProduced))
+          StatisticsInsightPill(title: localized("Tracked"), value: dashboardPresentation.totalCaptureCount.formatted())
+          StatisticsInsightPill(title: localized("Active Days"), value: viewModel.dashboardData.summary.activeCaptureDays.formatted())
+          StatisticsInsightPill(title: localized("Storage"), value: StatisticsFormatting.formatBytes(viewModel.dashboardData.summary.totalCaptureBytesProduced))
         }
 
         HStack(spacing: 10) {
-          Button("Unlock Full Statistics", action: onUpgrade)
+          Button(localized("Unlock Full Statistics"), action: onUpgrade)
             .buttonStyle(.borderedProminent)
         #if DEBUG
-          Button(viewModel.debugPreviewEnabled ? "Hide Debug Preview" : "Show Debug Preview") {
+          Button(localized(viewModel.debugPreviewEnabled ? "Hide Debug Preview" : "Show Debug Preview")) {
             viewModel.debugPreviewEnabled.toggle()
           }
           .buttonStyle(.bordered)
@@ -362,25 +371,33 @@ struct StatisticsRootView: View {
       }
       .padding(.vertical, 4)
     } header: {
-      Text("History & Insights")
+      Text(localized("History & Insights"))
     } footer: {
-      Text("Included with Lifetime and Supporter. No subscription.")
+      Text(localized("Included with Lifetime and Supporter. No subscription."))
     }
   }
 
   private var milestonesSection: some View {
     Section {
-      LabeledContent("First Screenshot") {
+      LabeledContent(localized("First Screenshot")) {
         Text(StatisticsFormatting.formatDateOptional(viewModel.dashboardData.firstScreenshotAt))
       }
-      LabeledContent("First Recording") {
+      LabeledContent(localized("First Recording")) {
         Text(StatisticsFormatting.formatDateOptional(viewModel.dashboardData.firstRecordingAt))
       }
-      LabeledContent("Most Active Day") {
+      LabeledContent(localized("Most Active Day")) {
         Text(dashboardPresentation.mostActiveDayLabel)
       }
     } header: {
-      Text("Milestones")
+      Text(localized("Milestones"))
     }
+  }
+
+  private func localized(_ value: String.LocalizationValue) -> String {
+    String(localized: value, bundle: localizer.bundle)
+  }
+
+  private func localized(_ value: String) -> String {
+    String(localized: String.LocalizationValue(value), bundle: localizer.bundle)
   }
 }

@@ -5,6 +5,9 @@ import ko from "../i18n/translations/ko.json";
 import de from "../i18n/translations/de.json";
 import fr from "../i18n/translations/fr.json";
 import es from "../i18n/translations/es.json";
+import ru from "../i18n/translations/ru.json";
+import be from "../i18n/translations/be.json";
+import uk from "../i18n/translations/uk.json";
 
 export const SITE = {
   name: "VivyShot",
@@ -20,7 +23,7 @@ export const SITE = {
   languageStorageKey: "vivyshot-language",
 };
 
-export const translations = { en, zh, ja, ko, de, fr, es } as const;
+export const translations = { en, zh, ja, ko, de, fr, es, ru, be, uk } as const;
 
 export const softwareSchema = {
   "@context": "https://schema.org",

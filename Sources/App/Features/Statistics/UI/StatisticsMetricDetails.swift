@@ -117,6 +117,7 @@ struct StatisticsMetricDetailPanel: View {
   let dashboardData: StatisticsDashboard
   let selectedRange: StatisticsGraphRange
   let accentColor: Color
+  @ObservedObject private var localizer = AppLocalizer.shared
 
   private var bounds: StatisticsGraphBounds {
     statisticsGraphBounds(for: selectedRange, dashboardData: dashboardData)
@@ -154,18 +155,22 @@ struct StatisticsMetricDetailPanel: View {
           totalValue: metric.formatValue(totalValue),
           activeDays: activeDays.formatted(),
           peakTitle: metric.peakLabel,
-          peakValue: peakPoint.map { metric.peakSummary(for: $0) } ?? "No activity yet"
+          peakValue: peakPoint.map { metric.peakSummary(for: $0) } ?? localized("No activity yet")
         )
       } else {
         ContentUnavailableView {
-          Label("No data in this range", systemImage: metric.systemImage)
+          Label(localized("No data in this range"), systemImage: metric.systemImage)
         } description: {
-          Text("Try a wider range or create a few more captures to build this chart.")
+          Text(localized("Try a wider range or create a few more captures to build this chart."))
         }
         .frame(maxWidth: .infinity).padding(.vertical, 18)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func localized(_ value: String.LocalizationValue) -> String {
+    String(localized: value, bundle: localizer.bundle)
   }
 }
 

@@ -25,18 +25,18 @@ extension SettingsView {
           .font(.title)
           .fontWeight(.bold)
 
-        Text("Screen capture and recording for macOS.")
+        Text(localized("Screen capture and recording for macOS."))
           .font(.callout)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
 
-        Text("Capture a region, window, or screen, then annotate screenshots, trim recordings, and export when you are done.")
+        Text(localized("Capture a region, window, or screen, then annotate screenshots, trim recordings, and export when you are done."))
           .font(.footnote)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
           .fixedSize(horizontal: false, vertical: true)
 
-        Text("Version \(appVersion) (\(buildNumber))")
+        Text(String(format: localized("Version %@ (%@)"), appVersion, buildNumber))
           .font(.callout.monospacedDigit())
           .foregroundStyle(.secondary)
           .onTapGesture(count: 7) {
@@ -49,7 +49,7 @@ extension SettingsView {
   }
 
   var aboutLinksSection: some View {
-    Section("Links") {
+    Section(localized("Links")) {
       AboutLinkRow(
         title: String(localized: "Website", bundle: AppLocalizer.shared.bundle),
         systemImage: "globe",
@@ -69,7 +69,7 @@ extension SettingsView {
   }
 
   var aboutContactSection: some View {
-    Section("Get in Touch") {
+    Section(localized("Get in Touch")) {
       AboutLinkRow(
         title: String(localized: "Developer", bundle: AppLocalizer.shared.bundle),
         systemImage: "person.crop.circle",
@@ -89,7 +89,7 @@ extension SettingsView {
   }
 
   var aboutAppsSection: some View {
-    Section("Our Apps") {
+    Section(localized("Our Apps")) {
       AboutLinkRow(
         title: "VVTerm",
         subtitle: String(localized: "Native SSH terminal and SFTP client for iPhone, iPad, and Mac.", bundle: AppLocalizer.shared.bundle),

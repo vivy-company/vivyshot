@@ -75,6 +75,7 @@ private struct SettingsToolbarReorderRow<Tool: SettingsToolbarTool>: View {
   let tool: Tool
   @Binding var draggingTool: Tool?
   let visibilityBinding: Binding<Bool>
+  @ObservedObject private var localizer = AppLocalizer.shared
 
   var body: some View {
     HStack(spacing: 10) {
@@ -94,7 +95,7 @@ private struct SettingsToolbarReorderRow<Tool: SettingsToolbarTool>: View {
           draggingTool = tool
           return NSItemProvider(object: NSString(string: tool.dragRepresentation))
         }
-        .help("Drag to reorder")
+        .help(String(localized: "Drag to reorder", bundle: localizer.bundle))
     }
     .padding(.horizontal, 4)
     .padding(.vertical, 5)

@@ -279,6 +279,7 @@
 		275D24C97CA26CB9E14952BE /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		283E656B92F3B4E42426BAEB /* CaptureToolbarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureToolbarModels.swift; sourceTree = "<group>"; };
 		2A4BEA3770E2F52E8FD30056 /* ExportPlannerAVFoundation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportPlannerAVFoundation.swift; sourceTree = "<group>"; };
+		2B8D2B8ECCED2FF1EF6262F4 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
 		2C1E22EAC500AF1C810E9885 /* RegionSelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionOverlay.swift; sourceTree = "<group>"; };
 		2C4E6E5EC2FABD8576172BD0 /* RecordingHUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingHUDController.swift; sourceTree = "<group>"; };
 		2E3FA09634A5C59A860D6444 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -296,6 +297,7 @@
 		377F2A9DC9DCF96F719A6C79 /* RegionSelectionOverlayController+Commands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlayController+Commands.swift"; sourceTree = "<group>"; };
 		3A52BF67E5047564FE83BB31 /* RegionSelectionOverlay+EditingSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingSelection.swift"; sourceTree = "<group>"; };
 		3B0D73B24140AE5F720A36B3 /* AppSettingsDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsDefinitions.swift; sourceTree = "<group>"; };
+		3BD114A93B762B4D5725360E /* uk */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = uk; path = uk.lproj/Localizable.strings; sourceTree = "<group>"; };
 		3D0B638B7FC9202E38C14C12 /* PostRecordingReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostRecordingReviewView.swift; sourceTree = "<group>"; };
 		3DAB6640A2662A0D574F98D5 /* RecordingProjectBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingProjectBuilder.swift; sourceTree = "<group>"; };
 		3E2447E440CC4F58D8417481 /* WebcamRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamRecorder.swift; sourceTree = "<group>"; };
@@ -383,6 +385,7 @@
 		8B004A8B789D96167A9C4079 /* RegionSelectionOverlay+EditingToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+EditingToolbar.swift"; sourceTree = "<group>"; };
 		8FB55CCE77581902DE519537 /* PostRecordingSavePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostRecordingSavePanel.swift; sourceTree = "<group>"; };
 		90918DC018FE15530ADBDB19 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		9237A7873D39B719926E73B2 /* be */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = be; path = be.lproj/Localizable.strings; sourceTree = "<group>"; };
 		923A77EFFBDF7A0B4F88D64E /* PaywallLicenseDetailsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallLicenseDetailsSection.swift; sourceTree = "<group>"; };
 		92AE014938F8C1AEB70BD590 /* RegionSelectionOverlay+Stitch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegionSelectionOverlay+Stitch.swift"; sourceTree = "<group>"; };
 		9348C5CA305B21411DAFC0FA /* SettingsScreenshotTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreenshotTab.swift; sourceTree = "<group>"; };
@@ -1126,12 +1129,15 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				be,
 				de,
 				en,
 				es,
 				fr,
 				ja,
 				ko,
+				ru,
+				uk,
 				"zh-Hans",
 			);
 			mainGroup = EB928638FD2FE5672BD6FB81;
@@ -1405,12 +1411,15 @@
 		BA2AE082AD1D1E751F851917 /* Localizable.strings */ = {
 			isa = PBXVariantGroup;
 			children = (
+				9237A7873D39B719926E73B2 /* be */,
 				A7BDEEC32BAE7F18E5092728 /* de */,
 				A7A6129AB5D469557BDF2205 /* en */,
 				9FBC9D0E80AF3977FCD318C8 /* es */,
 				A82C55CFB2C8D548EE329315 /* fr */,
 				687F69E650375151E4CDA992 /* ja */,
 				613F9A9AA92E5DB00B98E779 /* ko */,
+				2B8D2B8ECCED2FF1EF6262F4 /* ru */,
+				3BD114A93B762B4D5725360E /* uk */,
 				4A115B6AB5FAAD5005D17120 /* zh-Hans */,
 			);
 			name = Localizable.strings;
