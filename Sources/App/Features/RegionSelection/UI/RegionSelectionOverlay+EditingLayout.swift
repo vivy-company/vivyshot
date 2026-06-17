@@ -126,6 +126,7 @@ extension RegionSelectionView {
 
     let shouldShowSelectionMask = !recordingActive
       && !liveTargetPickActive
+      && !editsWholeImageCapture
       && selection != nil
       && (selectedCaptureMode == .selection || selectedCaptureMode == .window)
 

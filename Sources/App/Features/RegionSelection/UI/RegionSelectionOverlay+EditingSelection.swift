@@ -28,6 +28,7 @@ extension RegionSelectionView {
 
     committedSelectionRect = resized
     areaCaptureRect = resized
+    clearNativeWindowCaptureState()
     if selectedCaptureMode != .selection {
       selectedCaptureMode = .selection
       refreshToolbarSelection(animated: true)
@@ -77,6 +78,7 @@ extension RegionSelectionView {
 
     committedSelectionRect = candidate
     areaCaptureRect = candidate.integral
+    clearNativeWindowCaptureState()
     if selectedCaptureMode != .selection {
       selectedCaptureMode = .selection
       refreshToolbarSelection(animated: true)
@@ -119,6 +121,7 @@ extension RegionSelectionView {
       screenCapturePickPending = true
       windowCapturePickPending = false
       windowCaptureHoverRect = nil
+      clearNativeWindowCaptureState()
       committedSelectionRect = bounds.integral
       activeResizeCorner = nil
       resizeStartRect = nil
@@ -148,6 +151,7 @@ extension RegionSelectionView {
       windowCapturePickPending = false
       screenCapturePickPending = false
       windowCaptureHoverRect = nil
+      clearNativeWindowCaptureState()
       syncLiveCaptureTargetPickingState()
       if let areaCaptureRect {
         _ = applyCaptureRect(areaCaptureRect, as: .selection, rememberAsArea: true)
@@ -161,7 +165,8 @@ extension RegionSelectionView {
   func applyCaptureRect(
     _ rect: CGRect,
     as captureMode: CaptureMode,
-    rememberAsArea: Bool
+    rememberAsArea: Bool,
+    windowID: CGWindowID? = nil
   ) -> Bool {
     let clipped = rect.standardized.intersection(bounds).integral
     guard !clipped.isNull, clipped.width >= 2, clipped.height >= 2 else {
@@ -170,6 +175,8 @@ extension RegionSelectionView {
 
     committedSelectionRect = clipped
     selectedCaptureMode = captureMode
+    selectedWindowID = captureMode == .window ? windowID : nil
+    editsWholeImageCapture = false
     windowCapturePickPending = false
     screenCapturePickPending = false
     windowCaptureHoverRect = nil
@@ -178,11 +185,44 @@ extension RegionSelectionView {
     if rememberAsArea {
       areaCaptureRect = clipped
     }
+    refreshNativeWindowScreenshotIfNeeded(windowID: windowID)
     activeResizeCorner = nil
     resizeStartRect = nil
     refreshToolbarSelection(animated: true)
     needsLayout = true
     needsDisplay = true
     return true
+  }
+
+  func clearNativeWindowCaptureState() {
+    selectedWindowID = nil
+    editsWholeImageCapture = false
+  }
+
+  private func refreshNativeWindowScreenshotIfNeeded(windowID: CGWindowID?) {
+    guard selectedCaptureType == .screenshot,
+          selectedCaptureMode == .window,
+          settings.screenshotWindowCaptureStyle != .visibleAreaRectangle,
+          let windowID
+    else {
+      return
+    }
+
+    let includesShadow = settings.screenshotWindowCaptureStyle == .nativeWithShadow
+    Task { @MainActor [weak self] in
+      do {
+        let image = try await ScreenCaptureSnapshot.captureWindowImage(windowID: windowID, includesShadow: includesShadow)
+        guard let self, self.selectedWindowID == windowID else {
+          return
+        }
+        self.annotationEditor.setSession(AnnotationSession(image: image))
+        self.canvasView.image = image
+        self.editsWholeImageCapture = true
+        self.needsLayout = true
+        self.needsDisplay = true
+      } catch {
+        NSLog("[VivyShot] Native window screenshot refresh failed, keeping rectangle capture: \(error.localizedDescription)")
+      }
+    }
   }
 }

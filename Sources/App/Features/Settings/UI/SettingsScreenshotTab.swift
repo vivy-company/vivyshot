@@ -5,6 +5,20 @@ extension SettingsView {
   var screenshotDrawingSection: some View {
     Section {
       HStack(spacing: 10) {
+        Text("Window Capture")
+          .frame(width: 90, alignment: .leading)
+        Spacer(minLength: 0)
+        Picker("Window Capture", selection: screenshotWindowCaptureStyleBinding) {
+          ForEach(ScreenshotWindowCaptureStyle.allCases) { style in
+            Text(style.title).tag(style)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: 220, alignment: .trailing)
+      }
+
+      HStack(spacing: 10) {
         Text("Line Width")
           .frame(width: 90, alignment: .leading)
         Slider(value: drawingStrokeWidthBinding, in: AppSettings.drawingStrokeWidthRange, step: 0.5)
@@ -13,9 +27,9 @@ extension SettingsView {
           .frame(width: 62, alignment: .trailing)
       }
     } header: {
-      Text("Drawing")
+      Text("Capture & Drawing")
     } footer: {
-      Text("Applied to rectangle, circle, line, arrow, and paint tools.")
+      Text("Window screenshots use native window capture by default. Drawing width applies to rectangle, circle, line, arrow, and paint tools.")
     }
   }
 

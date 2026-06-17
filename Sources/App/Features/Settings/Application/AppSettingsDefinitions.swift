@@ -62,6 +62,10 @@ extension AppSettings {
       key: Keys.captureSmartWindowSelectionEnabled,
       defaultValue: Defaults.smartWindowSelection
     )
+    static let screenshotWindowCaptureStyle = UserDefaultSetting(
+      key: Keys.screenshotWindowCaptureStyle,
+      defaultValue: Defaults.screenshotWindowCaptureStyle.rawValue
+    )
     static let appLanguage = UserDefaultSetting(key: Keys.appLanguage, defaultValue: AppLanguage.system.rawValue)
     static let textFontSize = UserDefaultSetting(key: Keys.textFontSize, defaultValue: Defaults.textFontSize)
     static let textFontName = UserDefaultSetting(key: Keys.textFontName, defaultValue: Defaults.textFontName)
@@ -106,6 +110,7 @@ extension AppSettings {
     static let captureUseControl = "settings.capture.useControl"
     static let captureShowHelper = "settings.capture.showHelper"
     static let captureSmartWindowSelectionEnabled = "settings.capture.smartWindowSelectionEnabled"
+    static let screenshotWindowCaptureStyle = "settings.screenshot.windowCaptureStyle"
     static let defaultCaptureType = "settings.capture.defaultType"
     static let appLanguage = "settings.app.language"
 
@@ -142,6 +147,7 @@ extension AppSettings {
     static let recordingCaptureBuffering = "settings.video.captureBuffering"
     static let recordingShowsPointer = "settings.video.showsPointer"
     static let recordingShowsSystemClickRings = "settings.video.showsSystemClickRings"
+    static let recordingWindowCaptureStyle = "settings.video.windowCaptureStyle"
     static let recordingIncludesAppAudio = "settings.video.includesAppAudio"
     static let exportCodec = "settings.video.export.codec"
     static let exportFrameRate = "settings.video.export.frameRate"
@@ -178,6 +184,7 @@ extension AppSettings {
     static let captureUseShift = true
     static let captureShowHelper = true
     static let smartWindowSelection = true
+    static let screenshotWindowCaptureStyle = ScreenshotWindowCaptureStyle.nativeWithShadow
     static let textFontSize = 16.0
     static let textFontName = "System"
     static let drawingStrokeWidth = 4.0
@@ -193,6 +200,7 @@ extension AppSettings {
     static let recordingCaptureBuffering = RecordingCaptureBuffering.balanced
     static let recordingShowsPointer = true
     static let recordingShowsSystemClickRings = false
+    static let recordingWindowCaptureStyle = RecordingWindowCaptureStyle.selectedWindowOnly
     static let recordingIncludesAppAudio = true
     static let exportCodec = PostRecordingExportCodec.h264
     static let exportFrameRate = PostRecordingExportFrameRate.fps30

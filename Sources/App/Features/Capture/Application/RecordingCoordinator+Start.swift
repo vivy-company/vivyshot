@@ -9,6 +9,7 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.vivy
 extension RecordingCoordinator {
   func startRecording(
     selectionRectInScreen: CGRect,
+    windowID: CGWindowID? = nil,
     overlayState: RecordingOverlayState? = nil,
     showFloatingHUD: Bool = true,
     flowHandler: any RecordingFlowHandling
@@ -110,6 +111,7 @@ extension RecordingCoordinator {
           captureMicrophone: microphoneEnabled,
           microphoneDeviceID: settings.microphoneDeviceID,
           includesAppAudio: settings.recordingIncludesAppAudio,
+          windowID: settings.recordingWindowCaptureStyle == .selectedWindowOnly ? windowID : nil,
           capturedOverlayWindowIDs: capturedOverlayWindowIDs
         )
         let recorder = dependencies.makeRegionRecorder(recordingRect, recordingConfig, outputURL)

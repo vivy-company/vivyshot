@@ -16,6 +16,7 @@ final class AppSettings: ObservableObject {
   @Published var captureShowHelper: Bool
   @Published var captureSmartWindowSelectionEnabled: Bool
   @Published var defaultCaptureType: CaptureContentType
+  @Published var screenshotWindowCaptureStyle: ScreenshotWindowCaptureStyle
   @Published var appLanguage: AppLanguage
 
   @Published var toolOrder: [AnnotationTool]
@@ -51,6 +52,7 @@ final class AppSettings: ObservableObject {
   @Published var recordingCaptureBuffering: RecordingCaptureBuffering
   @Published var recordingShowsPointer: Bool
   @Published var recordingShowsSystemClickRings: Bool
+  @Published var recordingWindowCaptureStyle: RecordingWindowCaptureStyle
   @Published var recordingIncludesAppAudio: Bool
   @Published var exportCodec: PostRecordingExportCodec
   @Published var exportFrameRate: PostRecordingExportFrameRate
@@ -92,6 +94,9 @@ final class AppSettings: ObservableObject {
     captureUseControl = Definitions.captureUseControl.read(from: defaults)
     captureShowHelper = Definitions.captureShowHelper.read(from: defaults)
     captureSmartWindowSelectionEnabled = Definitions.captureSmartWindowSelectionEnabled.read(from: defaults)
+    screenshotWindowCaptureStyle = ScreenshotWindowCaptureStyle(
+      rawValue: Definitions.screenshotWindowCaptureStyle.read(from: defaults)
+    ) ?? Defaults.screenshotWindowCaptureStyle
     appLanguage = AppLanguage(rawValue: Definitions.appLanguage.read(from: defaults)) ?? .system
 
     let normalizedToolOrder = Self.normalizeToolOrder(rawValues: defaults.array(forKey: Keys.toolOrder) as? [Int])
@@ -152,6 +157,7 @@ final class AppSettings: ObservableObject {
     recordingCaptureBuffering = videoSettings.recordingCaptureBuffering
     recordingShowsPointer = videoSettings.recordingShowsPointer
     recordingShowsSystemClickRings = videoSettings.recordingShowsSystemClickRings
+    recordingWindowCaptureStyle = videoSettings.recordingWindowCaptureStyle
     recordingIncludesAppAudio = videoSettings.recordingIncludesAppAudio
     exportCodec = videoSettings.exportCodec
     exportFrameRate = videoSettings.exportFrameRate

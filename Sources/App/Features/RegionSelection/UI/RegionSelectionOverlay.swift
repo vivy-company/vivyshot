@@ -70,6 +70,8 @@ final class RegionSelectionView: NSView {
   var selectedCaptureType: CaptureContentType
   var selectedCaptureMode: CaptureMode = .selection
   var areaCaptureRect: CGRect?
+  var selectedWindowID: CGWindowID?
+  var editsWholeImageCapture = false
   var windowCapturePickPending = false
   var screenCapturePickPending = false
   var windowCaptureHoverRect: CGRect?
@@ -264,8 +266,8 @@ final class RegionSelectionView: NSView {
         return
       }
       if windowCapturePickPending {
-        if let windowRect = captureRectForWindowPick(at: point) {
-          if applyCaptureRect(windowRect, as: .window, rememberAsArea: false),
+        if let target = captureTargetForWindowPick(at: point) {
+          if applyCaptureRect(target.rect, as: .window, rememberAsArea: false, windowID: target.windowID),
              selectedCaptureType == .video
           {
             startVideoRecordingFromEditor()
@@ -288,7 +290,7 @@ final class RegionSelectionView: NSView {
 
     beginSmartSelection(
       at: point,
-      windowRect: smartWindowRectForInitialSelection(at: point)
+      target: smartWindowTargetForInitialSelection(at: point)
     )
   }
 
@@ -369,7 +371,8 @@ final class RegionSelectionView: NSView {
         self,
         didFinishSelection: selection,
         captureType: selectedCaptureType,
-        captureMode: .selection
+        captureMode: .selection,
+        windowID: nil
       )
       return
     }
@@ -379,7 +382,7 @@ final class RegionSelectionView: NSView {
     }
 
     let point = convert(event.locationInWindow, from: nil)
-    let (committedRect, committedMode) = commitSmartSelection(at: point)
+    let (committedRect, committedMode, windowID) = commitSmartSelection(at: point)
 
     guard let committedRect, committedRect.width >= 2, committedRect.height >= 2 else {
       updateSmartWindowHover(at: point)
@@ -392,7 +395,8 @@ final class RegionSelectionView: NSView {
       self,
       didFinishSelection: committedRect,
       captureType: selectedCaptureType,
-      captureMode: committedMode
+      captureMode: committedMode,
+      windowID: windowID
     )
   }
 

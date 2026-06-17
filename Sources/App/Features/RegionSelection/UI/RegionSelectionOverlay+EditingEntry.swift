@@ -7,6 +7,8 @@ extension RegionSelectionView {
     selectionRect: CGRect,
     initialCaptureType: CaptureContentType,
     initialCaptureMode: CaptureMode,
+    initialWindowID: CGWindowID? = nil,
+    editsWholeImageCapture: Bool = false,
     onDone: @escaping (Bool) -> Void
   ) {
     let clipped = selectionRect.standardized.intersection(bounds).integral
@@ -33,6 +35,8 @@ extension RegionSelectionView {
     annotationEditor.setSession(session)
     selectedCaptureType = initialCaptureType
     selectedCaptureMode = initialCaptureMode
+    selectedWindowID = initialCaptureMode == .window ? initialWindowID : nil
+    self.editsWholeImageCapture = editsWholeImageCapture
     captureModeSelectionState.setSelectedMode(initialCaptureMode, animated: false)
     resetRecordingState(stopPassthrough: false)
     resetLiveCaptureTargetPickingState(sync: true, resetSmartSelection: true)

@@ -96,6 +96,19 @@ extension ScreenshotMainAction {
   }
 }
 
+extension ScreenshotWindowCaptureStyle {
+  var title: String {
+    switch self {
+    case .nativeWithShadow:
+      return String(localized: "Native Window with Shadow", bundle: AppLocalizer.shared.bundle)
+    case .nativeWithoutShadow:
+      return String(localized: "Native Window", bundle: AppLocalizer.shared.bundle)
+    case .visibleAreaRectangle:
+      return String(localized: "Visible Area Rectangle", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+}
+
 extension RecordingEncoder {
   var title: String {
     switch self {
@@ -165,6 +178,17 @@ extension RecordingCaptureBuffering {
       return String(localized: "Balanced", bundle: AppLocalizer.shared.bundle)
     case .smoother:
       return String(localized: "Smoother", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+}
+
+extension RecordingWindowCaptureStyle {
+  var title: String {
+    switch self {
+    case .selectedWindowOnly:
+      return String(localized: "Selected Window Only", bundle: AppLocalizer.shared.bundle)
+    case .visibleAreaRectangle:
+      return String(localized: "Visible Area Rectangle", bundle: AppLocalizer.shared.bundle)
     }
   }
 }

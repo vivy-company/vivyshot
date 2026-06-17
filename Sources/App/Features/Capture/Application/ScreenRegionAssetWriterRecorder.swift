@@ -12,6 +12,12 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.vivy
 final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, SCStreamDelegate, SCStreamOutput {
   private static let stopCaptureTimeoutSeconds: Double = 5.0
 
+  private struct PreparedCaptureStream {
+    let filter: SCContentFilter
+    let outputWidth: Int
+    let outputHeight: Int
+  }
+
   private let selectionRectInScreen: CGRect
   private let config: RecordingConfig
   private(set) var outputURL: URL
@@ -45,48 +51,11 @@ final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, S
   }
 
   func start() async throws {
-    var content = try await SCShareableContent.current
-    let overlayResolution = try await resolveCapturedOverlayWindows(initialContent: content)
-    content = overlayResolution.content
-    guard let screen = activeScreenForSelection(),
-          let displayID = screen.displayID,
-          let display = content.displays.first(where: { $0.displayID == displayID })
-    else {
-      throw NSError(
-        domain: "com.vivyshot.recording",
-        code: -30,
-        userInfo: [NSLocalizedDescriptionKey: "No compatible display found for selected area."]
-      )
-    }
-
-    let excludedApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-    let filter = SCContentFilter(
-      display: display,
-      excludingApplications: excludedApps,
-      exceptingWindows: overlayResolution.windows
-    )
-
     let streamConfig = SCStreamConfiguration()
-    let displayRect = display.frame
-    let selectionInCG = DisplayCoordinateConversion.cocoaRectToCGDisplayRect(selectionRectInScreen)
-    let sourceRect = selectionInCG
-      .intersection(displayRect)
-      .offsetBy(dx: -displayRect.minX, dy: -displayRect.minY)
-      .integral
-    guard !sourceRect.isNull, sourceRect.width >= 2, sourceRect.height >= 2 else {
-      throw NSError(
-        domain: "com.vivyshot.recording",
-        code: -31,
-        userInfo: [NSLocalizedDescriptionKey: "Selected region is too small to record."]
-      )
-    }
+    let preparedStream = try await prepareCaptureStream(configuration: streamConfig)
 
-    let scale = max(1.0, screen.backingScaleFactor) * config.captureResolution.scale
-    let outputWidth = max(2, Int((sourceRect.width * scale).rounded()))
-    let outputHeight = max(2, Int((sourceRect.height * scale).rounded()))
-    streamConfig.sourceRect = sourceRect
-    streamConfig.width = outputWidth
-    streamConfig.height = outputHeight
+    streamConfig.width = preparedStream.outputWidth
+    streamConfig.height = preparedStream.outputHeight
     streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, config.frameRate)))
     streamConfig.pixelFormat = VideoRecordingColorPolicy.capturePixelFormat(
       for: config.encoder,
@@ -109,10 +78,10 @@ final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, S
     )
     streamConfiguration = streamConfig
 
-    sampleWriter.configureVideoSize(width: outputWidth, height: outputHeight)
+    sampleWriter.configureVideoSize(width: preparedStream.outputWidth, height: preparedStream.outputHeight)
     try sampleWriter.prepare()
 
-    let stream = SCStream(filter: filter, configuration: streamConfig, delegate: self)
+    let stream = SCStream(filter: preparedStream.filter, configuration: streamConfig, delegate: self)
     try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: sampleWriter.queue)
     try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: sampleWriter.queue)
     try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: sampleWriter.queue)
@@ -121,7 +90,9 @@ final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, S
     setRecordingError(nil)
     do {
       try await stream.startCaptureChecked()
-      logger.info("Screen capture started: \(outputWidth)x\(outputHeight) @\(self.config.frameRate)fps")
+      logger.info(
+        "Screen capture started: \(preparedStream.outputWidth)x\(preparedStream.outputHeight) @\(self.config.frameRate)fps"
+      )
     } catch {
       logger.error("Screen capture failed to start: \(error.localizedDescription, privacy: .public)")
       sampleWriter.cancel()
@@ -212,6 +183,84 @@ final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, S
       streamConfiguration.microphoneCaptureDeviceID = previous
       throw error
     }
+  }
+
+  private func prepareCaptureStream(configuration streamConfig: SCStreamConfiguration) async throws -> PreparedCaptureStream {
+    let content = try await SCShareableContent.current
+    if let windowID = config.windowID {
+      return try prepareWindowCaptureStream(windowID: windowID, content: content, configuration: streamConfig)
+    }
+    return try await prepareRegionCaptureStream(content: content, configuration: streamConfig)
+  }
+
+  private func prepareWindowCaptureStream(
+    windowID: CGWindowID,
+    content: SCShareableContent,
+    configuration streamConfig: SCStreamConfiguration
+  ) throws -> PreparedCaptureStream {
+    guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
+      throw NSError(
+        domain: "com.vivyshot.recording",
+        code: -33,
+        userInfo: [NSLocalizedDescriptionKey: "Selected window is no longer available for recording."]
+      )
+    }
+
+    let filter = SCContentFilter(desktopIndependentWindow: window)
+    let scale = max(1.0, CGFloat(filter.pointPixelScale)) * config.captureResolution.scale
+    streamConfig.ignoreShadowsSingleWindow = true
+    return PreparedCaptureStream(
+      filter: filter,
+      outputWidth: max(2, Int((filter.contentRect.width * scale).rounded())),
+      outputHeight: max(2, Int((filter.contentRect.height * scale).rounded()))
+    )
+  }
+
+  private func prepareRegionCaptureStream(
+    content initialContent: SCShareableContent,
+    configuration streamConfig: SCStreamConfiguration
+  ) async throws -> PreparedCaptureStream {
+    let overlayResolution = try await resolveCapturedOverlayWindows(initialContent: initialContent)
+    let content = overlayResolution.content
+    guard let screen = activeScreenForSelection(),
+          let displayID = screen.displayID,
+          let display = content.displays.first(where: { $0.displayID == displayID })
+    else {
+      throw NSError(
+        domain: "com.vivyshot.recording",
+        code: -30,
+        userInfo: [NSLocalizedDescriptionKey: "No compatible display found for selected area."]
+      )
+    }
+
+    let excludedApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
+    let filter = SCContentFilter(
+      display: display,
+      excludingApplications: excludedApps,
+      exceptingWindows: overlayResolution.windows
+    )
+
+    let displayRect = display.frame
+    let selectionInCG = DisplayCoordinateConversion.cocoaRectToCGDisplayRect(selectionRectInScreen)
+    let sourceRect = selectionInCG
+      .intersection(displayRect)
+      .offsetBy(dx: -displayRect.minX, dy: -displayRect.minY)
+      .integral
+    guard !sourceRect.isNull, sourceRect.width >= 2, sourceRect.height >= 2 else {
+      throw NSError(
+        domain: "com.vivyshot.recording",
+        code: -31,
+        userInfo: [NSLocalizedDescriptionKey: "Selected region is too small to record."]
+      )
+    }
+
+    let scale = max(1.0, screen.backingScaleFactor) * config.captureResolution.scale
+    streamConfig.sourceRect = sourceRect
+    return PreparedCaptureStream(
+      filter: filter,
+      outputWidth: max(2, Int((sourceRect.width * scale).rounded())),
+      outputHeight: max(2, Int((sourceRect.height * scale).rounded()))
+    )
   }
 
   private func resolveCapturedOverlayWindows(

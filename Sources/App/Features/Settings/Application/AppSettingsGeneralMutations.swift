@@ -115,6 +115,14 @@ extension AppSettings {
     persistCaptureSmartWindowSelectionSetting()
   }
 
+  func setScreenshotWindowCaptureStyle(_ style: ScreenshotWindowCaptureStyle) {
+    guard screenshotWindowCaptureStyle != style else {
+      return
+    }
+    screenshotWindowCaptureStyle = style
+    persistScreenshotWindowCaptureStyle()
+  }
+
   func setDefaultCaptureType(_ type: CaptureContentType) {
     guard defaultCaptureType != type else {
       return

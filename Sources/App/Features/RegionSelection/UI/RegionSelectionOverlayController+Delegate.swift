@@ -7,7 +7,8 @@ extension RegionSelectionOverlayController: RegionSelectionViewDelegate {
     _ view: RegionSelectionView,
     didFinishSelection localRect: CGRect?,
     captureType: CaptureContentType,
-    captureMode: CaptureMode
+    captureMode: CaptureMode,
+    windowID: CGWindowID?
   ) {
     guard view === selectionView, let window else {
       finishSelection(with: nil)
@@ -29,7 +30,8 @@ extension RegionSelectionOverlayController: RegionSelectionViewDelegate {
       with: RegionSelectionResult(
         selectionRectInScreen: globalRect,
         captureType: captureType,
-        captureMode: captureMode
+        captureMode: captureMode,
+        windowID: windowID
       )
     )
   }

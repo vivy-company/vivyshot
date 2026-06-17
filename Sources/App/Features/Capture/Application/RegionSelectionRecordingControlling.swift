@@ -14,6 +14,7 @@ protocol RegionSelectionRecordingControlling: AnyObject {
 
   func startRecording(
     selectionRectInScreen: CGRect,
+    windowID: CGWindowID?,
     overlayState: RecordingOverlayState?,
     showFloatingHUD: Bool,
     flowHandler: any RecordingFlowHandling

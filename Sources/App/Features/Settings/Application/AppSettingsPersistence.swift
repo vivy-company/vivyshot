@@ -20,6 +20,11 @@ extension AppSettings {
     notifySettingsChanged(.regionSelection)
   }
 
+  func persistScreenshotWindowCaptureStyle() {
+    Definitions.screenshotWindowCaptureStyle.write(screenshotWindowCaptureStyle.rawValue, to: defaults)
+    notifySettingsChanged(.regionSelection)
+  }
+
   func persistAppLanguage() {
     Definitions.appLanguage.write(appLanguage.rawValue, to: defaults)
     notifySettingsChanged(.appLanguage)
@@ -109,6 +114,7 @@ extension AppSettings {
       recordingCaptureBuffering: recordingCaptureBuffering,
       recordingShowsPointer: recordingShowsPointer,
       recordingShowsSystemClickRings: recordingShowsSystemClickRings,
+      recordingWindowCaptureStyle: recordingWindowCaptureStyle,
       recordingIncludesAppAudio: recordingIncludesAppAudio,
       exportCodec: exportCodec,
       exportFrameRate: exportFrameRate,

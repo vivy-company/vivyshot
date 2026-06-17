@@ -13,6 +13,7 @@ struct RecordingConfig {
   let captureMicrophone: Bool
   let microphoneDeviceID: String
   let includesAppAudio: Bool
+  let windowID: CGWindowID?
   let capturedOverlayWindowIDs: [CGWindowID]
 }
 

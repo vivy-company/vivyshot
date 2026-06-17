@@ -28,6 +28,11 @@ extension RegionSelectionView {
     set { interactionState.smartMouseDownWindowRect = newValue }
   }
 
+  var smartMouseDownWindowID: CGWindowID? {
+    get { interactionState.smartMouseDownWindowID }
+    set { interactionState.smartMouseDownWindowID = newValue }
+  }
+
   var smartDragActivated: Bool {
     get { interactionState.smartDragActivated }
     set { interactionState.smartDragActivated = newValue }
@@ -36,6 +41,11 @@ extension RegionSelectionView {
   var smartWindowHoverRect: CGRect? {
     get { interactionState.smartWindowHoverRect }
     set { interactionState.smartWindowHoverRect = newValue }
+  }
+
+  var smartWindowHoverID: CGWindowID? {
+    get { interactionState.smartWindowHoverID }
+    set { interactionState.smartWindowHoverID = newValue }
   }
 
   var toolbarOffset: CGSize {

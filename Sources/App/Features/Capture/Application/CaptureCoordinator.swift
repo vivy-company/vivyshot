@@ -96,14 +96,22 @@ final class CaptureCoordinator: CaptureCoordinating, RecordingStateObserving {
             return
           }
 
-          self.selectionOverlay.enterEditing(
-            session: nil,
-            selectionRectInScreen: result.selectionRectInScreen,
-            initialCaptureType: result.captureType,
-            initialCaptureMode: result.captureMode,
-            recordingController: self.recordingCoordinator,
-            delegate: self
-          )
+          Task { [weak self] in
+            guard let self else {
+              return
+            }
+            let editingSession = await self.nativeWindowScreenshotSessionIfNeeded(for: result)
+            self.selectionOverlay.enterEditing(
+              session: editingSession.session,
+              selectionRectInScreen: editingSession.selectionRectInScreen,
+              initialCaptureType: result.captureType,
+              initialCaptureMode: result.captureMode,
+              initialWindowID: result.windowID,
+              editsWholeImageCapture: editingSession.editsWholeImageCapture,
+              recordingController: self.recordingCoordinator,
+              delegate: self
+            )
+          }
         }
       } catch {
         self.captureInProgress = false
@@ -118,6 +126,30 @@ final class CaptureCoordinator: CaptureCoordinating, RecordingStateObserving {
 
   private func captureFrozenImage(in rect: CGRect) async throws -> CGImage {
     try await ScreenCaptureSnapshot.captureImage(inCocoaScreenRect: rect)
+  }
+
+  private func nativeWindowScreenshotSessionIfNeeded(
+    for result: RegionSelectionResult
+  ) async -> (session: AnnotationSession?, selectionRectInScreen: CGRect, editsWholeImageCapture: Bool) {
+    guard result.captureType == .screenshot,
+          result.captureMode == .window,
+          let windowID = result.windowID,
+          settings.screenshotWindowCaptureStyle != .visibleAreaRectangle
+    else {
+      return (nil, result.selectionRectInScreen, false)
+    }
+
+    let includesShadow = settings.screenshotWindowCaptureStyle == .nativeWithShadow
+    do {
+      let image = try await ScreenCaptureSnapshot.captureWindowImage(windowID: windowID, includesShadow: includesShadow)
+      guard let session = AnnotationSession(image: image) else {
+        return (nil, result.selectionRectInScreen, false)
+      }
+      return (session, result.selectionRectInScreen, true)
+    } catch {
+      NSLog("[VivyShot] Native window screenshot failed, falling back to rectangle capture: \(error.localizedDescription)")
+      return (nil, result.selectionRectInScreen, false)
+    }
   }
 
   // Build a plain BGRA-backed copy so we can drop ScreenCaptureKit surface-backed storage promptly.

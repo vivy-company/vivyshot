@@ -6,8 +6,10 @@ struct RegionSelectionInteractionState {
   var committedSelectionRect: CGRect?
   var smartMouseDownPoint: CGPoint?
   var smartMouseDownWindowRect: CGRect?
+  var smartMouseDownWindowID: CGWindowID?
   var smartDragActivated = false
   var smartWindowHoverRect: CGRect?
+  var smartWindowHoverID: CGWindowID?
 
   var isIdle: Bool {
     smartMouseDownPoint == nil
@@ -20,8 +22,10 @@ struct RegionSelectionInteractionState {
   mutating func resetSmartSelection() {
     smartMouseDownPoint = nil
     smartMouseDownWindowRect = nil
+    smartMouseDownWindowID = nil
     smartDragActivated = false
     smartWindowHoverRect = nil
+    smartWindowHoverID = nil
   }
 
   mutating func beginManualSelection(at point: CGPoint) {
@@ -31,10 +35,12 @@ struct RegionSelectionInteractionState {
     committedSelectionRect = nil
   }
 
-  mutating func beginSmartSelection(at point: CGPoint, windowRect: CGRect?) {
+  mutating func beginSmartSelection(at point: CGPoint, target: WindowCaptureTarget?) {
     smartMouseDownPoint = point
-    smartMouseDownWindowRect = windowRect
-    smartWindowHoverRect = windowRect
+    smartMouseDownWindowRect = target?.rect
+    smartMouseDownWindowID = target?.windowID
+    smartWindowHoverRect = target?.rect
+    smartWindowHoverID = target?.windowID
     smartDragActivated = false
     dragStart = nil
     dragCurrent = nil
@@ -44,7 +50,9 @@ struct RegionSelectionInteractionState {
   mutating func activateSmartSelectionDrag(from point: CGPoint) {
     smartDragActivated = true
     smartWindowHoverRect = nil
+    smartWindowHoverID = nil
     smartMouseDownWindowRect = nil
+    smartMouseDownWindowID = nil
     dragStart = point
   }
 

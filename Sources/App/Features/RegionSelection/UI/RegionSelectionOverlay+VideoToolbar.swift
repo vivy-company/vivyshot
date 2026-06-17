@@ -168,6 +168,7 @@ extension RegionSelectionView {
     recordingFlowHasStarted = false
     recordingController.startRecording(
       selectionRectInScreen: globalSelection,
+      windowID: selectedCaptureMode == .window ? selectedWindowID : nil,
       overlayState: currentRecordingOverlayState(),
       showFloatingHUD: false,
       flowHandler: self

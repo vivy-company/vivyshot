@@ -6,7 +6,8 @@ protocol RegionSelectionViewDelegate: AnyObject {
     _ view: RegionSelectionView,
     didFinishSelection localRect: CGRect?,
     captureType: CaptureContentType,
-    captureMode: CaptureMode
+    captureMode: CaptureMode,
+    windowID: CGWindowID?
   )
   func regionSelectionViewDidRequestCancel(_ view: RegionSelectionView)
   func regionSelectionViewDidRequestImmediateCancel(_ view: RegionSelectionView)

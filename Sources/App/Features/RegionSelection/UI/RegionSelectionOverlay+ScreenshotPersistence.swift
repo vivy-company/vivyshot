@@ -118,6 +118,9 @@ extension RegionSelectionView {
   }
 
   func exportCropRectForCurrentSelection(in image: CGImage) -> CGRect? {
+    guard !editsWholeImageCapture else {
+      return nil
+    }
     guard !stitchState.modeEnabled else {
       return nil
     }

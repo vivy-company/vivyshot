@@ -45,6 +45,10 @@ extension SettingsView {
     appSettingsBinding(get: \.captureSmartWindowSelectionEnabled, set: { $0.setCaptureSmartWindowSelectionEnabled($1) })
   }
 
+  var screenshotWindowCaptureStyleBinding: Binding<ScreenshotWindowCaptureStyle> {
+    appSettingsBinding(get: \.screenshotWindowCaptureStyle, set: { $0.setScreenshotWindowCaptureStyle($1) })
+  }
+
   var launchAtLoginBinding: Binding<Bool> {
     Binding(
       get: { launchAtLoginController.isEnabled },
@@ -111,6 +115,10 @@ extension SettingsView {
 
   var recordingCaptureResolutionBinding: Binding<RecordingCaptureResolution> {
     appSettingsBinding(get: \.recordingCaptureResolution, set: { $0.setRecordingCaptureResolution($1) })
+  }
+
+  var recordingWindowCaptureStyleBinding: Binding<RecordingWindowCaptureStyle> {
+    appSettingsBinding(get: \.recordingWindowCaptureStyle, set: { $0.setRecordingWindowCaptureStyle($1) })
   }
 
   var recordingCaptureBufferingBinding: Binding<RecordingCaptureBuffering> {

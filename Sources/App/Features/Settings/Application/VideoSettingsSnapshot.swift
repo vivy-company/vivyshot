@@ -12,6 +12,7 @@ struct VideoSettingsSnapshot {
   var recordingCaptureBuffering: RecordingCaptureBuffering
   var recordingShowsPointer: Bool
   var recordingShowsSystemClickRings: Bool
+  var recordingWindowCaptureStyle: RecordingWindowCaptureStyle
   var recordingIncludesAppAudio: Bool
   var exportCodec: PostRecordingExportCodec
   var exportFrameRate: PostRecordingExportFrameRate
@@ -45,6 +46,7 @@ struct VideoSettingsSnapshot {
       recordingCaptureBuffering: AppSettings.Defaults.recordingCaptureBuffering,
       recordingShowsPointer: AppSettings.Defaults.recordingShowsPointer,
       recordingShowsSystemClickRings: AppSettings.Defaults.recordingShowsSystemClickRings,
+      recordingWindowCaptureStyle: AppSettings.Defaults.recordingWindowCaptureStyle,
       recordingIncludesAppAudio: AppSettings.Defaults.recordingIncludesAppAudio,
       exportCodec: AppSettings.Defaults.exportCodec,
       exportFrameRate: AppSettings.Defaults.exportFrameRate,
@@ -77,6 +79,7 @@ struct VideoSettingsSnapshot {
     let storedRecordingColorProfile = defaults.object(forKey: AppSettings.Keys.recordingColorProfile) as? Int
     let storedRecordingCaptureResolution = defaults.object(forKey: AppSettings.Keys.recordingCaptureResolution) as? Int
     let storedRecordingCaptureBuffering = defaults.object(forKey: AppSettings.Keys.recordingCaptureBuffering) as? Int
+    let storedRecordingWindowCaptureStyle = defaults.object(forKey: AppSettings.Keys.recordingWindowCaptureStyle) as? Int
     let storedExportFrameRate = defaults.object(forKey: AppSettings.Keys.exportFrameRate) as? Int
     let storedWebcamShape = defaults.object(forKey: AppSettings.Keys.webcamOverlayShape) as? Int
     let storedWebcamAspectRatio = defaults.object(forKey: AppSettings.Keys.webcamOverlayAspectRatio) as? Int
@@ -156,6 +159,9 @@ struct VideoSettingsSnapshot {
       ) ?? AppSettings.Defaults.recordingCaptureBuffering,
       recordingShowsPointer: recordingShowsPointer,
       recordingShowsSystemClickRings: recordingShowsSystemClickRings,
+      recordingWindowCaptureStyle: RecordingWindowCaptureStyle(
+        rawValue: storedRecordingWindowCaptureStyle ?? AppSettings.Defaults.recordingWindowCaptureStyle.rawValue
+      ) ?? AppSettings.Defaults.recordingWindowCaptureStyle,
       recordingIncludesAppAudio: recordingIncludesAppAudio,
       exportCodec: PostRecordingExportCodec(
         rawValue: defaults.string(forKey: AppSettings.Keys.exportCodec) ?? AppSettings.Defaults.exportCodec.rawValue
@@ -232,6 +238,7 @@ struct VideoSettingsSnapshot {
     defaults.set(recordingCaptureBuffering.rawValue, forKey: AppSettings.Keys.recordingCaptureBuffering)
     defaults.set(recordingShowsPointer, forKey: AppSettings.Keys.recordingShowsPointer)
     defaults.set(recordingShowsSystemClickRings, forKey: AppSettings.Keys.recordingShowsSystemClickRings)
+    defaults.set(recordingWindowCaptureStyle.rawValue, forKey: AppSettings.Keys.recordingWindowCaptureStyle)
     defaults.set(recordingIncludesAppAudio, forKey: AppSettings.Keys.recordingIncludesAppAudio)
     defaults.set(exportCodec.rawValue, forKey: AppSettings.Keys.exportCodec)
     defaults.set(exportFrameRate.rawValue, forKey: AppSettings.Keys.exportFrameRate)

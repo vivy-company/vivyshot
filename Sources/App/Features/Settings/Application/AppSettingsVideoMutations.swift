@@ -73,6 +73,14 @@ extension AppSettings {
     persistVideoCaptureSettings()
   }
 
+  func setRecordingWindowCaptureStyle(_ style: RecordingWindowCaptureStyle) {
+    guard recordingWindowCaptureStyle != style else {
+      return
+    }
+    recordingWindowCaptureStyle = style
+    persistVideoCaptureSettings()
+  }
+
   func setRecordingIncludesAppAudio(_ enabled: Bool) {
     guard recordingIncludesAppAudio != enabled else {
       return
@@ -356,6 +364,7 @@ extension AppSettings {
     recordingCaptureBuffering = snapshot.recordingCaptureBuffering
     recordingShowsPointer = snapshot.recordingShowsPointer
     recordingShowsSystemClickRings = snapshot.recordingShowsSystemClickRings
+    recordingWindowCaptureStyle = snapshot.recordingWindowCaptureStyle
     recordingIncludesAppAudio = snapshot.recordingIncludesAppAudio
     exportCodec = snapshot.exportCodec
     exportFrameRate = snapshot.exportFrameRate

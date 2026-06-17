@@ -1,3 +1,5 @@
+import CoreGraphics
+
 /// Capture target chosen before the region-selection flow begins.
 enum CaptureMode: Int, CaseIterable, Identifiable {
   case screen = 0
@@ -21,4 +23,19 @@ enum ScreenshotMainAction: Int, CaseIterable, Identifiable {
   case save = 1
 
   var id: Int { rawValue }
+}
+
+/// Screenshot behavior for window targets.
+enum ScreenshotWindowCaptureStyle: Int, CaseIterable, Identifiable {
+  case nativeWithShadow = 0
+  case nativeWithoutShadow = 1
+  case visibleAreaRectangle = 2
+
+  var id: Int { rawValue }
+}
+
+/// Resolved native window target plus its overlay-local rectangle.
+struct WindowCaptureTarget {
+  let rect: CGRect
+  let windowID: CGWindowID
 }

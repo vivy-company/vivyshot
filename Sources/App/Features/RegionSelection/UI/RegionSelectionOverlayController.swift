@@ -6,6 +6,7 @@ struct RegionSelectionResult {
   let selectionRectInScreen: CGRect
   let captureType: CaptureContentType
   let captureMode: CaptureMode
+  let windowID: CGWindowID?
 }
 
 struct RegionSelectionCommandRouting {
@@ -76,6 +77,8 @@ final class RegionSelectionOverlayController {
     selectionRectInScreen: CGRect,
     initialCaptureType: CaptureContentType,
     initialCaptureMode: CaptureMode,
+    initialWindowID: CGWindowID? = nil,
+    editsWholeImageCapture: Bool = false,
     recordingController: (any RegionSelectionRecordingControlling)?,
     delegate: any RegionSelectionOverlayEditingDelegate
   ) {
@@ -96,7 +99,9 @@ final class RegionSelectionOverlayController {
       session: session,
       selectionRect: localRect,
       initialCaptureType: initialCaptureType,
-      initialCaptureMode: initialCaptureMode
+      initialCaptureMode: initialCaptureMode,
+      initialWindowID: initialWindowID,
+      editsWholeImageCapture: editsWholeImageCapture
     ) { [weak self] animateClose in
       finishedSynchronously = true
       guard let self else {

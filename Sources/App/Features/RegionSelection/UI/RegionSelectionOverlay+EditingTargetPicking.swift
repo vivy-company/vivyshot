@@ -3,7 +3,7 @@ import ApplicationServices
 
 @MainActor
 extension RegionSelectionView {
-  func captureRectForWindowPick(at localPoint: CGPoint) -> CGRect? {
+  func captureTargetForWindowPick(at localPoint: CGPoint) -> WindowCaptureTarget? {
     guard let hostWindow = window else {
       return nil
     }
@@ -23,6 +23,7 @@ extension RegionSelectionView {
 
     struct WindowPickCandidate {
       let rect: CGRect
+      let windowID: CGWindowID
       let layer: Int
       let order: Int
       let area: CGFloat
@@ -36,7 +37,11 @@ extension RegionSelectionView {
       guard let ownerPIDNumber = info[kCGWindowOwnerPID as String] as? NSNumber else {
         continue
       }
+      guard let windowIDNumber = info[kCGWindowNumber as String] as? NSNumber else {
+        continue
+      }
       let ownerPID = ownerPIDNumber.int32Value
+      let windowID = CGWindowID(windowIDNumber.uint32Value)
       if ownerPIDNumber.int32Value == selfPID {
         continue
       }
@@ -82,6 +87,7 @@ extension RegionSelectionView {
       candidates.append(
         WindowPickCandidate(
           rect: rect,
+          windowID: windowID,
           layer: layer,
           order: order,
           area: area,
@@ -107,7 +113,10 @@ extension RegionSelectionView {
       return lhs.area < rhs.area
     }
 
-    return candidates.first?.rect
+    guard let candidate = candidates.first else {
+      return nil
+    }
+    return WindowCaptureTarget(rect: candidate.rect, windowID: candidate.windowID)
   }
 
   func currentMousePointInView() -> CGPoint? {
@@ -136,36 +145,42 @@ extension RegionSelectionView {
       return
     }
 
-    let nextHover = captureRectForWindowPick(at: point)?.standardized.integral
+    let nextHover = captureTargetForWindowPick(at: point)?.rect.standardized.integral
     if nextHover != windowCaptureHoverRect {
       windowCaptureHoverRect = nextHover
       needsDisplay = true
     }
   }
 
-  func smartWindowRectForInitialSelection(at point: CGPoint) -> CGRect? {
+  func smartWindowTargetForInitialSelection(at point: CGPoint) -> WindowCaptureTarget? {
     guard mode == .selecting, settings.captureSmartWindowSelectionEnabled, !smartDragActivated else {
       return nil
     }
     guard !captureTypeHost.frame.contains(point) else {
       return nil
     }
-    return captureRectForWindowPick(at: point)?.standardized.integral
+    guard let target = captureTargetForWindowPick(at: point) else {
+      return nil
+    }
+    return WindowCaptureTarget(rect: target.rect.standardized.integral, windowID: target.windowID)
   }
 
   func updateSmartWindowHover(at point: CGPoint?) {
     guard mode == .selecting, settings.captureSmartWindowSelectionEnabled, !smartDragActivated, let point else {
       if smartWindowHoverRect != nil {
         smartWindowHoverRect = nil
+        smartWindowHoverID = nil
         needsLayout = true
         needsDisplay = true
       }
       return
     }
 
-    let nextHover = smartWindowRectForInitialSelection(at: point)
+    let target = smartWindowTargetForInitialSelection(at: point)
+    let nextHover = target?.rect
     if nextHover != smartWindowHoverRect {
       smartWindowHoverRect = nextHover
+      smartWindowHoverID = target?.windowID
       needsLayout = true
       needsDisplay = true
     }
@@ -179,11 +194,11 @@ extension RegionSelectionView {
     updateWindowCaptureHover(at: localPoint(fromScreenPoint: screenPoint))
   }
 
-  func captureRectForWindowPick(atScreenPoint screenPoint: CGPoint) -> CGRect? {
+  func captureTargetForWindowPick(atScreenPoint screenPoint: CGPoint) -> WindowCaptureTarget? {
     guard let localPoint = localPoint(fromScreenPoint: screenPoint) else {
       return nil
     }
-    return captureRectForWindowPick(at: localPoint)
+    return captureTargetForWindowPick(at: localPoint)
   }
 
   func syncLiveCaptureTargetPickingState() {

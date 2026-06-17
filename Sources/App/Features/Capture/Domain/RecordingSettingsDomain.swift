@@ -66,6 +66,14 @@ enum RecordingCaptureBuffering: Int, CaseIterable, Identifiable {
   var id: Int { rawValue }
 }
 
+/// Recording behavior for window targets.
+enum RecordingWindowCaptureStyle: Int, CaseIterable, Identifiable {
+  case selectedWindowOnly = 0
+  case visibleAreaRectangle = 1
+
+  var id: Int { rawValue }
+}
+
 /// Mouse click visualization used while recording or rendered by VivyShot after recording.
 enum MouseClickHighlightStyle: Int, CaseIterable, Identifiable {
   case system = 1

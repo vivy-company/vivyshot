@@ -63,6 +63,7 @@ final class AppTests: XCTestCase {
 
     func startRecording(
       selectionRectInScreen: CGRect,
+      windowID: CGWindowID?,
       overlayState: RecordingOverlayState?,
       showFloatingHUD: Bool,
       flowHandler: any RecordingFlowHandling
@@ -87,7 +88,8 @@ final class AppTests: XCTestCase {
       _ view: RegionSelectionView,
       didFinishSelection localRect: CGRect?,
       captureType: CaptureContentType,
-      captureMode: CaptureMode
+      captureMode: CaptureMode,
+      windowID: CGWindowID?
     ) {}
 
     func regionSelectionViewDidRequestCancel(_ view: RegionSelectionView) {}
@@ -758,16 +760,21 @@ final class AppTests: XCTestCase {
 
     state.beginSmartSelection(
       at: CGPoint(x: 30, y: 40),
-      windowRect: CGRect(x: 1, y: 2, width: 100, height: 80)
+      target: WindowCaptureTarget(
+        rect: CGRect(x: 1, y: 2, width: 100, height: 80),
+        windowID: 42
+      )
     )
     XCTAssertNil(state.dragStart)
     XCTAssertEqual(state.smartMouseDownPoint, CGPoint(x: 30, y: 40))
     XCTAssertEqual(state.smartWindowHoverRect, CGRect(x: 1, y: 2, width: 100, height: 80))
+    XCTAssertEqual(state.smartWindowHoverID, 42)
 
     state.activateSmartSelectionDrag(from: CGPoint(x: 30, y: 40))
     XCTAssertTrue(state.smartDragActivated)
     XCTAssertEqual(state.dragStart, CGPoint(x: 30, y: 40))
     XCTAssertNil(state.smartWindowHoverRect)
+    XCTAssertNil(state.smartWindowHoverID)
 
     state.commitSelectingOverlay(rect: CGRect(x: 10, y: 20, width: 50, height: 60))
     XCTAssertNil(state.dragStart)

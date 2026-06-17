@@ -20,6 +20,7 @@ extension RegionSelectionView {
     selectedCaptureMode = .selection
     captureModeSelectionState.setSelectedMode(.selection, animated: false)
     areaCaptureRect = nil
+    clearNativeWindowCaptureState()
     resetLiveCaptureTargetPickingState(sync: true, resetSmartSelection: true)
     resetRecordingState(stopPassthrough: true)
     resetStitchSessionState(hidePanel: true)

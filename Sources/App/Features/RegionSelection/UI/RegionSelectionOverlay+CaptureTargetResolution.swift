@@ -40,12 +40,12 @@ extension RegionSelectionView {
     }
 
     if selectedCaptureMode == .window, windowCapturePickPending {
-      guard let windowRect = captureRectForWindowPick(atScreenPoint: NSEvent.mouseLocation) else {
+      guard let target = captureTargetForWindowPick(atScreenPoint: NSEvent.mouseLocation) else {
         NSSound.beep()
         toastPresenter.show("Move the pointer over a window to start recording")
         return false
       }
-      return applyCaptureRect(windowRect, as: .window, rememberAsArea: false)
+      return applyCaptureRect(target.rect, as: .window, rememberAsArea: false, windowID: target.windowID)
     }
 
     return true
@@ -61,8 +61,8 @@ extension RegionSelectionView {
     }
 
     if selectedCaptureMode == .window, windowCapturePickPending {
-      if let windowRect = captureRectForWindowPick(atScreenPoint: NSEvent.mouseLocation) {
-        return applyCaptureRect(windowRect, as: .window, rememberAsArea: false)
+      if let target = captureTargetForWindowPick(atScreenPoint: NSEvent.mouseLocation) {
+        return applyCaptureRect(target.rect, as: .window, rememberAsArea: false, windowID: target.windowID)
       }
       return false
     }

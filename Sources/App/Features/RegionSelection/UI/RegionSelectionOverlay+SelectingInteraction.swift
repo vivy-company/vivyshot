@@ -7,8 +7,8 @@ extension RegionSelectionView {
     invalidateSelectingOverlay(animatedHint: true)
   }
 
-  func beginSmartSelection(at point: CGPoint, windowRect: CGRect?) {
-    interactionState.beginSmartSelection(at: point, windowRect: windowRect)
+  func beginSmartSelection(at point: CGPoint, target: WindowCaptureTarget?) {
+    interactionState.beginSmartSelection(at: point, target: target)
     invalidateSelectingOverlay(animatedHint: true)
   }
 
@@ -29,22 +29,26 @@ extension RegionSelectionView {
     return selection
   }
 
-  func commitSmartSelection(at point: CGPoint) -> (rect: CGRect?, mode: CaptureMode) {
+  func commitSmartSelection(at point: CGPoint) -> (rect: CGRect?, mode: CaptureMode, windowID: CGWindowID?) {
     let committedMode: CaptureMode
     let committedRect: CGRect?
+    let committedWindowID: CGWindowID?
 
     if smartDragActivated {
       dragCurrent = point
       committedMode = .selection
       committedRect = selectionRect().map { $0.integral }
+      committedWindowID = nil
     } else {
+      let target = smartWindowTargetForInitialSelection(at: point)
       committedMode = .window
-      committedRect = smartWindowRectForInitialSelection(at: point) ?? smartMouseDownWindowRect
+      committedRect = target?.rect ?? smartMouseDownWindowRect
+      committedWindowID = target?.windowID ?? smartMouseDownWindowID
     }
 
     resetSmartSelectionState()
     commitSelectingOverlay(rect: committedRect)
-    return (committedRect, committedMode)
+    return (committedRect, committedMode, committedWindowID)
   }
 
   func commitSelectingOverlay(rect: CGRect?) {

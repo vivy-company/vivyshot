@@ -132,6 +132,12 @@ extension SettingsView {
         }
       }
 
+      videoPickerRow("Window Capture", title: "Window Capture", selection: recordingWindowCaptureStyleBinding, width: 220) {
+        ForEach(RecordingWindowCaptureStyle.allCases) { style in
+          Text(style.title).tag(style)
+        }
+      }
+
       Toggle("System Click Rings", isOn: recordingShowsSystemClickRingsBinding)
         .toggleStyle(.switch)
       Toggle("Hide notifications (best effort)", isOn: hideNotificationsBestEffortBinding)
