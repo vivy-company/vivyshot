@@ -25,17 +25,13 @@ struct StatisticsView: View {
   #endif
   }
 
-  private var statisticsAccentColor: Color {
-    storeManager.hasSupporterBadge ? .orange : .accentColor
-  }
-
   var body: some View {
     ZStack {
       NavigationStack {
         StatisticsRootView(
           viewModel: viewModel,
           storeManager: storeManager,
-          accentColor: statisticsAccentColor,
+          accentColor: .accentColor,
           presentation: presentation,
           hasFullAccess: hasFullStatisticsAccess,
           onUpgrade: onUpgrade
