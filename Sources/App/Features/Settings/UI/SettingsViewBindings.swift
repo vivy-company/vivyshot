@@ -67,6 +67,17 @@ extension SettingsView {
     )
   }
 
+  var videoSaveSkipsDialogBinding: Binding<Bool> {
+    appSettingsBinding(get: \.videoSaveSkipsDialog, set: { $0.setVideoSaveSkipsDialog($1) })
+  }
+
+  var saveCopiedVideosToDefaultDirectoryBinding: Binding<Bool> {
+    appSettingsBinding(
+      get: \.saveCopiedVideosToDefaultDirectory,
+      set: { $0.setSaveCopiedVideosToDefaultDirectory($1) }
+    )
+  }
+
   var toolbarAccentColorBinding: Binding<Color> {
     Binding(
       get: { Color(settings.toolbarAccentColor) },

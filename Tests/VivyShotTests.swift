@@ -380,6 +380,66 @@ final class AppTests: XCTestCase {
   }
 
   @MainActor
+  func testAppSettingsVideoSaveOverridesPersistIndependently() throws {
+    let suiteName = "vivyshot-video-save-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+    }
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("vivyshot-video-save-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+    }
+
+    let settings = AppSettings(defaults: defaults)
+    let changes = SettingsChangeRecorder(settings: settings)
+
+    settings.setVideoSaveDirectory(directory)
+    settings.setVideoSaveSkipsDialog(true)
+    settings.setSaveCopiedVideosToDefaultDirectory(true)
+
+    XCTAssertEqual(settings.videoSaveDirectoryURL?.standardizedFileURL, directory.standardizedFileURL)
+    XCTAssertTrue(settings.videoSaveSkipsDialog)
+    XCTAssertTrue(settings.saveCopiedVideosToDefaultDirectory)
+    XCTAssertEqual(defaults.string(forKey: AppSettings.Keys.videoSaveDirectoryPath), directory.standardizedFileURL.path)
+    XCTAssertTrue(defaults.bool(forKey: AppSettings.Keys.videoSaveSkipsDialog))
+    XCTAssertTrue(defaults.bool(forKey: AppSettings.Keys.saveCopiedVideosToDefaultDirectory))
+    XCTAssertEqual(changes.shortcutCount, 0)
+    XCTAssertEqual(changes.regionCount, 0)
+    XCTAssertEqual(changes.videoCount, 3)
+
+    settings.setVideoSaveDirectory(nil)
+
+    XCTAssertNil(settings.videoSaveDirectoryURL)
+    XCTAssertFalse(settings.videoSaveSkipsDialog)
+    XCTAssertFalse(settings.saveCopiedVideosToDefaultDirectory)
+    XCTAssertEqual(defaults.string(forKey: AppSettings.Keys.videoSaveDirectoryPath), "")
+    XCTAssertFalse(defaults.bool(forKey: AppSettings.Keys.videoSaveSkipsDialog))
+    XCTAssertFalse(defaults.bool(forKey: AppSettings.Keys.saveCopiedVideosToDefaultDirectory))
+  }
+
+  @MainActor
+  func testPostRecordingDirectSaveURLAddsCollisionSuffix() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("vivyshot-direct-save-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+    }
+    let existingURL = directory.appendingPathComponent("VivyShot 10-30-05.mp4")
+    FileManager.default.createFile(atPath: existingURL.path, contents: Data())
+
+    let saveURL = PostRecordingSavePresenter.uniqueSaveURL(
+      in: directory,
+      defaultName: "VivyShot 10-30-05.mp4"
+    )
+
+    XCTAssertEqual(saveURL.lastPathComponent, "VivyShot 10-30-05-2.mp4")
+  }
+
+  @MainActor
   func testAppEnvironmentOwnsLanguagePropagationToLocalizer() {
     let suiteName = "vivyshot-environment-language-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suiteName)!

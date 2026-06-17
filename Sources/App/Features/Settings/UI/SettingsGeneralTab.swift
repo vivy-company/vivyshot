@@ -116,86 +116,120 @@ extension SettingsView {
   }
 
   var savingSection: some View {
-    let hasSaveLocation = settings.defaultSaveDirectoryURL != nil
+    Group {
+      screenshotSavingSection
+      videoSavingSection
+    }
+  }
+
+  var screenshotSavingSection: some View {
+    let hasScreenshotSaveLocation = settings.defaultSaveDirectoryURL != nil
 
     return Section {
-      LabeledContent("Save Location") {
-        Text(defaultSaveDirectoryDisplay)
+      saveFolderRow(
+        title: "Folder",
+        displayText: defaultSaveDirectoryDisplay,
+        hasLocation: hasScreenshotSaveLocation,
+        choose: chooseDefaultSaveDirectory,
+        reveal: revealDefaultSaveDirectoryInFinder,
+        clear: { settings.setDefaultSaveDirectory(nil) }
+      )
+
+      Toggle("Save screenshots without asking", isOn: alwaysSaveToDefaultDirectoryBinding)
+        .toggleStyle(.switch)
+        .disabled(!hasScreenshotSaveLocation)
+
+      Toggle("Also save copied screenshots", isOn: saveCopiedScreenshotsToDefaultDirectoryBinding)
+        .toggleStyle(.switch)
+        .disabled(!hasScreenshotSaveLocation)
+    } header: {
+      Text("Screenshot Saving")
+    } footer: {
+      Text("Choose where screenshot Save and copied-screenshot auto-saves write files.")
+    }
+  }
+
+  var videoSavingSection: some View {
+    let hasVideoSaveLocation = settings.videoSaveDirectoryURL != nil
+
+    return Section {
+      saveFolderRow(
+        title: "Folder",
+        displayText: videoSaveDirectoryDisplay,
+        hasLocation: hasVideoSaveLocation,
+        choose: chooseVideoSaveDirectory,
+        reveal: revealVideoSaveDirectoryInFinder,
+        clear: { settings.setVideoSaveDirectory(nil) }
+      )
+
+      Toggle("Save videos without asking", isOn: videoSaveSkipsDialogBinding)
+        .toggleStyle(.switch)
+        .disabled(!hasVideoSaveLocation)
+
+      Toggle("Also save copied videos", isOn: saveCopiedVideosToDefaultDirectoryBinding)
+        .toggleStyle(.switch)
+        .disabled(!hasVideoSaveLocation)
+
+      Text("When enabled, the post-recording Save menu writes to the video folder instead of opening the save dialog.")
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+    } header: {
+      Text("Video Saving")
+    } footer: {
+      Text("Video exports still use the selected Save menu format, such as MP4, MOV, or GIF.")
+    }
+  }
+
+  func saveFolderRow(
+    title: LocalizedStringKey,
+    displayText: String,
+    hasLocation: Bool,
+    choose: @escaping () -> Void,
+    reveal: @escaping () -> Void,
+    clear: @escaping () -> Void
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      LabeledContent(title) {
+        Text(displayText)
           .font(.system(.callout, design: .monospaced))
-          .foregroundStyle(hasSaveLocation ? .primary : .secondary)
+          .foregroundStyle(hasLocation ? .primary : .secondary)
           .lineLimit(2)
           .multilineTextAlignment(.trailing)
-      }
-
-      if !hasSaveLocation {
-        Text("Choose a folder to enable automatic saves.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
       }
 
       HStack(spacing: 8) {
         Button(
           String(
-            localized: hasSaveLocation ? "Change…" : "Choose Folder…",
+            localized: hasLocation ? "Change…" : "Choose Folder…",
             bundle: AppLocalizer.shared.bundle
-          )
-        ) {
-          chooseDefaultSaveDirectory()
-        }
+          ),
+          action: choose
+        )
         .buttonStyle(.bordered)
 
-        if hasSaveLocation {
-          Button("Show in Finder") {
-            revealDefaultSaveDirectoryInFinder()
-          }
-          .buttonStyle(.bordered)
+        if hasLocation {
+          Button("Show in Finder", action: reveal)
+            .buttonStyle(.bordered)
 
-          Button("Clear") {
-            settings.setDefaultSaveDirectory(nil)
-          }
-          .buttonStyle(.bordered)
+          Button("Clear", action: clear)
+            .buttonStyle(.bordered)
         }
 
         Spacer(minLength: 0)
       }
-
-      Text("Automatic Saving")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.secondary)
-
-      VStack(alignment: .leading, spacing: 4) {
-        Toggle("Save screenshots without asking", isOn: alwaysSaveToDefaultDirectoryBinding)
-          .toggleStyle(.switch)
-        Text("Use this for the Save action instead of opening the save dialog.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-      }
-      .disabled(!hasSaveLocation)
-
-      VStack(alignment: .leading, spacing: 4) {
-        Toggle("Also save copied screenshots", isOn: saveCopiedScreenshotsToDefaultDirectoryBinding)
-          .toggleStyle(.switch)
-        Text("When you copy a screenshot, VivyShot also saves a PNG in this folder.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-      }
-      .disabled(!hasSaveLocation)
-    } header: {
-      Text("Saving")
-    } footer: {
-      Text(
-        String(
-          localized: hasSaveLocation
-            ? "Choose the automatic saving behavior that fits your workflow."
-            : "Choose a folder first to enable automatic saving.",
-          bundle: AppLocalizer.shared.bundle
-        )
-      )
     }
   }
 
   var defaultSaveDirectoryDisplay: String {
-    guard let url = settings.defaultSaveDirectoryURL else {
+    saveDirectoryDisplay(settings.defaultSaveDirectoryURL)
+  }
+
+  var videoSaveDirectoryDisplay: String {
+    saveDirectoryDisplay(settings.videoSaveDirectoryURL)
+  }
+
+  func saveDirectoryDisplay(_ url: URL?) -> String {
+    guard let url else {
       return String(localized: "No folder selected", bundle: AppLocalizer.shared.bundle)
     }
     return (url.path as NSString).abbreviatingWithTildeInPath
@@ -209,23 +243,55 @@ extension SettingsView {
   }
 
   func chooseDefaultSaveDirectory() {
-    let panel = NSOpenPanel()
-    panel.canChooseDirectories = true
-    panel.canChooseFiles = false
-    panel.allowsMultipleSelection = false
-    panel.canCreateDirectories = true
-    panel.prompt = String(localized: "Choose", bundle: AppLocalizer.shared.bundle)
-    panel.title = String(localized: "Choose Default Save Folder", bundle: AppLocalizer.shared.bundle)
-    panel.directoryURL = settings.defaultSaveDirectoryURL
-      ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+    let panel = saveDirectoryPanel(
+      title: "Choose Default Save Folder",
+      initialDirectory: settings.defaultSaveDirectoryURL,
+      fallbackDirectory: FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+    )
 
     if panel.runModal() == .OK {
       settings.setDefaultSaveDirectory(panel.url)
     }
   }
 
+  func chooseVideoSaveDirectory() {
+    let panel = saveDirectoryPanel(
+      title: "Choose Video Save Folder",
+      initialDirectory: settings.videoSaveDirectoryURL,
+      fallbackDirectory: settings.defaultSaveDirectoryURL
+        ?? FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first
+    )
+
+    if panel.runModal() == .OK {
+      settings.setVideoSaveDirectory(panel.url)
+    }
+  }
+
+  func saveDirectoryPanel(
+    title: String.LocalizationValue,
+    initialDirectory: URL?,
+    fallbackDirectory: URL?
+  ) -> NSOpenPanel {
+    let panel = NSOpenPanel()
+    panel.canChooseDirectories = true
+    panel.canChooseFiles = false
+    panel.allowsMultipleSelection = false
+    panel.canCreateDirectories = true
+    panel.prompt = String(localized: "Choose", bundle: AppLocalizer.shared.bundle)
+    panel.title = String(localized: title, bundle: AppLocalizer.shared.bundle)
+    panel.directoryURL = initialDirectory ?? fallbackDirectory
+    return panel
+  }
+
   func revealDefaultSaveDirectoryInFinder() {
     guard let url = settings.defaultSaveDirectoryURL else {
+      return
+    }
+    NSWorkspace.shared.activateFileViewerSelecting([url])
+  }
+
+  func revealVideoSaveDirectoryInFinder() {
+    guard let url = settings.videoSaveDirectoryURL else {
       return
     }
     NSWorkspace.shared.activateFileViewerSelecting([url])

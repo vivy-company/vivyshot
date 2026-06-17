@@ -72,6 +72,12 @@ extension AppSettings {
       key: Keys.saveCopiedScreenshotsToDefaultDirectory,
       defaultValue: false
     )
+    static let videoSaveDirectoryPath = UserDefaultSetting(key: Keys.videoSaveDirectoryPath, defaultValue: "")
+    static let videoSaveSkipsDialog = UserDefaultSetting(key: Keys.videoSaveSkipsDialog, defaultValue: false)
+    static let saveCopiedVideosToDefaultDirectory = UserDefaultSetting(
+      key: Keys.saveCopiedVideosToDefaultDirectory,
+      defaultValue: false
+    )
     static let captureTransitionStyle = UserDefaultSetting(
       key: Keys.captureTransitionStyle,
       defaultValue: Defaults.transitionStyle.rawValue
@@ -115,6 +121,9 @@ extension AppSettings {
     static let defaultSaveDirectoryPath = "settings.save.defaultDirectoryPath"
     static let alwaysSaveToDefaultDirectory = "settings.save.alwaysSaveToDefaultDirectory"
     static let saveCopiedScreenshotsToDefaultDirectory = "settings.save.saveCopiedScreenshotsToDefaultDirectory"
+    static let videoSaveDirectoryPath = "settings.video.save.defaultDirectoryPath"
+    static let videoSaveSkipsDialog = "settings.video.save.skipsDialog"
+    static let saveCopiedVideosToDefaultDirectory = "settings.video.save.saveCopiedVideosToDefaultDirectory"
 
     static let captureTransitionStyle = "settings.capture.transition.style"
     static let captureTransitionSpeed = "settings.capture.transition.speed"

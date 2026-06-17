@@ -30,6 +30,9 @@ final class AppSettings: ObservableObject {
   @Published var defaultSaveDirectoryPath: String
   @Published var alwaysSaveToDefaultDirectory: Bool
   @Published var saveCopiedScreenshotsToDefaultDirectory: Bool
+  @Published var videoSaveDirectoryPath: String
+  @Published var videoSaveSkipsDialog: Bool
+  @Published var saveCopiedVideosToDefaultDirectory: Bool
 
   @Published var captureTransitionStyle: CaptureTransitionStyle
   @Published var captureTransitionSpeed: Double
@@ -111,6 +114,9 @@ final class AppSettings: ObservableObject {
     defaultSaveDirectoryPath = Definitions.defaultSaveDirectoryPath.read(from: defaults)
     alwaysSaveToDefaultDirectory = Definitions.alwaysSaveToDefaultDirectory.read(from: defaults)
     saveCopiedScreenshotsToDefaultDirectory = Definitions.saveCopiedScreenshotsToDefaultDirectory.read(from: defaults)
+    videoSaveDirectoryPath = Definitions.videoSaveDirectoryPath.read(from: defaults)
+    videoSaveSkipsDialog = Definitions.videoSaveSkipsDialog.read(from: defaults)
+    saveCopiedVideosToDefaultDirectory = Definitions.saveCopiedVideosToDefaultDirectory.read(from: defaults)
 
     captureTransitionStyle = CaptureTransitionStyle(
       rawValue: Definitions.captureTransitionStyle.read(from: defaults)

@@ -34,6 +34,37 @@ extension AppSettings {
     persistSaveSettings()
   }
 
+  func setVideoSaveDirectory(_ url: URL?) {
+    let normalizedPath = url?.standardizedFileURL.path ?? ""
+    guard videoSaveDirectoryPath != normalizedPath else {
+      return
+    }
+    videoSaveDirectoryPath = normalizedPath
+    if normalizedPath.isEmpty {
+      videoSaveSkipsDialog = false
+      saveCopiedVideosToDefaultDirectory = false
+    }
+    persistVideoSaveSettings()
+  }
+
+  func setVideoSaveSkipsDialog(_ enabled: Bool) {
+    let normalizedEnabled = enabled && !videoSaveDirectoryPath.isEmpty
+    guard videoSaveSkipsDialog != normalizedEnabled else {
+      return
+    }
+    videoSaveSkipsDialog = normalizedEnabled
+    persistVideoSaveSettings()
+  }
+
+  func setSaveCopiedVideosToDefaultDirectory(_ enabled: Bool) {
+    let normalizedEnabled = enabled && !videoSaveDirectoryPath.isEmpty
+    guard saveCopiedVideosToDefaultDirectory != normalizedEnabled else {
+      return
+    }
+    saveCopiedVideosToDefaultDirectory = normalizedEnabled
+    persistVideoSaveSettings()
+  }
+
   func setToolbarAccentColor(_ color: NSColor) {
     let normalized = Self.normalizedAccentComponents(from: color)
     let nextRed = Self.clampedUnit(normalized.red)

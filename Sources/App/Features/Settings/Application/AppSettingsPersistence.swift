@@ -54,6 +54,13 @@ extension AppSettings {
     Definitions.saveCopiedScreenshotsToDefaultDirectory.write(saveCopiedScreenshotsToDefaultDirectory, to: defaults)
   }
 
+  func persistVideoSaveSettings() {
+    Definitions.videoSaveDirectoryPath.write(videoSaveDirectoryPath, to: defaults)
+    Definitions.videoSaveSkipsDialog.write(videoSaveSkipsDialog, to: defaults)
+    Definitions.saveCopiedVideosToDefaultDirectory.write(saveCopiedVideosToDefaultDirectory, to: defaults)
+    notifySettingsChanged(.video)
+  }
+
   func persistAppearanceSettings() {
     Definitions.toolbarAccentRed.write(toolbarAccentRed, to: defaults)
     Definitions.toolbarAccentGreen.write(toolbarAccentGreen, to: defaults)

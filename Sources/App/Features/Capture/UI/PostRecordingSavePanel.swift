@@ -6,6 +6,7 @@ enum PostRecordingSavePanel {
     let panel = NSSavePanel()
     panel.allowedContentTypes = request.allowedContentTypes
     panel.nameFieldStringValue = request.defaultName
+    panel.directoryURL = request.suggestedDirectory
     panel.canCreateDirectories = true
     panel.isExtensionHidden = false
     guard panel.runModal() == .OK else {

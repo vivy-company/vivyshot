@@ -8,6 +8,17 @@ import UniformTypeIdentifiers
 struct PostRecordingSaveRequest {
   let allowedContentTypes: [UTType]
   let defaultName: String
+  let suggestedDirectory: URL?
+
+  init(
+    allowedContentTypes: [UTType],
+    defaultName: String,
+    suggestedDirectory: URL? = nil
+  ) {
+    self.allowedContentTypes = allowedContentTypes
+    self.defaultName = defaultName
+    self.suggestedDirectory = suggestedDirectory
+  }
 }
 
 struct PostRecordingExportProgressUpdate {
@@ -105,6 +116,9 @@ private struct PostRecordingExportProgressView: View {
 @MainActor
 private final class PostRecordingExportProgressPanel: NSWindowController {
   private let progressState: PostRecordingExportProgressState
+  private var dockPresenceReason: AppDockPresenceReason {
+    .postRecordingExportProgress(ObjectIdentifier(self))
+  }
 
   init(title: String, filename: String) {
     progressState = PostRecordingExportProgressState(
@@ -135,6 +149,7 @@ private final class PostRecordingExportProgressPanel: NSWindowController {
     guard let window else {
       return
     }
+    AppDockPresence.track(dockPresenceReason, window: window)
     window.center()
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
@@ -230,19 +245,15 @@ final class PostRecordingSavePresenter {
     container: PostRecordingVideoSaveContainer?,
     consumesFreeProExportTrial: Bool
   ) {
-    let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-      .replacingOccurrences(of: ":", with: "-")
     let contentType = container?.contentType ?? ExportPlanner.preferredSaveContentType(codec: options.codec)
-    let defaultName = "VivyShot \(timestamp).\(container?.fileExtension ?? contentType.preferredFilenameExtension ?? "mp4")"
+    let fileExtension = container?.fileExtension ?? contentType.preferredFilenameExtension ?? "mp4"
+    let defaultName = Self.defaultVideoSaveName(fileExtension: fileExtension)
 
     let allowedContentTypes = container.map { [$0.contentType] }
       ?? ExportPlanner.allowedSaveContentTypes(codec: options.codec)
-    guard let outputURL = saveURLProvider(
-      PostRecordingSaveRequest(
-        allowedContentTypes: allowedContentTypes,
-        defaultName: defaultName
-      )
-    ) else { return }
+    guard let outputURL = videoSaveURL(allowedContentTypes: allowedContentTypes, defaultName: defaultName) else {
+      return
+    }
 
     let (progressPanel, progressHandler) = makeProgressPanel(
       title: String(localized: "Saving Video", bundle: AppLocalizer.shared.bundle),
@@ -293,7 +304,9 @@ final class PostRecordingSavePresenter {
     container: PostRecordingVideoSaveContainer?,
     consumesFreeProExportTrial: Bool
   ) {
-    let outputURL = CaptureTemporaryFiles.clipboardURL(pathExtension: container?.fileExtension ?? "mp4")
+    let fileExtension = container?.fileExtension ?? "mp4"
+    let copiedVideoDestination = copiedVideoDestination(fileExtension: fileExtension)
+    let outputURL = copiedVideoDestination.url
     let (progressPanel, progressHandler) = makeProgressPanel(
       title: String(localized: "Copying Video", bundle: AppLocalizer.shared.bundle),
       filename: outputURL.lastPathComponent
@@ -334,7 +347,7 @@ final class PostRecordingSavePresenter {
 
         markProExportTrialConsumedIfNeeded(consumesFreeProExportTrial)
         cleanupTemporaryAssets(project: project)
-        toastPresenter.show("Copied video to Clipboard", duration: 2.2)
+        showCopiedVideoToast(savedToVideoFolder: copiedVideoDestination.isStoredInVideoFolder)
       } catch {
         if FileManager.default.fileExists(atPath: outputURL.path) {
           try? FileManager.default.removeItem(at: outputURL)
@@ -516,15 +529,12 @@ final class PostRecordingSavePresenter {
     exportState: PostRecordingExportState,
     consumesFreeProExportTrial: Bool
   ) {
-    let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-      .replacingOccurrences(of: ":", with: "-")
-
-    guard let outputURL = saveURLProvider(
-      PostRecordingSaveRequest(
-        allowedContentTypes: [.gif],
-        defaultName: "VivyShot \(timestamp).gif"
-      )
-    ) else { return }
+    guard let outputURL = videoSaveURL(
+      allowedContentTypes: [.gif],
+      defaultName: Self.defaultVideoSaveName(fileExtension: "gif")
+    ) else {
+      return
+    }
 
     let (progressPanel, progressHandler) = makeProgressPanel(
       title: String(localized: "Saving GIF", bundle: AppLocalizer.shared.bundle),
@@ -568,6 +578,68 @@ final class PostRecordingSavePresenter {
     }
     progressPanel.present()
     return (progressPanel, progressHandler)
+  }
+
+  private func copiedVideoDestination(fileExtension: String) -> (url: URL, isStoredInVideoFolder: Bool) {
+    guard settings.saveCopiedVideosToDefaultDirectory,
+          let directory = settings.videoSaveDirectoryURL
+    else {
+      return (CaptureTemporaryFiles.clipboardURL(pathExtension: fileExtension), false)
+    }
+
+    return (
+      Self.uniqueSaveURL(
+        in: directory,
+        defaultName: Self.defaultVideoSaveName(fileExtension: fileExtension)
+      ),
+      true
+    )
+  }
+
+  private func videoSaveURL(allowedContentTypes: [UTType], defaultName: String) -> URL? {
+    if settings.videoSaveSkipsDialog, let directory = settings.videoSaveDirectoryURL {
+      return Self.uniqueSaveURL(in: directory, defaultName: defaultName)
+    }
+
+    return saveURLProvider(
+      PostRecordingSaveRequest(
+        allowedContentTypes: allowedContentTypes,
+        defaultName: defaultName,
+        suggestedDirectory: settings.videoSaveDirectoryURL
+      )
+    )
+  }
+
+  private func showCopiedVideoToast(savedToVideoFolder: Bool) {
+    if savedToVideoFolder {
+      toastPresenter.show("Copied video and saved", duration: 2.2)
+    } else {
+      toastPresenter.show("Copied video to Clipboard", duration: 2.2)
+    }
+  }
+
+  static func defaultVideoSaveName(fileExtension: String) -> String {
+    let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+      .replacingOccurrences(of: ":", with: "-")
+    return "VivyShot \(timestamp).\(fileExtension)"
+  }
+
+  static func uniqueSaveURL(in directory: URL, defaultName: String) -> URL {
+    let baseURL = directory.appendingPathComponent(defaultName)
+    let pathExtension = baseURL.pathExtension
+    let baseName = baseURL.deletingPathExtension().lastPathComponent
+    var candidate = baseURL
+    var suffix = 2
+
+    while FileManager.default.fileExists(atPath: candidate.path) {
+      let suffixedName = "\(baseName)-\(suffix)"
+      candidate = pathExtension.isEmpty
+        ? directory.appendingPathComponent(suffixedName)
+        : directory.appendingPathComponent(suffixedName).appendingPathExtension(pathExtension)
+      suffix += 1
+    }
+
+    return candidate
   }
 
   private func copyVideoFileToPasteboard(_ url: URL) -> Bool {

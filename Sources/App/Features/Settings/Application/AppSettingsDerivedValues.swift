@@ -13,10 +13,16 @@ extension AppSettings {
   }
 
   var defaultSaveDirectoryURL: URL? {
-    guard !defaultSaveDirectoryPath.isEmpty else {
-      return nil
-    }
-    let url = URL(fileURLWithPath: defaultSaveDirectoryPath, isDirectory: true)
+    Self.validDirectoryURL(path: defaultSaveDirectoryPath)
+  }
+
+  var videoSaveDirectoryURL: URL? {
+    Self.validDirectoryURL(path: videoSaveDirectoryPath)
+  }
+
+  private static func validDirectoryURL(path: String) -> URL? {
+    guard !path.isEmpty else { return nil }
+    let url = URL(fileURLWithPath: path, isDirectory: true)
     var isDirectory: ObjCBool = false
     guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
       return nil
