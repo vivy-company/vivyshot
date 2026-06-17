@@ -54,3 +54,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     uiTestWindow = window
   }
 }
+
+enum AppDockPresenceReason: Hashable {
+  case postRecordingReview(ObjectIdentifier)
+  case settings
+  case statistics(ObjectIdentifier)
+  case paywall(ObjectIdentifier)
+}
+
+@MainActor
+enum AppDockPresence {
+  private static var reasons: Set<AppDockPresenceReason> = []
+
+  static func acquire(_ reason: AppDockPresenceReason) {
+    reasons.insert(reason)
+    applyActivationPolicy()
+  }
+
+  static func release(_ reason: AppDockPresenceReason) {
+    reasons.remove(reason)
+    applyActivationPolicy()
+  }
+
+  private static func applyActivationPolicy() {
+    if UITestRuntime.isEnabled {
+      NSApp.setActivationPolicy(.regular)
+      return
+    }
+
+    if reasons.isEmpty {
+      NSApp.setActivationPolicy(.accessory)
+    } else {
+      NSApp.setActivationPolicy(.regular)
+    }
+  }
+}

@@ -7,6 +7,12 @@ enum PostRecordingAction {
     container: PostRecordingVideoSaveContainer?,
     consumesFreeProExportTrial: Bool
   )
+  case copyVideo(
+    PostRecordingExportOptions,
+    PostRecordingExportState,
+    container: PostRecordingVideoSaveContainer?,
+    consumesFreeProExportTrial: Bool
+  )
   case saveGIF(PostRecordingExportState, consumesFreeProExportTrial: Bool)
   case discard
 }

@@ -19,7 +19,8 @@ enum PostRecordingProjectExporter {
     options: PostRecordingExportOptions,
     exportState: PostRecordingExportState,
     container: PostRecordingVideoSaveContainer?,
-    outputURL: URL
+    outputURL: URL,
+    progress: PostRecordingExportProgressHandler? = nil
   ) async throws {
     let visualURL = temporaryExportURL(extension: "mov")
     defer { try? FileManager.default.removeItem(at: visualURL) }
@@ -28,7 +29,8 @@ enum PostRecordingProjectExporter {
       project: project,
       options: options,
       exportState: exportState,
-      outputURL: visualURL
+      outputURL: visualURL,
+      progress: progress
     )
     try await mergeRenderedVideoWithSourceAudio(
       renderedVideoURL: visualURL,
@@ -36,14 +38,16 @@ enum PostRecordingProjectExporter {
       options: options,
       exportState: exportState,
       container: container,
-      outputURL: outputURL
+      outputURL: outputURL,
+      progress: progress
     )
   }
 
   static func exportGIF(
     project: PostRecordingProject,
     exportState: PostRecordingExportState,
-    outputURL: URL
+    outputURL: URL,
+    progress: PostRecordingExportProgressHandler? = nil
   ) async throws {
     let durationSeconds = exportState.trimmedDurationSeconds
     guard durationSeconds > 0 else {
@@ -62,6 +66,13 @@ enum PostRecordingProjectExporter {
     }
 
     try removeExistingFile(at: outputURL)
+    let renderingGIFPhase = String(localized: "Rendering GIF...", bundle: AppLocalizer.shared.bundle)
+    let finalizingGIFPhase = String(localized: "Finalizing GIF...", bundle: AppLocalizer.shared.bundle)
+    PostRecordingExportProgress.update(
+      progress,
+      phase: renderingGIFPhase,
+      fraction: 0
+    )
 
     let renderSize = gifRenderSize(videoSize: try await resolvedVideoSize(project: project), maxDimension: plan.maxDimension)
     let screenGenerator = makeImageGenerator(url: project.inputURL)
@@ -100,18 +111,34 @@ enum PostRecordingProjectExporter {
         project: project
       )
       CGImageDestinationAddImage(destination, frame, frameProperties as CFDictionary)
+      PostRecordingExportProgress.update(
+        progress,
+        phase: renderingGIFPhase,
+        fraction: Double(index + 1) / Double(plan.frameCount)
+      )
     }
 
+    PostRecordingExportProgress.update(
+      progress,
+      phase: finalizingGIFPhase,
+      fraction: nil
+    )
     guard CGImageDestinationFinalize(destination) else {
       throw exportError("Unable to finalize GIF.")
     }
+    PostRecordingExportProgress.update(
+      progress,
+      phase: finalizingGIFPhase,
+      fraction: 1
+    )
   }
 
   private static func renderCompositedVisualAsset(
     project: PostRecordingProject,
     options: PostRecordingExportOptions,
     exportState: PostRecordingExportState,
-    outputURL: URL
+    outputURL: URL,
+    progress: PostRecordingExportProgressHandler?
   ) async throws {
     try removeExistingFile(at: outputURL)
 
@@ -126,6 +153,7 @@ enum PostRecordingProjectExporter {
         AVVideoCodecKey: AVVideoCodecType.h264,
         AVVideoWidthKey: Int(renderSize.width),
         AVVideoHeightKey: Int(renderSize.height),
+        AVVideoColorPropertiesKey: VideoRecordingColorPolicy.videoColorProperties(for: .h264),
         AVVideoCompressionPropertiesKey: [
           AVVideoAverageBitRateKey: bitrate,
           AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
@@ -140,7 +168,8 @@ enum PostRecordingProjectExporter {
         kCVPixelBufferWidthKey as String: Int(renderSize.width),
         kCVPixelBufferHeightKey as String: Int(renderSize.height),
         kCVPixelBufferCGImageCompatibilityKey as String: true,
-        kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+        kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+        kCVImageBufferCGColorSpaceKey as String: VideoRecordingColorPolicy.cgColorSpace(for: .h264)
       ]
     )
     guard writer.canAdd(input) else {
@@ -164,6 +193,13 @@ enum PostRecordingProjectExporter {
       throw exportError("Unable to allocate video frame buffers.")
     }
 
+    let renderingVideoPhase = String(localized: "Rendering video...", bundle: AppLocalizer.shared.bundle)
+    let finalizingVideoPhase = String(localized: "Finalizing rendered video...", bundle: AppLocalizer.shared.bundle)
+    PostRecordingExportProgress.update(
+      progress,
+      phase: renderingVideoPhase,
+      fraction: 0
+    )
     for frameIndex in 0..<frameCount {
       while !input.isReadyForMoreMediaData {
         try await Task.sleep(nanoseconds: 8_000_000)
@@ -174,6 +210,7 @@ enum PostRecordingProjectExporter {
       guard status == kCVReturnSuccess, let pixelBuffer = maybeBuffer else {
         throw exportError("Unable to allocate video frame.")
       }
+      VideoRecordingColorPolicy.tag(pixelBuffer, for: .h264)
 
       let presentationTime = CMTimeMultiply(frameDuration, multiplier: Int32(frameIndex))
       let seconds = Double(exportState.trimStartMS) / 1000.0 + CMTimeGetSeconds(presentationTime)
@@ -189,8 +226,18 @@ enum PostRecordingProjectExporter {
       guard adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
         throw writer.error ?? exportError("Unable to append video frame.")
       }
+      PostRecordingExportProgress.update(
+        progress,
+        phase: renderingVideoPhase,
+        fraction: 0.75 * Double(frameIndex + 1) / Double(frameCount)
+      )
     }
 
+    PostRecordingExportProgress.update(
+      progress,
+      phase: finalizingVideoPhase,
+      fraction: nil
+    )
     input.markAsFinished()
     nonisolated(unsafe) let unsafeWriter = writer
     await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -200,6 +247,11 @@ enum PostRecordingProjectExporter {
     }
     switch unsafeWriter.status {
     case .completed:
+      PostRecordingExportProgress.update(
+        progress,
+        phase: finalizingVideoPhase,
+        fraction: 0.75
+      )
       break
     case .failed:
       throw unsafeWriter.error ?? exportError("Video writer failed.")
@@ -216,7 +268,8 @@ enum PostRecordingProjectExporter {
     options: PostRecordingExportOptions,
     exportState: PostRecordingExportState,
     container: PostRecordingVideoSaveContainer?,
-    outputURL: URL
+    outputURL: URL,
+    progress: PostRecordingExportProgressHandler?
   ) async throws {
     try removeExistingFile(at: outputURL)
 
@@ -267,7 +320,36 @@ enum PostRecordingProjectExporter {
       estimatedDurationSeconds: CMTimeGetSeconds(duration),
       creationError: exportError("Unable to create final export session.")
     )
-    try await exportSession.exportChecked()
+    try await exportChecked(
+      exportSession,
+      phase: String(localized: "Saving video...", bundle: AppLocalizer.shared.bundle),
+      progressBase: 0.75,
+      progressScale: 0.25,
+      progress: progress
+    )
+  }
+
+  private static func exportChecked(
+    _ exportSession: AVAssetExportSession,
+    phase: String,
+    progressBase: Double,
+    progressScale: Double,
+    progress: PostRecordingExportProgressHandler?
+  ) async throws {
+    PostRecordingExportProgress.update(progress, phase: phase, fraction: progressBase)
+    let progressTask = PostRecordingExportProgress.pollExportSession(
+      exportSession,
+      phase: phase,
+      progressBase: progressBase,
+      progressScale: progressScale,
+      progress: progress
+    )
+    defer {
+      progressTask?.cancel()
+    }
+    nonisolated(unsafe) let unsafeExportSession = exportSession
+    try await unsafeExportSession.exportChecked()
+    PostRecordingExportProgress.update(progress, phase: phase, fraction: progressBase + progressScale)
   }
 
   private static func makeImageGenerator(url: URL) -> AVAssetImageGenerator {

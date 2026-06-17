@@ -2,11 +2,148 @@ import AppKit
 import AVFoundation
 import CoreGraphics
 import CoreMedia
+import SwiftUI
 import UniformTypeIdentifiers
 
 struct PostRecordingSaveRequest {
   let allowedContentTypes: [UTType]
   let defaultName: String
+}
+
+struct PostRecordingExportProgressUpdate {
+  let phase: String
+  let fraction: Double?
+}
+
+typealias PostRecordingExportProgressHandler = @MainActor (PostRecordingExportProgressUpdate) -> Void
+
+enum PostRecordingExportProgress {
+  private static let pollingIntervalNanoseconds: UInt64 = 120_000_000
+
+  @MainActor
+  static func update(
+    _ progress: PostRecordingExportProgressHandler?,
+    phase: String,
+    fraction: Double?
+  ) {
+    progress?(PostRecordingExportProgressUpdate(phase: phase, fraction: fraction))
+  }
+
+  static func pollExportSession(
+    _ exportSession: AVAssetExportSession,
+    phase: String,
+    progressBase: Double = 0,
+    progressScale: Double = 1,
+    progress: PostRecordingExportProgressHandler?
+  ) -> Task<Void, Never>? {
+    guard let progress else {
+      return nil
+    }
+
+    nonisolated(unsafe) let unsafeExportSession = exportSession
+    return Task { @MainActor in
+      while !Task.isCancelled {
+        let fraction = progressBase + Double(unsafeExportSession.progress) * progressScale
+        progress(PostRecordingExportProgressUpdate(phase: phase, fraction: fraction))
+        try? await Task.sleep(nanoseconds: pollingIntervalNanoseconds)
+      }
+    }
+  }
+}
+
+@MainActor
+private final class PostRecordingExportProgressState: ObservableObject {
+  @Published var title: String
+  @Published var phase: String
+  @Published var filename: String
+  @Published var fraction: Double?
+
+  init(title: String, phase: String, filename: String, fraction: Double? = nil) {
+    self.title = title
+    self.phase = phase
+    self.filename = filename
+    self.fraction = fraction
+  }
+
+  func update(_ progress: PostRecordingExportProgressUpdate) {
+    phase = progress.phase
+    fraction = progress.fraction.map { min(1, max(0, $0)) }
+  }
+}
+
+private struct PostRecordingExportProgressView: View {
+  @ObservedObject var state: PostRecordingExportProgressState
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(state.title)
+          .font(.headline)
+        Text(state.filename)
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+
+      if let fraction = state.fraction {
+        ProgressView(value: fraction)
+      } else {
+        ProgressView()
+          .progressViewStyle(.linear)
+      }
+
+      Text(state.phase)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+    .padding(20)
+    .frame(width: 380)
+  }
+}
+
+@MainActor
+private final class PostRecordingExportProgressPanel: NSWindowController {
+  private let progressState: PostRecordingExportProgressState
+
+  init(title: String, filename: String) {
+    progressState = PostRecordingExportProgressState(
+      title: title,
+      phase: String(localized: "Preparing...", bundle: AppLocalizer.shared.bundle),
+      filename: filename
+    )
+
+    let panel = NSPanel(
+      contentRect: CGRect(x: 0, y: 0, width: 380, height: 140),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    panel.title = title
+    panel.contentView = NSHostingView(rootView: PostRecordingExportProgressView(state: progressState))
+    panel.isReleasedWhenClosed = false
+    panel.level = .floating
+    panel.collectionBehavior.insert([.moveToActiveSpace, .fullScreenAuxiliary])
+
+    super.init(window: panel)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { nil }
+
+  func present() {
+    guard let window else {
+      return
+    }
+    window.center()
+    NSApp.activate(ignoringOtherApps: true)
+    window.makeKeyAndOrderFront(nil)
+    window.orderFrontRegardless()
+  }
+
+  func update(_ progress: PostRecordingExportProgressUpdate) {
+    progressState.update(progress)
+  }
 }
 
 @MainActor
@@ -63,6 +200,14 @@ final class PostRecordingSavePresenter {
           container: container,
           consumesFreeProExportTrial: consumesTrial
         )
+      case .copyVideo(let options, let exportState, container: let container, consumesFreeProExportTrial: let consumesTrial):
+        copyVideo(
+          project: project,
+          options: options,
+          exportState: exportState,
+          container: container,
+          consumesFreeProExportTrial: consumesTrial
+        )
       case .saveGIF(let exportState, let consumesTrial):
         quickSaveGIF(
           project: project,
@@ -99,7 +244,15 @@ final class PostRecordingSavePresenter {
       )
     ) else { return }
 
+    let (progressPanel, progressHandler) = makeProgressPanel(
+      title: String(localized: "Saving Video", bundle: AppLocalizer.shared.bundle),
+      filename: outputURL.lastPathComponent
+    )
+
     Task {
+      defer {
+        progressPanel.close()
+      }
       do {
         if exportDecision(project: project, target: .mp4).useCustomCompositor {
           try await PostRecordingProjectExporter.exportCompositedVideo(
@@ -107,7 +260,8 @@ final class PostRecordingSavePresenter {
             options: options,
             exportState: exportState,
             container: container,
-            outputURL: outputURL
+            outputURL: outputURL,
+            progress: progressHandler
           )
           markProExportTrialConsumedIfNeeded(consumesFreeProExportTrial)
           cleanupTemporaryAssets(project: project)
@@ -120,7 +274,8 @@ final class PostRecordingSavePresenter {
           options: options,
           exportState: exportState,
           container: container,
-          outputURL: outputURL
+          outputURL: outputURL,
+          progress: progressHandler
         )
         markProExportTrialConsumedIfNeeded(consumesFreeProExportTrial)
         cleanupTemporaryAssets(project: project)
@@ -131,13 +286,77 @@ final class PostRecordingSavePresenter {
     }
   }
 
+  private func copyVideo(
+    project: PostRecordingProject,
+    options: PostRecordingExportOptions,
+    exportState: PostRecordingExportState,
+    container: PostRecordingVideoSaveContainer?,
+    consumesFreeProExportTrial: Bool
+  ) {
+    let outputURL = CaptureTemporaryFiles.clipboardURL(pathExtension: container?.fileExtension ?? "mp4")
+    let (progressPanel, progressHandler) = makeProgressPanel(
+      title: String(localized: "Copying Video", bundle: AppLocalizer.shared.bundle),
+      filename: outputURL.lastPathComponent
+    )
+
+    Task {
+      defer {
+        progressPanel.close()
+      }
+      do {
+        if exportDecision(project: project, target: .mp4).useCustomCompositor {
+          try await PostRecordingProjectExporter.exportCompositedVideo(
+            project: project,
+            options: options,
+            exportState: exportState,
+            container: container,
+            outputURL: outputURL,
+            progress: progressHandler
+          )
+        } else {
+          try await exportSourceRecordingVideo(
+            project: project,
+            options: options,
+            exportState: exportState,
+            container: container,
+            outputURL: outputURL,
+            progress: progressHandler
+          )
+        }
+
+        guard self.copyVideoFileToPasteboard(outputURL) else {
+          throw NSError(
+            domain: "VivyShot.Export",
+            code: -301,
+            userInfo: [NSLocalizedDescriptionKey: "Unable to copy video to clipboard."]
+          )
+        }
+
+        markProExportTrialConsumedIfNeeded(consumesFreeProExportTrial)
+        cleanupTemporaryAssets(project: project)
+        toastPresenter.show("Copied video to Clipboard", duration: 2.2)
+      } catch {
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+          try? FileManager.default.removeItem(at: outputURL)
+        }
+        toastPresenter.show("Video copy failed: \(error.localizedDescription)", duration: 2.8)
+      }
+    }
+  }
+
   private func exportSourceRecordingVideo(
     project: PostRecordingProject,
     options: PostRecordingExportOptions,
     exportState: PostRecordingExportState,
     container: PostRecordingVideoSaveContainer?,
-    outputURL: URL
+    outputURL: URL,
+    progress: PostRecordingExportProgressHandler?
   ) async throws {
+    PostRecordingExportProgress.update(
+      progress,
+      phase: String(localized: "Preparing video...", bundle: AppLocalizer.shared.bundle),
+      fraction: nil
+    )
     if FileManager.default.fileExists(atPath: outputURL.path) {
       try FileManager.default.removeItem(at: outputURL)
     }
@@ -164,7 +383,11 @@ final class PostRecordingSavePresenter {
       if let videoComposition = try await makePostRecordingVideoComposition(asset: asset, options: options) {
         exportSession.videoComposition = videoComposition
       }
-      try await exportSession.exportChecked()
+      try await exportChecked(
+        exportSession,
+        phase: String(localized: "Saving video...", bundle: AppLocalizer.shared.bundle),
+        progress: progress
+      )
       return
     }
 
@@ -210,7 +433,30 @@ final class PostRecordingSavePresenter {
       exportSession.videoComposition = videoComposition
     }
     nonisolated(unsafe) let unsafeExportSession = exportSession
+    try await exportChecked(
+      unsafeExportSession,
+      phase: String(localized: "Saving video...", bundle: AppLocalizer.shared.bundle),
+      progress: progress
+    )
+  }
+
+  private func exportChecked(
+    _ exportSession: AVAssetExportSession,
+    phase: String,
+    progress: PostRecordingExportProgressHandler?
+  ) async throws {
+    PostRecordingExportProgress.update(progress, phase: phase, fraction: 0)
+    let progressTask = PostRecordingExportProgress.pollExportSession(
+      exportSession,
+      phase: phase,
+      progress: progress
+    )
+    defer {
+      progressTask?.cancel()
+    }
+    nonisolated(unsafe) let unsafeExportSession = exportSession
     try await unsafeExportSession.exportChecked()
+    PostRecordingExportProgress.update(progress, phase: phase, fraction: 1)
   }
 
   private func makePostRecordingVideoComposition(
@@ -261,6 +507,7 @@ final class PostRecordingSavePresenter {
     composition.instructions = [instruction]
     composition.renderSize = plan.renderSize
     composition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(options.frameRate.rawValue))
+    VideoRecordingColorPolicy.apply(to: composition, for: options.codec)
     return composition
   }
 
@@ -279,12 +526,21 @@ final class PostRecordingSavePresenter {
       )
     ) else { return }
 
+    let (progressPanel, progressHandler) = makeProgressPanel(
+      title: String(localized: "Saving GIF", bundle: AppLocalizer.shared.bundle),
+      filename: outputURL.lastPathComponent
+    )
+
     Task {
+      defer {
+        progressPanel.close()
+      }
       do {
         try await PostRecordingProjectExporter.exportGIF(
           project: project,
           exportState: exportState,
-          outputURL: outputURL
+          outputURL: outputURL,
+          progress: progressHandler
         )
         markProExportTrialConsumedIfNeeded(consumesFreeProExportTrial)
         cleanupTemporaryAssets(project: project)
@@ -300,6 +556,24 @@ final class PostRecordingSavePresenter {
       return
     }
     proExportTrialStore.markConsumed()
+  }
+
+  private func makeProgressPanel(
+    title: String,
+    filename: String
+  ) -> (PostRecordingExportProgressPanel, PostRecordingExportProgressHandler) {
+    let progressPanel = PostRecordingExportProgressPanel(title: title, filename: filename)
+    let progressHandler: PostRecordingExportProgressHandler = { progress in
+      progressPanel.update(progress)
+    }
+    progressPanel.present()
+    return (progressPanel, progressHandler)
+  }
+
+  private func copyVideoFileToPasteboard(_ url: URL) -> Bool {
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    return pasteboard.writeObjects([url as NSURL])
   }
 
   private func cleanupTemporaryAssets(project: PostRecordingProject) {

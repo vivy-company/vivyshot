@@ -13,6 +13,10 @@ enum CaptureTemporaryFiles {
     url(prefix: "export", pathExtension: pathExtension)
   }
 
+  static func clipboardURL(pathExtension: String) -> URL {
+    url(prefix: "clipboard", pathExtension: pathExtension)
+  }
+
   private static func url(prefix: String, pathExtension: String) -> URL {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("vivyshot-recordings", isDirectory: true)

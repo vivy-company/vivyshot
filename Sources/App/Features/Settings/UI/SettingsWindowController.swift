@@ -86,13 +86,12 @@ struct SettingsView: View {
 
       settingsContainer {
         recordingSection
+        audioSection
         if webcamFeatureVisible {
           webcamOverlaySection
         }
-        if keystrokesFeatureVisible {
-          keystrokeOverlaySection
-        }
-        mouseClickSection
+        pointerEffectsSection
+        advancedCaptureSection
         recordingToolbarSection
       }
       .tabItem { Label(SettingsTab.video.title, systemImage: "record.circle") }
@@ -152,8 +151,10 @@ struct SettingsView: View {
 @MainActor
 enum SettingsWindowFocus {
   private static weak var settingsWindow: NSWindow?
+  private static var closeObserver: NSObjectProtocol?
 
   static func present(_ openSettings: OpenSettingsAction) {
+    AppDockPresence.acquire(.settings)
     NSApp.activate(ignoringOtherApps: true)
     openSettings()
     focusSoon()
@@ -161,6 +162,9 @@ enum SettingsWindowFocus {
 
   static func register(_ window: NSWindow) {
     let shouldFocus = settingsWindow !== window
+    if shouldFocus {
+      trackSettingsWindow(window)
+    }
     settingsWindow = window
     if shouldFocus {
       focus(window)
@@ -187,6 +191,32 @@ enum SettingsWindowFocus {
     NSApp.activate(ignoringOtherApps: true)
     window.deminiaturize(nil)
     window.makeKeyAndOrderFront(nil)
+  }
+
+  private static func trackSettingsWindow(_ window: NSWindow) {
+    if let closeObserver {
+      NotificationCenter.default.removeObserver(closeObserver)
+    }
+
+    AppDockPresence.acquire(.settings)
+    closeObserver = NotificationCenter.default.addObserver(
+      forName: NSWindow.willCloseNotification,
+      object: window,
+      queue: .main
+    ) { _ in
+      Task { @MainActor in
+        releaseSettingsWindow()
+      }
+    }
+  }
+
+  private static func releaseSettingsWindow() {
+    if let closeObserver {
+      NotificationCenter.default.removeObserver(closeObserver)
+      self.closeObserver = nil
+    }
+    settingsWindow = nil
+    AppDockPresence.release(.settings)
   }
 }
 

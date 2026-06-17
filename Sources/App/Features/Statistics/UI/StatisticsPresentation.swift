@@ -5,6 +5,9 @@ import SwiftUI
 final class StatisticsWindowController: NSWindowController, NSWindowDelegate {
   private let localizer: AppLocalizer
   private let storeManager: StoreManager
+  private var dockPresenceReason: AppDockPresenceReason {
+    .statistics(ObjectIdentifier(self))
+  }
 
   init(
     localizer: AppLocalizer,
@@ -54,12 +57,17 @@ final class StatisticsWindowController: NSWindowController, NSWindowDelegate {
 
   func show() {
     guard let window else { return }
+    AppDockPresence.acquire(dockPresenceReason)
     window.title = String(localized: "Statistics", bundle: localizer.bundle)
     window.subtitle = Self.windowSubtitle(storeManager: storeManager, localizer: localizer)
     window.toolbarStyle = .unified
     window.center()
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    AppDockPresence.release(dockPresenceReason)
   }
 
   private static func windowSubtitle(storeManager: StoreManager?, localizer: AppLocalizer) -> String {

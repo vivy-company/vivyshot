@@ -5,6 +5,9 @@ import SwiftUI
 final class PaywallWindowController: NSWindowController, NSWindowDelegate {
   private let localizer: AppLocalizer
   private let storeManager: StoreManager
+  private var dockPresenceReason: AppDockPresenceReason {
+    .paywall(ObjectIdentifier(self))
+  }
 
   private struct ToolbarCopy {
     let title: String
@@ -52,6 +55,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
 
   func show() {
     guard let window else { return }
+    AppDockPresence.acquire(dockPresenceReason)
     let copy = Self.toolbarCopy(storeManager: storeManager, localizer: localizer)
     let contentSize = Self.contentSize(storeManager: storeManager)
     if let hostingView = window.contentView as? NSHostingView<AnyView> {
@@ -139,6 +143,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
   func windowWillClose(_ notification: Notification) {
     guard let window else { return }
     window.orderOut(nil)
+    AppDockPresence.release(dockPresenceReason)
   }
 
 }

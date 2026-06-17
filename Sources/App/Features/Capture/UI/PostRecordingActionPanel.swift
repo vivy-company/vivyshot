@@ -3,6 +3,63 @@ import AVKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum PostRecordingReviewShortcut {
+  case copyVideo
+  case exportOptions
+  case saveGIF
+  case saveMP4
+  case saveMOV
+}
+
+private enum PostRecordingSaveMenuAction {
+  static let copyVideo = "copy-video"
+  static let gif = "gif"
+}
+
+private final class PostRecordingReviewWindow: NSWindow {
+  var shortcutHandler: ((PostRecordingReviewShortcut) -> Bool)?
+
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if let shortcut = postRecordingShortcut(for: event),
+       shortcutHandler?(shortcut) == true {
+      return true
+    }
+    return super.performKeyEquivalent(with: event)
+  }
+
+  private func postRecordingShortcut(for event: NSEvent) -> PostRecordingReviewShortcut? {
+    guard event.type == .keyDown else {
+      return nil
+    }
+
+    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    guard flags.contains(.command), !flags.contains(.control) else {
+      return nil
+    }
+
+    let hasShift = flags.contains(.shift)
+    let hasOption = flags.contains(.option)
+    guard let key = event.charactersIgnoringModifiers?.lowercased() else {
+      return nil
+    }
+
+    switch (key, hasShift, hasOption) {
+    case ("c", false, false):
+      return .copyVideo
+    case ("e", false, false):
+      return .exportOptions
+    case ("g", false, true):
+      return .saveGIF
+    case ("s", false, false):
+      return .saveMP4
+    case ("s", true, false):
+      return .saveMOV
+    default:
+      return nil
+    }
+  }
+}
+
 final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
   private let inputURL: URL
   private let project: PostRecordingProject
@@ -14,6 +71,9 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
   private let onAction: (PostRecordingAction) -> Void
   private var didPickAction = false
   private var exportSheetController: PostRecordingExportSheetController?
+  private var dockPresenceReason: AppDockPresenceReason {
+    .postRecordingReview(ObjectIdentifier(self))
+  }
 
   init(
     inputURL: URL,
@@ -37,7 +97,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     self.presentPaywall = presentPaywall
     self.onAction = onAction
 
-    let panel = NSWindow(
+    let panel = PostRecordingReviewWindow(
       contentRect: CGRect(x: 0, y: 0, width: 920, height: 720),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
@@ -60,6 +120,9 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 
     super.init(window: panel)
     panel.delegate = self
+    panel.shortcutHandler = { [weak self] shortcut in
+      self?.handlePostRecordingShortcut(shortcut) ?? false
+    }
     toolbar.delegate = self
     panel.toolbar = toolbar
 
@@ -85,12 +148,17 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     guard let window else {
       return
     }
+    AppDockPresence.acquire(dockPresenceReason)
     window.center()
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
     // Cooperative activation can be refused while another app is frontmost;
     // order the panel above regardless so the recording is never reviewable-but-invisible.
     window.orderFrontRegardless()
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    AppDockPresence.release(dockPresenceReason)
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -200,17 +268,35 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     }
 
     button.menu?.addItem(NSMenuItem.separator())
+    let copyItem = NSMenuItem(
+      title: String(localized: "Copy Video", bundle: AppLocalizer.shared.bundle),
+      action: nil,
+      keyEquivalent: "c"
+    )
+    copyItem.keyEquivalentModifierMask = [.command]
+    copyItem.representedObject = PostRecordingSaveMenuAction.copyVideo
+    button.menu?.addItem(copyItem)
+    button.menu?.addItem(NSMenuItem.separator())
     for container in PostRecordingVideoSaveContainer.allCases {
       let menuItem = NSMenuItem(title: container.title, action: nil, keyEquivalent: "")
+      switch container {
+      case .mp4:
+        menuItem.keyEquivalent = "s"
+        menuItem.keyEquivalentModifierMask = [.command]
+      case .mov:
+        menuItem.keyEquivalent = "s"
+        menuItem.keyEquivalentModifierMask = [.command, .shift]
+      }
       menuItem.representedObject = container.rawValue
       button.menu?.addItem(menuItem)
     }
     let gifItem = NSMenuItem(
       title: String(localized: "Save as GIF", bundle: AppLocalizer.shared.bundle),
       action: nil,
-      keyEquivalent: ""
+      keyEquivalent: "g"
     )
-    gifItem.representedObject = "gif"
+    gifItem.keyEquivalentModifierMask = [.command, .option]
+    gifItem.representedObject = PostRecordingSaveMenuAction.gif
     button.menu?.addItem(gifItem)
     button.sizeToFit()
     let fittedSize = button.frame.size
@@ -246,6 +332,15 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
         return nil
       }
       return .saveVideo(options, exportState, container: container, consumesFreeProExportTrial: consumesTrial)
+    case .copyVideo(let options, let exportState, container: let container, consumesFreeProExportTrial: _):
+      guard let consumesTrial = proExportGateDecision(
+        target: .video,
+        options: options,
+        includesAudio: exportState.includesAudio
+      ) else {
+        return nil
+      }
+      return .copyVideo(options, exportState, container: container, consumesFreeProExportTrial: consumesTrial)
     case .saveGIF(let exportState, _):
       guard let consumesTrial = proExportGateDecision(target: .gif, options: nil, includesAudio: false) else {
         return nil
@@ -318,6 +413,26 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     }
   }
 
+  private func handlePostRecordingShortcut(_ shortcut: PostRecordingReviewShortcut) -> Bool {
+    guard window?.attachedSheet == nil else {
+      return false
+    }
+
+    switch shortcut {
+    case .copyVideo:
+      performSaveRecording(rawFormat: PostRecordingSaveMenuAction.copyVideo)
+    case .exportOptions:
+      exportVideoRecording()
+    case .saveGIF:
+      performSaveRecording(rawFormat: PostRecordingSaveMenuAction.gif)
+    case .saveMP4:
+      performSaveRecording(rawFormat: PostRecordingVideoSaveContainer.mp4.rawValue)
+    case .saveMOV:
+      performSaveRecording(rawFormat: PostRecordingVideoSaveContainer.mov.rawValue)
+    }
+    return true
+  }
+
   @objc
   private func exportVideoRecording() {
     guard let window else {
@@ -349,7 +464,18 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
   }
 
   private func performSaveRecording(rawFormat: String) {
-    if rawFormat == "gif" {
+    if rawFormat == PostRecordingSaveMenuAction.copyVideo {
+      performAction(
+        .copyVideo(
+          quickSaveVideoOptions(),
+          reviewState.exportState(),
+          container: .mp4,
+          consumesFreeProExportTrial: false
+        )
+      )
+      return
+    }
+    if rawFormat == PostRecordingSaveMenuAction.gif {
       performAction(.saveGIF(reviewState.exportState(), consumesFreeProExportTrial: false))
       return
     }
