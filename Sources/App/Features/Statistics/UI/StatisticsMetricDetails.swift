@@ -170,7 +170,7 @@ struct StatisticsMetricDetailPanel: View {
   }
 
   private func localized(_ value: String.LocalizationValue) -> String {
-    String(localized: value, bundle: localizer.bundle)
+    localizer.string(value)
   }
 }
 

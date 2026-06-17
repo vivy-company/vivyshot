@@ -25,6 +25,19 @@ export const SITE = {
 
 export const translations = { en, zh, ja, ko, de, fr, es, ru, be, uk } as const;
 
+export const languageOptions = [
+  { code: "en", label: "English", htmlLang: "en" },
+  { code: "zh", label: "中文", htmlLang: "zh-CN" },
+  { code: "ja", label: "日本語", htmlLang: "ja" },
+  { code: "ko", label: "한국어", htmlLang: "ko" },
+  { code: "de", label: "Deutsch", htmlLang: "de" },
+  { code: "fr", label: "Français", htmlLang: "fr" },
+  { code: "es", label: "Español", htmlLang: "es" },
+  { code: "ru", label: "Русский", htmlLang: "ru" },
+  { code: "be", label: "Беларуская", htmlLang: "be" },
+  { code: "uk", label: "Українська", htmlLang: "uk" },
+] as const;
+
 export const softwareSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",

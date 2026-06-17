@@ -22,6 +22,10 @@ final class AppLocalizer: ObservableObject {
     self.language = language
   }
 
+  func string(_ value: String.LocalizationValue) -> String {
+    String(localized: value, bundle: bundle)
+  }
+
   func string(_ key: String, fallback: String? = nil) -> String {
     let fallback = fallback ?? key
     guard let bundle = localizationBundle else {

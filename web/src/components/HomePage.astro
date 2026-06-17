@@ -1,6 +1,6 @@
 ---
 import { Icon } from "astro-icon/components";
-import { SITE, translations } from "../lib/site";
+import { SITE, languageOptions, translations } from "../lib/site";
 
 const whyItems = [
   { key: "native", icon: "lucide:sparkles", color: "text-orange-600 dark:text-orange-300", bg: "bg-orange-100 dark:bg-orange-500/15" },
@@ -447,16 +447,9 @@ const highlightAnswer = (text: string) =>
             aria-label="Select language"
             data-language-select
           >
-            <option value="en">English</option>
-            <option value="zh">中文</option>
-            <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
-            <option value="de">Deutsch</option>
-            <option value="fr">Français</option>
-            <option value="es">Español</option>
-            <option value="ru">Русский</option>
-            <option value="be">Беларуская</option>
-            <option value="uk">Українська</option>
+            {languageOptions.map((language) => (
+              <option value={language.code}>{language.label}</option>
+            ))}
           </select>
           <Icon class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" name="lucide:chevron-down" />
         </div>
@@ -465,23 +458,13 @@ const highlightAnswer = (text: string) =>
   </footer>
 </main>
 
-<script is:inline define:vars={{ translations, themeStorageKey: SITE.themeStorageKey, languageStorageKey: SITE.languageStorageKey }}>
+<script is:inline define:vars={{ translations, languageOptions, themeStorageKey: SITE.themeStorageKey, languageStorageKey: SITE.languageStorageKey }}>
   const langSelect = document.querySelector("[data-language-select]");
   const themeToggle = document.querySelector("[data-theme-toggle]");
   const heroMediaNodes = document.querySelectorAll("[data-hero-media]");
   const heroShotButtons = document.querySelectorAll("[data-hero-shot]");
-  const languageToHtmlLang = {
-    en: "en",
-    zh: "zh-CN",
-    ja: "ja",
-    ko: "ko",
-    de: "de",
-    fr: "fr",
-    es: "es",
-    ru: "ru",
-    be: "be",
-    uk: "uk"
-  };
+  const languageByCode = Object.fromEntries(languageOptions.map((language) => [language.code, language]));
+  const supportedLanguageCodes = languageOptions.map((language) => language.code);
   const getByPath = (object, path) =>
     path.split(".").reduce((value, part) => (value == null ? value : value[part]), object);
 
@@ -513,7 +496,7 @@ const highlightAnswer = (text: string) =>
 
   const applyLanguage = (lang) => {
     const dictionary = translations[lang] || translations.en;
-    document.documentElement.lang = languageToHtmlLang[lang] || "en";
+    document.documentElement.lang = languageByCode[lang]?.htmlLang || "en";
     if (langSelect) langSelect.value = lang;
 
     document.querySelectorAll("[data-i18n]").forEach((node) => {
@@ -541,18 +524,8 @@ const highlightAnswer = (text: string) =>
   if (langSelect) {
     const storedLanguage = localStorage.getItem(languageStorageKey);
     const browserLanguage = (navigator.language || "").toLowerCase();
-    const inferredLanguage =
-      browserLanguage.startsWith("zh") ? "zh"
-      : browserLanguage.startsWith("ja") ? "ja"
-      : browserLanguage.startsWith("ko") ? "ko"
-      : browserLanguage.startsWith("de") ? "de"
-      : browserLanguage.startsWith("fr") ? "fr"
-      : browserLanguage.startsWith("es") ? "es"
-      : browserLanguage.startsWith("ru") ? "ru"
-      : browserLanguage.startsWith("be") ? "be"
-      : browserLanguage.startsWith("uk") ? "uk"
-      : "en";
-    const preferredLanguage = storedLanguage || inferredLanguage;
+    const inferredLanguage = supportedLanguageCodes.find((code) => browserLanguage.startsWith(code)) || "en";
+    const preferredLanguage = supportedLanguageCodes.includes(storedLanguage) ? storedLanguage : inferredLanguage;
     applyLanguage(preferredLanguage);
     langSelect.addEventListener("change", (event) => {
       const lang = event.currentTarget.value;

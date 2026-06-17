@@ -51,17 +51,17 @@ extension SettingsView {
   var aboutLinksSection: some View {
     Section(localized("Links")) {
       AboutLinkRow(
-        title: String(localized: "Website", bundle: AppLocalizer.shared.bundle),
+        title: localized("Website"),
         systemImage: "globe",
         url: URL(string: "https://vivyshot.com")!
       )
       AboutLinkRow(
-        title: String(localized: "Privacy Policy", bundle: AppLocalizer.shared.bundle),
+        title: localized("Privacy Policy"),
         systemImage: "hand.raised",
         url: URL(string: "https://vivyshot.com/privacy")!
       )
       AboutLinkRow(
-        title: String(localized: "Terms of Use", bundle: AppLocalizer.shared.bundle),
+        title: localized("Terms of Use"),
         systemImage: "doc.text",
         url: URL(string: "https://vivyshot.com/terms")!
       )
@@ -71,17 +71,17 @@ extension SettingsView {
   var aboutContactSection: some View {
     Section(localized("Get in Touch")) {
       AboutLinkRow(
-        title: String(localized: "Developer", bundle: AppLocalizer.shared.bundle),
+        title: localized("Developer"),
         systemImage: "person.crop.circle",
         url: URL(string: "https://x.com/wiedymi")!
       )
       AboutLinkRow(
-        title: String(localized: "Discord", bundle: AppLocalizer.shared.bundle),
+        title: localized("Discord"),
         systemImage: "bubble.left.and.bubble.right",
         url: URL(string: "https://discord.gg/zemMZtrkSb")!
       )
       AboutLinkRow(
-        title: String(localized: "Email", bundle: AppLocalizer.shared.bundle),
+        title: localized("Email"),
         systemImage: "envelope",
         url: URL(string: "mailto:vivyshot@vivy.company")!
       )
@@ -92,7 +92,7 @@ extension SettingsView {
     Section(localized("Our Apps")) {
       AboutLinkRow(
         title: "VVTerm",
-        subtitle: String(localized: "Native SSH terminal and SFTP client for iPhone, iPad, and Mac.", bundle: AppLocalizer.shared.bundle),
+        subtitle: localized("Native SSH terminal and SFTP client for iPhone, iPad, and Mac."),
         assetImage: "VVTermIcon",
         url: URL(string: "https://vvterm.com")!
       )

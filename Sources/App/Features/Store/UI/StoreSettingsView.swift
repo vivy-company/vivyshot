@@ -106,30 +106,30 @@ struct StoreSettingsView: View {
 
   private var primaryActionTitle: String {
     if storeManager.hasSupporterBadge {
-      return String(localized: "License Details", bundle: localizer.bundle)
+      return localized("License Details")
     }
     if storeManager.hasLifetimeUnlock {
-      return String(localized: "License Options", bundle: localizer.bundle)
+      return localized("License Options")
     }
-    return String(localized: "Purchase License", bundle: localizer.bundle)
+    return localized("Purchase License")
   }
 
   private func localized(_ value: String.LocalizationValue) -> String {
-    String(localized: value, bundle: localizer.bundle)
+    localizer.string(value)
   }
 
   private func localized(_ value: String) -> String {
-    String(localized: String.LocalizationValue(value), bundle: localizer.bundle)
+    localizer.string(value)
   }
 
   private var storeHeadline: String {
     if storeManager.hasSupporterBadge {
-      return String(localized: "Thanks for supporting VivyShot.", bundle: localizer.bundle)
+      return localized("Thanks for supporting VivyShot.")
     }
     if storeManager.hasLifetimeUnlock {
-      return String(localized: "Lifetime access is unlocked.", bundle: localizer.bundle)
+      return localized("Lifetime access is unlocked.")
     }
-    return String(localized: "Free forever for the core workflow.", bundle: localizer.bundle)
+    return localized("Free forever for the core workflow.")
   }
 
   private var headerGradient: LinearGradient {

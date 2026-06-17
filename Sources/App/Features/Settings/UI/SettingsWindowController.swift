@@ -18,19 +18,19 @@ struct SettingsView: View {
     var title: String {
       switch self {
       case .general:
-        return String(localized: "General", bundle: AppLocalizer.shared.bundle)
+        return AppLocalizer.shared.string("General")
       case .appearance:
-        return String(localized: "Appearance", bundle: AppLocalizer.shared.bundle)
+        return AppLocalizer.shared.string("Appearance")
       case .screenshot:
-        return String(localized: "Screenshot", bundle: AppLocalizer.shared.bundle)
+        return AppLocalizer.shared.string("Screenshot")
       case .video:
-        return String(localized: "Video", bundle: AppLocalizer.shared.bundle)
+        return AppLocalizer.shared.string("Video")
       case .statistics:
-        return String(localized: "Statistics", bundle: AppLocalizer.shared.bundle)
+        return AppLocalizer.shared.string("Statistics")
       case .license:
-        return String(localized: "License", bundle: AppLocalizer.shared.bundle)
+        return AppLocalizer.shared.string("License")
       case .about:
-        return String(localized: "About", bundle: AppLocalizer.shared.bundle)
+        return AppLocalizer.shared.string("About")
       }
     }
   }
@@ -148,11 +148,11 @@ struct SettingsView: View {
   }
 
   func localized(_ value: String.LocalizationValue) -> String {
-    String(localized: value, bundle: localizer.bundle)
+    localizer.string(value)
   }
 
   func localized(_ value: String) -> String {
-    String(localized: String.LocalizationValue(value), bundle: localizer.bundle)
+    localizer.string(value)
   }
 
 }

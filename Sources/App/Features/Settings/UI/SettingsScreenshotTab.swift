@@ -165,9 +165,9 @@ extension SettingsView {
 
   var captureTransitionHelperText: String {
     if storeManager.canUse(.captureTransitions) {
-      return String(localized: "Applied on capture enter and exit.", bundle: AppLocalizer.shared.bundle)
+      return localized("Applied on capture enter and exit.")
     }
-    return String(localized: "Preview is available. Real capture transitions require Pro.", bundle: AppLocalizer.shared.bundle)
+    return localized("Preview is available. Real capture transitions require Pro.")
   }
 
   func visibilityBinding(for tool: AnnotationTool) -> Binding<Bool> {

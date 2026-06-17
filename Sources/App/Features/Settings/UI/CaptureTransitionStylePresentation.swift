@@ -2,17 +2,17 @@ extension CaptureTransitionStyle {
   var title: String {
     switch self {
     case .none:
-      return String(localized: "None", bundle: AppLocalizer.shared.bundle)
+      return AppLocalizer.shared.string("None")
     case .fade:
-      return String(localized: "Fade", bundle: AppLocalizer.shared.bundle)
+      return AppLocalizer.shared.string("Fade")
     case .ripple:
-      return String(localized: "Wave Drop", bundle: AppLocalizer.shared.bundle)
+      return AppLocalizer.shared.string("Wave Drop")
     case .liquidDrop:
-      return String(localized: "Liquid Drop", bundle: AppLocalizer.shared.bundle)
+      return AppLocalizer.shared.string("Liquid Drop")
     case .zoomBlur:
-      return String(localized: "Zoom Blur", bundle: AppLocalizer.shared.bundle)
+      return AppLocalizer.shared.string("Zoom Blur")
     case .waterWave:
-      return String(localized: "Water Wave", bundle: AppLocalizer.shared.bundle)
+      return AppLocalizer.shared.string("Water Wave")
     }
   }
 }

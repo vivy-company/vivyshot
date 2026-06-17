@@ -7,10 +7,10 @@ extension StoreEntitlement {
 
   func badgeTitle(localizer: AppLocalizer) -> String? {
     if hasSupporterBadge {
-      return String(localized: "Supporter", bundle: localizer.bundle)
+      return localizer.string("Supporter")
     }
     if hasLifetimeUnlock {
-      return String(localized: "Lifetime", bundle: localizer.bundle)
+      return localizer.string("Lifetime")
     }
     return nil
   }
@@ -20,7 +20,7 @@ extension StoreEntitlement {
   }
 
   func tierTitle(localizer: AppLocalizer) -> String {
-    badgeTitle(localizer: localizer) ?? String(localized: "Free", bundle: localizer.bundle)
+    badgeTitle(localizer: localizer) ?? localizer.string("Free")
   }
 }
 
@@ -28,9 +28,9 @@ extension StoreError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .verificationFailed:
-      return String(localized: "Purchase verification failed", bundle: AppLocalizer.shared.bundle)
+      return AppLocalizer.shared.string("Purchase verification failed")
     case .productNotFound:
-      return String(localized: "Product not found", bundle: AppLocalizer.shared.bundle)
+      return AppLocalizer.shared.string("Product not found")
     }
   }
 }

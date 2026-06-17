@@ -189,13 +189,7 @@ extension SettingsView {
       }
 
       HStack(spacing: 8) {
-        Button(
-          String(
-            localized: hasLocation ? "Change…" : "Choose Folder…",
-            bundle: AppLocalizer.shared.bundle
-          ),
-          action: choose
-        )
+        Button(localized(hasLocation ? "Change…" : "Choose Folder…"), action: choose)
         .buttonStyle(.bordered)
 
         if hasLocation {
@@ -221,14 +215,14 @@ extension SettingsView {
 
   func saveDirectoryDisplay(_ url: URL?) -> String {
     guard let url else {
-      return String(localized: "No folder selected", bundle: AppLocalizer.shared.bundle)
+      return localized("No folder selected")
     }
     return (url.path as NSString).abbreviatingWithTildeInPath
   }
 
   func languageLabel(for language: AppLanguage) -> String {
     if language == .system {
-      return String(localized: String.LocalizationValue(language.nativeDisplayName), bundle: AppLocalizer.shared.bundle)
+      return localized(language.nativeDisplayName)
     }
     return language.nativeDisplayName
   }
@@ -268,8 +262,8 @@ extension SettingsView {
     panel.canChooseFiles = false
     panel.allowsMultipleSelection = false
     panel.canCreateDirectories = true
-    panel.prompt = String(localized: "Choose", bundle: AppLocalizer.shared.bundle)
-    panel.title = String(localized: title, bundle: AppLocalizer.shared.bundle)
+    panel.prompt = localized("Choose")
+    panel.title = localized(title)
     panel.directoryURL = initialDirectory ?? fallbackDirectory
     return panel
   }
