@@ -25,6 +25,47 @@ enum RecordingCountdown: Int, CaseIterable, Identifiable {
   var id: Int { rawValue }
 }
 
+/// User-facing capture color profile applied as one coordinated capture pipeline choice.
+enum RecordingColorProfile: Int, CaseIterable, Identifiable {
+  case automatic = 0
+  case sdr = 1
+  case wideColor = 2
+  case hdrExperimental = 3
+
+  var id: Int { rawValue }
+
+  var requiresHEVC: Bool {
+    switch self {
+    case .automatic, .sdr:
+      return false
+    case .wideColor, .hdrExperimental:
+      return true
+    }
+  }
+}
+
+/// Output resolution applied to the live ScreenCaptureKit stream before encoding.
+enum RecordingCaptureResolution: Int, CaseIterable, Identifiable {
+  case native = 100
+  case percent75 = 75
+  case percent50 = 50
+
+  var id: Int { rawValue }
+
+  var scale: Double {
+    Double(rawValue) / 100.0
+  }
+}
+
+/// ScreenCaptureKit frame queue preset. Higher values can smooth capture at the cost of memory and latency.
+enum RecordingCaptureBuffering: Int, CaseIterable, Identifiable {
+  case lowLatency = 3
+  case balanced = 5
+  case smoother = 8
+
+  var id: Int { rawValue }
+}
+
 /// Mouse click visualization used while recording or rendered by VivyShot after recording.
 enum MouseClickHighlightStyle: Int, CaseIterable, Identifiable {
   case system = 1

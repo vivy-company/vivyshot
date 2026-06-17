@@ -8,6 +8,9 @@ extension AppSettings {
       return
     }
     recordingEncoder = encoder
+    if encoder != .smallerFileHEVC && recordingColorProfile.requiresHEVC {
+      recordingColorProfile = .automatic
+    }
     persistVideoCaptureSettings()
   }
 
@@ -24,6 +27,57 @@ extension AppSettings {
       return
     }
     recordingCountdown = countdown
+    persistVideoCaptureSettings()
+  }
+
+  func setRecordingColorProfile(_ profile: RecordingColorProfile) {
+    guard recordingColorProfile != profile else {
+      return
+    }
+    recordingColorProfile = profile
+    if profile.requiresHEVC {
+      recordingEncoder = .smallerFileHEVC
+    }
+    persistVideoCaptureSettings()
+  }
+
+  func setRecordingCaptureResolution(_ resolution: RecordingCaptureResolution) {
+    guard recordingCaptureResolution != resolution else {
+      return
+    }
+    recordingCaptureResolution = resolution
+    persistVideoCaptureSettings()
+  }
+
+  func setRecordingCaptureBuffering(_ buffering: RecordingCaptureBuffering) {
+    guard recordingCaptureBuffering != buffering else {
+      return
+    }
+    recordingCaptureBuffering = buffering
+    persistVideoCaptureSettings()
+  }
+
+  func setRecordingShowsPointer(_ enabled: Bool) {
+    guard recordingShowsPointer != enabled else {
+      return
+    }
+    recordingShowsPointer = enabled
+    persistVideoCaptureSettings()
+  }
+
+  func setRecordingShowsSystemClickRings(_ enabled: Bool) {
+    guard recordingShowsSystemClickRings != enabled else {
+      return
+    }
+    recordingShowsSystemClickRings = enabled
+    persistVideoCaptureSettings()
+  }
+
+  func setRecordingIncludesAppAudio(_ enabled: Bool) {
+    guard recordingIncludesAppAudio != enabled else {
+      return
+    }
+    recordingIncludesAppAudio = enabled
     persistVideoCaptureSettings()
   }
 
@@ -297,6 +351,12 @@ extension AppSettings {
     recordingEncoder = snapshot.recordingEncoder
     recordingFrameRate = snapshot.recordingFrameRate
     recordingCountdown = snapshot.recordingCountdown
+    recordingColorProfile = snapshot.recordingColorProfile
+    recordingCaptureResolution = snapshot.recordingCaptureResolution
+    recordingCaptureBuffering = snapshot.recordingCaptureBuffering
+    recordingShowsPointer = snapshot.recordingShowsPointer
+    recordingShowsSystemClickRings = snapshot.recordingShowsSystemClickRings
+    recordingIncludesAppAudio = snapshot.recordingIncludesAppAudio
     exportCodec = snapshot.exportCodec
     exportFrameRate = snapshot.exportFrameRate
     exportQuality = snapshot.exportQuality

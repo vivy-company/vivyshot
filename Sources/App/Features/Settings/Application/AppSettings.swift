@@ -43,6 +43,12 @@ final class AppSettings: ObservableObject {
   @Published var recordingEncoder: RecordingEncoder
   @Published var recordingFrameRate: RecordingFrameRate
   @Published var recordingCountdown: RecordingCountdown
+  @Published var recordingColorProfile: RecordingColorProfile
+  @Published var recordingCaptureResolution: RecordingCaptureResolution
+  @Published var recordingCaptureBuffering: RecordingCaptureBuffering
+  @Published var recordingShowsPointer: Bool
+  @Published var recordingShowsSystemClickRings: Bool
+  @Published var recordingIncludesAppAudio: Bool
   @Published var exportCodec: PostRecordingExportCodec
   @Published var exportFrameRate: PostRecordingExportFrameRate
   @Published var exportQuality: PostRecordingExportQuality
@@ -135,6 +141,12 @@ final class AppSettings: ObservableObject {
     recordingEncoder = videoSettings.recordingEncoder
     recordingFrameRate = videoSettings.recordingFrameRate
     recordingCountdown = videoSettings.recordingCountdown
+    recordingColorProfile = videoSettings.recordingColorProfile
+    recordingCaptureResolution = videoSettings.recordingCaptureResolution
+    recordingCaptureBuffering = videoSettings.recordingCaptureBuffering
+    recordingShowsPointer = videoSettings.recordingShowsPointer
+    recordingShowsSystemClickRings = videoSettings.recordingShowsSystemClickRings
+    recordingIncludesAppAudio = videoSettings.recordingIncludesAppAudio
     exportCodec = videoSettings.exportCodec
     exportFrameRate = videoSettings.exportFrameRate
     exportQuality = videoSettings.exportQuality

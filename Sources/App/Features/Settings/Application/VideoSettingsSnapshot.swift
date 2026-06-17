@@ -7,6 +7,12 @@ struct VideoSettingsSnapshot {
   var recordingEncoder: RecordingEncoder
   var recordingFrameRate: RecordingFrameRate
   var recordingCountdown: RecordingCountdown
+  var recordingColorProfile: RecordingColorProfile
+  var recordingCaptureResolution: RecordingCaptureResolution
+  var recordingCaptureBuffering: RecordingCaptureBuffering
+  var recordingShowsPointer: Bool
+  var recordingShowsSystemClickRings: Bool
+  var recordingIncludesAppAudio: Bool
   var exportCodec: PostRecordingExportCodec
   var exportFrameRate: PostRecordingExportFrameRate
   var exportQuality: PostRecordingExportQuality
@@ -34,6 +40,12 @@ struct VideoSettingsSnapshot {
       recordingEncoder: AppSettings.Defaults.recordingEncoder,
       recordingFrameRate: AppSettings.Defaults.recordingFrameRate,
       recordingCountdown: AppSettings.Defaults.recordingCountdown,
+      recordingColorProfile: AppSettings.Defaults.recordingColorProfile,
+      recordingCaptureResolution: AppSettings.Defaults.recordingCaptureResolution,
+      recordingCaptureBuffering: AppSettings.Defaults.recordingCaptureBuffering,
+      recordingShowsPointer: AppSettings.Defaults.recordingShowsPointer,
+      recordingShowsSystemClickRings: AppSettings.Defaults.recordingShowsSystemClickRings,
+      recordingIncludesAppAudio: AppSettings.Defaults.recordingIncludesAppAudio,
       exportCodec: AppSettings.Defaults.exportCodec,
       exportFrameRate: AppSettings.Defaults.exportFrameRate,
       exportQuality: AppSettings.Defaults.exportQuality,
@@ -62,6 +74,9 @@ struct VideoSettingsSnapshot {
     let storedRecordingEncoder = defaults.object(forKey: AppSettings.Keys.recordingEncoder) as? Int
     let storedRecordingFrameRate = defaults.object(forKey: AppSettings.Keys.recordingFrameRate) as? Int
     let storedRecordingCountdown = defaults.object(forKey: AppSettings.Keys.recordingCountdown) as? Int
+    let storedRecordingColorProfile = defaults.object(forKey: AppSettings.Keys.recordingColorProfile) as? Int
+    let storedRecordingCaptureResolution = defaults.object(forKey: AppSettings.Keys.recordingCaptureResolution) as? Int
+    let storedRecordingCaptureBuffering = defaults.object(forKey: AppSettings.Keys.recordingCaptureBuffering) as? Int
     let storedExportFrameRate = defaults.object(forKey: AppSettings.Keys.exportFrameRate) as? Int
     let storedWebcamShape = defaults.object(forKey: AppSettings.Keys.webcamOverlayShape) as? Int
     let storedWebcamAspectRatio = defaults.object(forKey: AppSettings.Keys.webcamOverlayAspectRatio) as? Int
@@ -101,6 +116,22 @@ struct VideoSettingsSnapshot {
       hideNotifications = defaults.bool(forKey: AppSettings.Keys.hideNotificationsBestEffort)
     }
 
+    let recordingShowsPointer = boolValue(
+      forKey: AppSettings.Keys.recordingShowsPointer,
+      defaultValue: AppSettings.Defaults.recordingShowsPointer,
+      defaults: defaults
+    )
+    let recordingShowsSystemClickRings = boolValue(
+      forKey: AppSettings.Keys.recordingShowsSystemClickRings,
+      defaultValue: AppSettings.Defaults.recordingShowsSystemClickRings,
+      defaults: defaults
+    )
+    let recordingIncludesAppAudio = boolValue(
+      forKey: AppSettings.Keys.recordingIncludesAppAudio,
+      defaultValue: AppSettings.Defaults.recordingIncludesAppAudio,
+      defaults: defaults
+    )
+
     return VideoSettingsSnapshot(
       defaultCaptureType: CaptureContentType(
         rawValue: storedDefaultCaptureType ?? CaptureContentType.screenshot.rawValue
@@ -114,6 +145,18 @@ struct VideoSettingsSnapshot {
       recordingCountdown: RecordingCountdown(
         rawValue: storedRecordingCountdown ?? AppSettings.Defaults.recordingCountdown.rawValue
       ) ?? AppSettings.Defaults.recordingCountdown,
+      recordingColorProfile: RecordingColorProfile(
+        rawValue: storedRecordingColorProfile ?? AppSettings.Defaults.recordingColorProfile.rawValue
+      ) ?? AppSettings.Defaults.recordingColorProfile,
+      recordingCaptureResolution: RecordingCaptureResolution(
+        rawValue: storedRecordingCaptureResolution ?? AppSettings.Defaults.recordingCaptureResolution.rawValue
+      ) ?? AppSettings.Defaults.recordingCaptureResolution,
+      recordingCaptureBuffering: RecordingCaptureBuffering(
+        rawValue: storedRecordingCaptureBuffering ?? AppSettings.Defaults.recordingCaptureBuffering.rawValue
+      ) ?? AppSettings.Defaults.recordingCaptureBuffering,
+      recordingShowsPointer: recordingShowsPointer,
+      recordingShowsSystemClickRings: recordingShowsSystemClickRings,
+      recordingIncludesAppAudio: recordingIncludesAppAudio,
       exportCodec: PostRecordingExportCodec(
         rawValue: defaults.string(forKey: AppSettings.Keys.exportCodec) ?? AppSettings.Defaults.exportCodec.rawValue
       ) ?? AppSettings.Defaults.exportCodec,
@@ -184,6 +227,12 @@ struct VideoSettingsSnapshot {
     defaults.set(recordingEncoder.rawValue, forKey: AppSettings.Keys.recordingEncoder)
     defaults.set(recordingFrameRate.rawValue, forKey: AppSettings.Keys.recordingFrameRate)
     defaults.set(recordingCountdown.rawValue, forKey: AppSettings.Keys.recordingCountdown)
+    defaults.set(recordingColorProfile.rawValue, forKey: AppSettings.Keys.recordingColorProfile)
+    defaults.set(recordingCaptureResolution.rawValue, forKey: AppSettings.Keys.recordingCaptureResolution)
+    defaults.set(recordingCaptureBuffering.rawValue, forKey: AppSettings.Keys.recordingCaptureBuffering)
+    defaults.set(recordingShowsPointer, forKey: AppSettings.Keys.recordingShowsPointer)
+    defaults.set(recordingShowsSystemClickRings, forKey: AppSettings.Keys.recordingShowsSystemClickRings)
+    defaults.set(recordingIncludesAppAudio, forKey: AppSettings.Keys.recordingIncludesAppAudio)
     defaults.set(exportCodec.rawValue, forKey: AppSettings.Keys.exportCodec)
     defaults.set(exportFrameRate.rawValue, forKey: AppSettings.Keys.exportFrameRate)
     defaults.set(exportQuality.rawValue, forKey: AppSettings.Keys.exportQuality)
@@ -210,5 +259,12 @@ struct VideoSettingsSnapshot {
     defaults.set(keystrokeOverlayFrame.width, forKey: AppSettings.Keys.keystrokeOverlayNormalizedWidth)
     defaults.set(keystrokeOverlayFrame.height, forKey: AppSettings.Keys.keystrokeOverlayNormalizedHeight)
     defaults.set(hideNotificationsBestEffort, forKey: AppSettings.Keys.hideNotificationsBestEffort)
+  }
+
+  private static func boolValue(forKey key: String, defaultValue: Bool, defaults: UserDefaults) -> Bool {
+    guard defaults.object(forKey: key) != nil else {
+      return defaultValue
+    }
+    return defaults.bool(forKey: key)
   }
 }

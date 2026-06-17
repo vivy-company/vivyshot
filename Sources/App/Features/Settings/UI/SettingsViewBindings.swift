@@ -94,6 +94,30 @@ extension SettingsView {
     appSettingsBinding(get: \.recordingCountdown, set: { $0.setRecordingCountdown($1) })
   }
 
+  var recordingColorProfileBinding: Binding<RecordingColorProfile> {
+    appSettingsBinding(get: \.recordingColorProfile, set: { $0.setRecordingColorProfile($1) })
+  }
+
+  var recordingCaptureResolutionBinding: Binding<RecordingCaptureResolution> {
+    appSettingsBinding(get: \.recordingCaptureResolution, set: { $0.setRecordingCaptureResolution($1) })
+  }
+
+  var recordingCaptureBufferingBinding: Binding<RecordingCaptureBuffering> {
+    appSettingsBinding(get: \.recordingCaptureBuffering, set: { $0.setRecordingCaptureBuffering($1) })
+  }
+
+  var recordingShowsPointerBinding: Binding<Bool> {
+    appSettingsBinding(get: \.recordingShowsPointer, set: { $0.setRecordingShowsPointer($1) })
+  }
+
+  var recordingShowsSystemClickRingsBinding: Binding<Bool> {
+    appSettingsBinding(get: \.recordingShowsSystemClickRings, set: { $0.setRecordingShowsSystemClickRings($1) })
+  }
+
+  var recordingIncludesAppAudioBinding: Binding<Bool> {
+    appSettingsBinding(get: \.recordingIncludesAppAudio, set: { $0.setRecordingIncludesAppAudio($1) })
+  }
+
   var recordSystemAudioBinding: Binding<Bool> {
     appSettingsBinding(get: \.recordSystemAudio, set: { $0.setVideoRecordSystemAudio($1) })
   }

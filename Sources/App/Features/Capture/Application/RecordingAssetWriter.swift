@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreGraphics
 import CoreMedia
+import CoreVideo
 import Foundation
 import os
 import ScreenCaptureKit
@@ -8,12 +9,161 @@ import VideoToolbox
 
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.vivyshot", category: "Recording")
 
+enum VideoRecordingColorPolicy {
+  static func capturePixelFormat(for encoder: RecordingEncoder, colorProfile: RecordingColorProfile) -> OSType {
+    captureMode(for: encoder, colorProfile: colorProfile) == .sdr
+      ? kCVPixelFormatType_32BGRA
+      : kCVPixelFormatType_ARGB2101010LEPacked
+  }
+
+  static func captureColorSpaceName(for encoder: RecordingEncoder, colorProfile: RecordingColorProfile) -> CFString {
+    colorSpaceName(for: captureMode(for: encoder, colorProfile: colorProfile))
+  }
+
+  static func captureDynamicRange(
+    for encoder: RecordingEncoder,
+    colorProfile: RecordingColorProfile
+  ) -> SCCaptureDynamicRange {
+    captureMode(for: encoder, colorProfile: colorProfile) == .hdr ? .hdrCanonicalDisplay : .SDR
+  }
+
+  static func cgColorSpace(for encoder: RecordingEncoder) -> CGColorSpace {
+    cgColorSpace(for: captureMode(for: encoder, colorProfile: .automatic))
+  }
+
+  static func cgColorSpace(for codec: PostRecordingExportCodec) -> CGColorSpace {
+    cgColorSpace(for: exportMode(for: codec))
+  }
+
+  static func videoColorProperties(for encoder: RecordingEncoder, colorProfile: RecordingColorProfile) -> [String: Any] {
+    videoColorProperties(for: captureMode(for: encoder, colorProfile: colorProfile))
+  }
+
+  static func videoColorProperties(for codec: PostRecordingExportCodec) -> [String: Any] {
+    videoColorProperties(for: exportMode(for: codec))
+  }
+
+  static func apply(to composition: AVMutableVideoComposition, for codec: PostRecordingExportCodec) {
+    let mode = exportMode(for: codec)
+    composition.colorPrimaries = colorPrimaries(for: mode)
+    composition.colorTransferFunction = transferFunction(for: mode)
+    composition.colorYCbCrMatrix = yCbCrMatrix(for: mode)
+  }
+
+  static func tag(_ pixelBuffer: CVPixelBuffer, for codec: PostRecordingExportCodec) {
+    tag(pixelBuffer, mode: exportMode(for: codec))
+  }
+
+  private enum ColorMode {
+    case sdr
+    case wideColor
+    case hdr
+  }
+
+  private static func captureMode(for encoder: RecordingEncoder, colorProfile: RecordingColorProfile) -> ColorMode {
+    switch colorProfile {
+    case .automatic:
+      return encoder == .smallerFileHEVC ? .wideColor : .sdr
+    case .sdr:
+      return .sdr
+    case .wideColor:
+      return .wideColor
+    case .hdrExperimental:
+      return .hdr
+    }
+  }
+
+  private static func exportMode(for codec: PostRecordingExportCodec) -> ColorMode {
+    codec == .hevc ? .wideColor : .sdr
+  }
+
+  private static func colorSpaceName(for mode: ColorMode) -> CFString {
+    switch mode {
+    case .sdr:
+      return CGColorSpace.sRGB
+    case .wideColor:
+      return CGColorSpace.displayP3
+    case .hdr:
+      return CGColorSpace.itur_2100_PQ
+    }
+  }
+
+  private static func colorPrimaries(for mode: ColorMode) -> String {
+    switch mode {
+    case .sdr:
+      return AVVideoColorPrimaries_ITU_R_709_2
+    case .wideColor:
+      return AVVideoColorPrimaries_P3_D65
+    case .hdr:
+      return AVVideoColorPrimaries_ITU_R_2020
+    }
+  }
+
+  private static func transferFunction(for mode: ColorMode) -> String {
+    switch mode {
+    case .sdr, .wideColor:
+      return AVVideoTransferFunction_ITU_R_709_2
+    case .hdr:
+      return AVVideoTransferFunction_SMPTE_ST_2084_PQ
+    }
+  }
+
+  private static func yCbCrMatrix(for mode: ColorMode) -> String {
+    switch mode {
+    case .sdr, .wideColor:
+      return AVVideoYCbCrMatrix_ITU_R_709_2
+    case .hdr:
+      return AVVideoYCbCrMatrix_ITU_R_2020
+    }
+  }
+
+  private static func cgColorSpace(for mode: ColorMode) -> CGColorSpace {
+    CGColorSpace(name: colorSpaceName(for: mode)) ?? CGColorSpaceCreateDeviceRGB()
+  }
+
+  private static func videoColorProperties(for mode: ColorMode) -> [String: Any] {
+    [
+      AVVideoColorPrimariesKey: colorPrimaries(for: mode),
+      AVVideoTransferFunctionKey: transferFunction(for: mode),
+      AVVideoYCbCrMatrixKey: yCbCrMatrix(for: mode)
+    ]
+  }
+
+  private static func tag(_ pixelBuffer: CVPixelBuffer, mode: ColorMode) {
+    CVBufferSetAttachment(
+      pixelBuffer,
+      kCVImageBufferCGColorSpaceKey,
+      cgColorSpace(for: mode),
+      .shouldPropagate
+    )
+    CVBufferSetAttachment(
+      pixelBuffer,
+      kCVImageBufferColorPrimariesKey,
+      colorPrimaries(for: mode) as CFString,
+      .shouldPropagate
+    )
+    CVBufferSetAttachment(
+      pixelBuffer,
+      kCVImageBufferTransferFunctionKey,
+      transferFunction(for: mode) as CFString,
+      .shouldPropagate
+    )
+    CVBufferSetAttachment(
+      pixelBuffer,
+      kCVImageBufferYCbCrMatrixKey,
+      yCbCrMatrix(for: mode) as CFString,
+      .shouldPropagate
+    )
+  }
+}
+
 final class RecordingAssetWriter: @unchecked Sendable {
   let queue = DispatchQueue(label: "com.vivyshot.recording.asset-writer", qos: .userInitiated)
 
   private let outputURL: URL
   private let frameRate: Int
   private let encoder: RecordingEncoder
+  private let colorProfile: RecordingColorProfile
   private let stateLock = NSLock()
   private var systemAudioEnabled: Bool
   private var microphoneAudioEnabled: Bool
@@ -29,12 +179,14 @@ final class RecordingAssetWriter: @unchecked Sendable {
     outputURL: URL,
     frameRate: Int,
     encoder: RecordingEncoder,
+    colorProfile: RecordingColorProfile,
     systemAudioEnabled: Bool,
     microphoneAudioEnabled: Bool
   ) {
     self.outputURL = outputURL
     self.frameRate = max(1, frameRate)
-    self.encoder = encoder
+    self.encoder = colorProfile.requiresHEVC ? .smallerFileHEVC : encoder
+    self.colorProfile = colorProfile
     self.systemAudioEnabled = systemAudioEnabled
     self.microphoneAudioEnabled = microphoneAudioEnabled
   }
@@ -259,12 +411,18 @@ final class RecordingAssetWriter: @unchecked Sendable {
     ]
     if encoder != .smallerFileHEVC {
       compression[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+    } else {
+      compression[AVVideoProfileLevelKey] = kVTProfileLevel_HEVC_Main10_AutoLevel
     }
     let codec: AVVideoCodecType = encoder == .smallerFileHEVC ? .hevc : .h264
     var settings: [String: Any] = [
       AVVideoCodecKey: codec,
       AVVideoWidthKey: Int(videoSize.width),
       AVVideoHeightKey: Int(videoSize.height),
+      AVVideoColorPropertiesKey: VideoRecordingColorPolicy.videoColorProperties(
+        for: encoder,
+        colorProfile: colorProfile
+      ),
       AVVideoCompressionPropertiesKey: compression
     ]
     if encoder == .cpuH264 {

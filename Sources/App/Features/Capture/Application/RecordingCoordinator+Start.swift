@@ -101,9 +101,15 @@ extension RecordingCoordinator {
         let recordingConfig = RecordingConfig(
           encoder: settings.recordingEncoder,
           frameRate: settings.recordingFrameRate.rawValue,
+          colorProfile: settings.recordingColorProfile,
+          captureResolution: settings.recordingCaptureResolution,
+          captureBuffering: settings.recordingCaptureBuffering,
+          showsPointer: settings.recordingShowsPointer,
+          showsSystemClickRings: settings.recordingShowsSystemClickRings,
           captureSystemAudio: settings.recordSystemAudio,
           captureMicrophone: microphoneEnabled,
           microphoneDeviceID: settings.microphoneDeviceID,
+          includesAppAudio: settings.recordingIncludesAppAudio,
           capturedOverlayWindowIDs: capturedOverlayWindowIDs
         )
         let recorder = dependencies.makeRegionRecorder(recordingRect, recordingConfig, outputURL)

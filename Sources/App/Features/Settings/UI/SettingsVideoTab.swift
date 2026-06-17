@@ -3,69 +3,53 @@ import SwiftUI
 @MainActor
 extension SettingsView {
   var recordingSection: some View {
-    Section("Video Capture") {
-      HStack(spacing: 10) {
-        Text("Encoder")
-          .frame(width: 78, alignment: .leading)
-        Spacer(minLength: 0)
-        Picker("Recording Encoder", selection: recordingEncoderBinding) {
-          ForEach(RecordingEncoder.allCases) { encoder in
-            Text(encoder.title).tag(encoder)
-          }
+    Section("Recording") {
+      videoPickerRow("Encoder", title: "Recording Encoder", selection: recordingEncoderBinding, width: 220) {
+        ForEach(RecordingEncoder.allCases) { encoder in
+          Text(encoder.title).tag(encoder)
         }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(width: 220, alignment: .trailing)
       }
 
-      HStack(spacing: 10) {
-        Text("Frame Rate")
-          .frame(width: 78, alignment: .leading)
-        Spacer(minLength: 0)
-        Picker("Video Frame Rate", selection: recordingFrameRateBinding) {
-          ForEach(RecordingFrameRate.allCases) { rate in
-            Text(rate.title).tag(rate)
-          }
+      videoPickerRow("Frame Rate", title: "Video Frame Rate", selection: recordingFrameRateBinding) {
+        ForEach(RecordingFrameRate.allCases) { rate in
+          Text(rate.title).tag(rate)
         }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
       }
 
-      HStack(spacing: 10) {
-        Text("Countdown")
-          .frame(width: 78, alignment: .leading)
-        Spacer(minLength: 0)
-        Picker("Video Countdown", selection: recordingCountdownBinding) {
-          ForEach(RecordingCountdown.allCases) { countdown in
-            Text(countdown.title).tag(countdown)
-          }
+      videoPickerRow("Countdown", title: "Video Countdown", selection: recordingCountdownBinding) {
+        ForEach(RecordingCountdown.allCases) { countdown in
+          Text(countdown.title).tag(countdown)
         }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(width: 190, alignment: .trailing)
       }
 
+      videoPickerRow(
+        "Color & Dynamic Range",
+        title: "Color and Dynamic Range",
+        selection: recordingColorProfileBinding,
+        width: 230
+      ) {
+        ForEach(RecordingColorProfile.allCases) { profile in
+          Text(profile.title).tag(profile)
+        }
+      }
+    }
+  }
+
+  var audioSection: some View {
+    Section("Audio") {
       Toggle("Record system audio", isOn: recordSystemAudioBinding)
         .toggleStyle(.switch)
       if microphoneFeatureVisible {
         Toggle("Record microphone", isOn: recordMicrophoneBinding)
           .toggleStyle(.switch)
       }
-      Toggle("Hide notifications (best effort)", isOn: hideNotificationsBestEffortBinding)
+      Toggle("Include VivyShot audio", isOn: recordingIncludesAppAudioBinding)
         .toggleStyle(.switch)
-
-      HStack {
-        Spacer()
-        Button("Reset Video") {
-          settings.resetVideoCaptureSettings()
-        }
-      }
     }
   }
 
   var webcamOverlaySection: some View {
-    Section("Camera Overlay") {
+    Section("Camera") {
       Toggle("Show camera by default", isOn: showWebcamBinding)
         .toggleStyle(.switch)
 
@@ -95,33 +79,12 @@ extension SettingsView {
     }
   }
 
-  var keystrokeOverlaySection: some View {
-    Section("Keyboard Overlay") {
-      Toggle("Show keystrokes by default", isOn: highlightKeystrokesBinding)
+  var pointerEffectsSection: some View {
+    Section("Pointer & Effects") {
+      Toggle("Show pointer", isOn: recordingShowsPointerBinding)
         .toggleStyle(.switch)
-
-      overlayPickerRow("Key Style", title: "Keystroke Overlay Style", selection: keystrokeOverlayStyleBinding) {
-        ForEach(KeystrokeStyle.allCases) { style in
-          Text(style.title).tag(style)
-        }
-      }
-
-      overlaySliderRow(
-        "Key Size",
-        value: keystrokeOverlaySizeSliderBinding,
-        range: AppSettings.keystrokeOverlaySizeRange,
-        displayValue: settings.keystrokeOverlayNormalizedWidth
-      )
-
-      overlayPreviewActions(.keystroke) {
-        settings.resetKeystrokeOverlayPlacement()
-      }
-    }
-  }
-
-  var mouseClickSection: some View {
-    Section("Mouse Click Highlights") {
       Toggle("Highlight mouse clicks", isOn: highlightMouseClicksBinding)
+        .toggleStyle(.switch)
 
       Picker("Click Style", selection: mouseClickHighlightStyleBinding) {
         ForEach(MouseClickHighlightStyle.allCases) { style in
@@ -130,11 +93,61 @@ extension SettingsView {
       }
       .pickerStyle(.menu)
       .disabled(!settings.highlightMouseClicks)
+
+      if keystrokesFeatureVisible {
+        Toggle("Show keystrokes by default", isOn: highlightKeystrokesBinding)
+          .toggleStyle(.switch)
+
+        overlayPickerRow("Key Style", title: "Keystroke Overlay Style", selection: keystrokeOverlayStyleBinding) {
+          ForEach(KeystrokeStyle.allCases) { style in
+            Text(style.title).tag(style)
+          }
+        }
+
+        overlaySliderRow(
+          "Key Size",
+          value: keystrokeOverlaySizeSliderBinding,
+          range: AppSettings.keystrokeOverlaySizeRange,
+          displayValue: settings.keystrokeOverlayNormalizedWidth
+        )
+
+        overlayPreviewActions(.keystroke) {
+          settings.resetKeystrokeOverlayPlacement()
+        }
+      }
+    }
+  }
+
+  var advancedCaptureSection: some View {
+    Section("Advanced Capture") {
+      videoPickerRow("Capture Resolution", title: "Capture Resolution", selection: recordingCaptureResolutionBinding) {
+        ForEach(RecordingCaptureResolution.allCases) { resolution in
+          Text(resolution.title).tag(resolution)
+        }
+      }
+
+      videoPickerRow("Capture Buffering", title: "Capture Buffering", selection: recordingCaptureBufferingBinding) {
+        ForEach(RecordingCaptureBuffering.allCases) { buffering in
+          Text(buffering.title).tag(buffering)
+        }
+      }
+
+      Toggle("System Click Rings", isOn: recordingShowsSystemClickRingsBinding)
+        .toggleStyle(.switch)
+      Toggle("Hide notifications (best effort)", isOn: hideNotificationsBestEffortBinding)
+        .toggleStyle(.switch)
+
+      HStack {
+        Spacer()
+        Button("Reset Recording Settings") {
+          settings.resetVideoCaptureSettings()
+        }
+      }
     }
   }
 
   var recordingToolbarSection: some View {
-    Section("Video Toolbar") {
+    Section("Toolbar") {
       Text("Drag rows to reorder. Hidden tools won’t appear in video toolbar.")
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -153,6 +166,26 @@ extension SettingsView {
           settings.resetVideoToolbarConfiguration()
         }
       }
+    }
+  }
+
+  func videoPickerRow<Selection: Hashable, Content: View>(
+    _ label: String,
+    title: String,
+    selection: Binding<Selection>,
+    width: CGFloat = 190,
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    HStack(spacing: 10) {
+      Text(label)
+        .frame(width: 150, alignment: .leading)
+      Spacer(minLength: 0)
+      Picker(title, selection: selection) {
+        content()
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .frame(width: width, alignment: .trailing)
     }
   }
 

@@ -4,9 +4,15 @@ import Foundation
 struct RecordingConfig {
   let encoder: RecordingEncoder
   let frameRate: Int
+  let colorProfile: RecordingColorProfile
+  let captureResolution: RecordingCaptureResolution
+  let captureBuffering: RecordingCaptureBuffering
+  let showsPointer: Bool
+  let showsSystemClickRings: Bool
   let captureSystemAudio: Bool
   let captureMicrophone: Bool
   let microphoneDeviceID: String
+  let includesAppAudio: Bool
   let capturedOverlayWindowIDs: [CGWindowID]
 }
 

@@ -128,6 +128,47 @@ extension RecordingCountdown {
   }
 }
 
+extension RecordingColorProfile {
+  var title: String {
+    switch self {
+    case .automatic:
+      return String(localized: "Automatic (Recommended)", bundle: AppLocalizer.shared.bundle)
+    case .sdr:
+      return "SDR"
+    case .wideColor:
+      return String(localized: "Wide Color", bundle: AppLocalizer.shared.bundle)
+    case .hdrExperimental:
+      return String(localized: "HDR (Experimental)", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+}
+
+extension RecordingCaptureResolution {
+  var title: String {
+    switch self {
+    case .native:
+      return String(localized: "Native", bundle: AppLocalizer.shared.bundle)
+    case .percent75:
+      return "75%"
+    case .percent50:
+      return "50%"
+    }
+  }
+}
+
+extension RecordingCaptureBuffering {
+  var title: String {
+    switch self {
+    case .lowLatency:
+      return String(localized: "Low Latency", bundle: AppLocalizer.shared.bundle)
+    case .balanced:
+      return String(localized: "Balanced", bundle: AppLocalizer.shared.bundle)
+    case .smoother:
+      return String(localized: "Smoother", bundle: AppLocalizer.shared.bundle)
+    }
+  }
+}
+
 extension MouseClickHighlightStyle {
   var title: String {
     switch self {

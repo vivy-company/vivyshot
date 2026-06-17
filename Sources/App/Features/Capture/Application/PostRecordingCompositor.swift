@@ -13,7 +13,7 @@ enum PostRecordingCompositor {
     webcamGenerator: AVAssetImageGenerator?,
     project: PostRecordingProject
   ) async throws -> CGImage {
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let colorSpace = VideoRecordingColorPolicy.cgColorSpace(for: .h264)
     let width = max(2, Int(renderSize.width.rounded()))
     let height = max(2, Int(renderSize.height.rounded()))
     let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
@@ -60,7 +60,7 @@ enum PostRecordingCompositor {
     let width = CVPixelBufferGetWidth(pixelBuffer)
     let height = CVPixelBufferGetHeight(pixelBuffer)
     let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let colorSpace = VideoRecordingColorPolicy.cgColorSpace(for: .h264)
     let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
     guard let context = CGContext(
       data: baseAddress,

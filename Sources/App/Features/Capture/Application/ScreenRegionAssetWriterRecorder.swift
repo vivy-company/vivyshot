@@ -37,6 +37,7 @@ final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, S
       outputURL: outputURL,
       frameRate: config.frameRate,
       encoder: config.encoder,
+      colorProfile: config.colorProfile,
       systemAudioEnabled: config.captureSystemAudio,
       microphoneAudioEnabled: config.captureMicrophone
     )
@@ -80,22 +81,32 @@ final class ScreenRegionAssetWriterRecorder: NSObject, RegionRecordingSession, S
       )
     }
 
-    let scale = max(1.0, screen.backingScaleFactor)
+    let scale = max(1.0, screen.backingScaleFactor) * config.captureResolution.scale
     let outputWidth = max(2, Int((sourceRect.width * scale).rounded()))
     let outputHeight = max(2, Int((sourceRect.height * scale).rounded()))
     streamConfig.sourceRect = sourceRect
     streamConfig.width = outputWidth
     streamConfig.height = outputHeight
     streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, config.frameRate)))
-    streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
-    streamConfig.queueDepth = 5
-    streamConfig.showsCursor = true
-    streamConfig.showMouseClicks = false
+    streamConfig.pixelFormat = VideoRecordingColorPolicy.capturePixelFormat(
+      for: config.encoder,
+      colorProfile: config.colorProfile
+    )
+    streamConfig.colorSpaceName = VideoRecordingColorPolicy.captureColorSpaceName(
+      for: config.encoder,
+      colorProfile: config.colorProfile
+    )
+    streamConfig.queueDepth = config.captureBuffering.rawValue
+    streamConfig.showsCursor = config.showsPointer
+    streamConfig.showMouseClicks = config.showsSystemClickRings
     streamConfig.capturesAudio = config.captureSystemAudio
     streamConfig.captureMicrophone = config.captureMicrophone
     streamConfig.microphoneCaptureDeviceID = config.microphoneDeviceID.nilIfEmpty
-    streamConfig.excludesCurrentProcessAudio = false
-    streamConfig.captureDynamicRange = .SDR
+    streamConfig.excludesCurrentProcessAudio = !config.includesAppAudio
+    streamConfig.captureDynamicRange = VideoRecordingColorPolicy.captureDynamicRange(
+      for: config.encoder,
+      colorProfile: config.colorProfile
+    )
     streamConfiguration = streamConfig
 
     sampleWriter.configureVideoSize(width: outputWidth, height: outputHeight)

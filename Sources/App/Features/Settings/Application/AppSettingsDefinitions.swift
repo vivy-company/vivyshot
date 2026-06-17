@@ -128,6 +128,12 @@ extension AppSettings {
     static let recordingEncoder = "settings.video.recordingEncoder"
     static let recordingFrameRate = "settings.video.frameRate"
     static let recordingCountdown = "settings.video.countdown"
+    static let recordingColorProfile = "settings.video.colorProfile"
+    static let recordingCaptureResolution = "settings.video.captureResolution"
+    static let recordingCaptureBuffering = "settings.video.captureBuffering"
+    static let recordingShowsPointer = "settings.video.showsPointer"
+    static let recordingShowsSystemClickRings = "settings.video.showsSystemClickRings"
+    static let recordingIncludesAppAudio = "settings.video.includesAppAudio"
     static let exportCodec = "settings.video.export.codec"
     static let exportFrameRate = "settings.video.export.frameRate"
     static let exportQuality = "settings.video.export.quality"
@@ -173,6 +179,12 @@ extension AppSettings {
     static let recordingEncoder = RecordingEncoder.standardH264
     static let recordingFrameRate = RecordingFrameRate.fps30
     static let recordingCountdown = RecordingCountdown.off
+    static let recordingColorProfile = RecordingColorProfile.automatic
+    static let recordingCaptureResolution = RecordingCaptureResolution.native
+    static let recordingCaptureBuffering = RecordingCaptureBuffering.balanced
+    static let recordingShowsPointer = true
+    static let recordingShowsSystemClickRings = false
+    static let recordingIncludesAppAudio = true
     static let exportCodec = PostRecordingExportCodec.h264
     static let exportFrameRate = PostRecordingExportFrameRate.fps30
     static let exportQuality = PostRecordingExportQuality.standard
