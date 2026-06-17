@@ -88,9 +88,7 @@ extension RegionSelectionView {
     recordingController?.setMicrophoneDeviceIDForNextRecording(deviceID)
     refreshToolbar()
     if recordingActive {
-      recordingControlPanelSize = nil
-      recordingControlHost?.rootView = makeRecordingControlBar()
-      layoutRecordingControlPanel()
+      layoutEditorChrome()
     }
   }
 
@@ -102,9 +100,7 @@ extension RegionSelectionView {
     }
     refreshToolbar()
     if recordingActive {
-      recordingControlPanelSize = nil
-      recordingControlHost?.rootView = makeRecordingControlBar()
-      layoutRecordingControlPanel()
+      layoutEditorChrome()
     }
   }
 

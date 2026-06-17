@@ -21,7 +21,7 @@ extension RegionSelectionView {
     captureModeSelectionState.setSelectedMode(.selection, animated: false)
     areaCaptureRect = nil
     resetLiveCaptureTargetPickingState(sync: true, resetSmartSelection: true)
-    resetRecordingState(closePanel: true)
+    resetRecordingState(stopPassthrough: true)
     resetStitchSessionState(hidePanel: true)
     window?.ignoresMouseEvents = false
   }
@@ -42,13 +42,13 @@ extension RegionSelectionView {
     }
   }
 
-  func resetRecordingState(closePanel: Bool) {
+  func resetRecordingState(stopPassthrough: Bool) {
     let wasActive = recordingState.active
     recordingState = RegionSelectionRecordingState()
     if wasActive {
       updateRecordingFocusPresentation()
-    } else if closePanel {
-      closeRecordingControlPanel()
+    } else if stopPassthrough {
+      stopRecordingToolbarPassthrough()
     }
   }
 

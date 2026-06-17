@@ -6,7 +6,7 @@ extension RegionSelectionView {
   func makeToolbarView(glassNamespace: Namespace.ID) -> AnyView {
     if mode == .editing, selectedCaptureType == .video {
       if recordingActive {
-        return AnyView(makeRecordingControlBar())
+        return AnyView(makeRecordingControlBar(glassNamespace: glassNamespace))
       }
       return AnyView(makeCaptureVideoToolbar(glassNamespace: glassNamespace))
     }
@@ -123,7 +123,7 @@ extension RegionSelectionView {
 
   func prepareGlassChromeForFirstDisplay() {
     glassChromeRevealTask?.cancel()
-    closeRecordingControlPanel()
+    stopRecordingToolbarPassthrough()
     glassBackdropRefreshScheduled = false
     glassChromeReadyForBackdrop = false
     selectingHintHost.alphaValue = 1
@@ -239,7 +239,7 @@ extension RegionSelectionView {
     let start = toolbarDragStartOffset ?? .zero
     toolbarOffset = CGSize(
       width: start.width + translation.width,
-      height: start.height + translation.height
+      height: start.height - translation.height
     )
     needsLayout = true
     layoutEditorChrome()
@@ -247,16 +247,10 @@ extension RegionSelectionView {
 
   func finishToolbarDrag() {
     toolbarDragStartOffset = nil
-    recordingControlDragStartOffset = nil
-    recordingControlDragStartMouseLocation = nil
-    layoutRecordingControlPanel()
+    layoutEditorChrome()
   }
 
   private func glassHostsForRefresh() -> [NSView] {
-    var hosts: [NSView] = [selectingHintHost, captureTypeHost, toolbarHost]
-    if let recordingControlHost {
-      hosts.append(recordingControlHost)
-    }
-    return hosts
+    [selectingHintHost, captureTypeHost, toolbarHost]
   }
 }

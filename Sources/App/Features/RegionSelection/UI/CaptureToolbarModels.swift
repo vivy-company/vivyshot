@@ -59,7 +59,7 @@ enum RecordingControlBarAction {
   case selectMicrophoneSource(String)
   case selectWebcamSource(String)
   case stop
-  case drag(CGPoint)
+  case drag(CGSize)
   case dragEnded
 }
 

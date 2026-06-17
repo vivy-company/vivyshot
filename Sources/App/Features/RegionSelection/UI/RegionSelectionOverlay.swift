@@ -65,8 +65,7 @@ final class RegionSelectionView: NSView {
   var glassChromeReadyForBackdrop = false
   var floatingChromeState = RegionSelectionFloatingChromeState()
   var toolbarFrameAnimationPending = false
-  var recordingControlPanel: NSPanel?
-  var recordingControlHost: RegionSelectionGlassHostingView<RecordingControlBar>?
+  var recordingPointerPassthroughTimer: Timer?
   var stitchControlPanel: NSPanel?
   var selectedCaptureType: CaptureContentType
   var selectedCaptureMode: CaptureMode = .selection
@@ -148,6 +147,7 @@ final class RegionSelectionView: NSView {
   deinit {
     MainActor.assumeIsolated {
       glassChromeRevealTask?.cancel()
+      recordingPointerPassthroughTimer?.invalidate()
       stitchState.captureTask?.cancel()
       settingsCancellables.forEach { $0.cancel() }
       settingsCancellables.removeAll()

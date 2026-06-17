@@ -139,11 +139,8 @@ extension RegionSelectionView {
     }
 
     if recordingActive {
-      toolbarHost.isHidden = true
-      layoutRecordingControlPanel()
       setResizeHandlesHidden(true)
       layoutVideoOverlayPlacementViews(selection: selection)
-      return
     }
 
     toolbarHost.layoutSubtreeIfNeeded()
@@ -220,6 +217,11 @@ extension RegionSelectionView {
       toolbarHost.frame = toolbarFrame
     }
     toolbarHost.isHidden = !glassChromeReadyForBackdrop
+
+    if recordingActive {
+      updateRecordingToolbarPassthrough()
+      return
+    }
 
     if stitchState.modeEnabled || selection == nil || hidesSelectionFrame {
       setResizeHandlesHidden(true)

@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 struct RecordingControlBar: View {
   let state: RecordingControlBarState
+  var glassNamespace: Namespace.ID? = nil
   let usesExternalGlassSurface: Bool
   let onAction: (RecordingControlBarAction) -> Void
 
@@ -15,7 +16,8 @@ struct RecordingControlBar: View {
     barContent
       .floatingCapsuleGlassSurface(
         usesExternalSurface: usesExternalGlassSurface,
-        tint: Color.red.opacity(0.08)
+        glassNamespace: glassNamespace,
+        glassID: "region-selection-toolbar-shell"
       )
     .fixedSize()
   }
@@ -183,8 +185,8 @@ struct RecordingControlBar: View {
 
   private var dragGesture: some Gesture {
     DragGesture(minimumDistance: 2, coordinateSpace: .global)
-      .onChanged { _ in
-        onAction(.drag(NSEvent.mouseLocation))
+      .onChanged { value in
+        onAction(.drag(value.translation))
       }
       .onEnded { _ in
         onAction(.dragEnded)

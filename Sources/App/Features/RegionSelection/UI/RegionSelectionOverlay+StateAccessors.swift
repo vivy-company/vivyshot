@@ -48,26 +48,6 @@ extension RegionSelectionView {
     set { floatingChromeState.toolbarDragStartOffset = newValue }
   }
 
-  var recordingControlOffset: CGSize {
-    get { floatingChromeState.recordingControlOffset }
-    set { floatingChromeState.recordingControlOffset = newValue }
-  }
-
-  var recordingControlDragStartOffset: CGSize? {
-    get { floatingChromeState.recordingControlDragStartOffset }
-    set { floatingChromeState.recordingControlDragStartOffset = newValue }
-  }
-
-  var recordingControlDragStartMouseLocation: CGPoint? {
-    get { floatingChromeState.recordingControlDragStartMouseLocation }
-    set { floatingChromeState.recordingControlDragStartMouseLocation = newValue }
-  }
-
-  var recordingControlPanelSize: CGSize? {
-    get { floatingChromeState.recordingControlPanelSize }
-    set { floatingChromeState.recordingControlPanelSize = newValue }
-  }
-
   var recordingActive: Bool {
     get { recordingState.active }
     set {

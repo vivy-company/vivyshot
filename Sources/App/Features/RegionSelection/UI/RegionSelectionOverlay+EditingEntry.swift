@@ -34,7 +34,7 @@ extension RegionSelectionView {
     selectedCaptureType = initialCaptureType
     selectedCaptureMode = initialCaptureMode
     captureModeSelectionState.setSelectedMode(initialCaptureMode, animated: false)
-    resetRecordingState(closePanel: false)
+    resetRecordingState(stopPassthrough: false)
     resetLiveCaptureTargetPickingState(sync: true, resetSmartSelection: true)
     if selectedCaptureType == .video {
       currentTool = .move
