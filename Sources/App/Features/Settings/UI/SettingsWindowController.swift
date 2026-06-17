@@ -154,7 +154,7 @@ enum SettingsWindowFocus {
   private static var closeObserver: NSObjectProtocol?
 
   static func present(_ openSettings: OpenSettingsAction) {
-    AppDockPresence.acquire(.settings)
+    AppDockPresence.prepareForWindowPresentation(.settings)
     NSApp.activate(ignoringOtherApps: true)
     openSettings()
     focusSoon()
@@ -198,7 +198,7 @@ enum SettingsWindowFocus {
       NotificationCenter.default.removeObserver(closeObserver)
     }
 
-    AppDockPresence.acquire(.settings)
+    AppDockPresence.track(.settings, window: window)
     closeObserver = NotificationCenter.default.addObserver(
       forName: NSWindow.willCloseNotification,
       object: window,

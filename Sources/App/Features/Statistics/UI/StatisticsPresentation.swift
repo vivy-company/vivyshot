@@ -57,7 +57,7 @@ final class StatisticsWindowController: NSWindowController, NSWindowDelegate {
 
   func show() {
     guard let window else { return }
-    AppDockPresence.acquire(dockPresenceReason)
+    AppDockPresence.track(dockPresenceReason, window: window)
     window.title = String(localized: "Statistics", bundle: localizer.bundle)
     window.subtitle = Self.windowSubtitle(storeManager: storeManager, localizer: localizer)
     window.toolbarStyle = .unified

@@ -55,7 +55,7 @@ final class PaywallWindowController: NSWindowController, NSWindowDelegate {
 
   func show() {
     guard let window else { return }
-    AppDockPresence.acquire(dockPresenceReason)
+    AppDockPresence.track(dockPresenceReason, window: window)
     let copy = Self.toolbarCopy(storeManager: storeManager, localizer: localizer)
     let contentSize = Self.contentSize(storeManager: storeManager)
     if let hostingView = window.contentView as? NSHostingView<AnyView> {

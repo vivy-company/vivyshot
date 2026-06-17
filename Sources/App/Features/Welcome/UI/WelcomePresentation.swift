@@ -6,6 +6,9 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
   private let settings: AppSettings
   private let localizer: AppLocalizer
   private let welcomeStateStore: WelcomeStateStore
+  private var dockPresenceReason: AppDockPresenceReason {
+    .welcome(ObjectIdentifier(self))
+  }
 
   init(settings: AppSettings, localizer: AppLocalizer, welcomeStateStore: WelcomeStateStore) {
     self.settings = settings
@@ -42,6 +45,7 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
   ) {
     guard let window else { return }
 
+    AppDockPresence.track(dockPresenceReason, window: window)
     let needsPermission = !ScreenRecordingPermission.isGranted
     let contentSize = Self.contentSize(needsScreenRecordingPermission: needsPermission)
     window.title = String(localized: "Welcome to VivyShot", bundle: localizer.bundle)

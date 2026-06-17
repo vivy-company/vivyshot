@@ -148,7 +148,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
     guard let window else {
       return
     }
-    AppDockPresence.acquire(dockPresenceReason)
+    AppDockPresence.track(dockPresenceReason, window: window)
     window.center()
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)

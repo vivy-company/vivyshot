@@ -33,6 +33,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     false
   }
 
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    AppDockPresence.frontTrackedWindows()
+    return false
+  }
+
   @MainActor
   private func presentUITestHarnessWindowIfNeeded() {
     guard let statusController = environment?.statusController else {
@@ -57,23 +62,101 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 enum AppDockPresenceReason: Hashable {
   case postRecordingReview(ObjectIdentifier)
+  case postRecordingExportProgress(ObjectIdentifier)
   case settings
   case statistics(ObjectIdentifier)
   case paywall(ObjectIdentifier)
+  case welcome(ObjectIdentifier)
 }
 
 @MainActor
 enum AppDockPresence {
-  private static var reasons: Set<AppDockPresenceReason> = []
+  private final class WeakWindow {
+    weak var window: NSWindow?
 
-  static func acquire(_ reason: AppDockPresenceReason) {
-    reasons.insert(reason)
+    init(_ window: NSWindow) {
+      self.window = window
+    }
+  }
+
+  private static var trackedWindows: [AppDockPresenceReason: WeakWindow] = [:]
+  private static var closeObservers: [AppDockPresenceReason: NSObjectProtocol] = [:]
+  private static var pendingTokens: [AppDockPresenceReason: UUID] = [:]
+
+  static func prepareForWindowPresentation(_ reason: AppDockPresenceReason, timeout: TimeInterval = 1.0) {
+    let token = UUID()
+    pendingTokens[reason] = token
+    applyActivationPolicy()
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+      guard pendingTokens[reason] == token else {
+        return
+      }
+      pendingTokens[reason] = nil
+      applyActivationPolicy()
+    }
+  }
+
+  static func track(_ reason: AppDockPresenceReason, window: NSWindow) {
+    pendingTokens[reason] = nil
+    trackedWindows[reason] = WeakWindow(window)
+    observeClose(of: window, reason: reason)
     applyActivationPolicy()
   }
 
   static func release(_ reason: AppDockPresenceReason) {
-    reasons.remove(reason)
+    pendingTokens[reason] = nil
+    trackedWindows[reason] = nil
+    removeCloseObserver(for: reason)
     applyActivationPolicy()
+  }
+
+  @discardableResult
+  static func frontTrackedWindows() -> Bool {
+    pruneReleasedWindows()
+    let windows = trackedWindows.values.compactMap(\.window)
+    guard !windows.isEmpty else {
+      applyActivationPolicy()
+      return false
+    }
+
+    NSApp.setActivationPolicy(.regular)
+    for window in windows {
+      window.deminiaturize(nil)
+      window.makeKeyAndOrderFront(nil)
+    }
+    NSApp.activate(ignoringOtherApps: true)
+    return true
+  }
+
+  private static func observeClose(of window: NSWindow, reason: AppDockPresenceReason) {
+    removeCloseObserver(for: reason)
+    closeObservers[reason] = NotificationCenter.default.addObserver(
+      forName: NSWindow.willCloseNotification,
+      object: window,
+      queue: .main
+    ) { _ in
+      Task { @MainActor in
+        release(reason)
+      }
+    }
+  }
+
+  private static func removeCloseObserver(for reason: AppDockPresenceReason) {
+    guard let observer = closeObservers.removeValue(forKey: reason) else {
+      return
+    }
+    NotificationCenter.default.removeObserver(observer)
+  }
+
+  private static func pruneReleasedWindows() {
+    let releasedReasons = trackedWindows.compactMap { reason, weakWindow in
+      weakWindow.window == nil ? reason : nil
+    }
+    for reason in releasedReasons {
+      trackedWindows[reason] = nil
+      removeCloseObserver(for: reason)
+    }
   }
 
   private static func applyActivationPolicy() {
@@ -82,7 +165,8 @@ enum AppDockPresence {
       return
     }
 
-    if reasons.isEmpty {
+    pruneReleasedWindows()
+    if trackedWindows.isEmpty && pendingTokens.isEmpty {
       NSApp.setActivationPolicy(.accessory)
     } else {
       NSApp.setActivationPolicy(.regular)
