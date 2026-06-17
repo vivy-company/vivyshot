@@ -1,7 +1,7 @@
 /// Optional controls that can appear in the recording toolbar.
 enum RecordingTool: Int, CaseIterable, Identifiable {
-  case microphone = 1
   case webcam = 2
+  case microphone = 1
   case systemAudio = 0
   case mouseClicks = 3
   case keystrokes = 4

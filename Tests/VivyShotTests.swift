@@ -287,6 +287,24 @@ final class AppTests: XCTestCase {
   }
 
   @MainActor
+  func testAppSettingsDefaultRecordingToolOrderShowsWebcamBeforeMicrophone() {
+    let suiteName = "vivyshot-recording-toolbar-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer {
+      defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    var settings = AppSettings(defaults: defaults)
+
+    XCTAssertEqual(settings.recordingToolOrder.prefix(2), [.webcam, .microphone])
+
+    defaults.set([0, 1, 2, 3, 4, 5], forKey: AppSettings.Keys.recordingToolOrder)
+    settings = AppSettings(defaults: defaults)
+
+    XCTAssertEqual(settings.recordingToolOrder.prefix(2), [.webcam, .microphone])
+  }
+
+  @MainActor
   func testWelcomeStateStorePersistsSeenStateOutsideAppSettings() {
     let suiteName = "vivyshot-welcome-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suiteName)!
