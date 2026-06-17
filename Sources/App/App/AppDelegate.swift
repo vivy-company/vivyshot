@@ -82,6 +82,13 @@ enum AppDockPresence {
   private static var trackedWindows: [AppDockPresenceReason: WeakWindow] = [:]
   private static var closeObservers: [AppDockPresenceReason: NSObjectProtocol] = [:]
   private static var pendingTokens: [AppDockPresenceReason: UUID] = [:]
+  private static var activationReasons: Set<AppDockPresenceReason> = []
+
+  static func acquire(_ reason: AppDockPresenceReason) {
+    pendingTokens[reason] = nil
+    activationReasons.insert(reason)
+    applyActivationPolicy()
+  }
 
   static func prepareForWindowPresentation(_ reason: AppDockPresenceReason, timeout: TimeInterval = 1.0) {
     let token = UUID()
@@ -99,6 +106,7 @@ enum AppDockPresence {
 
   static func track(_ reason: AppDockPresenceReason, window: NSWindow) {
     pendingTokens[reason] = nil
+    activationReasons.insert(reason)
     trackedWindows[reason] = WeakWindow(window)
     observeClose(of: window, reason: reason)
     applyActivationPolicy()
@@ -106,6 +114,7 @@ enum AppDockPresence {
 
   static func release(_ reason: AppDockPresenceReason) {
     pendingTokens[reason] = nil
+    activationReasons.remove(reason)
     trackedWindows[reason] = nil
     removeCloseObserver(for: reason)
     applyActivationPolicy()
@@ -155,6 +164,7 @@ enum AppDockPresence {
     }
     for reason in releasedReasons {
       trackedWindows[reason] = nil
+      activationReasons.remove(reason)
       removeCloseObserver(for: reason)
     }
   }
@@ -166,7 +176,7 @@ enum AppDockPresence {
     }
 
     pruneReleasedWindows()
-    if trackedWindows.isEmpty && pendingTokens.isEmpty {
+    if trackedWindows.isEmpty && pendingTokens.isEmpty && activationReasons.isEmpty {
       NSApp.setActivationPolicy(.accessory)
     } else {
       NSApp.setActivationPolicy(.regular)

@@ -156,7 +156,7 @@ enum SettingsWindowFocus {
   private static var closeObserver: NSObjectProtocol?
 
   static func present(_ openSettings: OpenSettingsAction) {
-    AppDockPresence.prepareForWindowPresentation(.settings)
+    AppDockPresence.acquire(.settings)
     NSApp.activate(ignoringOtherApps: true)
     openSettings()
     focusSoon()
@@ -164,7 +164,7 @@ enum SettingsWindowFocus {
 
   static func register(_ window: NSWindow) {
     let shouldFocus = settingsWindow !== window
-    if shouldFocus {
+    if shouldFocus || closeObserver == nil {
       trackSettingsWindow(window)
     }
     settingsWindow = window
@@ -175,18 +175,31 @@ enum SettingsWindowFocus {
 
   private static func focusSoon() {
     DispatchQueue.main.async {
-      focusRegisteredWindow()
+      focusRegisteredOrDiscoveredWindow()
     }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-      focusRegisteredWindow()
+      focusRegisteredOrDiscoveredWindow()
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+      focusRegisteredOrDiscoveredWindow()
     }
   }
 
-  private static func focusRegisteredWindow() {
+  private static func focusRegisteredOrDiscoveredWindow() {
+    if settingsWindow == nil {
+      registerSettingsWindowIfVisibleToAppKit()
+    }
     guard let settingsWindow else {
       return
     }
     focus(settingsWindow)
+  }
+
+  private static func registerSettingsWindowIfVisibleToAppKit() {
+    guard let window = NSApp.windows.first(where: { $0.containsSettingsWindowReader }) else {
+      return
+    }
+    register(window)
   }
 
   private static func focus(_ window: NSWindow) {
@@ -223,22 +236,42 @@ enum SettingsWindowFocus {
 }
 
 private struct SettingsWindowFocusReader: NSViewRepresentable {
-  func makeNSView(context: Context) -> NSView {
-    let view = NSView()
-    updateWindow(for: view)
+  func makeNSView(context: Context) -> SettingsWindowReaderView {
+    let view = SettingsWindowReaderView()
+    view.registerWindowIfAvailable()
     return view
   }
 
-  func updateNSView(_ nsView: NSView, context: Context) {
-    updateWindow(for: nsView)
+  func updateNSView(_ nsView: SettingsWindowReaderView, context: Context) {
+    nsView.registerWindowIfAvailable()
+  }
+}
+
+private final class SettingsWindowReaderView: NSView {
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    registerWindowIfAvailable()
   }
 
-  private func updateWindow(for view: NSView) {
-    DispatchQueue.main.async {
-      guard let window = view.window else {
-        return
-      }
-      SettingsWindowFocus.register(window)
+  func registerWindowIfAvailable() {
+    guard let window else {
+      return
     }
+    SettingsWindowFocus.register(window)
+  }
+}
+
+private extension NSWindow {
+  var containsSettingsWindowReader: Bool {
+    contentView?.containsSettingsWindowReader ?? false
+  }
+}
+
+private extension NSView {
+  var containsSettingsWindowReader: Bool {
+    if self is SettingsWindowReaderView {
+      return true
+    }
+    return subviews.contains { $0.containsSettingsWindowReader }
   }
 }
