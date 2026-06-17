@@ -2,13 +2,13 @@ import SwiftUI
 
 @MainActor
 extension SettingsView {
-  var screenshotDrawingSection: some View {
+  var windowScreenshotSection: some View {
     Section {
       HStack(spacing: 10) {
-        Text("Window Capture")
+        Text("Style")
           .frame(width: 90, alignment: .leading)
         Spacer(minLength: 0)
-        Picker("Window Capture", selection: screenshotWindowCaptureStyleBinding) {
+        Picker("Window Screenshot Style", selection: screenshotWindowCaptureStyleBinding) {
           ForEach(ScreenshotWindowCaptureStyle.allCases) { style in
             Text(style.title).tag(style)
           }
@@ -17,7 +17,15 @@ extension SettingsView {
         .pickerStyle(.menu)
         .frame(width: 220, alignment: .trailing)
       }
+    } header: {
+      Text("Window Screenshots")
+    } footer: {
+      Text("With Shadow matches the macOS window screenshot style and removes the background. Selected Area captures the window's visible rectangle from the screen.")
+    }
+  }
 
+  var screenshotDrawingSection: some View {
+    Section {
       HStack(spacing: 10) {
         Text("Line Width")
           .frame(width: 90, alignment: .leading)
@@ -27,9 +35,9 @@ extension SettingsView {
           .frame(width: 62, alignment: .trailing)
       }
     } header: {
-      Text("Capture & Drawing")
+      Text("Drawing")
     } footer: {
-      Text("Window screenshots use native window capture by default. Drawing width applies to rectangle, circle, line, arrow, and paint tools.")
+      Text("Applied to rectangle, circle, line, arrow, and paint tools.")
     }
   }
 

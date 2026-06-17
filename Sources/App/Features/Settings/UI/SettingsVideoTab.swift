@@ -48,6 +48,20 @@ extension SettingsView {
     }
   }
 
+  var windowRecordingSection: some View {
+    Section {
+      videoPickerRow("Capture", title: "Window Recording Capture", selection: recordingWindowCaptureStyleBinding, width: 220) {
+        ForEach(RecordingWindowCaptureStyle.allCases) { style in
+          Text(style.title).tag(style)
+        }
+      }
+    } header: {
+      Text("Window Recordings")
+    } footer: {
+      Text("Window Only records the selected app window without the surrounding desktop. Selected Area records the rectangle shown in the editor.")
+    }
+  }
+
   var webcamOverlaySection: some View {
     Section("Camera") {
       Toggle("Show camera by default", isOn: showWebcamBinding)
@@ -129,12 +143,6 @@ extension SettingsView {
       videoPickerRow("Capture Buffering", title: "Capture Buffering", selection: recordingCaptureBufferingBinding) {
         ForEach(RecordingCaptureBuffering.allCases) { buffering in
           Text(buffering.title).tag(buffering)
-        }
-      }
-
-      videoPickerRow("Window Capture", title: "Window Capture", selection: recordingWindowCaptureStyleBinding, width: 220) {
-        ForEach(RecordingWindowCaptureStyle.allCases) { style in
-          Text(style.title).tag(style)
         }
       }
 

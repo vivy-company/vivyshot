@@ -100,11 +100,11 @@ extension ScreenshotWindowCaptureStyle {
   var title: String {
     switch self {
     case .nativeWithShadow:
-      return String(localized: "Native Window with Shadow", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "With Shadow", bundle: AppLocalizer.shared.bundle)
     case .nativeWithoutShadow:
-      return String(localized: "Native Window", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Without Shadow", bundle: AppLocalizer.shared.bundle)
     case .visibleAreaRectangle:
-      return String(localized: "Visible Area Rectangle", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Selected Area", bundle: AppLocalizer.shared.bundle)
     }
   }
 }
@@ -186,9 +186,9 @@ extension RecordingWindowCaptureStyle {
   var title: String {
     switch self {
     case .selectedWindowOnly:
-      return String(localized: "Selected Window Only", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Window Only", bundle: AppLocalizer.shared.bundle)
     case .visibleAreaRectangle:
-      return String(localized: "Visible Area Rectangle", bundle: AppLocalizer.shared.bundle)
+      return String(localized: "Selected Area", bundle: AppLocalizer.shared.bundle)
     }
   }
 }

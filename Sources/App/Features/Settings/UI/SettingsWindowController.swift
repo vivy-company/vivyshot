@@ -74,6 +74,7 @@ struct SettingsView: View {
       .tag(SettingsTab.appearance)
 
       settingsContainer {
+        windowScreenshotSection
         screenshotDrawingSection
         screenshotToolbarSection
         textToolSection
@@ -86,6 +87,7 @@ struct SettingsView: View {
 
       settingsContainer {
         recordingSection
+        windowRecordingSection
         audioSection
         if webcamFeatureVisible {
           webcamOverlaySection
