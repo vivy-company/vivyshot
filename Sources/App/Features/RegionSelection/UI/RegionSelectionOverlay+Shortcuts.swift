@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Carbon
 
 @MainActor
@@ -248,8 +249,12 @@ extension RegionSelectionView {
     guard microphoneFeatureVisible else {
       return false
     }
-    settings.setVideoRecordMicrophone(!settings.recordMicrophone)
-    refreshToolbar()
+    toggleRecordingMediaSetting(
+      isEnabled: settings.recordMicrophone,
+      setEnabled: settings.setVideoRecordMicrophone,
+      mediaType: .audio,
+      deniedMessage: "Microphone permission is required to enable microphone recording."
+    )
     return true
   }
 
@@ -260,9 +265,64 @@ extension RegionSelectionView {
     guard webcamFeatureVisible else {
       return false
     }
-    settings.setVideoShowWebcam(!settings.showWebcam)
-    refreshToolbar()
+    toggleRecordingMediaSetting(
+      isEnabled: settings.showWebcam,
+      setEnabled: settings.setVideoShowWebcam,
+      mediaType: .video,
+      deniedMessage: "Camera permission is required to enable the webcam overlay."
+    )
     return true
+  }
+
+  private func toggleRecordingMediaSetting(
+    isEnabled: Bool,
+    setEnabled: @escaping @MainActor (Bool) -> Void,
+    mediaType: AVMediaType,
+    deniedMessage: String
+  ) {
+    if isEnabled {
+      setEnabled(false)
+      refreshToolbar()
+      return
+    }
+
+    requestRecordingMediaAccess(for: mediaType, deniedMessage: deniedMessage) {
+      setEnabled(true)
+      self.refreshToolbar()
+    }
+  }
+
+  private func requestRecordingMediaAccess(
+    for mediaType: AVMediaType,
+    deniedMessage: String,
+    enable: @escaping @MainActor () -> Void
+  ) {
+    switch AVCaptureDevice.authorizationStatus(for: mediaType) {
+    case .authorized:
+      enable()
+    case .notDetermined:
+      Task { @MainActor [weak self] in
+        let granted = await AVCaptureDevice.requestAccess(for: mediaType)
+        guard let self else {
+          return
+        }
+        if granted {
+          enable()
+        } else {
+          reportRecordingMediaAccessDenied(deniedMessage)
+        }
+      }
+    case .denied, .restricted:
+      reportRecordingMediaAccessDenied(deniedMessage)
+    @unknown default:
+      reportRecordingMediaAccessDenied(deniedMessage)
+    }
+  }
+
+  private func reportRecordingMediaAccessDenied(_ message: String) {
+    NSSound.beep()
+    refreshToolbar()
+    delegate?.regionSelectionView(self, didFailRecordingWithMessage: message)
   }
 
   func performToggleVideoMouseClicksShortcut() -> Bool {
