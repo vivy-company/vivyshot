@@ -8,7 +8,18 @@
     "title": "VivyShot",
     "subtitle": "업무, 문서, 버그 리포트, AI 에이전트 워크플로를 위해 스크린샷과 화면 녹화를 더 빠르게 만들도록 설계했습니다. 캡처, 주석, 내보내기를 한 흐름에 담았습니다.",
     "primaryCta": "다운로드",
-    "meta": "현재 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>에서 사용할 수 있습니다."
+    "meta": "현재 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>에서 사용할 수 있습니다.",
+    "eyebrowSequence": [
+      "오픈소스 스크린샷 워크플로",
+      "캡처, 주석 달기 및 내보내기",
+      "깨끗한 영상을 빠르게 녹화하세요",
+      "기본 macOS 작업 흐름",
+      "macOS용으로 제작됨",
+      "문서, 피드백, 버그 신고를 위해 제작되었습니다.",
+      "매일 집중적으로 사용하도록 제작됨",
+      "빠르고 깨끗하며 효율적입니다."
+    ],
+    "secondaryCta": ""
   },
   "why": {
     "title": "무엇이 다른가",
@@ -232,6 +243,7 @@
     "github": "GitHub",
     "privacy": "개인정보 처리방침",
     "terms": "이용 약관",
-    "refunds": "환불"
+    "refunds": "환불",
+    "support": ""
   }
 }

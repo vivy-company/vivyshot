@@ -8,7 +8,18 @@
     "title": "VivyShot",
     "subtitle": "仕事、ドキュメント、バグ報告、AI エージェントのワークフロー向けに、スクリーンショットと画面録画をもっと素早く行うためのツールです。キャプチャ、注釈、書き出しをひとつの流れにまとめました。",
     "primaryCta": "ダウンロード",
-    "meta": "現在 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span> で利用できます。"
+    "meta": "現在 <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span> で利用できます。",
+    "eyebrowSequence": [
+      "オープンソースのスクリーンショットのワークフロー",
+      "キャプチャ、注釈付け、エクスポート",
+      "きれいなビジュアルを素早く録画",
+      "ネイティブ macOS ワークフロー",
+      "macOS 向けに構築",
+      "ドキュメント、フィードバック、バグレポート用に作成",
+      "毎日の集中的な使用のために作られています",
+      "高速、クリーン、効率的"
+    ],
+    "secondaryCta": ""
   },
   "why": {
     "title": "何が違うのか",
@@ -232,6 +243,7 @@
     "github": "GitHub",
     "privacy": "プライバシー",
     "terms": "利用規約",
-    "refunds": "返金"
+    "refunds": "返金",
+    "support": ""
   }
 }

@@ -8,7 +8,18 @@
     "title": "VivyShot",
     "subtitle": "Conçu pour accélérer les captures et enregistrements d’écran pour le travail, la documentation, les bugs et les workflows d’agents IA, avec capture, annotation et export dans un seul flux.",
     "primaryCta": "Télécharger",
-    "meta": "Disponible dès maintenant sur <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>."
+    "meta": "Disponible dès maintenant sur <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>.",
+    "eyebrowSequence": [
+      "Flux de travail de capture d'écran open source",
+      "Capturer, annoter et exporter",
+      "Enregistrez rapidement des visuels clairs",
+      "Flux de travail natif macOS",
+      "Conçu pour macOS",
+      "Conçu pour les documents, les commentaires et les rapports de bogues",
+      "Conçu pour une utilisation quotidienne ciblée",
+      "Rapide, propre et efficace"
+    ],
+    "secondaryCta": ""
   },
   "why": {
     "title": "Ce qui le rend différent",
@@ -232,6 +243,7 @@
     "github": "GitHub",
     "privacy": "Confidentialité",
     "terms": "Conditions d’utilisation",
-    "refunds": "Remboursements"
+    "refunds": "Remboursements",
+    "support": ""
   }
 }

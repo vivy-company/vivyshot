@@ -8,7 +8,18 @@
     "title": "VivyShot",
     "subtitle": "Creada para hacer más rápidas las capturas y grabaciones de pantalla para trabajo, documentación, bugs y flujos con agentes de IA, con captura, anotación y exportación en un solo flujo.",
     "primaryCta": "Descargar",
-    "meta": "Disponible ahora en <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>."
+    "meta": "Disponible ahora en <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>.",
+    "eyebrowSequence": [
+      "Flujo de trabajo de captura de pantalla de código abierto",
+      "Capture, anote y exporte",
+      "Graba imágenes limpias rápidamente",
+      "Flujo de trabajo nativo macOS",
+      "Construido para macOS",
+      "Creado para documentos, comentarios e informes de errores",
+      "Diseñado para un uso diario concentrado",
+      "Rápido, limpio y eficiente"
+    ],
+    "secondaryCta": ""
   },
   "why": {
     "title": "Qué la hace diferente",
@@ -232,6 +243,7 @@
     "github": "GitHub",
     "privacy": "Privacidad",
     "terms": "Términos de uso",
-    "refunds": "Reembolsos"
+    "refunds": "Reembolsos",
+    "support": ""
   }
 }

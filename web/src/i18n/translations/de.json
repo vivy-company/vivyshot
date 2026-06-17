@@ -8,7 +8,18 @@
     "title": "VivyShot",
     "subtitle": "Entwickelt, um Screenshots und kurze Bildschirmaufnahmen für Arbeit, Dokumentation, Bug-Reports und KI-Agenten-Workflows schneller zu machen, mit Aufnahme, Annotation und Export in einem Ablauf.",
     "primaryCta": "Download",
-    "meta": "Jetzt auf <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span> verfügbar."
+    "meta": "Jetzt auf <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span> verfügbar.",
+    "eyebrowSequence": [
+      "Open-Source-Screenshot-Workflow",
+      "Erfassen, kommentieren und exportieren",
+      "Nehmen Sie schnell saubere Bilder auf",
+      "Nativer macOS-Workflow",
+      "Gebaut für macOS",
+      "Entwickelt für Dokumente, Feedback und Fehlerberichte",
+      "Gebaut für den gezielten täglichen Gebrauch",
+      "Schnell, sauber und effizient"
+    ],
+    "secondaryCta": ""
   },
   "why": {
     "title": "Was den Unterschied macht",
@@ -232,6 +243,7 @@
     "github": "GitHub",
     "privacy": "Datenschutz",
     "terms": "Nutzungsbedingungen",
-    "refunds": "Rückerstattung"
+    "refunds": "Rückerstattung",
+    "support": ""
   }
 }
