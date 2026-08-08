@@ -9,6 +9,10 @@ enum PostRecordingSavePanel {
     panel.directoryURL = request.suggestedDirectory
     panel.canCreateDirectories = true
     panel.isExtensionHidden = false
+    NSApp.activate(ignoringOtherApps: true)
+    panel.level = .floating
+    panel.center()
+    panel.orderFrontRegardless()
     guard panel.runModal() == .OK else {
       return nil
     }

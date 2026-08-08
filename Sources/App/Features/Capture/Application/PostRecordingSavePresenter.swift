@@ -190,7 +190,6 @@ final class PostRecordingSavePresenter {
   }
 
   func present(project: PostRecordingProject, thumbnail: NSImage?) {
-    var panelRef: PostRecordingActionPanel?
     let panel = PostRecordingActionPanel(
       inputURL: project.inputURL,
       project: project,
@@ -203,9 +202,6 @@ final class PostRecordingSavePresenter {
       proExportTrialStore: proExportTrialStore,
       presentPaywall: presentPaywall
     ) { [self] action in
-      if let panelRef {
-        postRecordingPanels.removeAll(where: { $0 === panelRef })
-      }
       switch action {
       case .saveVideo(let options, let exportState, container: let container, consumesFreeProExportTrial: let consumesTrial):
         quickSaveVideo(
@@ -233,7 +229,12 @@ final class PostRecordingSavePresenter {
         discardTemporaryRecording(project: project)
       }
     }
-    panelRef = panel
+    panel.onWindowClosed = { [weak self, weak panel] in
+      guard let self, let panel else {
+        return
+      }
+      postRecordingPanels.removeAll(where: { $0 === panel })
+    }
     postRecordingPanels.append(panel)
     panel.present()
   }

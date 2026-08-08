@@ -69,6 +69,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
   private let proExportTrialStore: ProExportTrialStore
   private let presentPaywall: () -> Void
   private let onAction: (PostRecordingAction) -> Void
+  var onWindowClosed: (() -> Void)?
   private var didPickAction = false
   private var exportSheetController: PostRecordingExportSheetController?
   private var dockPresenceReason: AppDockPresenceReason {
@@ -159,6 +160,7 @@ final class PostRecordingActionPanel: NSWindowController, NSWindowDelegate, NSTo
 
   func windowWillClose(_ notification: Notification) {
     AppDockPresence.release(dockPresenceReason)
+    onWindowClosed?()
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
