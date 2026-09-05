@@ -14,12 +14,11 @@ export const SITE = {
   shortName: "VivyShot",
   siteUrl: "https://vivyshot.com",
   appStoreUrl: "https://apps.apple.com/us/app/id6760658121",
-  title: "VivyShot",
+  title: "VivyShot — Screenshots and screen recording for Mac",
   description:
     "VivyShot is an open source screenshot, annotation, and recording app built to stay simple, fast, and native on macOS.",
   downloadUrl: "https://apps.apple.com/us/app/id6760658121",
   githubUrl: "https://github.com/vivy-company/vivyshot",
-  themeStorageKey: "vivyshot-theme",
   languageStorageKey: "vivyshot-language",
 };
 
@@ -53,7 +52,6 @@ export const softwareSchema = {
     "@type": "Organization",
     name: "Vivy Technologies",
   },
-  softwareVersion: "0.1",
   features: [
     "Screenshot capture",
     "Annotations and callouts",

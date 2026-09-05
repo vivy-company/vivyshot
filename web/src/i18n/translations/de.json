@@ -9,16 +9,6 @@
     "subtitle": "Entwickelt, um Screenshots und kurze Bildschirmaufnahmen für Arbeit, Dokumentation, Bug-Reports und KI-Agenten-Workflows schneller zu machen, mit Aufnahme, Annotation und Export in einem Ablauf.",
     "primaryCta": "Download",
     "meta": "Jetzt auf <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span> verfügbar.",
-    "eyebrowSequence": [
-      "Open-Source-Screenshot-Workflow",
-      "Erfassen, kommentieren und exportieren",
-      "Nehmen Sie schnell saubere Bilder auf",
-      "Nativer macOS-Workflow",
-      "Gebaut für macOS",
-      "Entwickelt für Dokumente, Feedback und Fehlerberichte",
-      "Gebaut für den gezielten täglichen Gebrauch",
-      "Schnell, sauber und effizient"
-    ],
     "secondaryCta": ""
   },
   "why": {
@@ -41,22 +31,6 @@
       "desc": "Der Code ist öffentlich, überprüfbar und wird offen entwickelt."
     }
   },
-  "roadmap": {
-    "title": "Roadmap",
-    "subtitle": "Drei Schritte, bewusst einfach gehalten.",
-    "now": {
-      "title": "macOS-Start",
-      "desc": "Zuerst die Kern-App für Capture veröffentlichen."
-    },
-    "next": {
-      "title": "Editor-Ausbau",
-      "desc": "Einfache Nachbearbeitung nach dem Capture ergänzen."
-    },
-    "later": {
-      "title": "Polish",
-      "desc": "Den macOS-Workflow und die Exportqualität weiter verfeinern."
-    }
-  },
   "features": {
     "title": "Was du damit tun kannst",
     "subtitle": "Aufnehmen, annotieren, filmen und exportieren.",
@@ -75,26 +49,6 @@
     "organize": {
       "title": "Ohne Zusatzschritte exportieren",
       "desc": "Per <kbd>⌘ C</kbd> schnell kopieren oder saubere PNG- und JPEG-Dateien speichern."
-    }
-  },
-  "useCases": {
-    "title": "Wofür es nützlich ist",
-    "subtitle": "Nützlich für Bugs, Dokumentation, Feedback und KI-Agenten-Workflows, in denen ein roher Screenshot nicht reicht.",
-    "solo": {
-      "title": "Bug-Reports",
-      "desc": "Statt lange zu beschreiben, zeigst du direkt den Bug, den betroffenen Bereich und das entscheidende visuelle Detail."
-    },
-    "homelab": {
-      "title": "Produktfeedback",
-      "desc": "Regressionen, Layout-Probleme und Detailmängel klarer zeigen, mit weniger Hin und Her."
-    },
-    "apple": {
-      "title": "Dokumentation",
-      "desc": "Besser lesbare Screenshots für Setup-Guides, Release Notes, interne Doku und Onboarding erstellen."
-    },
-    "ai": {
-      "title": "KI-Agenten-Workflows",
-      "desc": "Screenshots für Codex, Claude Code, OpenCode und ähnliche Agenten machen, wenn visueller Kontext hilft."
     }
   },
   "pricing": {
@@ -206,25 +160,6 @@
       "guarantee": "Lifetime kostet $9.99. Supporter kostet $24.99."
     }
   },
-  "whyBuilt": {
-    "title": "Warum ich es gebaut habe",
-    "q1": {
-      "question": "Zu viel Ballast",
-      "answer": "Viele Screenshot-Tools wollen zu viel. Ich wollte etwas Kleineres, Schnelleres und Fokussierteres."
-    },
-    "q2": {
-      "question": "Zu viel Reibung",
-      "answer": "Ein Screenshot sollte schnell sein. Aufnehmen, markieren, kopieren und weitermachen."
-    },
-    "q3": {
-      "question": "Nativ ist wichtig",
-      "answer": "Ich will eine App, die sich auf macOS richtig anfühlt, statt das System hinter einer generischen Oberfläche zu verstecken."
-    },
-    "q4": {
-      "question": "Nützlich bleiben",
-      "answer": "Das Ziel ist ein Tool, das Capture, Annotation, Recording und Teilen gut beherrscht, statt in Rauschen auszuufern."
-    }
-  },
   "closing": {
     "title": "Jetzt auf macOS verfügbar.",
     "subtitle": "Native macOS-Oberfläche für Capture, Annotation, Recording und Export.",
@@ -245,5 +180,15 @@
     "terms": "Nutzungsbedingungen",
     "refunds": "Rückerstattung",
     "support": ""
+  },
+  "home": {
+    "headline": "Aufnehmen. Markieren.\nWeitermachen.",
+    "intro": "Screenshots und Bildschirmaufnahmen, die zeigen, worauf es ankommt. Für deinen Mac entwickelt.",
+    "requirements": "macOS 15.2+ · Kostenlos laden · Kein Abo",
+    "workflow": "Alles, was du brauchst.\nGenau dort, wo du es brauchst.",
+    "recordingTitle": "Manches zeigt man\nbesser in Bewegung.",
+    "recordingBody": "Nimm einen Fehler, eine Anleitung oder eine kurze Erklärung auf. Bildschirmaufnahmen mit Systemaudio sind kostenlos. Mit Lifetime kannst du Mikrofon, Webcam und Tastenanzeigen in den Export aufnehmen.",
+    "pricingNote": "Referenzpreise in USD. Lokale Preise stehen im App Store. Einmalige Upgrades sind in der App erhältlich.",
+    "closingTitle": "Mach deine nächste Erklärung klar."
   }
 }

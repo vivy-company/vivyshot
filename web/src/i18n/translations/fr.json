@@ -9,16 +9,6 @@
     "subtitle": "Conçu pour accélérer les captures et enregistrements d’écran pour le travail, la documentation, les bugs et les workflows d’agents IA, avec capture, annotation et export dans un seul flux.",
     "primaryCta": "Télécharger",
     "meta": "Disponible dès maintenant sur <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>.",
-    "eyebrowSequence": [
-      "Flux de travail de capture d'écran open source",
-      "Capturer, annoter et exporter",
-      "Enregistrez rapidement des visuels clairs",
-      "Flux de travail natif macOS",
-      "Conçu pour macOS",
-      "Conçu pour les documents, les commentaires et les rapports de bogues",
-      "Conçu pour une utilisation quotidienne ciblée",
-      "Rapide, propre et efficace"
-    ],
     "secondaryCta": ""
   },
   "why": {
@@ -41,22 +31,6 @@
       "desc": "Le code est public, inspectable et développé au grand jour."
     }
   },
-  "roadmap": {
-    "title": "Feuille de route",
-    "subtitle": "Trois étapes, volontairement simples.",
-    "now": {
-      "title": "Lancement macOS",
-      "desc": "Sortir d’abord l’app de capture principale."
-    },
-    "next": {
-      "title": "Passage éditeur",
-      "desc": "Ajouter une édition simple après capture."
-    },
-    "later": {
-      "title": "Finition",
-      "desc": "Affiner le workflow macOS et la qualité d’export."
-    }
-  },
   "features": {
     "title": "Ce que vous pouvez faire",
     "subtitle": "Capturer, annoter, enregistrer et exporter.",
@@ -75,26 +49,6 @@
     "organize": {
       "title": "Exporter sans étapes en plus",
       "desc": "Copiez vite avec <kbd>⌘ C</kbd>, ou enregistrez en PNG et JPEG propres."
-    }
-  },
-  "useCases": {
-    "title": "Quand c’est utile",
-    "subtitle": "Utile pour les bugs, la documentation, les retours et les workflows d’agents IA lorsque la capture brute ne suffit pas.",
-    "solo": {
-      "title": "Signalements de bugs",
-      "desc": "Montrez le bug, la zone concernée et le détail visuel qui compte, au lieu d’écrire autour du problème."
-    },
-    "homelab": {
-      "title": "Retours produit",
-      "desc": "Signalez plus clairement les régressions, soucis de mise en page et problèmes de finition avec moins d’allers-retours."
-    },
-    "apple": {
-      "title": "Documentation",
-      "desc": "Produisez des captures plus lisibles pour les guides d’installation, notes de version, docs internes et parcours d’onboarding."
-    },
-    "ai": {
-      "title": "Workflows d’agents IA",
-      "desc": "Faites des captures pour Codex, Claude Code, OpenCode et d’autres agents quand le contexte visuel aide au raisonnement."
     }
   },
   "pricing": {
@@ -206,25 +160,6 @@
       "guarantee": "Lifetime coûte $9.99. Supporter coûte $24.99."
     }
   },
-  "whyBuilt": {
-    "title": "Pourquoi je l’ai créé",
-    "q1": {
-      "question": "Trop de lourdeur",
-      "answer": "Beaucoup d’outils de capture veulent tout faire. Je voulais quelque chose de plus petit, plus rapide et plus concentré."
-    },
-    "q2": {
-      "question": "Trop de friction",
-      "answer": "Une capture doit aller vite. Capturer, annoter, copier et passer à la suite."
-    },
-    "q3": {
-      "question": "Le natif compte",
-      "answer": "Je veux que l’app semble juste sur macOS, sans cacher le système derrière une interface générique."
-    },
-    "q4": {
-      "question": "Rester utile",
-      "answer": "Le but est un outil qui reste bon pour capturer, annoter, enregistrer et partager, au lieu de dériver vers du bruit."
-    }
-  },
   "closing": {
     "title": "Disponible maintenant sur macOS.",
     "subtitle": "Interface macOS native pour capturer, annoter, enregistrer et exporter.",
@@ -245,5 +180,15 @@
     "terms": "Conditions d’utilisation",
     "refunds": "Remboursements",
     "support": ""
+  },
+  "home": {
+    "headline": "Capturez. Annotez.\nContinuez.",
+    "intro": "Des captures et des enregistrements d’écran pour montrer ce qui compte. Conçu pour votre Mac.",
+    "requirements": "macOS 15.2+ · Téléchargement gratuit · Sans abonnement",
+    "workflow": "Tous les outils utiles.\nLà où il faut.",
+    "recordingTitle": "Parfois, une vidéo\nexplique mieux.",
+    "recordingBody": "Enregistrez un bug, un tutoriel ou une courte explication. L’enregistrement avec le son du système est gratuit. La version à vie permet d’exporter le microphone, la webcam et l’affichage des touches.",
+    "pricingNote": "Prix indicatifs en USD. Les prix locaux figurent dans l’App Store. Les achats uniques sont disponibles dans l’app.",
+    "closingTitle": "Votre prochaine explication, plus claire."
   }
 }

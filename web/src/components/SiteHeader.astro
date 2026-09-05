@@ -1,0 +1,18 @@
+---
+import { SITE, translations } from "../lib/site";
+const t = translations.en;
+---
+<header class="sticky top-0 z-50 bg-[#1d1d1f]">
+  <nav class="mx-auto flex min-h-11 max-w-[1024px] items-center justify-between gap-3 px-4 text-[12px] sm:px-6" aria-label="Main navigation">
+    <a href="/" class="flex shrink-0 items-center gap-1.5" aria-label="VivyShot home">
+      <img src="/logo.png" alt="" width="26" height="26" class="size-[26px] rounded-md object-contain" />
+      <span class="text-[13px] font-semibold tracking-tight text-ink">VivyShot</span>
+    </a>
+    <div class="flex items-center gap-1">
+      <a class="hidden rounded-md px-3 py-1.5 text-ink/80 hover:text-ink sm:block" href="/#features" data-i18n="footer.navFeatures">{t.footer.navFeatures}</a>
+      <a class="rounded-md px-3 py-1.5 text-ink/80 hover:text-ink" href="/#pricing" data-i18n="footer.navPricing">{t.footer.navPricing}</a>
+      <a class="hidden rounded-md px-3 py-1.5 text-ink/80 hover:text-ink sm:block" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+    <a class="rounded-full bg-accent-strong px-3.5 py-1 font-medium text-white transition hover:bg-accent-hover" href={SITE.appStoreUrl} data-i18n="hero.primaryCta">{t.hero.primaryCta}</a>
+  </nav>
+</header>

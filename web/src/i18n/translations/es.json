@@ -9,16 +9,6 @@
     "subtitle": "Creada para hacer más rápidas las capturas y grabaciones de pantalla para trabajo, documentación, bugs y flujos con agentes de IA, con captura, anotación y exportación en un solo flujo.",
     "primaryCta": "Descargar",
     "meta": "Disponible ahora en <span class=\"font-medium text-slate-950 dark:text-white\">macOS</span>.",
-    "eyebrowSequence": [
-      "Flujo de trabajo de captura de pantalla de código abierto",
-      "Capture, anote y exporte",
-      "Graba imágenes limpias rápidamente",
-      "Flujo de trabajo nativo macOS",
-      "Construido para macOS",
-      "Creado para documentos, comentarios e informes de errores",
-      "Diseñado para un uso diario concentrado",
-      "Rápido, limpio y eficiente"
-    ],
     "secondaryCta": ""
   },
   "why": {
@@ -41,22 +31,6 @@
       "desc": "El código es público, inspeccionable y se desarrolla en abierto."
     }
   },
-  "roadmap": {
-    "title": "Hoja de ruta",
-    "subtitle": "Tres pasos, manteniéndolo simple.",
-    "now": {
-      "title": "Lanzamiento en macOS",
-      "desc": "Primero lanzar la app principal de captura."
-    },
-    "next": {
-      "title": "Mejora del editor",
-      "desc": "Añadir edición sencilla después de capturar."
-    },
-    "later": {
-      "title": "Pulido",
-      "desc": "Refinar el flujo de macOS y la calidad de exportación."
-    }
-  },
   "features": {
     "title": "Lo que puedes hacer",
     "subtitle": "Capturar, anotar, grabar y exportar.",
@@ -75,26 +49,6 @@
     "organize": {
       "title": "Exporta sin pasos extra",
       "desc": "Copia rápido con <kbd>⌘ C</kbd> o guarda PNG y JPEG limpios."
-    }
-  },
-  "useCases": {
-    "title": "Dónde resulta útil",
-    "subtitle": "Útil para bugs, documentación, feedback y flujos con agentes de IA cuando una captura en bruto no basta.",
-    "solo": {
-      "title": "Reportes de errores",
-      "desc": "Muestra el bug, la zona afectada y el detalle visual importante en lugar de explicarlo con texto."
-    },
-    "homelab": {
-      "title": "Feedback de producto",
-      "desc": "Señala regresiones, problemas de layout y fallos de acabado con menos ida y vuelta."
-    },
-    "apple": {
-      "title": "Documentación",
-      "desc": "Genera capturas más legibles para guías, notas de versión, documentación interna y onboarding."
-    },
-    "ai": {
-      "title": "Flujos con agentes de IA",
-      "desc": "Haz capturas para Codex, Claude Code, OpenCode y agentes similares cuando el contexto visual ayuda."
     }
   },
   "pricing": {
@@ -206,25 +160,6 @@
       "guarantee": "Lifetime cuesta $9.99. Supporter cuesta $24.99."
     }
   },
-  "whyBuilt": {
-    "title": "Por qué la hice",
-    "q1": {
-      "question": "Demasiado bloat",
-      "answer": "Muchas herramientas de captura intentan hacer demasiado. Yo quería algo más pequeño, más rápido y más enfocado."
-    },
-    "q2": {
-      "question": "Demasiada fricción",
-      "answer": "Una captura debería ser rápida. Capturas, marcas, copias y sigues."
-    },
-    "q3": {
-      "question": "Lo nativo importa",
-      "answer": "Quiero que la app se sienta natural en macOS, sin esconder el sistema detrás de una interfaz genérica."
-    },
-    "q4": {
-      "question": "Mantenerla útil",
-      "answer": "La meta es una herramienta buena para capturar, anotar, grabar y compartir, no una que crezca en ruido."
-    }
-  },
   "closing": {
     "title": "Disponible ahora en macOS.",
     "subtitle": "Interfaz nativa de macOS para capturar, anotar, grabar y exportar.",
@@ -245,5 +180,15 @@
     "terms": "Términos de uso",
     "refunds": "Reembolsos",
     "support": ""
+  },
+  "home": {
+    "headline": "Captura. Anota.\nSigue adelante.",
+    "intro": "Capturas y grabaciones de pantalla para mostrar lo que importa. Diseñado para tu Mac.",
+    "requirements": "macOS 15.2+ · Descarga gratuita · Sin suscripción",
+    "workflow": "Todo lo que necesitas.\nJusto donde lo necesitas.",
+    "recordingTitle": "Hay cosas que se\nexplican mejor en vídeo.",
+    "recordingBody": "Graba un error, un tutorial o una explicación breve. La grabación con audio del sistema es gratuita. La versión de por vida permite exportar el micrófono, la cámara y las teclas pulsadas.",
+    "pricingNote": "Precios de referencia en USD. Consulta los precios locales en el App Store. Las mejoras de pago único están disponibles en la app.",
+    "closingTitle": "Explica tu próxima idea con claridad."
   }
 }

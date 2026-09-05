@@ -1,0 +1,82 @@
+---
+import { Icon } from "astro-icon/components";
+import { SITE, translations, languageOptions } from "../lib/site";
+const t = translations.en;
+const isHome = Astro.url.pathname === "/";
+---
+<footer class="border-t border-line bg-black text-[12px] leading-5 text-faint">
+  <div class="container-wide py-10">
+    <div class="border-b border-line pb-6">
+      <p class="max-w-3xl" data-i18n="home.requirements">{t.home.requirements}</p>
+    </div>
+    <div class="grid gap-8 pt-8 sm:grid-cols-3">
+      <div>
+        <p class="font-semibold text-ink" data-i18n="footer.productTitle">{t.footer.productTitle}</p>
+        <nav class="mt-3 grid gap-2.5" aria-label="Product">
+          <a href="/#features" class="w-fit transition hover:text-ink" data-i18n="footer.navFeatures">{t.footer.navFeatures}</a>
+          <a href="/#pricing" class="w-fit transition hover:text-ink" data-i18n="footer.navPricing">{t.footer.navPricing}</a>
+          <a href={SITE.appStoreUrl} class="w-fit transition hover:text-ink" data-i18n="pricing.free.cta">{t.pricing.free.cta}</a>
+        </nav>
+      </div>
+      <div>
+        <p class="font-semibold text-ink" data-i18n="footer.resourcesTitle">{t.footer.resourcesTitle}</p>
+        <nav class="mt-3 grid gap-2.5" aria-label="Resources">
+          <a href={SITE.githubUrl} target="_blank" rel="noopener noreferrer" class="w-fit transition hover:text-ink">GitHub</a>
+          <a href="mailto:vivyshot@vivy.company" class="w-fit transition hover:text-ink">vivyshot@vivy.company</a>
+        </nav>
+      </div>
+      <div>
+        <p class="font-semibold text-ink">VivyShot</p>
+        <p class="mt-3 max-w-xs" data-i18n="footer.description">{t.footer.description}</p>
+      </div>
+    </div>
+    <div class="mt-10 flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
+      <p>© {new Date().getFullYear()} <span data-i18n="footer.copyright">{t.footer.copyright}</span></p>
+      <div class="flex flex-wrap items-center gap-5">
+        <a href="/privacy" class="transition hover:text-ink" data-i18n="footer.privacy">{t.footer.privacy}</a>
+        <a href="/terms" class="transition hover:text-ink" data-i18n="footer.terms">{t.footer.terms}</a>
+        <a href="/refund" class="transition hover:text-ink" data-i18n="footer.refunds">{t.footer.refunds}</a>
+        {isHome && <div class="flex items-center gap-1.5">
+          <Icon name="lucide:globe" class="size-3.5" />
+          <select class="max-w-36 cursor-pointer bg-black py-2 text-faint hover:text-ink" aria-label="Language" data-language-select>
+            {languageOptions.map(({code, label}) => <option value={code}>{label}</option>)}
+          </select>
+        </div>}
+      </div>
+    </div>
+  </div>
+</footer>
+<script>
+  import { SITE, translations, languageOptions } from "../lib/site";
+  const languageSelect = document.querySelector<HTMLSelectElement>("[data-language-select]");
+  type Language = keyof typeof translations;
+  const isLanguage = (value: string | null): value is Language => languageOptions.some(({code}) => code === value);
+  const getText = (dictionary: unknown, path: string): unknown => path.split(".").reduce<unknown>((value, key) =>
+    value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined, dictionary);
+  const applyLanguage = (language: Language) => {
+    const dictionary = translations[language];
+    document.documentElement.lang = languageOptions.find(({code}) => code === language)!.htmlLang;
+    if (languageSelect) languageSelect.value = language;
+    document.querySelectorAll<HTMLElement>("[data-i18n], [data-i18n-html], [data-i18n-list]").forEach(node => {
+      const value = getText(dictionary, node.dataset.i18n || node.dataset.i18nHtml || node.dataset.i18nList || "");
+      if (node.hasAttribute("data-i18n-list") && Array.isArray(value)) {
+        node.replaceChildren(...value.map(text => { const item = document.createElement("li"); item.textContent = text; return item; }));
+      } else if (typeof value === "string") {
+        if (node.hasAttribute("data-i18n-html")) node.innerHTML = value;
+        else node.textContent = value;
+      }
+    });
+  };
+  if (languageSelect) {
+    let stored: string | null = null;
+    try { stored = localStorage.getItem(SITE.languageStorageKey); } catch {}
+    const browserLanguage = navigator.language.toLowerCase().split("-")[0] || "en";
+    applyLanguage(isLanguage(stored) ? stored : isLanguage(browserLanguage) ? browserLanguage : "en");
+    languageSelect.addEventListener("change", () => {
+      const language = languageSelect.value;
+      if (!isLanguage(language)) return;
+      applyLanguage(language);
+      try { localStorage.setItem(SITE.languageStorageKey, language); } catch {}
+    });
+  }
+</script>
