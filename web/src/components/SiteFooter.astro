@@ -1,82 +1,57 @@
 ---
 import { Icon } from "astro-icon/components";
 import { SITE, translations, languageOptions } from "../lib/site";
-const t = translations.en;
-const isHome = Astro.url.pathname === "/";
+import { getLanguage, homePath } from "../i18n/utils";
+const language = getLanguage(Astro.url);
+const t = translations[language];
+const home = homePath(language);
+const isHome = Astro.url.pathname === home;
+const activeLanguage = languageOptions.find(({code}) => code === language)!;
 ---
-<footer class="border-t border-line bg-black text-[12px] leading-5 text-faint">
+<footer class="site-footer border-t border-line bg-black text-[12px] leading-5 text-faint">
   <div class="container-wide py-10">
     <div class="border-b border-line pb-6">
-      <p class="max-w-3xl" data-i18n="home.requirements">{t.home.requirements}</p>
+      <p class="max-w-3xl">{t.home.requirements}</p>
     </div>
     <div class="grid gap-8 pt-8 sm:grid-cols-3">
       <div>
-        <p class="font-semibold text-ink" data-i18n="footer.productTitle">{t.footer.productTitle}</p>
-        <nav class="mt-3 grid gap-2.5" aria-label="Product">
-          <a href="/#features" class="w-fit transition hover:text-ink" data-i18n="footer.navFeatures">{t.footer.navFeatures}</a>
-          <a href="/#pricing" class="w-fit transition hover:text-ink" data-i18n="footer.navPricing">{t.footer.navPricing}</a>
-          <a href={SITE.appStoreUrl} class="w-fit transition hover:text-ink" data-i18n="pricing.free.cta">{t.pricing.free.cta}</a>
+        <p class="font-semibold text-ink">{t.footer.productTitle}</p>
+        <nav class="mt-3 grid gap-1 sm:gap-2.5" aria-label={t.footer.productTitle}>
+          <a href={`${home}#features`} class="w-fit transition hover:text-ink">{t.footer.navFeatures}</a>
+          <a href={`${home}#pricing`} class="w-fit transition hover:text-ink">{t.footer.navPricing}</a>
+          <a href={`${home}#roadmap`} class="w-fit transition hover:text-ink">{t.roadmap.title}</a>
+          <a href={SITE.appStoreUrl} class="w-fit transition hover:text-ink">{t.pricing.free.cta}</a>
         </nav>
       </div>
       <div>
-        <p class="font-semibold text-ink" data-i18n="footer.resourcesTitle">{t.footer.resourcesTitle}</p>
-        <nav class="mt-3 grid gap-2.5" aria-label="Resources">
+        <p class="font-semibold text-ink">{t.footer.resourcesTitle}</p>
+        <nav class="mt-3 grid gap-1 sm:gap-2.5" aria-label={t.footer.resourcesTitle}>
           <a href={SITE.githubUrl} target="_blank" rel="noopener noreferrer" class="w-fit transition hover:text-ink">GitHub</a>
           <a href="mailto:vivyshot@vivy.company" class="w-fit transition hover:text-ink">vivyshot@vivy.company</a>
         </nav>
       </div>
       <div>
         <p class="font-semibold text-ink">VivyShot</p>
-        <p class="mt-3 max-w-xs" data-i18n="footer.description">{t.footer.description}</p>
+        <p class="mt-3 max-w-xs">{t.footer.description}</p>
       </div>
     </div>
     <div class="mt-10 flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-      <p>© {new Date().getFullYear()} <span data-i18n="footer.copyright">{t.footer.copyright}</span></p>
+      <p>© {new Date().getFullYear()} <span>{t.footer.copyright}</span></p>
       <div class="flex flex-wrap items-center gap-5">
-        <a href="/privacy" class="transition hover:text-ink" data-i18n="footer.privacy">{t.footer.privacy}</a>
-        <a href="/terms" class="transition hover:text-ink" data-i18n="footer.terms">{t.footer.terms}</a>
-        <a href="/refund" class="transition hover:text-ink" data-i18n="footer.refunds">{t.footer.refunds}</a>
-        {isHome && <div class="flex items-center gap-1.5">
-          <Icon name="lucide:globe" class="size-3.5" />
-          <select class="max-w-36 cursor-pointer bg-black py-2 text-faint hover:text-ink" aria-label="Language" data-language-select>
-            {languageOptions.map(({code, label}) => <option value={code}>{label}</option>)}
-          </select>
-        </div>}
+        <a href="/privacy" class="transition hover:text-ink">{t.footer.privacy}</a>
+        <a href="/terms" class="transition hover:text-ink">{t.footer.terms}</a>
+        <a href="/refund" class="transition hover:text-ink">{t.footer.refunds}</a>
+        {isHome && <details class="group relative w-full sm:w-auto">
+          <summary class="flex cursor-pointer list-none items-center min-h-11 gap-1.5 py-2 text-faint hover:text-ink [&::-webkit-details-marker]:hidden" aria-label={t.nav.language}>
+            <Icon name="lucide:globe" class="size-3.5" />
+            <span>{activeLanguage.label}</span>
+            <Icon name="lucide:chevron-down" class="size-3 transition group-open:rotate-180" />
+          </summary>
+          <nav aria-label={t.nav.language} class="absolute bottom-full left-0 sm:left-auto sm:right-0 z-20 mb-2 grid max-h-72 w-44 gap-0.5 overflow-y-auto rounded-xl border border-line bg-surface p-1.5 shadow-xl">
+            {languageOptions.map(({code, label, htmlLang}) => <a href={homePath(code)} lang={htmlLang} hreflang={htmlLang} aria-current={code === language ? "page" : undefined} class:list={["rounded-lg px-3 py-1.5 hover:bg-surface-hover hover:text-ink", { "bg-surface-hover text-ink": code === language }]}>{label}</a>)}
+          </nav>
+        </details>}
       </div>
     </div>
   </div>
 </footer>
-<script>
-  import { SITE, translations, languageOptions } from "../lib/site";
-  const languageSelect = document.querySelector<HTMLSelectElement>("[data-language-select]");
-  type Language = keyof typeof translations;
-  const isLanguage = (value: string | null): value is Language => languageOptions.some(({code}) => code === value);
-  const getText = (dictionary: unknown, path: string): unknown => path.split(".").reduce<unknown>((value, key) =>
-    value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined, dictionary);
-  const applyLanguage = (language: Language) => {
-    const dictionary = translations[language];
-    document.documentElement.lang = languageOptions.find(({code}) => code === language)!.htmlLang;
-    if (languageSelect) languageSelect.value = language;
-    document.querySelectorAll<HTMLElement>("[data-i18n], [data-i18n-html], [data-i18n-list]").forEach(node => {
-      const value = getText(dictionary, node.dataset.i18n || node.dataset.i18nHtml || node.dataset.i18nList || "");
-      if (node.hasAttribute("data-i18n-list") && Array.isArray(value)) {
-        node.replaceChildren(...value.map(text => { const item = document.createElement("li"); item.textContent = text; return item; }));
-      } else if (typeof value === "string") {
-        if (node.hasAttribute("data-i18n-html")) node.innerHTML = value;
-        else node.textContent = value;
-      }
-    });
-  };
-  if (languageSelect) {
-    let stored: string | null = null;
-    try { stored = localStorage.getItem(SITE.languageStorageKey); } catch {}
-    const browserLanguage = navigator.language.toLowerCase().split("-")[0] || "en";
-    applyLanguage(isLanguage(stored) ? stored : isLanguage(browserLanguage) ? browserLanguage : "en");
-    languageSelect.addEventListener("change", () => {
-      const language = languageSelect.value;
-      if (!isLanguage(language)) return;
-      applyLanguage(language);
-      try { localStorage.setItem(SITE.languageStorageKey, language); } catch {}
-    });
-  }
-</script>

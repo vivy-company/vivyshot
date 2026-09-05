@@ -1,0 +1,8 @@
+---
+import LandingPage from "../../components/LandingPage.astro";
+import { languageOptions } from "../../lib/site";
+export function getStaticPaths() {
+  return languageOptions.filter(({ code }) => code !== "en").map(({ code }) => ({ params: { language: code } }));
+}
+---
+<LandingPage />

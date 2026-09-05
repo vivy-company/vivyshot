@@ -182,13 +182,37 @@
     "support": ""
   },
   "home": {
-    "headline": "截图。标注。\n继续工作。",
-    "intro": "截图与录屏，让表达更清楚。专为 Mac 打造。",
+    "headline": "截图。\n标注。",
+    "intro": "Mac 截图与录屏。添加标注，复制并分享。",
     "requirements": "macOS 15.2+ · 免费下载 · 无订阅",
     "workflow": "所需工具，\n触手可及。",
     "recordingTitle": "有些事情，\n用视频更清楚。",
     "recordingBody": "记录问题、操作过程或简短说明。录屏和系统音频免费使用。终身版可在导出时加入麦克风、摄像头和按键叠加。",
     "pricingNote": "价格以美元为参考。当地价格以 App Store 为准。可在应用内一次性升级。",
     "closingTitle": "让下一次表达更清楚。"
+  },
+  "roadmap": {
+    "title": "路线图",
+    "subtitle": "三步，保持简单。",
+    "now": {
+      "title": "macOS 首发",
+      "desc": "先把核心捕获应用做好。"
+    },
+    "next": {
+      "title": "编辑器阶段",
+      "desc": "加入简单的后期编辑。"
+    },
+    "later": {
+      "title": "打磨",
+      "desc": "继续优化 macOS 工作流和导出质量。"
+    }
+  },
+  "nav": {
+    "recording": "录屏",
+    "why": "为何选择 VivyShot",
+    "support": "支持",
+    "menu": "菜单",
+    "language": "语言",
+    "skip": "跳转到内容"
   }
 }

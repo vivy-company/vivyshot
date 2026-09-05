@@ -182,13 +182,37 @@
     "support": ""
   },
   "home": {
-    "headline": "Aufnehmen. Markieren.\nWeitermachen.",
-    "intro": "Screenshots und Bildschirmaufnahmen, die zeigen, worauf es ankommt. Für deinen Mac entwickelt.",
+    "headline": "Aufnehmen.\nMarkieren.",
+    "intro": "Screenshots und Bildschirmaufnahmen für den Mac. Notizen hinzufügen, kopieren und teilen.",
     "requirements": "macOS 15.2+ · Kostenlos laden · Kein Abo",
     "workflow": "Alles, was du brauchst.\nGenau dort, wo du es brauchst.",
     "recordingTitle": "Manches zeigt man\nbesser in Bewegung.",
     "recordingBody": "Nimm einen Fehler, eine Anleitung oder eine kurze Erklärung auf. Bildschirmaufnahmen mit Systemaudio sind kostenlos. Mit Lifetime kannst du Mikrofon, Webcam und Tastenanzeigen in den Export aufnehmen.",
     "pricingNote": "Referenzpreise in USD. Lokale Preise stehen im App Store. Einmalige Upgrades sind in der App erhältlich.",
     "closingTitle": "Mach deine nächste Erklärung klar."
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "subtitle": "Drei Schritte, bewusst einfach gehalten.",
+    "now": {
+      "title": "macOS-Start",
+      "desc": "Zuerst die Kern-App für Capture veröffentlichen."
+    },
+    "next": {
+      "title": "Editor-Ausbau",
+      "desc": "Einfache Nachbearbeitung nach dem Capture ergänzen."
+    },
+    "later": {
+      "title": "Polish",
+      "desc": "Den macOS-Workflow und die Exportqualität weiter verfeinern."
+    }
+  },
+  "nav": {
+    "recording": "Aufnahme",
+    "why": "Warum VivyShot",
+    "support": "Support",
+    "menu": "Menü",
+    "language": "Sprache",
+    "skip": "Zum Inhalt springen"
   }
 }

@@ -182,13 +182,37 @@
     "support": ""
   },
   "home": {
-    "headline": "Capturez. Annotez.\nContinuez.",
-    "intro": "Des captures et des enregistrements d’écran pour montrer ce qui compte. Conçu pour votre Mac.",
+    "headline": "Capturez.\nAnnotez.",
+    "intro": "Captures et enregistrements d’écran pour Mac. Annotez, copiez et partagez.",
     "requirements": "macOS 15.2+ · Téléchargement gratuit · Sans abonnement",
     "workflow": "Tous les outils utiles.\nLà où il faut.",
     "recordingTitle": "Parfois, une vidéo\nexplique mieux.",
     "recordingBody": "Enregistrez un bug, un tutoriel ou une courte explication. L’enregistrement avec le son du système est gratuit. La version à vie permet d’exporter le microphone, la webcam et l’affichage des touches.",
     "pricingNote": "Prix indicatifs en USD. Les prix locaux figurent dans l’App Store. Les achats uniques sont disponibles dans l’app.",
     "closingTitle": "Votre prochaine explication, plus claire."
+  },
+  "roadmap": {
+    "title": "Feuille de route",
+    "subtitle": "Trois étapes, volontairement simples.",
+    "now": {
+      "title": "Lancement macOS",
+      "desc": "Sortir d’abord l’app de capture principale."
+    },
+    "next": {
+      "title": "Passage éditeur",
+      "desc": "Ajouter une édition simple après capture."
+    },
+    "later": {
+      "title": "Finition",
+      "desc": "Affiner le workflow macOS et la qualité d’export."
+    }
+  },
+  "nav": {
+    "recording": "Enregistrement",
+    "why": "Pourquoi VivyShot",
+    "support": "Assistance",
+    "menu": "Menu",
+    "language": "Langue",
+    "skip": "Aller au contenu"
   }
 }

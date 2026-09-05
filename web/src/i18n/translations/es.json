@@ -182,13 +182,37 @@
     "support": ""
   },
   "home": {
-    "headline": "Captura. Anota.\nSigue adelante.",
-    "intro": "Capturas y grabaciones de pantalla para mostrar lo que importa. Diseñado para tu Mac.",
+    "headline": "Captura.\nAnota.",
+    "intro": "Capturas y grabaciones de pantalla para Mac. Añade notas, copia y comparte.",
     "requirements": "macOS 15.2+ · Descarga gratuita · Sin suscripción",
     "workflow": "Todo lo que necesitas.\nJusto donde lo necesitas.",
     "recordingTitle": "Hay cosas que se\nexplican mejor en vídeo.",
     "recordingBody": "Graba un error, un tutorial o una explicación breve. La grabación con audio del sistema es gratuita. La versión de por vida permite exportar el micrófono, la cámara y las teclas pulsadas.",
     "pricingNote": "Precios de referencia en USD. Consulta los precios locales en el App Store. Las mejoras de pago único están disponibles en la app.",
     "closingTitle": "Explica tu próxima idea con claridad."
+  },
+  "roadmap": {
+    "title": "Hoja de ruta",
+    "subtitle": "Tres pasos, manteniéndolo simple.",
+    "now": {
+      "title": "Lanzamiento en macOS",
+      "desc": "Primero lanzar la app principal de captura."
+    },
+    "next": {
+      "title": "Mejora del editor",
+      "desc": "Añadir edición sencilla después de capturar."
+    },
+    "later": {
+      "title": "Pulido",
+      "desc": "Refinar el flujo de macOS y la calidad de exportación."
+    }
+  },
+  "nav": {
+    "recording": "Grabación",
+    "why": "Por qué VivyShot",
+    "support": "Soporte",
+    "menu": "Menú",
+    "language": "Idioma",
+    "skip": "Ir al contenido"
   }
 }

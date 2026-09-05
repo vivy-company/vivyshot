@@ -1,0 +1,20 @@
+---
+import HomePage from "./HomePage.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { SITE, translations, softwareSchema, websiteSchema } from "../lib/site";
+import { getLanguage, homePath } from "../i18n/utils";
+const language = getLanguage(Astro.url);
+const t = translations[language];
+const url = new URL(homePath(language), SITE.siteUrl).toString();
+---
+<BaseLayout
+  title={`VivyShot — ${t.footer.tagline}`}
+  description={t.home.intro}
+  canonicalPath={homePath(language)}
+  structuredData={[
+    { ...softwareSchema, description: t.home.intro, url, features: Object.values(t.features).filter(value => typeof value === "object").map(value => value.title) },
+    { ...websiteSchema, "@graph": websiteSchema["@graph"].map(item => item["@type"] === "WebSite" ? { ...item, url, inLanguage: language } : item) },
+  ]}
+>
+  <HomePage />
+</BaseLayout>

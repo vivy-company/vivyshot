@@ -19,22 +19,21 @@ export const SITE = {
     "VivyShot is an open source screenshot, annotation, and recording app built to stay simple, fast, and native on macOS.",
   downloadUrl: "https://apps.apple.com/us/app/id6760658121",
   githubUrl: "https://github.com/vivy-company/vivyshot",
-  languageStorageKey: "vivyshot-language",
 };
 
 export const translations = { en, zh, ja, ko, de, fr, es, ru, be, uk } as const;
 
 export const languageOptions = [
-  { code: "en", label: "English", htmlLang: "en" },
-  { code: "zh", label: "中文", htmlLang: "zh-CN" },
-  { code: "ja", label: "日本語", htmlLang: "ja" },
-  { code: "ko", label: "한국어", htmlLang: "ko" },
-  { code: "de", label: "Deutsch", htmlLang: "de" },
-  { code: "fr", label: "Français", htmlLang: "fr" },
-  { code: "es", label: "Español", htmlLang: "es" },
-  { code: "ru", label: "Русский", htmlLang: "ru" },
-  { code: "be", label: "Беларуская", htmlLang: "be" },
-  { code: "uk", label: "Українська", htmlLang: "uk" },
+  { code: "en", label: "English", htmlLang: "en", ogLocale: "en_US" },
+  { code: "zh", label: "中文", htmlLang: "zh-CN", ogLocale: "zh_CN" },
+  { code: "ja", label: "日本語", htmlLang: "ja", ogLocale: "ja_JP" },
+  { code: "ko", label: "한국어", htmlLang: "ko", ogLocale: "ko_KR" },
+  { code: "de", label: "Deutsch", htmlLang: "de", ogLocale: "de_DE" },
+  { code: "fr", label: "Français", htmlLang: "fr", ogLocale: "fr_FR" },
+  { code: "es", label: "Español", htmlLang: "es", ogLocale: "es_ES" },
+  { code: "ru", label: "Русский", htmlLang: "ru", ogLocale: "ru_RU" },
+  { code: "be", label: "Беларуская", htmlLang: "be", ogLocale: "be_BY" },
+  { code: "uk", label: "Українська", htmlLang: "uk", ogLocale: "uk_UA" },
 ] as const;
 
 export const softwareSchema = {

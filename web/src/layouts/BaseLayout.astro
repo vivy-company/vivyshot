@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
-import { SITE } from "../lib/site";
+import { SITE, translations, languageOptions } from "../lib/site";
+import { getLanguage, homePath } from "../i18n/utils";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 
@@ -9,7 +10,6 @@ interface Props {
   description?: string;
   canonicalPath?: string;
   ogType?: "website" | "article";
-  locale?: string;
   robots?: string;
   structuredData?: Array<Record<string, unknown>>;
 }
@@ -19,16 +19,19 @@ const {
   description = SITE.description,
   canonicalPath = "/",
   ogType = "website",
-  locale = "en_US",
   robots = "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
   structuredData = [],
 } = Astro.props;
 
+const language = getLanguage(Astro.url);
+const languageInfo = languageOptions.find(({ code }) => code === language)!;
+const isHome = Astro.url.pathname === homePath(language);
+const t = translations[language];
 const canonical = new URL(canonicalPath, SITE.siteUrl).toString();
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={languageInfo.htmlLang}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -40,10 +43,14 @@ const canonical = new URL(canonicalPath, SITE.siteUrl).toString();
     <meta name="robots" content={robots} />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="canonical" href={canonical} />
+    {isHome && <>
+      {languageOptions.map(({ code, htmlLang }) => <link rel="alternate" hreflang={htmlLang} href={new URL(homePath(code), SITE.siteUrl).toString()} />)}
+      <link rel="alternate" hreflang="x-default" href={`${SITE.siteUrl}/`} />
+    </>}
     <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:locale" content={locale} />
+    <meta property="og:locale" content={languageInfo.ogLocale} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={`${SITE.siteUrl}/og.png`} />
@@ -56,7 +63,7 @@ const canonical = new URL(canonicalPath, SITE.siteUrl).toString();
     {structuredData.map((schema) => <script type="application/ld+json" set:html={JSON.stringify(schema)} />)}
   </head>
   <body class="min-h-screen bg-black text-ink antialiased">
-    <a href="#main-content" class="skip-link btn-primary">Skip to content</a>
+    <a href="#main-content" class="skip-link btn-primary">{t.nav.skip}</a>
     <SiteHeader />
     <slot />
     <SiteFooter />

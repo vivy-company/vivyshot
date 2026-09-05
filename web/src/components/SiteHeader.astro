@@ -1,18 +1,41 @@
 ---
+import { Icon } from "astro-icon/components";
 import { SITE, translations } from "../lib/site";
-const t = translations.en;
+import { getLanguage, homePath } from "../i18n/utils";
+const t = translations[getLanguage(Astro.url)];
+const home = homePath(getLanguage(Astro.url));
+const links = [
+  { href: `${home}#features`, label: t.footer.navFeatures },
+  { href: `${home}#pricing`, label: t.footer.navPricing },
+  { href: SITE.githubUrl, label: "GitHub" },
+];
 ---
 <header class="sticky top-0 z-50 bg-[#1d1d1f]">
-  <nav class="mx-auto flex min-h-11 max-w-[1024px] items-center justify-between gap-3 px-4 text-[12px] sm:px-6" aria-label="Main navigation">
-    <a href="/" class="flex shrink-0 items-center gap-1.5" aria-label="VivyShot home">
+  <nav class="mx-auto flex min-h-11 max-w-[1024px] items-center justify-between gap-3 px-4 text-[12px] sm:px-6" aria-label={t.nav.menu}>
+    <a href={home} class="flex shrink-0 items-center gap-1.5" aria-label="VivyShot">
       <img src="/logo.png" alt="" width="26" height="26" class="size-[26px] rounded-md object-contain" />
       <span class="text-[13px] font-semibold tracking-tight text-ink">VivyShot</span>
     </a>
-    <div class="flex items-center gap-1">
-      <a class="hidden rounded-md px-3 py-1.5 text-ink/80 hover:text-ink sm:block" href="/#features" data-i18n="footer.navFeatures">{t.footer.navFeatures}</a>
-      <a class="rounded-md px-3 py-1.5 text-ink/80 hover:text-ink" href="/#pricing" data-i18n="footer.navPricing">{t.footer.navPricing}</a>
-      <a class="hidden rounded-md px-3 py-1.5 text-ink/80 hover:text-ink sm:block" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
+    <div class="hidden items-center sm:flex">
+      {links.map(({href, label}) => <a class="rounded-md px-3 py-1.5 text-ink/80 hover:text-ink" href={href}>{label}</a>)}
     </div>
-    <a class="rounded-full bg-accent-strong px-3.5 py-1 font-medium text-white transition hover:bg-accent-hover" href={SITE.appStoreUrl} data-i18n="hero.primaryCta">{t.hero.primaryCta}</a>
+    <div class="flex items-center gap-3">
+      <a class="inline-flex min-h-11 items-center rounded-full bg-accent-strong px-3.5 py-1 sm:min-h-0 font-medium text-white transition hover:bg-accent-hover" href={SITE.appStoreUrl}>{t.hero.primaryCta}</a>
+      <details class="group sm:hidden" data-mobile-menu>
+        <summary class="flex size-11 cursor-pointer list-none items-center justify-center text-ink/80 [&::-webkit-details-marker]:hidden">
+          <span class="sr-only">{t.nav.menu}</span><Icon name="lucide:menu" class="size-4 group-open:hidden" /><Icon name="lucide:x" class="hidden size-4 group-open:block" />
+        </summary>
+        <div class="absolute inset-x-0 top-full grid max-h-[calc(100dvh-44px)] gap-2 overflow-y-auto border-t border-line bg-surface-2 px-6 py-5">
+          {links.map(({href, label}) => <a class="py-2 text-base text-ink/80 hover:text-ink" href={href}>{label}</a>)}
+        </div>
+      </details>
+    </div>
   </nav>
 </header>
+<script>
+  const menu = document.querySelector<HTMLDetailsElement>("[data-mobile-menu]");
+  menu?.querySelectorAll("a").forEach(link => link.addEventListener("click", () => { menu.open = false; }));
+  menu?.addEventListener("keydown", event => {
+    if (event.key === "Escape") { menu.open = false; menu.querySelector("summary")?.focus(); }
+  });
+</script>

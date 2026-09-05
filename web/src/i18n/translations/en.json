@@ -182,13 +182,37 @@
     "support": ""
   },
   "home": {
-    "headline": "Capture. Mark up.\nMove on.",
-    "intro": "Screenshots and screen recordings, with the tools to make your point. Built for your Mac.",
+    "headline": "Capture.\nMark up.",
+    "intro": "Screenshots and screen recordings for Mac. Add your notes, copy, and share.",
     "requirements": "macOS 15.2+ · Free download · No subscription",
     "workflow": "Everything you need.\nRight where you need it.",
     "recordingTitle": "Some things are\nbetter in motion.",
     "recordingBody": "Record a bug, a walkthrough, or a quick explanation. Screen recording with system audio is free. Add microphone, webcam, and keystroke overlays to exports with Lifetime.",
     "pricingNote": "USD reference prices. Local prices appear in the App Store. One-time upgrades are available in the app.",
     "closingTitle": "Make your next point clear."
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "subtitle": "Three steps, kept simple.",
+    "now": {
+      "title": "macOS launch",
+      "desc": "Ship the core capture app first."
+    },
+    "next": {
+      "title": "Editor pass",
+      "desc": "Add simple post-capture editing."
+    },
+    "later": {
+      "title": "Polish",
+      "desc": "Refine the macOS workflow and export quality."
+    }
+  },
+  "nav": {
+    "recording": "Recording",
+    "why": "Why VivyShot",
+    "support": "Support",
+    "menu": "Menu",
+    "language": "Language",
+    "skip": "Skip to content"
   }
 }

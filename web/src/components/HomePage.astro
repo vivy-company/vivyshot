@@ -1,7 +1,8 @@
 ---
 import { Icon } from "astro-icon/components";
 import { SITE, translations } from "../lib/site";
-const t = translations.en;
+import { getLanguage } from "../i18n/utils";
+const t = translations[getLanguage(Astro.url)];
 const features = [
   { key: "rendering", icon: "lucide:camera" },
   { key: "connect", icon: "lucide:highlighter" },
@@ -20,28 +21,28 @@ const plans = [
 ] as const;
 ---
 <main id="main-content">
-  <section class="px-6 pt-20 sm:pt-32">
+  <section class="px-6 pt-12 sm:pt-32">
     <div class="mx-auto max-w-5xl">
-      <img src="/screenshot.png" alt="VivyShot screenshot selection and annotation toolbar on macOS" width="2238" height="1460" class="w-full rounded-[28px]" loading="eager" fetchpriority="high" />
+      <img src="/screenshot.png" alt={t.features.rendering.title} width="2238" height="1460" class="w-full rounded-[28px]" loading="eager" fetchpriority="high" />
     </div>
     <div class="mx-auto mt-6 max-w-4xl text-center">
-      <img src="/logo.png" alt="VivyShot app icon" width="64" height="64" class="mx-auto size-16 object-contain" />
+      <img src="/logo.png" alt="VivyShot" width="64" height="64" class="mx-auto size-16 object-contain" />
       <p class="mt-5 text-[21px] font-semibold tracking-tight text-ink">VivyShot</p>
-      <h1 class="mx-auto mt-4 max-w-[15ch] headline-hero" data-i18n="home.headline">{t.home.headline}</h1>
-      <p class="mx-auto mt-6 max-w-xl text-lg leading-snug text-muted sm:text-[1.3125rem]" data-i18n="home.intro">{t.home.intro}</p>
+      <h1 class="mx-auto mt-4 flex flex-wrap justify-center gap-x-[0.25em] headline-hero">{t.home.headline.split("\n").map(phrase => <span class="whitespace-nowrap">{phrase}</span>)}</h1>
+      <p class="mx-auto mt-6 max-w-xl text-lg leading-snug text-muted sm:text-[1.3125rem]">{t.home.intro}</p>
     </div>
   </section>
 
   <section class="section">
     <div class="container-wide">
-      <div class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#1f1f22] to-[#0e0e10] p-8 sm:p-12">
+      <div class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#1f1f22] to-[#0e0e10] p-6 sm:p-12">
         <div class="grid items-center gap-10 lg:grid-cols-2">
           <div>
-            <h2 class="text-3xl font-semibold tracking-[-0.02em] text-ink sm:text-4xl" data-i18n="hero.eyebrow">{t.hero.eyebrow}</h2>
-            <p class="mt-4 max-w-md text-base leading-relaxed text-muted" data-i18n="closing.subtitle">{t.closing.subtitle}</p>
+            <h2 class="text-3xl font-semibold tracking-[-0.02em] text-ink sm:text-4xl">{t.hero.eyebrow}</h2>
+            <p class="mt-4 max-w-md text-base leading-relaxed text-muted">{t.closing.subtitle}</p>
             <div class="mt-7 flex flex-wrap items-center gap-x-7 gap-y-4">
-              <a class="btn-primary" href={SITE.appStoreUrl} data-i18n="pricing.free.cta">{t.pricing.free.cta}</a>
-              <a class="link-arrow" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer"><span data-i18n="header.githubCta">{t.header.githubCta}</span><span aria-hidden="true">›</span></a>
+              <a class="btn-primary" href={SITE.appStoreUrl}>{t.pricing.free.cta}</a>
+              <a class="link-arrow" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer"><span>{t.header.githubCta}</span><span aria-hidden="true">›</span></a>
             </div>
           </div>
           <div class="grid grid-cols-4 gap-3 sm:gap-4" aria-hidden="true">
@@ -49,68 +50,82 @@ const plans = [
           </div>
         </div>
       </div>
-      <p class="mt-6 text-center text-sm text-faint" data-i18n="home.requirements">{t.home.requirements}</p>
+      <p class="mt-6 text-center text-sm text-faint">{t.home.requirements}</p>
     </div>
   </section>
 
-  <section class="px-6 pb-24 sm:pb-32" id="features">
+  <section class="pb-16 sm:px-6 sm:pb-32" id="features">
     <div class="container-wide">
-      <h2 class="headline" data-i18n="home.workflow">{t.home.workflow}</h2>
-      <div class="mt-14 grid gap-4 lg:grid-cols-2">
-        {features.map(({key, icon}) => <article class="card flex flex-col p-8 sm:p-10">
+      <h2 class="headline">{t.home.workflow}</h2>
+      <div class="mt-10 grid sm:mt-14 gap-4 lg:grid-cols-2">
+        {features.map(({key, icon}) => <article class="card flex flex-col p-6 sm:p-10">
           <Icon class="size-8 text-accent" name={icon} />
-          <h3 class="mt-5 text-2xl font-semibold tracking-[-0.02em] text-ink" data-i18n={`features.${key}.title`}>{t.features[key].title}</h3>
-          <p class="mt-3 text-base leading-relaxed text-muted" data-i18n-html={`features.${key}.desc`} set:html={t.features[key].desc} />
+          <h3 class="mt-5 text-2xl font-semibold tracking-[-0.02em] text-ink">{t.features[key].title}</h3>
+          <p class="mt-3 text-base leading-relaxed text-muted" set:html={t.features[key].desc} />
         </article>)}
       </div>
     </div>
   </section>
 
-  <section class="bg-[#09090b] section">
+  <section class="bg-[#09090b] section" id="recording">
     <div class="container-wide text-center">
-      <p class="eyebrow-accent" data-i18n="pricing.free.core.recording">{t.pricing.free.core.recording}</p>
-      <h2 class="mx-auto mt-3 max-w-[16ch] headline" data-i18n="home.recordingTitle">{t.home.recordingTitle}</h2>
-      <p class="mx-auto mt-6 max-w-2xl body-emph" data-i18n="home.recordingBody">{t.home.recordingBody}</p>
+      <p class="eyebrow-accent">{t.pricing.free.core.recording}</p>
+      <h2 class="mx-auto mt-3 max-w-[16ch] headline">{t.home.recordingTitle}</h2>
+      <p class="mx-auto mt-6 max-w-2xl body-emph">{t.home.recordingBody}</p>
     </div>
-    <div class="container-wide mt-16">
-      <img src="/capture.png" alt="VivyShot screen recording controls with area selection" width="2238" height="1460" class="w-full rounded-[28px]" loading="lazy" />
+    <div class="container-wide mt-10 sm:mt-16">
+      <img src="/capture.png" alt={t.features.pickup.title} width="2238" height="1460" class="w-full rounded-[28px]" loading="lazy" />
     </div>
   </section>
 
   <section class="section" id="why">
     <div class="container-wide grid gap-4 md:grid-cols-3">
-      {why.map(({key, icon}) => <article class="card flex flex-col p-8">
+      {why.map(({key, icon}) => <article class="card flex flex-col p-6 sm:p-8">
         <Icon class="size-8 text-ink" name={icon} />
-        <h3 class="mt-5 text-2xl font-semibold tracking-[-0.02em] text-ink" data-i18n={`why.${key}.title`}>{t.why[key].title}</h3>
-        <p class="mt-3 flex-1 text-base leading-relaxed text-muted" data-i18n={`why.${key}.desc`}>{t.why[key].desc}</p>
-        {key === "pricing" && <a class="mt-6 link-arrow" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer"><span data-i18n="header.githubCta">{t.header.githubCta}</span><span aria-hidden="true">›</span></a>}
+        <h3 class="mt-5 text-2xl font-semibold tracking-[-0.02em] text-ink">{t.why[key].title}</h3>
+        <p class="mt-3 flex-1 text-base leading-relaxed text-muted">{t.why[key].desc}</p>
+        {key === "pricing" && <a class="mt-6 link-arrow" href={SITE.githubUrl} target="_blank" rel="noopener noreferrer"><span>{t.header.githubCta}</span><span aria-hidden="true">›</span></a>}
       </article>)}
     </div>
   </section>
 
   <section class="section" id="pricing">
     <div class="container-wide text-center">
-      <h2 class="mx-auto max-w-[20ch] headline" data-i18n="pricing.title">{t.pricing.title}</h2>
-      <p class="mx-auto mt-6 max-w-2xl body-emph" data-i18n="pricing.subtitle">{t.pricing.subtitle}</p>
+      <h2 class="mx-auto max-w-[20ch] headline">{t.pricing.title}</h2>
+      <p class="mx-auto mt-6 max-w-2xl body-emph">{t.pricing.subtitle}</p>
     </div>
-    <div class="container-wide mt-16 grid gap-4 lg:grid-cols-3">
-      {plans.map(({key, price, cta, ctaKey, period}) => <article class:list={["flex flex-col rounded-3xl p-8 text-left", key === "lifetime" ? "border border-accent/40 bg-gradient-to-b from-accent/12 to-transparent" : "card"]}>
-        <h3 class="text-2xl font-semibold tracking-[-0.02em] text-ink" data-i18n={`pricing.${key}.name`}>{t.pricing[key].name}</h3>
-        <p class="mt-5 text-5xl font-semibold tracking-[-0.03em] text-ink" data-i18n={`pricing.${key}.${key === "pro" ? "monthly.price" : "price"}`}>{price}</p>
-        <p class="mt-2 min-h-5 text-base text-faint" data-i18n={key === "free" ? "pricing.free.period" : "pricing.pro.monthly.period"}>{period}</p>
-        <ul class="price-features" data-i18n-list={`pricing.${key}.highlights`}>{t.pricing[key].highlights.map(item => <li>{item}</li>)}</ul>
-        <a class={key === "lifetime" ? "btn-primary" : "btn-outline"} href={SITE.appStoreUrl} data-i18n={`pricing.${key}.${ctaKey}`}>{cta}</a>
+    <div class="container-wide mt-10 sm:mt-16 grid gap-4 lg:grid-cols-3">
+      {plans.map(({key, price, cta, period}) => <article class:list={["flex flex-col min-w-0 rounded-3xl p-6 text-left sm:p-8", key === "lifetime" ? "border border-accent/40 bg-gradient-to-b from-accent/12 to-transparent" : "card"]}>
+        <h3 class="text-2xl font-semibold tracking-[-0.02em] text-ink">{t.pricing[key].name}</h3>
+        <p class="mt-5 text-5xl font-semibold tracking-[-0.03em] text-ink">{price}</p>
+        <p class="mt-2 min-h-5 text-base text-faint">{period}</p>
+        <ul class="price-features">{t.pricing[key].highlights.map(item => <li>{item}</li>)}</ul>
+        <a class={key === "lifetime" ? "btn-primary" : "btn-outline"} href={SITE.appStoreUrl}>{cta}</a>
       </article>)}
     </div>
-    <p class="container-wide mt-6 text-center text-sm text-faint" data-i18n="home.pricingNote">{t.home.pricingNote}</p>
+    <p class="container-wide mt-6 text-center text-sm text-faint">{t.home.pricingNote}</p>
   </section>
 
-  <section class="px-6 py-24 text-center sm:py-32">
+  <section class="section" id="roadmap">
+    <div class="container-wide">
+      <h2 class="headline">{t.roadmap.title}</h2>
+      <p class="mt-6 body-emph">{t.roadmap.subtitle}</p>
+      <ol class="mt-10 grid sm:mt-14 gap-4 md:grid-cols-3">
+        {(["now", "next", "later"] as const).map((step, index) => <li class="card p-6 sm:p-8">
+          <p class="text-sm font-semibold text-accent">0{index + 1}</p>
+          <h3 class="mt-5 text-2xl font-semibold tracking-[-0.02em] text-ink">{t.roadmap[step].title}</h3>
+          <p class="mt-3 text-base leading-relaxed text-muted">{t.roadmap[step].desc}</p>
+        </li>)}
+      </ol>
+    </div>
+  </section>
+
+  <section class="px-6 py-16 text-center sm:py-32">
     <div class="mx-auto max-w-3xl">
       <img src="/logo.png" alt="" width="72" height="72" class="mx-auto size-18 object-contain" loading="lazy" />
-      <h2 class="mt-7 headline" data-i18n="home.closingTitle">{t.home.closingTitle}</h2>
-      <p class="mx-auto mt-5 max-w-xl subhead" data-i18n="closing.subtitle">{t.closing.subtitle}</p>
-      <a class="btn-primary mt-9" href={SITE.appStoreUrl} data-i18n="closing.cta">{t.closing.cta}</a>
+      <h2 class="mt-7 headline">{t.home.closingTitle}</h2>
+      <p class="mx-auto mt-5 max-w-xl subhead">{t.closing.subtitle}</p>
+      <a class="btn-primary mt-9" href={SITE.appStoreUrl}>{t.closing.cta}</a>
     </div>
   </section>
 </main>
